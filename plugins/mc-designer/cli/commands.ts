@@ -224,6 +224,18 @@ export function registerDesignerCommands(ctx: Ctx): void {
       console.log(`Canvas "${name}" deleted`);
     });
 
+  canvas
+    .command("clear <name>")
+    .description("Remove all layers from a canvas, keeping the canvas itself")
+    .action((name: string) => {
+      const c = store.loadCanvas(name);
+      if (!c) { console.error(`Canvas "${name}" not found`); process.exit(1); }
+      const count = c.layers.length;
+      c.layers = [];
+      store.saveCanvas(c);
+      console.log(`Canvas "${name}" cleared (${count} layers removed)`);
+    });
+
   // ---- designer layer ----
   const layer = designer.command("layer").description("Layer management");
 
@@ -346,6 +358,18 @@ export function registerDesignerCommands(ctx: Ctx): void {
       l.blendMode = mode as Layer["blendMode"];
       store.saveCanvas(c);
       console.log(`Layer "${layerName}" blend mode set to "${mode}"`);
+    });
+
+  layer
+    .command("clear <canvas>")
+    .description("Remove all layers from a canvas")
+    .action((canvasName: string) => {
+      const c = store.loadCanvas(canvasName);
+      if (!c) { console.error(`Canvas "${canvasName}" not found`); process.exit(1); }
+      const count = c.layers.length;
+      c.layers = [];
+      store.saveCanvas(c);
+      console.log(`All ${count} layers removed from "${canvasName}"`);
     });
 
   // ---- designer composite ----
