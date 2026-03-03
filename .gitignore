@@ -1,0 +1,16 @@
+# End-user data — created and owned by the end user, never committed
+user/
+
+# Node dependencies
+node_modules/
+**/node_modules/
+
+# Build output
+dist/
+*.js.map
+
+# Age-encrypted secrets (committed separately if needed, never plaintext)
+*.age
+
+# OS noise
+.DS_Store

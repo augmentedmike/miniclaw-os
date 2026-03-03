@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# miniclaw — MiniClaw CLI
+# Thin wrapper around the openclaw binary. MiniClaw is our product; openclaw is the runtime.
+exec openclaw "$@"

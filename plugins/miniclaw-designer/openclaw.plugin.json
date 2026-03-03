@@ -1,0 +1,17 @@
+{
+  "id": "miniclaw-designer",
+  "name": "Miniclaw Designer",
+  "description": "Visual creation studio — the agent's occipital lobe. Layered image generation, compositing, and transparency via Gemini.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "apiKey":         { "type": "string" },
+      "model":          { "type": "string" },
+      "mediaDir":       { "type": "string" },
+      "defaultWidth":   { "type": "number" },
+      "defaultHeight":  { "type": "number" }
+    },
+    "required": ["apiKey"]
+  }
+}

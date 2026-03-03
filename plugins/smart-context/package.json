@@ -1,0 +1,11 @@
+{
+  "name": "miniclaw-smart-context",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "index.ts",
+  "description": "Engineered context windows for miniclaw channel sessions",
+  "dependencies": {},
+  "devDependencies": {
+    "openclaw": "*"
+  }
+}

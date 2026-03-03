@@ -1,0 +1,142 @@
+#!/usr/bin/env bash
+# miniclaw-smoke-test — confirm MiniClaw systems and tools are present and functional
+set -euo pipefail
+
+PASS=0
+FAIL=0
+WARN=0
+
+pass() { echo "  ✓  $1"; PASS=$(( PASS + 1 )); }
+fail() { echo "  ✗  $1  →  $2"; FAIL=$(( FAIL + 1 )); }
+warn() { echo "  ⚠  $1  →  $2"; WARN=$(( WARN + 1 )); }
+section() { echo ""; echo "── $1"; }
+
+# ── openclaw-vault ────────────────────────────────────────────────────────────
+section "openclaw-vault"
+
+if command -v openclaw-vault &>/dev/null; then
+  pass "on PATH ($(command -v openclaw-vault))"
+else
+  fail "not found" "ln -sf ~/.openclaw/miniclaw/system/bin/openclaw-vault ~/.local/bin/openclaw-vault"
+fi
+
+if [[ -f "${HOME}/.openclaw/miniclaw/system/vault/key.txt" ]]; then
+  pass "vault initialized (key.txt present)"
+else
+  fail "vault not initialized" "run: openclaw-vault init"
+fi
+
+# functional: encrypt and decrypt a test value
+TEST_VAL="smoke-test-$$"
+if openclaw-vault set _smoke_test "$TEST_VAL" &>/dev/null 2>&1 && \
+   openclaw-vault export _smoke_test 2>/dev/null | grep -q "$TEST_VAL"; then
+  pass "encrypt/decrypt roundtrip ok"
+  openclaw-vault rm _smoke_test &>/dev/null 2>&1 || true
+else
+  fail "encrypt/decrypt failed" "check age binaries and vault key"
+  openclaw-vault rm _smoke_test &>/dev/null 2>&1 || true
+fi
+
+# ── age ───────────────────────────────────────────────────────────────────────
+section "age"
+
+for bin in /opt/homebrew/bin/age /opt/homebrew/bin/age-keygen; do
+  if [[ -x "$bin" ]]; then
+    pass "$bin"
+  else
+    fail "$bin" "brew install age"
+  fi
+done
+
+# ── qmd ───────────────────────────────────────────────────────────────────────
+section "qmd"
+
+if command -v qmd &>/dev/null; then
+  pass "on PATH ($(command -v qmd))"
+else
+  fail "not found" "check install"
+fi
+
+for col in miniclaw-memory workspace; do
+  if qmd collection list 2>/dev/null | grep -q "^${col}"; then
+    files=$(qmd collection list 2>/dev/null | grep -A3 "^${col}" | grep "Files:" | awk '{print $2}')
+    if [[ "${files:-0}" -gt 0 ]]; then
+      pass "collection '$col' ($files files)"
+    else
+      warn "collection '$col'" "0 files — run: qmd update"
+    fi
+  else
+    fail "collection '$col' missing" "run: qmd collection add $col <path>"
+  fi
+done
+
+if qmd search "identity" -n 1 &>/dev/null 2>&1; then
+  pass "search functional"
+else
+  warn "search returned no results" "run: qmd update && qmd embed"
+fi
+
+# ── oc-soul ───────────────────────────────────────────────────────────────────
+section "oc-soul"
+
+if command -v oc-soul &>/dev/null; then
+  pass "on PATH"
+else
+  fail "not found" "check ~/.local/bin/"
+fi
+
+SNAPSHOTS_DIR="${HOME}/.openclaw/soul-backups"
+if [[ -d "$SNAPSHOTS_DIR" ]]; then
+  count=$(ls "$SNAPSHOTS_DIR" 2>/dev/null | wc -l | tr -d ' ')
+  pass "soul-backups present ($count snapshots)"
+else
+  fail "soul-backups dir missing" "$SNAPSHOTS_DIR"
+fi
+
+# ── inbox ─────────────────────────────────────────────────────────────────────
+section "inbox"
+
+INBOX_CMD="${HOME}/.claude-inbox/msg"
+if [[ -x "$INBOX_CMD" ]]; then
+  pass "CLI present and executable"
+else
+  fail "CLI missing or not executable" "$INBOX_CMD"
+fi
+
+if "$INBOX_CMD" check &>/dev/null 2>&1; then
+  pass "check command functional"
+else
+  warn "check returned non-zero" "may be empty or key issue"
+fi
+
+# ── openclaw git repo ─────────────────────────────────────────────────────────
+section "~/.openclaw git repo"
+
+OPENCLAW_DIR="${HOME}/.openclaw"
+if git -C "$OPENCLAW_DIR" rev-parse --git-dir &>/dev/null 2>&1; then
+  tag=$(git -C "$OPENCLAW_DIR" describe --tags --abbrev=0 2>/dev/null || echo "no tags")
+  commit=$(git -C "$OPENCLAW_DIR" rev-parse --short HEAD 2>/dev/null)
+  pass "repo ok (HEAD: $commit, tag: $tag)"
+else
+  fail "not a git repo" "run: git -C ~/.openclaw init"
+fi
+
+# ── runtime ───────────────────────────────────────────────────────────────────
+section "runtime"
+
+for tool in bun node uv; do
+  if command -v "$tool" &>/dev/null; then
+    ver=$("$tool" --version 2>/dev/null | head -1)
+    pass "$tool ($ver)"
+  else
+    fail "$tool not found" "required for agent workflows"
+  fi
+done
+
+# ── summary ───────────────────────────────────────────────────────────────────
+echo ""
+echo "────────────────────────────────────────"
+echo "  ${PASS} passed  ${WARN} warned  ${FAIL} failed"
+echo "────────────────────────────────────────"
+
+[[ $FAIL -eq 0 ]]

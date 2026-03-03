@@ -1,0 +1,15 @@
+{
+  "id": "miniclaw-board",
+  "name": "Miniclaw Board",
+  "description": "State-machine-backed kanban board as the agent's internal planning mechanism — the prefrontal cortex.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "cardsDir":       { "type": "string" },
+      "qmdBin":         { "type": "string" },
+      "qmdCollection":  { "type": "string" },
+      "webPort":        { "type": "number" }
+    }
+  }
+}
