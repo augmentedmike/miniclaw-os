@@ -98,7 +98,7 @@ Re-run the `openclaw config set` command.
 Either wait until tomorrow or upgrade to a paid plan in AI Studio.
 
 **"Gemini returned no image data"** — The model may have refused the prompt
-(e.g. policy violation) or the `gemini-2.0-flash-exp` model may have been deprecated.
+(e.g. policy violation) or the `gemini-3.1-flash-image-preview` model may have been deprecated.
 Check `openclaw config get plugins.entries.mc-designer.config.model`
 and update the model name if needed.
 

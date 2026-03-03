@@ -17,7 +17,7 @@ export interface DesignerConfig {
 export function resolveConfig(raw: Record<string, unknown>): DesignerConfig {
   const r = raw as Partial<DesignerConfig>;
   const apiKey = r.apiKey ?? "";
-  const model = r.model ?? "gemini-2.0-flash-exp";
+  const model = r.model ?? "gemini-3.1-flash-image-preview";
   const mediaDir = resolvePath(r.mediaDir ?? "~/.openclaw/media/designer");
 
   return {

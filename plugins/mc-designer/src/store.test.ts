@@ -17,7 +17,7 @@ let store: DesignerStore;
 function makeCfg(base: string): DesignerConfig {
   return {
     apiKey: "test-key",
-    model: "gemini-2.0-flash-exp",
+    model: "gemini-3.1-flash-image-preview",
     mediaDir: base,
     defaultWidth: 1024,
     defaultHeight: 1024,
@@ -48,7 +48,7 @@ function makeUsageRecord(overrides: Partial<UsageRecord> = {}): UsageRecord {
   return {
     ts: new Date().toISOString(),
     op: "generate",
-    model: "gemini-2.0-flash-exp",
+    model: "gemini-3.1-flash-image-preview",
     prompt: "a test prompt",
     inputTokens: 100,
     outputTokens: 200,

@@ -109,7 +109,7 @@ mc-designer/
   "enabled": true,
   "config": {
     "apiKey": "<your-gemini-api-key>",
-    "model": "gemini-2.0-flash-exp",
+    "model": "gemini-3.1-flash-image-preview",
     "mediaDir": "~/.openclaw/media/designer",
     "defaultWidth": 1024,
     "defaultHeight": 1024
@@ -119,7 +119,7 @@ mc-designer/
 
 ## Gemini Model Notes
 
-The image generation model in use is configured via `model` (default: `gemini-2.0-flash-exp`).
+The image generation model in use is configured via `model` (default: `gemini-3.1-flash-image-preview`).
 This is what the team refers to as **"Gemini nano banana v2"** — the Gemini 2.0 Flash
 experimental model with `responseModalities: ["IMAGE"]` enabled.
 

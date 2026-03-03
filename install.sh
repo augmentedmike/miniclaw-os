@@ -237,7 +237,7 @@ plugin_defaults = {
     },
     "mc-designer": {
         "enabled": True,
-        "config": { "apiKey": "", "model": "gemini-2.0-flash-exp", "mediaDir": "~/.openclaw/media/designer", "defaultWidth": 1024, "defaultHeight": 1024, "vaultBin": "~/.local/bin/mc-vault" },
+        "config": { "apiKey": "", "model": "gemini-3.1-flash-image-preview", "mediaDir": "~/.openclaw/media/designer", "defaultWidth": 1024, "defaultHeight": 1024, "vaultBin": "~/.local/bin/mc-vault" },
     },
     "mc-trust": {
         "enabled": True,
