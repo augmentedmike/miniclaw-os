@@ -6,6 +6,16 @@ A collection of plugins and CLI tools that extend OpenClaw into a full personal 
 
 ---
 
+## Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/augmentedmike/miniclaw-os/main/bootstrap.sh | bash
+```
+
+That's it. Installs everything: Homebrew, Node.js, OpenClaw, all miniclaw plugins and CLI tools.
+
+---
+
 ## The Brain Map
 
 | Plugin | Brain Region | What it does |
