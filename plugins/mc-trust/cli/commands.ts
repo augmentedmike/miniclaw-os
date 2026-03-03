@@ -37,7 +37,7 @@ export function registerTrustCommands(ctx: TrustCliContext): void {
   const { program, agentId, trustDir, vaultBin, sessionTtlMs } = ctx;
 
   const trust = program
-    .command("trust")
+    .command("mc-trust")
     .description("Agent identity and mutual authentication (Ed25519)");
 
   // ---- trust init ----

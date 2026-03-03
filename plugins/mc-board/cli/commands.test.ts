@@ -87,7 +87,7 @@ function allErr(): string {
 // ---- Helpers ----
 
 async function createCard(title: string, priority = "medium"): Promise<Card> {
-  await run("brain", "create", "--title", title, "--priority", priority);
+  await run("mc-board", "create", "--title", title, "--priority", priority);
   const cards = store.list();
   return cards.find(c => c.title === title)!;
 }
@@ -99,10 +99,10 @@ async function fullCycleCard(title: string): Promise<Card> {
     implementation_plan: "Plan",
     acceptance_criteria: "- [x] done",
   });
-  await run("brain", "move", card.id, "in-progress");
-  await run("brain", "move", card.id, "in-review");
+  await run("mc-board", "move", card.id, "in-progress");
+  await run("mc-board", "move", card.id, "in-review");
   store.update(card.id, { review_notes: "LGTM" });
-  await run("brain", "move", card.id, "shipped");
+  await run("mc-board", "move", card.id, "shipped");
   return store.findById(card.id);
 }
 
@@ -110,7 +110,7 @@ async function fullCycleCard(title: string): Promise<Card> {
 
 describe("brain create", () => {
   it("creates a card in backlog", async () => {
-    await run("brain", "create", "--title", "My task");
+    await run("mc-board", "create", "--title", "My task");
     const cards = store.list("backlog");
     expect(cards).toHaveLength(1);
     expect(cards[0].title).toBe("My task");
@@ -119,25 +119,25 @@ describe("brain create", () => {
   });
 
   it("creates with high priority", async () => {
-    await run("brain", "create", "--title", "Urgent", "--priority", "high");
+    await run("mc-board", "create", "--title", "Urgent", "--priority", "high");
     const cards = store.list("backlog");
     expect(cards[0].priority).toBe("high");
   });
 
   it("creates with tags", async () => {
-    await run("brain", "create", "--title", "Tagged", "--tags", "miniclaw,build");
+    await run("mc-board", "create", "--title", "Tagged", "--tags", "miniclaw,build");
     const cards = store.list("backlog");
     expect(cards[0].tags).toEqual(["miniclaw", "build"]);
   });
 
   it("rejects invalid priority", async () => {
-    await expect(run("brain", "create", "--title", "x", "--priority", "ultra")).rejects.toThrow();
+    await expect(run("mc-board", "create", "--title", "x", "--priority", "ultra")).rejects.toThrow();
     expect(allErr()).toMatch(/Invalid priority/);
     expect(store.list()).toHaveLength(0);
   });
 
   it("requires --title", async () => {
-    await expect(run("brain", "create")).rejects.toThrow();
+    await expect(run("mc-board", "create")).rejects.toThrow();
     expect(store.list()).toHaveLength(0);
   });
 });
@@ -149,7 +149,7 @@ describe("brain list", () => {
     await createCard("Card A");
     await createCard("Card B");
     stdoutSpy.mockClear();
-    await run("brain", "list");
+    await run("mc-board", "list");
     const out = allOut();
     expect(out).toContain("Card A");
     expect(out).toContain("Card B");
@@ -158,24 +158,24 @@ describe("brain list", () => {
   it("filters by column", async () => {
     await createCard("Backlog card");
     stdoutSpy.mockClear();
-    await run("brain", "list", "--column", "in-progress");
+    await run("mc-board", "list", "--column", "in-progress");
     expect(lastOut()).toBe("No cards.");
   });
 
   it("shows No cards when empty", async () => {
-    await run("brain", "list");
+    await run("mc-board", "list");
     expect(lastOut()).toBe("No cards.");
   });
 
   it("rejects invalid column", async () => {
-    await expect(run("brain", "list", "--column", "done")).rejects.toThrow();
+    await expect(run("mc-board", "list", "--column", "done")).rejects.toThrow();
     expect(allErr()).toMatch(/Invalid column/);
   });
 
   it("shows tags in listing", async () => {
-    await run("brain", "create", "--title", "Tagged", "--tags", "foo,bar");
+    await run("mc-board", "create", "--title", "Tagged", "--tags", "foo,bar");
     stdoutSpy.mockClear();
-    await run("brain", "list");
+    await run("mc-board", "list");
     expect(lastOut()).toContain("[foo, bar]");
   });
 });
@@ -186,7 +186,7 @@ describe("brain show", () => {
   it("shows card detail", async () => {
     const card = await createCard("Show me");
     stdoutSpy.mockClear();
-    await run("brain", "show", card.id);
+    await run("mc-board", "show", card.id);
     const out = allOut();
     expect(out).toContain("Show me");
     expect(out).toContain("Problem Description");
@@ -194,7 +194,7 @@ describe("brain show", () => {
   });
 
   it("errors on unknown id", async () => {
-    await expect(run("brain", "show", "crd_nope")).rejects.toThrow();
+    await expect(run("mc-board", "show", "crd_nope")).rejects.toThrow();
     expect(allErr()).toMatch(/not found/i);
   });
 });
@@ -204,7 +204,7 @@ describe("brain show", () => {
 describe("brain update", () => {
   it("updates title", async () => {
     const card = await createCard("Old title");
-    await run("brain", "update", card.id, "--title", "New title");
+    await run("mc-board", "update", card.id, "--title", "New title");
     const updated = store.findById(card.id);
     expect(updated.title).toBe("New title");
   });
@@ -212,7 +212,7 @@ describe("brain update", () => {
   it("updates problem, plan, criteria", async () => {
     const card = await createCard("Work card");
     await run(
-      "brain", "update", card.id,
+      "mc-board", "update", card.id,
       "--problem", "The bug",
       "--plan", "The fix",
       "--criteria", "- [ ] step one",
@@ -225,7 +225,7 @@ describe("brain update", () => {
 
   it("updates notes and review", async () => {
     const card = await createCard("Review card");
-    await run("brain", "update", card.id, "--notes", "Done", "--review", "LGTM");
+    await run("mc-board", "update", card.id, "--notes", "Done", "--review", "LGTM");
     const updated = store.findById(card.id);
     expect(updated.notes).toBe("Done");
     expect(updated.review_notes).toBe("LGTM");
@@ -233,18 +233,18 @@ describe("brain update", () => {
 
   it("errors when no fields provided", async () => {
     const card = await createCard("No-op");
-    await expect(run("brain", "update", card.id)).rejects.toThrow();
+    await expect(run("mc-board", "update", card.id)).rejects.toThrow();
     expect(allErr()).toMatch(/No fields to update/);
   });
 
   it("errors on invalid priority", async () => {
     const card = await createCard("Pri card");
-    await expect(run("brain", "update", card.id, "--priority", "urgent")).rejects.toThrow();
+    await expect(run("mc-board", "update", card.id, "--priority", "urgent")).rejects.toThrow();
     expect(allErr()).toMatch(/Invalid priority/);
   });
 
   it("errors on unknown card id", async () => {
-    await expect(run("brain", "update", "crd_ghost", "--title", "x")).rejects.toThrow();
+    await expect(run("mc-board", "update", "crd_ghost", "--title", "x")).rejects.toThrow();
     expect(allErr()).toMatch(/not found/i);
   });
 });
@@ -259,20 +259,20 @@ describe("brain move", () => {
       implementation_plan: "Plan",
       acceptance_criteria: "- [ ] step",
     });
-    await run("brain", "move", card.id, "in-progress");
+    await run("mc-board", "move", card.id, "in-progress");
     expect(store.findById(card.id).column).toBe("in-progress");
     expect(lastOut()).toMatch(/in-progress/);
   });
 
   it("blocks move when gate fields missing", async () => {
     const card = await createCard("Not ready");
-    await expect(run("brain", "move", card.id, "in-progress")).rejects.toThrow();
+    await expect(run("mc-board", "move", card.id, "in-progress")).rejects.toThrow();
     expect(store.findById(card.id).column).toBe("backlog");
   });
 
   it("blocks skipping columns", async () => {
     const card = await createCard("Skip attempt");
-    await expect(run("brain", "move", card.id, "in-review")).rejects.toThrow();
+    await expect(run("mc-board", "move", card.id, "in-review")).rejects.toThrow();
     expect(allErr()).toMatch(/sequentially/);
   });
 
@@ -283,8 +283,8 @@ describe("brain move", () => {
       implementation_plan: "P",
       acceptance_criteria: "- [ ] x",
     });
-    await run("brain", "move", card.id, "in-progress");
-    await expect(run("brain", "move", card.id, "backlog")).rejects.toThrow();
+    await run("mc-board", "move", card.id, "in-progress");
+    await expect(run("mc-board", "move", card.id, "backlog")).rejects.toThrow();
   });
 
   it("moves in-progress → in-review when criteria checked", async () => {
@@ -294,8 +294,8 @@ describe("brain move", () => {
       implementation_plan: "P",
       acceptance_criteria: "- [x] done",
     });
-    await run("brain", "move", card.id, "in-progress");
-    await run("brain", "move", card.id, "in-review");
+    await run("mc-board", "move", card.id, "in-progress");
+    await run("mc-board", "move", card.id, "in-review");
     expect(store.findById(card.id).column).toBe("in-review");
   });
 
@@ -306,9 +306,9 @@ describe("brain move", () => {
       implementation_plan: "P",
       acceptance_criteria: "- [x] done",
     });
-    await run("brain", "move", card.id, "in-progress");
-    await run("brain", "move", card.id, "in-review");
-    await expect(run("brain", "move", card.id, "shipped")).rejects.toThrow();
+    await run("mc-board", "move", card.id, "in-progress");
+    await run("mc-board", "move", card.id, "in-review");
+    await expect(run("mc-board", "move", card.id, "shipped")).rejects.toThrow();
     expect(store.findById(card.id).column).toBe("in-review");
   });
 
@@ -319,13 +319,13 @@ describe("brain move", () => {
 
   it("--force bypasses gate checks", async () => {
     const card = await createCard("Force move");
-    await run("brain", "move", card.id, "in-progress", "--force");
+    await run("mc-board", "move", card.id, "in-progress", "--force");
     expect(store.findById(card.id).column).toBe("in-progress");
   });
 
   it("errors on invalid column", async () => {
     const card = await createCard("Bad col");
-    await expect(run("brain", "move", card.id, "done")).rejects.toThrow();
+    await expect(run("mc-board", "move", card.id, "done")).rejects.toThrow();
     expect(allErr()).toMatch(/Invalid column/);
   });
 
@@ -336,7 +336,7 @@ describe("brain move", () => {
       implementation_plan: "P",
       acceptance_criteria: "- [x] done",
     });
-    await run("brain", "move", card.id, "in-progress");
+    await run("mc-board", "move", card.id, "in-progress");
     const updated = store.findById(card.id);
     expect(updated.history).toHaveLength(2);
     expect(updated.history[1].column).toBe("in-progress");
@@ -347,7 +347,7 @@ describe("brain move", () => {
 
 describe("brain board", () => {
   it("shows empty board message", async () => {
-    await run("brain", "board");
+    await run("mc-board", "board");
     expect(lastOut()).toMatch(/no cards/i);
   });
 
@@ -355,7 +355,7 @@ describe("brain board", () => {
     await createCard("Card A");
     await createCard("Card B", "high");
     stdoutSpy.mockClear();
-    await run("brain", "board");
+    await run("mc-board", "board");
     const out = allOut();
     expect(out).toContain("BACKLOG");
     expect(out).toContain("Card A");
@@ -367,7 +367,7 @@ describe("brain board", () => {
 
 describe("brain next", () => {
   it("returns nothing when board is empty", async () => {
-    await run("brain", "next");
+    await run("mc-board", "next");
     expect(lastOut()).toMatch(/no actionable/i);
   });
 
@@ -379,9 +379,9 @@ describe("brain next", () => {
       implementation_plan: "P",
       acceptance_criteria: "- [ ] x",
     });
-    await run("brain", "move", inProgress.id, "in-progress");
+    await run("mc-board", "move", inProgress.id, "in-progress");
     stdoutSpy.mockClear();
-    await run("brain", "next");
+    await run("mc-board", "next");
     expect(allOut()).toContain("Active card");
   });
 
@@ -389,14 +389,14 @@ describe("brain next", () => {
     await createCard("Medium card", "medium");
     await createCard("High card", "high");
     stdoutSpy.mockClear();
-    await run("brain", "next");
+    await run("mc-board", "next");
     expect(lastOut()).toContain("High card");
   });
 
   it("ignores shipped cards", async () => {
     await fullCycleCard("Shipped card");
     stdoutSpy.mockClear();
-    await run("brain", "next");
+    await run("mc-board", "next");
     expect(lastOut()).toMatch(/no actionable/i);
   });
 });
@@ -408,7 +408,7 @@ describe("brain archive", () => {
     const card = await fullCycleCard("Done card");
     expect(store.findById(card.id).column).toBe("shipped");
 
-    await run("brain", "archive", card.id);
+    await run("mc-board", "archive", card.id);
 
     expect(lastOut()).toMatch(/Archived/);
     expect(() => store.findById(card.id)).toThrow();
@@ -416,14 +416,14 @@ describe("brain archive", () => {
 
   it("rejects archiving a non-shipped card", async () => {
     const card = await createCard("Not done");
-    await expect(run("brain", "archive", card.id)).rejects.toThrow();
+    await expect(run("mc-board", "archive", card.id)).rejects.toThrow();
     expect(allErr()).toMatch(/only shipped cards/i);
     // card still on board
     expect(store.findById(card.id).column).toBe("backlog");
   });
 
   it("errors on unknown card id", async () => {
-    await expect(run("brain", "archive", "crd_ghost")).rejects.toThrow();
+    await expect(run("mc-board", "archive", "crd_ghost")).rejects.toThrow();
     expect(allErr()).toMatch(/not found/i);
   });
 });
@@ -432,15 +432,15 @@ describe("brain archive", () => {
 
 describe("brain archive-list", () => {
   it("shows no archives message when empty", async () => {
-    await run("brain", "archive-list");
+    await run("mc-board", "archive-list");
     expect(lastOut()).toMatch(/No archives/);
   });
 
   it("shows archive after archiving a card", async () => {
     const card = await fullCycleCard("Archived card");
-    await run("brain", "archive", card.id);
+    await run("mc-board", "archive", card.id);
     stdoutSpy.mockClear();
-    await run("brain", "archive-list");
+    await run("mc-board", "archive-list");
     expect(lastOut()).toContain("brain-archive-001.jsonl.gz");
     expect(lastOut()).toContain("1 cards");
   });
@@ -451,17 +451,17 @@ describe("brain archive-list", () => {
 describe("brain archive-search", () => {
   it("finds archived cards by title", async () => {
     const card = await fullCycleCard("Deploy pipeline fix");
-    await run("brain", "archive", card.id);
+    await run("mc-board", "archive", card.id);
     stdoutSpy.mockClear();
-    await run("brain", "archive-search", "pipeline");
+    await run("mc-board", "archive-search", "pipeline");
     expect(lastOut()).toContain("Deploy pipeline fix");
   });
 
   it("returns no-match message when not found", async () => {
     const card = await fullCycleCard("Something else");
-    await run("brain", "archive", card.id);
+    await run("mc-board", "archive", card.id);
     stdoutSpy.mockClear();
-    await run("brain", "archive-search", "nonexistent");
+    await run("mc-board", "archive-search", "nonexistent");
     expect(lastOut()).toMatch(/No archived cards matching/);
   });
 });
@@ -471,16 +471,16 @@ describe("brain archive-search", () => {
 describe("brain archive-show", () => {
   it("shows full detail of archived card", async () => {
     const card = await fullCycleCard("Full detail card");
-    await run("brain", "archive", card.id);
+    await run("mc-board", "archive", card.id);
     stdoutSpy.mockClear();
-    await run("brain", "archive-show", card.id);
+    await run("mc-board", "archive-show", card.id);
     const out = allOut();
     expect(out).toContain("Full detail card");
     expect(out).toContain("Problem Description");
   });
 
   it("errors on unknown archived id", async () => {
-    await expect(run("brain", "archive-show", "crd_ghost")).rejects.toThrow();
+    await expect(run("mc-board", "archive-show", "crd_ghost")).rejects.toThrow();
     expect(allErr()).toMatch(/not found/i);
   });
 });

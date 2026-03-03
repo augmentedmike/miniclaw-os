@@ -1,4 +1,69 @@
 #!/usr/bin/env bash
-# mcl — MiniClaw CLI
-# Thin wrapper around the openclaw binary. MiniClaw is our product; openclaw is the runtime.
-exec openclaw "$@"
+# mc — MiniClaw CLI
+# Routes subcommands to openclaw plugins or standalone binaries.
+#
+# Usage:
+#   mc board <cmd>     → openclaw mc-board <cmd>
+#   mc designer <cmd>  → openclaw mc-designer <cmd>
+#   mc trust <cmd>     → openclaw mc-trust <cmd>
+#   mc vault <cmd>     → mc-vault <cmd>
+#   mc smoke           → mc-smoke
+#   mc <anything>      → openclaw <anything>  (passthrough)
+
+set -euo pipefail
+
+SUBCOMMAND="${1:-}"
+
+case "$SUBCOMMAND" in
+  board)
+    shift
+    exec openclaw mc-board "$@"
+    ;;
+  designer)
+    shift
+    exec openclaw mc-designer "$@"
+    ;;
+  trust)
+    shift
+    exec openclaw mc-trust "$@"
+    ;;
+  vault)
+    shift
+    exec mc-vault "$@"
+    ;;
+  smoke)
+    shift
+    exec mc-smoke "$@"
+    ;;
+  ""|help|--help|-h)
+    cat <<'EOF'
+mc — MiniClaw CLI
+
+Usage: mc <subcommand> [args...]
+
+Subcommands:
+  board      Kanban board — task management (prefrontal cortex)
+  designer   Visual creation studio — image generation (occipital lobe)
+  trust      Cross-agent trust and identity (cryptographic handshakes)
+  vault      Secrets manager — age-encrypted credential store
+  smoke      System health check
+
+All other arguments are passed directly to the openclaw binary.
+
+Examples:
+  mc board list
+  mc board create --title "Fix bug" --priority high
+  mc board move abc123 in-progress
+  mc designer gen "a serene mountain landscape"
+  mc designer stats
+  mc trust init
+  mc trust sign "hello world"
+  mc vault get gh-token
+  mc smoke
+EOF
+    ;;
+  *)
+    # Passthrough: mc <anything> → openclaw <anything>
+    exec openclaw "$@"
+    ;;
+esac

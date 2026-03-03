@@ -18,7 +18,7 @@ export function registerBrainCommands(ctx: CliContext, store: CardStore): void {
   const { program } = ctx;
 
   const brain = program
-    .command("brain")
+    .command("mc-board")
     .description("Miniclaw brain kanban board — the agent's prefrontal cortex")
     .addHelpText("after", `
 Column flow (sequential, no skipping):

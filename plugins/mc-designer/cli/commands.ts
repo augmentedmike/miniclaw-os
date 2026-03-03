@@ -19,7 +19,7 @@ interface Ctx {
 export function registerDesignerCommands(ctx: Ctx): void {
   const { program, cfg, store, gemini, logger } = ctx;
 
-  const designer = program.command("designer").description("Miniclaw Designer — visual creation studio (occipital lobe)");
+  const designer = program.command("mc-designer").description("Miniclaw Designer — visual creation studio (occipital lobe)");
 
   // ---- designer gen ----
   designer
