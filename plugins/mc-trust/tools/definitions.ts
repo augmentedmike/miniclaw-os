@@ -1,5 +1,5 @@
 /**
- * Agent tools for miniclaw-trust
+ * Agent tools for mc-trust
  * Allow AM to perform handshakes and verify identities as part of a task.
  */
 

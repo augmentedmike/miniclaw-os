@@ -1,5 +1,5 @@
 {
-  "id": "miniclaw-trust",
+  "id": "mc-trust",
   "name": "Miniclaw Trust",
   "description": "Agent identity and mutual authentication via Ed25519 key pairs. Enables cryptographic handshakes between AM, AR, and eventually humans.",
   "version": "0.1.0",

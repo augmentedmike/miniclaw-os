@@ -1,5 +1,5 @@
 /**
- * miniclaw-board — OpenClaw plugin
+ * mc-board — OpenClaw plugin
  *
  * State-machine-backed kanban board as the agent's internal planning mechanism.
  * The "prefrontal cortex" — tracks tasks from backlog through to shipped.
@@ -33,7 +33,7 @@ function resolveConfig(api: OpenClawPluginApi): BrainConfig {
     raw.cardsDir ?? "~/.openclaw/user/augmentedmike_bot/brain/cards",
   );
   const qmdBin = resolvePath(raw.qmdBin ?? "~/.bun/bin/qmd");
-  const qmdCollection = raw.qmdCollection ?? "miniclaw-board";
+  const qmdCollection = raw.qmdCollection ?? "mc-board";
 
   return { cardsDir, qmdBin, qmdCollection };
 }
@@ -52,7 +52,7 @@ export default function register(api: OpenClawPluginApi): void {
   const store = new CardStore(cfg.cardsDir);
   const qmd = new QmdClient(cfg.qmdBin, cfg.qmdCollection);
 
-  api.logger.info(`miniclaw-board loaded (cardsDir=${cfg.cardsDir})`);
+  api.logger.info(`mc-board loaded (cardsDir=${cfg.cardsDir})`);
 
   // stateDir is the parent of cardsDir (e.g. ~/.openclaw/.../brain/)
   const stateDir = path.dirname(cfg.cardsDir);
@@ -75,7 +75,7 @@ export default function register(api: OpenClawPluginApi): void {
       return { prependContext: boardText };
     } catch (err) {
       // Never crash the prompt build
-      api.logger.warn(`miniclaw-board: before_prompt_build error: ${err}`);
+      api.logger.warn(`mc-board: before_prompt_build error: ${err}`);
       return;
     }
   });
@@ -84,5 +84,5 @@ export default function register(api: OpenClawPluginApi): void {
   for (const tool of brainTools) {
     api.registerTool(tool);
   }
-  // Web view runs as a standalone LaunchAgent (com.augmentedmike.miniclaw-board-web)
+  // Web view runs as a standalone LaunchAgent (com.augmentedmike.mc-board-web)
 }

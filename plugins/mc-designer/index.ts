@@ -1,5 +1,5 @@
 /**
- * miniclaw-designer — OpenClaw plugin
+ * mc-designer — OpenClaw plugin
  *
  * The agent's occipital lobe — visual creation in imagination mode.
  * Generates and manipulates images via Gemini. Supports layered composition,
@@ -24,13 +24,13 @@ export default function register(api: OpenClawPluginApi): void {
   const cfg = resolveConfig((api.pluginConfig ?? {}) as Record<string, unknown>);
 
   if (!cfg.apiKey) {
-    api.logger.warn("miniclaw-designer: no apiKey configured — plugin loaded but gen/edit commands will fail. See docs/SETUP.md");
+    api.logger.warn("mc-designer: no apiKey configured — plugin loaded but gen/edit commands will fail. See docs/SETUP.md");
   }
 
   const store = new DesignerStore(cfg);
   const gemini = new GeminiClient(cfg.apiKey, cfg.model);
 
-  api.logger.info(`miniclaw-designer loaded (model=${cfg.model}, media=${cfg.mediaDir})`);
+  api.logger.info(`mc-designer loaded (model=${cfg.model}, media=${cfg.mediaDir})`);
 
   // ---- CLI ----
   api.registerCli((ctx) => {

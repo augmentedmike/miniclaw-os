@@ -1,5 +1,5 @@
 /**
- * miniclaw-trust — OpenClaw plugin
+ * mc-trust — OpenClaw plugin
  *
  * Agent identity and mutual authentication via Ed25519 key pairs.
  * Each agent generates a purpose-built signing key (never used for web/TLS).
@@ -39,7 +39,7 @@ function resolvePath(p: string): string {
 export default function register(api: OpenClawPluginApi): void {
   const cfg = resolveConfig(api);
 
-  api.logger.info(`miniclaw-trust loaded (agentId=${cfg.agentId}, trustDir=${cfg.trustDir})`);
+  api.logger.info(`mc-trust loaded (agentId=${cfg.agentId}, trustDir=${cfg.trustDir})`);
 
   // ---- CLI ----
   api.registerCli((ctx) => {

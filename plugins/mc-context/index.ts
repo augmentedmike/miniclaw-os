@@ -1,5 +1,5 @@
 /**
- * smart-context — miniclaw plugin
+ * mc-context — miniclaw plugin
  * Engineered context windows for channel sessions.
  *
  * Phase 1: prependContext only (QMD injection + context summary).
@@ -254,7 +254,7 @@ export default function register(api: OpenClawPluginApi) {
   const recvTimes = new Map<string, number>();
 
   api.logger.info(
-    `smart-context loaded (replaceMessages=${replaceMessages}, window=${windowMinutes}m, maxImages=${maxImagesInHistory})`,
+    `mc-context loaded (replaceMessages=${replaceMessages}, window=${windowMinutes}m, maxImages=${maxImagesInHistory})`,
   );
 
   api.on("before_prompt_build", async (event, ctx) => {
@@ -301,7 +301,7 @@ export default function register(api: OpenClawPluginApi) {
     stats.lastInvokedAt = new Date();
 
     api.logger.info(
-      `smart-context: channel=${isChannel} messages=${totalBefore}→${pruned.length} ` +
+      `mc-context: channel=${isChannel} messages=${totalBefore}→${pruned.length} ` +
         `(dropped by age: ${droppedByAge}, tool-pair repair: ${droppedByToolRepair}, ` +
         `images pruned: ${imagesPruned}, ~${tokensDropped} tokens saved)`,
     );
@@ -364,7 +364,7 @@ export default function register(api: OpenClawPluginApi) {
     stats.lastLlmAt = new Date();
 
     api.logger.info(
-      `smart-context: real input=${inputTokens} tokens, est pruned=${pruned}, ` +
+      `mc-context: real input=${inputTokens} tokens, est pruned=${pruned}, ` +
       `cumulative sent=${stats.realInputTokensTotal} vs without-prune=${stats.realInputTokensWithoutPrune}`,
     );
   });
@@ -386,13 +386,13 @@ export default function register(api: OpenClawPluginApi) {
     if (stats.ttfrSamples.length > TTFR_WINDOW) {
       stats.ttfrSamples.shift();
     }
-    api.logger.info(`smart-context: TTFR=${elapsedSec.toFixed(1)}s (${stats.ttfrSamples.length} samples)`);
+    api.logger.info(`mc-context: TTFR=${elapsedSec.toFixed(1)}s (${stats.ttfrSamples.length} samples)`);
   });
 
   // Stats command
   api.registerCommand({
     name: "context_stats",
-    description: "Show smart-context pruning stats for this session",
+    description: "Show mc-context pruning stats for this session",
     acceptsArgs: false,
     handler: () => {
       const uptimeMs = Date.now() - stats.startedAt.getTime();
@@ -425,7 +425,7 @@ export default function register(api: OpenClawPluginApi) {
 
       return {
         text:
-          `*smart-context stats* (since restart, ~${uptimeMin}min ago)\n\n` +
+          `*mc-context stats* (since restart, ~${uptimeMin}min ago)\n\n` +
           realSection +
           `\n` +
           ttfrSection +
@@ -440,11 +440,11 @@ export default function register(api: OpenClawPluginApi) {
   // Config status command
   api.registerCommand({
     name: "context_status",
-    description: "Show smart-context window configuration",
+    description: "Show mc-context window configuration",
     acceptsArgs: false,
     handler: () => ({
       text:
-        `*smart-context config*\n` +
+        `*mc-context config*\n` +
         `Window: ${windowMinutes}min (min ${windowMinMessages} messages)\n` +
         `Max images: ${maxImagesInHistory}\n` +
         `Apply to channels: ${applyToChannels}\n` +

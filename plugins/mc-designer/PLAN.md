@@ -1,4 +1,4 @@
-# miniclaw-designer — PLAN
+# mc-designer — PLAN
 
 **Brain analog**: Occipital lobe (visual cortex in generative/imagination mode)
 **Role**: Creates images. Seeing is handled by the LLM's multimodal vision. This plugin handles _creation_.
@@ -73,7 +73,7 @@ This is a significant effort — budget a separate phase for this.
 ## Architecture
 
 ```
-miniclaw-designer/
+mc-designer/
 ├── index.ts              Plugin entry — CLI registration + before_prompt_build hook
 ├── PLAN.md               This file
 ├── docs/
@@ -105,7 +105,7 @@ miniclaw-designer/
 ## Config (in openclaw.json)
 
 ```json
-"miniclaw-designer": {
+"mc-designer": {
   "enabled": true,
   "config": {
     "apiKey": "<your-gemini-api-key>",

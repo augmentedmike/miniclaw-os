@@ -1,5 +1,5 @@
 {
-  "id": "miniclaw-board",
+  "id": "mc-board",
   "name": "Miniclaw Board",
   "description": "State-machine-backed kanban board as the agent's internal planning mechanism — the prefrontal cortex.",
   "configSchema": {

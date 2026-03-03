@@ -1,5 +1,5 @@
 {
-  "id": "miniclaw-designer",
+  "id": "mc-designer",
   "name": "Miniclaw Designer",
   "description": "Visual creation studio — the agent's occipital lobe. Layered image generation, compositing, and transparency via Gemini.",
   "configSchema": {

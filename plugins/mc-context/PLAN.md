@@ -1,7 +1,7 @@
-# smart-context — Implementation Plan
+# mc-context — Implementation Plan
 
 > miniclaw plugin: engineered context for channel sessions
-> Location: `~/.openclaw/miniclaw/plugins/smart-context/`
+> Location: `~/.openclaw/miniclaw/plugins/mc-context/`
 > Built ON openclaw, not against it.
 
 ---
@@ -67,7 +67,7 @@ This is a sliding window, not a growing ledger.
 
 ## What We're Building Better
 
-| Feature | Compaction | Pruning | smart-context |
+| Feature | Compaction | Pruning | mc-context |
 |---|---|---|---|
 | Removes old messages from context | ✅ (summarizes) | ❌ | ✅ (time window) |
 | Image pruning | ❌ | ❌ (explicitly exempt) | ✅ keep last N |
@@ -126,7 +126,7 @@ Plugin returns a `messages` array that is the engineered window:
 ## Plugin Structure
 
 ```
-smart-context/
+mc-context/
   openclaw.plugin.json     # manifest
   index.ts                 # entry point
   src/
@@ -314,7 +314,7 @@ async function runQmdQuery(prompt: string, opts: QmdConfig): Promise<string> {
 
 ```json
 {
-  "id": "miniclaw-smart-context",
+  "id": "miniclaw-mc-context",
   "name": "Smart Context",
   "description": "Engineered context windows for channel sessions: time-based message retention, image pruning, and QMD memory injection.",
   "configSchema": {
@@ -344,10 +344,10 @@ async function runQmdQuery(prompt: string, opts: QmdConfig): Promise<string> {
   "plugins": {
     "enabled": true,
     "load": {
-      "paths": ["~/.openclaw/miniclaw/plugins/smart-context"]
+      "paths": ["~/.openclaw/miniclaw/plugins/mc-context"]
     },
     "entries": {
-      "miniclaw-smart-context": {
+      "miniclaw-mc-context": {
         "enabled": true,
         "config": {
           "windowMinutes": 60,
@@ -411,7 +411,7 @@ async function runQmdQuery(prompt: string, opts: QmdConfig): Promise<string> {
 ## Files To Create
 
 ```
-~/.openclaw/miniclaw/plugins/smart-context/
+~/.openclaw/miniclaw/plugins/mc-context/
   PLAN.md                        ← this file
   openclaw.plugin.json
   package.json

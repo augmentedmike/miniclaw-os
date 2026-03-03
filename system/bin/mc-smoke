@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# miniclaw-smoke-test — confirm MiniClaw systems and tools are present and functional
+# mc-smoke — confirm MiniClaw systems and tools are present and functional
 set -euo pipefail
 
 PASS=0
@@ -17,10 +17,10 @@ section "openclaw-vault"
 if command -v openclaw-vault &>/dev/null; then
   pass "on PATH ($(command -v openclaw-vault))"
 else
-  fail "not found" "ln -sf ~/.openclaw/miniclaw/system/bin/openclaw-vault ~/.local/bin/openclaw-vault"
+  fail "not found" "ln -sf ~/.openclaw/mcl/system/bin/openclaw-vault ~/.local/bin/openclaw-vault"
 fi
 
-if [[ -f "${HOME}/.openclaw/miniclaw/system/vault/key.txt" ]]; then
+if [[ -f "${HOME}/.openclaw/mcl/system/vault/key.txt" ]]; then
   pass "vault initialized (key.txt present)"
 else
   fail "vault not initialized" "run: openclaw-vault init"
@@ -57,7 +57,7 @@ else
   fail "not found" "check install"
 fi
 
-for col in miniclaw-memory workspace; do
+for col in mcl-memory workspace; do
   if qmd collection list 2>/dev/null | grep -q "^${col}"; then
     files=$(qmd collection list 2>/dev/null | grep -A3 "^${col}" | grep "Files:" | awk '{print $2}')
     if [[ "${files:-0}" -gt 0 ]]; then

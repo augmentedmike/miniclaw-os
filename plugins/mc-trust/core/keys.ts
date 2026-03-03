@@ -1,5 +1,5 @@
 /**
- * keys.ts — Ed25519 key management for miniclaw-trust
+ * keys.ts — Ed25519 key management for mc-trust
  *
  * Private keys are ONLY stored in vault (age-encrypted at rest).
  * They are never written to disk in plaintext, never used for web/TLS,

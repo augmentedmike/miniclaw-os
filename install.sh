@@ -93,8 +93,8 @@ python3 - "$OPENCLAW_CONFIG" "$MINICLAW_DIR" <<'PYEOF'
 import json, sys, os
 
 config_path = sys.argv[1]
-miniclaw_dir = sys.argv[2]
-plugins_dir = os.path.join(miniclaw_dir, "plugins")
+mcl_dir = sys.argv[2]
+plugins_dir = os.path.join(mcl_dir, "plugins")
 
 with open(config_path) as f:
     cfg = json.load(f)
@@ -108,16 +108,16 @@ p.setdefault("entries", {})
 # Default configs per plugin.
 # Only written if the entry doesn't already exist — preserves user config.
 plugin_defaults = {
-    "miniclaw-board": {
+    "mc-board": {
         "enabled": True,
         "config": {
             "cardsDir": "~/.openclaw/user/brain/cards",
             "qmdBin": "~/.bun/bin/qmd",
-            "qmdCollection": "miniclaw-board",
+            "qmdCollection": "mc-board",
             "webPort": 4220,
         },
     },
-    "miniclaw-designer": {
+    "mc-designer": {
         "enabled": True,
         "config": {
             "apiKey": "",
@@ -127,16 +127,16 @@ plugin_defaults = {
             "defaultHeight": 1024,
         },
     },
-    "miniclaw-trust": {
+    "mc-trust": {
         "enabled": True,
         "config": {
             "agentId": "am",
             "trustDir": "~/.openclaw/trust",
-            "vaultBin": "~/.openclaw/miniclaw/system/bin/miniclaw-vault",
+            "vaultBin": "~/.openclaw/miniclaw/system/bin/mc-vault",
             "sessionTtlMs": 3600000,
         },
     },
-    "smart-context": {
+    "mc-context": {
         "enabled": True,
         "config": {
             "windowMinutes": 60,
@@ -207,5 +207,5 @@ echo "  Restart OpenClaw to load the plugins:"
 echo "    openclaw gateway restart"
 echo ""
 echo "  Verify:"
-echo "    miniclaw-smoke-test"
+echo "    mc-smoke"
 echo ""

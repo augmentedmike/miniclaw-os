@@ -51,7 +51,7 @@ For paid usage, visit: `https://aistudio.google.com/app/plan`
 Run this command in your terminal, replacing `YOUR_KEY_HERE` with your actual key:
 
 ```bash
-openclaw config set plugins.entries.miniclaw-designer.config.apiKey "YOUR_KEY_HERE"
+openclaw config set plugins.entries.mc-designer.config.apiKey "YOUR_KEY_HERE"
 ```
 
 That's it. The key is now stored in your local `openclaw.json` config.
@@ -99,14 +99,14 @@ Either wait until tomorrow or upgrade to a paid plan in AI Studio.
 
 **"Gemini returned no image data"** — The model may have refused the prompt
 (e.g. policy violation) or the `gemini-2.0-flash-exp` model may have been deprecated.
-Check `openclaw config get plugins.entries.miniclaw-designer.config.model`
+Check `openclaw config get plugins.entries.mc-designer.config.model`
 and update the model name if needed.
 
 **Plugin not loading** — Make sure the plugin is in the `allow` list in `openclaw.json`:
 ```bash
 openclaw config get plugins.allow
 ```
-You should see `miniclaw-designer` in the list. If not, ask AugmentedMike.
+You should see `mc-designer` in the list. If not, ask AugmentedMike.
 
 ---
 

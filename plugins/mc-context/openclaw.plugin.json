@@ -1,5 +1,5 @@
 {
-  "id": "smart-context",
+  "id": "mc-context",
   "name": "Smart Context",
   "description": "Engineered context windows for channel sessions: time-based message retention, image pruning, and QMD memory injection.",
   "configSchema": {
