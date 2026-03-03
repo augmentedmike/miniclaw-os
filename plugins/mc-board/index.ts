@@ -12,9 +12,9 @@
 import * as path from "node:path";
 import * as os from "node:os";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
-import { CardStore } from "./core/store.js";
-import { renderCompactBoard } from "./core/board.js";
-import { QmdClient } from "./core/qmd.js";
+import { CardStore } from "./src/store.js";
+import { renderCompactBoard } from "./src/board.js";
+import { QmdClient } from "./src/qmd.js";
 import { registerBrainCommands } from "./cli/commands.js";
 import { brainTools } from "./tools/definitions.js";
 

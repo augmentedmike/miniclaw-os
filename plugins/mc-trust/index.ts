@@ -12,8 +12,8 @@ import * as os from "node:os";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { registerTrustCommands } from "./cli/commands.js";
 import { trustTools } from "./tools/definitions.js";
-import { loadSession } from "./core/handshake.js";
-import { listPeers } from "./core/keys.js";
+import { loadSession } from "./src/handshake.js";
+import { listPeers } from "./src/keys.js";
 
 interface TrustConfig {
   agentId: string;

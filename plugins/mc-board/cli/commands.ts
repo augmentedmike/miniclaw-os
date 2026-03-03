@@ -1,11 +1,11 @@
 import * as path from "node:path";
 import type { Command } from "commander";
-import type { CardStore } from "../core/store.js";
-import { ArchiveStore } from "../core/archive.js";
-import { COLUMNS, canTransition, checkGate, formatGateError } from "../core/state.js";
-import { renderCardDetail, renderFullBoard, suggestNext } from "../core/board.js";
-import type { Column, Priority } from "../core/card.js";
-import { cardFilename } from "../core/card.js";
+import type { CardStore } from "../src/store.js";
+import { ArchiveStore } from "../src/archive.js";
+import { COLUMNS, canTransition, checkGate, formatGateError } from "../src/state.js";
+import { renderCardDetail, renderFullBoard, suggestNext } from "../src/board.js";
+import type { Column, Priority } from "../src/card.js";
+import { cardFilename } from "../src/card.js";
 
 export interface CliContext {
   program: Command;

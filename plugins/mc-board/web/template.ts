@@ -1,5 +1,5 @@
-import type { Card, Column } from "../core/card.js";
-import { COLUMNS } from "../core/state.js";
+import type { Card, Column } from "../src/card.js";
+import { COLUMNS } from "../src/state.js";
 
 // ---- Column styling ----
 

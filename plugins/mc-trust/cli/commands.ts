@@ -11,7 +11,7 @@ import {
   peerPubKeyPath,
   signMessage,
   verifyMessage,
-} from "../core/keys.js";
+} from "../src/keys.js";
 import {
   createChallenge,
   respondToChallenge,
@@ -22,7 +22,7 @@ import {
   type ChallengeMsg,
   type ResponseMsg,
   type AckMsg,
-} from "../core/handshake.js";
+} from "../src/handshake.js";
 
 export interface TrustCliContext {
   program: Command;

@@ -19,8 +19,8 @@ import {
   type MockInstance,
 } from "vitest";
 import { registerBrainCommands } from "./commands.js";
-import { CardStore } from "../core/store.js";
-import type { Card } from "../core/card.js";
+import { CardStore } from "../src/store.js";
+import type { Card } from "../src/card.js";
 
 // ---- Test harness ----
 

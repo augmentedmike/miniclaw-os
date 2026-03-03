@@ -1,5 +1,5 @@
 import * as http from "node:http";
-import type { CardStore } from "../core/store.js";
+import type { CardStore } from "../src/store.js";
 import { renderPage } from "./template.js";
 
 export function startWebServer(store: CardStore, port: number, logger: { info: (m: string) => void; error: (m: string) => void }): http.Server {
