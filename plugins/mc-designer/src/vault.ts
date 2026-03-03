@@ -35,8 +35,6 @@ export async function promptAndVaultKey(vaultBin: string): Promise<string> {
 
   process.stdout.write("\n  Gemini API key required.\n");
   process.stdout.write("  Get a free key at: https://aistudio.google.com/app/apikey\n");
-  process.stdout.write("  API key (input hidden): ");
-
   const key = await readHidden();
 
   if (!key) {
@@ -65,8 +63,11 @@ function readHidden(): Promise<string> {
     // Suppress echo by overriding _writeToOutput
     (rl as any)._writeToOutput = (s: string) => {
       if (s === "\n" || s === "\r\n") process.stdout.write("\n");
-      // swallow all other output (the typed characters)
+      // swallow typed characters so key stays hidden
     };
+
+    // Write prompt directly to stdout before question() steals output
+    process.stdout.write("  API key (input hidden): ");
 
     rl.question("", (answer) => {
       rl.close();
