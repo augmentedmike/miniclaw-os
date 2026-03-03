@@ -31,7 +31,13 @@ export function registerDesignerCommands(ctx: Ctx): void {
     .option("-l, --layer <name>", "Layer name")
     .option("-W, --width <px>", "Canvas width when auto-creating", String(cfg.defaultWidth))
     .option("-H, --height <px>", "Canvas height when auto-creating", String(cfg.defaultHeight))
-    .action(async (prompt: string, opts: { canvas: string; layer?: string; width: string; height: string }) => {
+    .option("-r, --role <role>", "Layer role: background (fills canvas) or element (natural size, placed at x,y)")
+    .option("-x, --x <px>", "X offset for element layers", "0")
+    .option("-y, --y <px>", "Y offset for element layers", "0")
+    .action(async (prompt: string, opts: {
+      canvas: string; layer?: string; width: string; height: string;
+      role?: string; x: string; y: string;
+    }) => {
       const canvasName = opts.canvas;
       let canvas = store.loadCanvas(canvasName);
       if (!canvas) {
@@ -42,6 +48,15 @@ export function registerDesignerCommands(ctx: Ctx): void {
         );
         console.log(`Created canvas "${canvasName}" (${canvas.width}×${canvas.height})`);
       }
+
+      // Determine role: explicit flag > z=0 heuristic (first layer = background)
+      const nextZ = store.nextZ(canvas);
+      const role = (opts.role === "background" || opts.role === "element")
+        ? opts.role
+        : (nextZ === 0 ? "background" : "element");
+
+      // Engineer the prompt with canvas context so Gemini knows what it's making
+      const engineeredPrompt = buildGeminiPrompt(prompt, role, canvas.width, canvas.height);
 
       // Prompt for key if missing or on auth failure
       const ensureKey = async (err?: unknown) => {
@@ -54,17 +69,17 @@ export function registerDesignerCommands(ctx: Ctx): void {
 
       if (!cfg.apiKey) await ensureKey();
 
-      console.log(`Generating image for: "${prompt}" ...`);
+      console.log(`Generating image for: "${prompt}" (role=${role}, canvas=${canvas.width}×${canvas.height}) ...`);
       const t0 = Date.now();
       let result;
       try {
-        result = await gemini.generate(prompt, "generate");
+        result = await gemini.generate(engineeredPrompt, "generate");
       } catch (err) {
         if (isAuthError(err)) {
           console.error("Auth failed — invalid or missing API key.");
           await ensureKey(err);
           try {
-            result = await gemini.generate(prompt, "generate");
+            result = await gemini.generate(engineeredPrompt, "generate");
           } catch (retryErr) {
             console.error(`Generation failed: ${retryErr}`);
             process.exit(1);
@@ -77,18 +92,19 @@ export function registerDesignerCommands(ctx: Ctx): void {
 
       const layerId = `layer-${Date.now()}`;
       const layerName = opts.layer ?? `layer-${canvas.layers.length + 1}`;
-      const imagePath = store.saveLayerImage(canvasName, layerId, result.buffer);
+      const imagePath = store.saveLayerImage(canvasName, layerId, result!.buffer);
 
       const layer: Layer = {
         id: layerId,
         name: layerName,
-        z: store.nextZ(canvas),
+        z: nextZ,
         imagePath,
         opacity: 100,
         visible: true,
-        x: 0,
-        y: 0,
+        x: parseInt(opts.x, 10),
+        y: parseInt(opts.y, 10),
         blendMode: "normal",
+        role,
         prompt,
         createdAt: new Date().toISOString(),
       };
@@ -216,7 +232,10 @@ export function registerDesignerCommands(ctx: Ctx): void {
     .description("Add an existing image file as a new layer")
     .option("-n, --name <name>", "Layer name")
     .option("-z, --z <index>", "Z-index (auto if omitted)")
-    .action((canvasName: string, file: string, opts: { name?: string; z?: string }) => {
+    .option("-r, --role <role>", "Layer role: background or element", "element")
+    .option("-x, --x <px>", "X offset", "0")
+    .option("-y, --y <px>", "Y offset", "0")
+    .action((canvasName: string, file: string, opts: { name?: string; z?: string; role?: string; x: string; y: string }) => {
       const c = store.loadCanvas(canvasName);
       if (!c) { console.error(`Canvas "${canvasName}" not found`); process.exit(1); }
       if (!fs.existsSync(file)) { console.error(`File not found: ${file}`); process.exit(1); }
@@ -224,6 +243,7 @@ export function registerDesignerCommands(ctx: Ctx): void {
       const layerId = `layer-${Date.now()}`;
       const layerName = opts.name ?? path.basename(file, path.extname(file));
       const dest = store.saveLayerImage(canvasName, layerId, fs.readFileSync(file));
+      const role = (opts.role === "background" || opts.role === "element") ? opts.role : "element";
 
       const l: Layer = {
         id: layerId,
@@ -232,9 +252,10 @@ export function registerDesignerCommands(ctx: Ctx): void {
         imagePath: dest,
         opacity: 100,
         visible: true,
-        x: 0,
-        y: 0,
+        x: parseInt(opts.x, 10),
+        y: parseInt(opts.y, 10),
         blendMode: "normal",
+        role,
         createdAt: new Date().toISOString(),
       };
       store.addLayer(c, l);
@@ -408,4 +429,39 @@ export function registerDesignerCommands(ctx: Ctx): void {
         console.log("");
       }
     });
+}
+
+// ── Prompt engineering ────────────────────────────────────────────────────────
+
+/**
+ * Append canvas context to the user's prompt so Gemini understands:
+ * - background: must fill the full frame, correct aspect ratio, no letterboxing
+ * - element: isolated subject, white background (easy to alpha-strip), centered
+ */
+function buildGeminiPrompt(
+  userPrompt: string,
+  role: "background" | "element",
+  canvasWidth: number,
+  canvasHeight: number,
+): string {
+  const aspect = `${canvasWidth}×${canvasHeight}`;
+  const ratio = (canvasWidth / canvasHeight).toFixed(2);
+
+  if (role === "background") {
+    return (
+      `${userPrompt}\n\n` +
+      `[Canvas context: this is a full-frame background image. ` +
+      `Fill the entire frame edge to edge with no borders, letterboxing, or whitespace. ` +
+      `Target aspect ratio ${ratio} (${aspect} pixels). ` +
+      `Do not include any UI elements, text, or foreground subjects.]`
+    );
+  } else {
+    return (
+      `${userPrompt}\n\n` +
+      `[Canvas context: this is an isolated foreground element that will be composited onto a background. ` +
+      `Place the subject centered on a plain white background with clean, well-defined edges. ` +
+      `No drop shadows, gradients, or environmental context behind the subject. ` +
+      `The canvas it will appear on is ${aspect} pixels.]`
+    );
+  }
 }

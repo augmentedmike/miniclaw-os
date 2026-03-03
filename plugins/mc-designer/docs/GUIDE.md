@@ -1,254 +1,240 @@
 # mc-designer — Usage Guide
 
-Everything currently working in the visual creation studio.
+---
+
+## How image generation actually works
+
+Gemini generates images at its own internal resolution — you cannot control the exact pixel output dimensions. What you can control is:
+
+- **What to generate** (the prompt)
+- **The role of the layer** — background (fills canvas) or element (natural size, placed at x,y)
+- **Where to place it** (x/y offset for element layers)
+
+mc-designer automatically appends canvas context to every prompt so Gemini knows what role the image plays. You write the creative brief; the plugin handles the technical framing.
 
 ---
 
-## Prerequisites
+## Layer roles
 
-A Gemini API key set in your config. If you haven't done this yet, see [SETUP.md](./SETUP.md).
+Every layer has a role that controls how it's composited:
 
----
+| Role | Behaviour | Use for |
+|------|-----------|---------|
+| `background` | Scaled to fill canvas edge to edge (cover) | Sky, gradient, texture, scene backdrop |
+| `element` | Kept at natural size, placed at x/y offset | Logo, product, person, text overlay |
 
-## Core concepts
-
-**Canvas** — a named workspace with a fixed pixel dimensions. Holds an ordered stack of layers.
-
-**Layer** — a single image inside a canvas. Each layer has a z-index (higher = rendered on top), opacity, visibility, blend mode, and an optional x/y offset.
-
-**Composite** — flatten all visible layers in z-order into a single PNG output file.
-
-The default canvas is named `default` and is created automatically at 1024×1024 when you run `gen` without specifying one.
+**The first layer on a canvas defaults to `background`. All subsequent layers default to `element`.** Override with `--role`.
 
 ---
 
 ## Generating images
 
 ```bash
-mc designer gen "a clean product hero shot on white background"
+mc designer gen "blue gradient sky, wide and cinematic" --canvas homepage
 ```
 
-Calls Gemini, saves the result as a new layer on the `default` canvas. Prints the layer name, image path, token usage, and time.
+Because this is the first layer, it gets `role=background` automatically. The prompt Gemini actually receives includes:
 
-**Options:**
+> *Fill the entire frame edge to edge with no borders, letterboxing, or whitespace. Target aspect ratio 1.00 (1024×1024 pixels). Do not include any UI elements, text, or foreground subjects.*
 
 ```bash
-# Target a specific canvas (created automatically if it doesn't exist)
-mc designer gen "blue gradient sky" --canvas homepage
-
-# Name the layer explicitly
-mc designer gen "bold wordmark in black" --canvas homepage --layer logo
-
-# Set canvas dimensions when auto-creating
-mc designer gen "wide banner" --canvas hero --width 1920 --height 400
+mc designer gen "bold sans-serif wordmark 'ACME' in black" --canvas homepage --layer logo
 ```
 
-Layer names auto-increment (`layer-1`, `layer-2`, ...) if you don't specify `--layer`.
+Because this is not z=0, it gets `role=element` automatically. Gemini is told:
 
----
+> *Place the subject centered on a plain white background with clean, well-defined edges. No drop shadows or environmental context.*
 
-## Editing an existing layer
-
-```bash
-mc designer edit <canvas> <layer> "<instructions>"
-```
-
-Sends the current layer image back to Gemini alongside your instructions. The layer image is updated in place.
+**Override role explicitly:**
 
 ```bash
-mc designer edit homepage bg "make the gradient warmer, more orange tones"
-mc designer edit homepage logo "increase contrast, make it bolder"
+mc designer gen "dark semi-transparent overlay" --canvas homepage --role background
+mc designer gen "circular product badge" --canvas homepage --role element --x 860 --y 400
 ```
 
 ---
 
-## Canvas management
+## What makes a good prompt for each role
+
+### Background layers
+
+Tell Gemini the subject, mood, and fill behaviour. It does not need to know about other layers.
 
 ```bash
-# Create a canvas with custom dimensions
-mc designer canvas new mybrand --width 1920 --height 1080
+# Works well
+mc designer gen "soft blue-to-white gradient, minimal, clean" --canvas hero
+mc designer gen "dark textured concrete wall, subtle grain" --canvas card
+mc designer gen "aerial ocean view, deep teal water, sunny day" --canvas banner
 
-# List all canvases
+# Avoid — will confuse compositing
+mc designer gen "sky with a logo in the corner"   # logo belongs on its own layer
+mc designer gen "product hero shot with background"  # split these into two layers
+```
+
+### Element layers
+
+Tell Gemini exactly what the subject is. Ask for a clean white background — this makes alpha stripping work when you need it.
+
+```bash
+# Works well
+mc designer gen "white ceramic coffee mug, studio lighting, white background" --canvas hero --layer product
+mc designer gen "minimal line icon of a crab, black on white, vector style" --canvas icon --layer subject
+mc designer gen "bold wordmark 'ACME' in Helvetica-style sans-serif, black text on white" --canvas brand --layer logo
+
+# Avoid
+mc designer gen "coffee mug on a wooden table"   # the table will be in the image
+mc designer gen "a logo with a gradient background"  # makes alpha stripping impossible
+```
+
+---
+
+## Positioning element layers
+
+Element layers are placed at pixel coordinates relative to the top-left of the canvas. At generation time:
+
+```bash
+# Generate centered at roughly 860,400 on a 1920×1080 canvas
+mc designer gen "circular badge, red, 'SALE'" \
+  --canvas homepage --layer badge --role element --x 860 --y 400
+```
+
+After generation, reposition an existing layer:
+
+```bash
+mc designer layer mv homepage badge --z 3    # change stack order
+```
+
+*(x/y repositioning after the fact requires editing the canvas JSON directly — layer move is z-index only. Set x/y at generation time.)*
+
+---
+
+## Canvas setup
+
+```bash
+# Create a canvas at specific dimensions
+mc designer canvas new homepage --width 1920 --height 1080
+
+# List canvases
 mc designer canvas list
 
-# Inspect the layer stack
-mc designer canvas show mybrand
-
-# Delete a canvas (does not delete the underlying image files)
-mc designer canvas rm mybrand
+# Inspect layer stack (top to bottom)
+mc designer canvas show homepage
 ```
 
 `canvas show` output:
-
 ```
-Canvas: mybrand  1920×1080  (3 layers)
-  z2  ✓  logo      opacity=100%  blend=normal
-       prompt: "bold sans-serif wordmark on transparent background"
-  z1  ✓  product   opacity=90%   blend=normal
-       prompt: "product shot on white"
-  z0  ✓  bg        opacity=100%  blend=normal
-       prompt: "soft blue gradient background"
+Canvas: homepage  1920×1080  (2 layers)
+  z1  ✓  logo      opacity=100%  blend=normal  role=element
+       prompt: "bold wordmark 'ACME' in black on white"
+  z0  ✓  bg        opacity=100%  blend=normal  role=background
+       prompt: "soft blue-to-white gradient, minimal, clean"
 ```
-
-Layers are listed top-to-bottom (highest z first). `✓` = visible, `○` = hidden.
 
 ---
 
 ## Layer management
 
-### Import an existing image as a layer
-
 ```bash
-mc designer layer add mybrand ./my-photo.png --name photo
-mc designer layer add mybrand ./logo.png --name logo --z 5
+# Show/hide
+mc designer layer toggle homepage logo
+
+# Opacity (0–100)
+mc designer layer opacity homepage logo 80
+
+# Blend modes: normal | multiply | screen | overlay
+mc designer layer blend homepage logo multiply
+
+# Rename
+mc designer layer rename homepage layer-1 background
+
+# Remove
+mc designer layer rm homepage logo
+
+# Import your own image as a layer
+mc designer layer add homepage ./my-logo.png --name logo --role element --x 100 --y 50
+mc designer layer add homepage ./bg-texture.png --name texture --role background
 ```
 
-Copies the file into the canvas store. Accepts any image format sharp can read (PNG, JPEG, WebP, TIFF).
+---
 
-### Reorder layers
+## Editing a layer
 
-```bash
-mc designer layer mv mybrand logo --z 3
-```
-
-### Set opacity
+Sends the current layer image back to Gemini with new instructions. Replaces the layer in place.
 
 ```bash
-mc designer layer opacity mybrand logo 80    # 0 = invisible, 100 = fully opaque
+mc designer edit homepage bg "shift the gradient to warmer tones, more orange"
+mc designer edit homepage logo "make the text heavier, increase contrast"
 ```
 
-### Show / hide
-
-```bash
-mc designer layer toggle mybrand logo        # flips between visible/hidden
-```
-
-### Rename
-
-```bash
-mc designer layer rename mybrand layer-1 background
-```
-
-### Set blend mode
-
-```bash
-mc designer layer blend mybrand overlay multiply
-```
-
-Supported modes: `normal`, `multiply`, `screen`, `overlay`.
-
-Blend modes apply during compositing using sharp's native implementation.
-
-### Remove a layer
-
-```bash
-mc designer layer rm mybrand logo
-```
-
-Removes the layer from the canvas. Does not delete the image file from disk.
+Edit works best for adjustments. For significant changes (different subject, different layout), generate a new layer instead.
 
 ---
 
 ## Compositing
 
-Flatten all visible layers in z-order into a single PNG:
+Flattens all visible layers in z-order into a single PNG:
 
 ```bash
-mc designer composite mybrand
+mc designer composite homepage
+mc designer composite homepage --out ~/Desktop/homepage-final.png
 ```
 
-Outputs to `~/.openclaw/media/designer/output/mybrand-<timestamp>.png` by default.
-
-```bash
-# Custom output path
-mc designer composite mybrand --out ~/Desktop/mybrand-final.png
-```
-
-Layers are composited bottom-to-top by z-index. Hidden layers (`toggle`d off) are skipped. Opacity and blend mode are applied per layer.
+- Background layers (role=background) fill the canvas with cover scaling
+- Element layers (role=element) are placed at their natural size at x/y
+- Hidden layers are skipped
+- Opacity and blend mode are applied per layer
 
 ---
 
-## Background stripping
+## Alpha stripping (background removal)
+
+Removes the white background from an element layer image so it composites cleanly:
 
 ```bash
-mc designer alpha strip ./my-layer.png
+mc designer alpha strip ~/.openclaw/media/designer/layers/homepage/layer-1234567890.png
+# outputs: layer-1234567890.nobg.png
 ```
 
-Outputs `./my-layer.nobg.png`.
+> **Current limitation:** this is a basic alpha conversion, not AI segmentation. It works well on elements generated with a clean white background (as the element prompt instructs). For complex subjects with similar-toned backgrounds, results will be imperfect.
 
-> **Current limitation:** background stripping is a basic alpha conversion — it makes the image transparent-capable but doesn't do segmentation-based background removal. True background removal (isolating subjects) is on the roadmap.
+After stripping, re-add the .nobg.png as a new layer to replace the original.
 
 ---
 
-## Working with the default canvas
-
-If you just want to generate and iterate without naming things:
+## Usage and costs
 
 ```bash
-mc designer gen "a minimalist icon of a crab, flat design"
-mc designer gen "same crab but in dark navy blue"
-mc designer canvas show default
-mc designer composite default --out ~/Desktop/crab.png
+mc designer stats           # summary
+mc designer stats --full    # per-call breakdown
 ```
-
-Each `gen` adds a new layer. The most recent generation is always the top layer.
 
 ---
 
-## Usage and cost tracking
+## Full worked example
 
 ```bash
-mc designer stats
-```
+# 1. Create a 1920×1080 homepage canvas
+mc designer canvas new homepage --width 1920 --height 1080
 
-```
-  Miniclaw Designer — Gemini Usage Summary
-  ─────────────────────────────────────────
-  Total API calls : 12
-    generate      : 10
-    edit          : 2
-  Images generated: 12
-  Input tokens    : 8,431
-  Output tokens   : 0
-  Est. cost (USD) : $0.0021
-  First call      : 2026-03-01T14:22:01.000Z
-  Last call       : 2026-03-03T09:11:44.000Z
-```
+# 2. Generate the background (auto role=background, fills canvas)
+mc designer gen "soft gradient, pale blue top to white bottom, minimal" \
+  --canvas homepage --layer bg
 
-```bash
-# Full per-call breakdown
-mc designer stats --full
-```
+# 3. Generate the product (auto role=element, white background for clean edges)
+mc designer gen "white ceramic coffee mug, studio lighting, white background, centered" \
+  --canvas homepage --layer product --x 760 --y 300
 
-Cost estimates are based on Gemini 2.0 Flash pricing. Output tokens are typically 0 for image generation (the image bytes are not counted as tokens).
+# 4. Import your own logo
+mc designer layer add homepage ./logo.png --name logo --role element --x 80 --y 60
 
----
+# 5. Check the stack
+mc designer canvas show homepage
 
-## Worked example — product hero image
+# 6. Adjust product opacity
+mc designer layer opacity homepage product 95
 
-```bash
-# Create a 1600×900 canvas
-mc designer canvas new hero --width 1600 --height 900
-
-# Generate the background
-mc designer gen "soft gradient, pale blue to white, clean and minimal" \
-  --canvas hero --layer bg
-
-# Generate a product mockup
-mc designer gen "a white ceramic coffee mug, studio lighting, white background" \
-  --canvas hero --layer product
-
-# Import your own logo
-mc designer layer add hero ./logo.png --name logo --z 10
-
-# Adjust the product layer opacity
-mc designer layer opacity hero product 95
-
-# Preview the stack
-mc designer canvas show hero
-
-# Export
-mc designer composite hero --out ~/Desktop/hero-final.png
+# 7. Composite
+mc designer composite homepage --out ~/Desktop/homepage-v1.png
 ```
 
 ---
@@ -257,7 +243,7 @@ mc designer composite hero --out ~/Desktop/hero-final.png
 
 | What | Where |
 |------|-------|
-| Canvas metadata (JSON) | `~/.openclaw/media/designer/canvases/<name>.json` |
+| Canvas metadata | `~/.openclaw/media/designer/canvases/<name>.json` |
 | Layer images | `~/.openclaw/media/designer/layers/<canvas>/<layer-id>.png` |
 | Composite output | `~/.openclaw/media/designer/output/<canvas>-<timestamp>.png` |
 | Usage log | `~/.openclaw/media/designer/usage.jsonl` |

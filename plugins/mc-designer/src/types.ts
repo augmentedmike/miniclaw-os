@@ -2,6 +2,12 @@
 
 export type BlendMode = "normal" | "multiply" | "screen" | "overlay";
 
+/**
+ * background — fills the canvas edge to edge (cover fit, placed at 0,0)
+ * element    — sized to its natural dimensions, placed at x,y
+ */
+export type LayerRole = "background" | "element";
+
 export interface Layer {
   id: string;
   name: string;
@@ -16,6 +22,11 @@ export interface Layer {
   x: number;
   y: number;
   blendMode: BlendMode;
+  /**
+   * background = fills canvas (cover). element = natural size at x,y.
+   * Defaults to "background" for z=0, "element" for all others.
+   */
+  role: LayerRole;
   /** Original generation prompt, if this layer was AI-generated */
   prompt?: string;
   createdAt: string;

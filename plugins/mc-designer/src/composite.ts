@@ -30,18 +30,34 @@ export async function compositeCanvas(canvas: Canvas): Promise<Buffer> {
 
   const compositeInputs = await Promise.all(
     visibleLayers.map(async (layer) => {
-      let img = sharp(layer.imagePath).resize(width, height, {
-        fit: "contain",
-        background: { r: 0, g: 0, b: 0, alpha: 0 },
-      });
+      const role = layer.role ?? (layer.z === 0 ? "background" : "element");
+
+      let img: sharp.Sharp;
+
+      if (role === "background") {
+        // Fill the entire canvas, cropping if needed to avoid letterboxing
+        img = sharp(layer.imagePath).resize(width, height, {
+          fit: "cover",
+          position: "centre",
+        });
+      } else {
+        // Element: scale down only if larger than canvas, preserve natural size
+        const meta = await sharp(layer.imagePath).metadata();
+        const nw = meta.width ?? width;
+        const nh = meta.height ?? height;
+        if (nw > width || nh > height) {
+          img = sharp(layer.imagePath).resize(width, height, {
+            fit: "inside",
+            background: { r: 0, g: 0, b: 0, alpha: 0 },
+          });
+        } else {
+          img = sharp(layer.imagePath);
+        }
+        img = img.ensureAlpha();
+      }
 
       if (layer.opacity < 100) {
-        // Apply opacity by adding an alpha channel scaled to the opacity value
-        const alpha = Math.round((layer.opacity / 100) * 255);
-        img = img.ensureAlpha().modulate({}).linear(
-          layer.opacity / 100,
-          0,
-        );
+        img = img.ensureAlpha().linear(layer.opacity / 100, 0);
       }
 
       const buf = await img.png().toBuffer();
