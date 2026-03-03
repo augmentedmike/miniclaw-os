@@ -1,5 +1,5 @@
 import * as fs from "node:fs";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import type { UsageRecord } from "./types.js";
 
 interface GenerateResult {
@@ -8,40 +8,64 @@ interface GenerateResult {
   usage: Omit<UsageRecord, "ts" | "canvasName" | "layerName">;
 }
 
+/** Map canvas aspect ratio to the nearest Gemini-supported value */
+function nearestAspectRatio(w: number, h: number): string {
+  const r = w / h;
+  const options: [number, string][] = [
+    [1,       "1:1"],
+    [4/3,     "4:3"],
+    [3/4,     "3:4"],
+    [16/9,    "16:9"],
+    [9/16,    "9:16"],
+  ];
+  let best = options[0][1];
+  let bestDiff = Infinity;
+  for (const [ratio, label] of options) {
+    const diff = Math.abs(r - ratio);
+    if (diff < bestDiff) { bestDiff = diff; best = label; }
+  }
+  return best;
+}
+
 export class GeminiClient {
-  private genAI: GoogleGenerativeAI;
+  private ai: GoogleGenAI;
 
   constructor(private apiKey: string, private model: string) {
-    this.genAI = new GoogleGenerativeAI(apiKey);
+    this.ai = new GoogleGenAI({ apiKey });
   }
 
   setApiKey(key: string): void {
     this.apiKey = key;
-    this.genAI = new GoogleGenerativeAI(key);
+    this.ai = new GoogleGenAI({ apiKey: key });
   }
 
   /**
    * Generate an image from a text prompt.
-   * Returns the first image in the response.
    */
   async generate(
     prompt: string,
     op: "generate" | "edit" = "generate",
+    canvasWidth?: number,
+    canvasHeight?: number,
   ): Promise<GenerateResult> {
-    const m = this.genAI.getGenerativeModel({ model: this.model });
     const t0 = Date.now();
 
-    const response = await m.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: {
-        // @ts-expect-error responseModalities is valid but not in all SDK typings yet
-        responseModalities: ["IMAGE", "TEXT"],
+    const aspectRatio = canvasWidth && canvasHeight
+      ? nearestAspectRatio(canvasWidth, canvasHeight)
+      : "1:1";
+
+    const response = await this.ai.models.generateContent({
+      model: this.model,
+      contents: prompt,
+      config: {
+        responseModalities: ["TEXT", "IMAGE"],
+        imageConfig: { aspectRatio },
       },
     });
 
     const durationMs = Date.now() - t0;
-    const candidate = response.response.candidates?.[0];
-    const usageMeta = response.response.usageMetadata;
+    const candidate = response.candidates?.[0];
+    const usageMeta = response.usageMetadata;
 
     let imageData: string | null = null;
     let mimeType = "image/png";
@@ -52,7 +76,7 @@ export class GeminiClient {
         imageData = part.inlineData.data;
         mimeType = part.inlineData.mimeType ?? "image/png";
         imageCount++;
-        break; // take first image
+        break;
       }
     }
 
@@ -60,10 +84,8 @@ export class GeminiClient {
       throw new Error("Gemini returned no image data");
     }
 
-    const buffer = Buffer.from(imageData, "base64");
-
     return {
-      buffer,
+      buffer: Buffer.from(imageData, "base64"),
       mimeType,
       usage: {
         op,
@@ -79,19 +101,14 @@ export class GeminiClient {
 
   /**
    * Edit an existing image with natural language instructions.
-   * Reads the image from disk, sends it alongside the instruction prompt.
    */
-  async edit(
-    imagePath: string,
-    instructions: string,
-  ): Promise<GenerateResult> {
+  async edit(imagePath: string, instructions: string): Promise<GenerateResult> {
     const imageBuffer = fs.readFileSync(imagePath);
     const base64 = imageBuffer.toString("base64");
-
-    const m = this.genAI.getGenerativeModel({ model: this.model });
     const t0 = Date.now();
 
-    const response = await m.generateContent({
+    const response = await this.ai.models.generateContent({
+      model: this.model,
       contents: [
         {
           role: "user",
@@ -101,15 +118,14 @@ export class GeminiClient {
           ],
         },
       ],
-      generationConfig: {
-        // @ts-expect-error responseModalities is valid but not in all SDK typings yet
+      config: {
         responseModalities: ["IMAGE"],
       },
     });
 
     const durationMs = Date.now() - t0;
-    const candidate = response.response.candidates?.[0];
-    const usageMeta = response.response.usageMetadata;
+    const candidate = response.candidates?.[0];
+    const usageMeta = response.usageMetadata;
 
     let imageData: string | null = null;
     let mimeType = "image/png";

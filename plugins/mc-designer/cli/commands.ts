@@ -85,13 +85,13 @@ export function registerDesignerCommands(ctx: Ctx): void {
       const t0 = Date.now();
       let result;
       try {
-        result = await gemini.generate(engineeredPrompt, "generate");
+        result = await gemini.generate(engineeredPrompt, "generate", canvas.width, canvas.height);
       } catch (err) {
         if (isAuthError(err)) {
           console.error("Auth failed — invalid or missing API key.");
           await ensureKey(err);
           try {
-            result = await gemini.generate(engineeredPrompt, "generate");
+            result = await gemini.generate(engineeredPrompt, "generate", canvas.width, canvas.height);
           } catch (retryErr) {
             console.error(`Generation failed: ${retryErr}`);
             process.exit(1);
@@ -195,13 +195,14 @@ export function registerDesignerCommands(ctx: Ctx): void {
     .description("Create a new canvas")
     .option("-W, --width <px>", "Width in pixels", String(cfg.defaultWidth))
     .option("-H, --height <px>", "Height in pixels", String(cfg.defaultHeight))
-    .action((name: string, opts: { width: string; height: string }) => {
+    .option("--bg <hex>", "Background color hex (default: #18181b zinc-900)", "#18181b")
+    .action((name: string, opts: { width: string; height: string; bg: string }) => {
       if (store.loadCanvas(name)) {
         console.error(`Canvas "${name}" already exists`);
         process.exit(1);
       }
-      const c = store.createCanvas(name, parseInt(opts.width, 10), parseInt(opts.height, 10));
-      console.log(`Canvas "${c.name}" created (${c.width}×${c.height})`);
+      const c = store.createCanvas(name, parseInt(opts.width, 10), parseInt(opts.height, 10), opts.bg);
+      console.log(`Canvas "${c.name}" created (${c.width}×${c.height}, bg=${c.background})`);
     });
 
   canvas

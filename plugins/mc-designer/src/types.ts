@@ -43,6 +43,8 @@ export interface Canvas {
   name: string;
   width: number;
   height: number;
+  /** Canvas background color shown in preview and under all layers. Hex, e.g. "#18181b". Default: "#18181b" (zinc-900). */
+  background: string;
   layers: Layer[];
   createdAt: string;
   updatedAt: string;

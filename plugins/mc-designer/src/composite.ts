@@ -14,18 +14,19 @@ export async function compositeCanvas(canvas: Canvas): Promise<Buffer> {
     .filter((l) => l.visible && fs.existsSync(l.imagePath))
     .sort((a, b) => a.z - b.z);
 
+  const bg = hexToRgb(canvas.background ?? "#18181b");
+
   if (visibleLayers.length === 0) {
-    // Return a transparent canvas
     return sharp({
-      create: { width, height, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+      create: { width, height, channels: 3, background: bg },
     })
       .png()
       .toBuffer();
   }
 
-  // Start with a transparent base
+  // Start with the canvas background color
   let base = sharp({
-    create: { width, height, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+    create: { width, height, channels: 3, background: bg },
   }).png();
 
   const compositeInputs = await Promise.all(
@@ -116,6 +117,15 @@ export async function cutRegion(
     .toBuffer();
 
   return img.composite([{ input: mask, blend: "dest-in" }]).png().toBuffer();
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const clean = hex.replace("#", "");
+  return {
+    r: parseInt(clean.slice(0, 2), 16),
+    g: parseInt(clean.slice(2, 4), 16),
+    b: parseInt(clean.slice(4, 6), 16),
+  };
 }
 
 function blendModeToSharp(
