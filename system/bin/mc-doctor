@@ -1,0 +1,252 @@
+#!/usr/bin/env bash
+# mc-doctor — diagnose and fix miniclaw issues
+#
+# Runs the same checks as mc-smoke, but attempts to repair failures.
+# Safe to re-run — skips anything already healthy.
+#
+# Usage:
+#   mc-doctor          Interactive — asks before each fix
+#   mc-doctor --auto   Auto-fix everything without prompting
+
+set -euo pipefail
+
+AUTO=false
+[[ "${1:-}" == "--auto" ]] && AUTO=true
+
+FIXED=0
+SKIPPED=0
+FAILED=0
+
+OPENCLAW_DIR="${HOME}/.openclaw"
+MINICLAW_DIR="$OPENCLAW_DIR/miniclaw"
+VAULT_ROOT="$MINICLAW_DIR/system/vault"
+LOCAL_BIN="$HOME/.local/bin"
+
+# ── Colours ───────────────────────────────────────────────────────────────────
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+BLUE='\033[0;34m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+ok()      { echo -e "  ${GREEN}[✓]${NC} $1"; }
+fixed()   { echo -e "  ${GREEN}[+]${NC} $1"; FIXED=$(( FIXED + 1 )); }
+skip()    { echo -e "  ${YELLOW}[-]${NC} $1"; SKIPPED=$(( SKIPPED + 1 )); }
+broke()   { echo -e "  ${RED}[✗]${NC} $1"; FAILED=$(( FAILED + 1 )); }
+section() { echo -e "\n${BOLD}── $1${NC}"; }
+
+# Ask user before fixing (unless --auto)
+# Returns 0 = proceed, 1 = skip
+ask() {
+  local msg="$1"
+  if $AUTO; then
+    echo -e "  ${BLUE}[→]${NC} $msg"
+    return 0
+  fi
+  printf "  ${YELLOW}fix?${NC} %s [Y/n] " "$msg"
+  read -r ans
+  [[ -z "$ans" || "$ans" == "y" || "$ans" == "Y" ]]
+}
+
+echo ""
+echo -e "${BOLD}mc-doctor${NC}"
+$AUTO && echo "  mode: auto-fix" || echo "  mode: interactive"
+
+# ── Homebrew ──────────────────────────────────────────────────────────────────
+section "Homebrew"
+
+if command -v brew &>/dev/null; then
+  ok "Homebrew present"
+else
+  if ask "Install Homebrew?"; then
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" \
+      && fixed "Homebrew installed" || broke "Homebrew install failed"
+  else
+    skip "Homebrew"
+  fi
+fi
+
+# ── age ───────────────────────────────────────────────────────────────────────
+section "age"
+
+if command -v age &>/dev/null; then
+  ok "age present"
+else
+  if ask "Install age (brew install age)?"; then
+    brew install age && fixed "age installed" || broke "age install failed"
+  else
+    skip "age"
+  fi
+fi
+
+# ── bun ───────────────────────────────────────────────────────────────────────
+section "bun"
+
+if command -v bun &>/dev/null || [[ -f "$HOME/.bun/bin/bun" ]]; then
+  [[ -f "$HOME/.bun/bin/bun" ]] && export PATH="$HOME/.bun/bin:$PATH"
+  ok "bun present"
+else
+  if ask "Install bun?"; then
+    curl -fsSL https://bun.sh/install | bash \
+      && export PATH="$HOME/.bun/bin:$PATH" \
+      && fixed "bun installed" || broke "bun install failed"
+  else
+    skip "bun"
+  fi
+fi
+
+# ── qmd ───────────────────────────────────────────────────────────────────────
+section "qmd  [optional]"
+
+if command -v qmd &>/dev/null || [[ -f "$HOME/.bun/bin/qmd" ]]; then
+  export PATH="$HOME/.bun/bin:$PATH"
+  ok "qmd present"
+else
+  if ask "Install qmd (bun install -g qmd)?"; then
+    bun install -g qmd && fixed "qmd installed" || broke "qmd install failed"
+  else
+    skip "qmd"
+  fi
+fi
+
+if command -v qmd &>/dev/null; then
+  for col in mc-memory workspace; do
+    if ! qmd collection list 2>/dev/null | grep -q "^${col}"; then
+      default_path="$OPENCLAW_DIR/user/memory"
+      [[ "$col" == "workspace" ]] && default_path="$OPENCLAW_DIR/workspace"
+      if ask "Register qmd collection '$col' → $default_path?"; then
+        mkdir -p "$default_path"
+        qmd collection add "$col" "$default_path" \
+          && fixed "collection '$col' registered" || broke "failed to register '$col'"
+      else
+        skip "qmd collection '$col'"
+      fi
+    else
+      ok "qmd collection '$col' present"
+    fi
+  done
+fi
+
+# ── openclaw ──────────────────────────────────────────────────────────────────
+section "openclaw"
+
+if ! command -v openclaw &>/dev/null; then
+  if ask "Install openclaw (npm install -g openclaw@latest)?"; then
+    npm install -g openclaw@latest && fixed "openclaw installed" || broke "openclaw install failed"
+  else
+    skip "openclaw"
+  fi
+else
+  ok "openclaw present ($(openclaw --version 2>/dev/null | head -1))"
+fi
+
+if [[ ! -f "$OPENCLAW_DIR/openclaw.json" ]]; then
+  if ask "Create minimal openclaw.json?"; then
+    mkdir -p "$OPENCLAW_DIR"
+    python3 - "$OPENCLAW_DIR/openclaw.json" <<'PYEOF'
+import json, sys
+cfg = {
+  "meta": {},
+  "agents": { "defaults": { "model": { "primary": "claude-sonnet-4-6" }, "compaction": { "mode": "safeguard" } } },
+  "plugins": {}
+}
+with open(sys.argv[1], "w") as f:
+    json.dump(cfg, f, indent=2); f.write("\n")
+PYEOF
+    fixed "openclaw.json created"
+  else
+    skip "openclaw.json"
+  fi
+else
+  ok "openclaw.json present"
+fi
+
+# ── vault ─────────────────────────────────────────────────────────────────────
+section "vault"
+
+MC_VAULT="$LOCAL_BIN/mc-vault"
+
+if ! command -v mc-vault &>/dev/null; then
+  broke "mc-vault not found — run install.sh first"
+elif [[ ! -f "$VAULT_ROOT/key.txt" ]]; then
+  if ask "Initialise vault (mc-vault init)?"; then
+    OPENCLAW_VAULT_ROOT="$VAULT_ROOT" mc-vault init \
+      && fixed "vault initialised" || broke "vault init failed"
+  else
+    skip "vault init"
+  fi
+else
+  # Verify encrypt/decrypt works
+  TEST_VAL="doctor-test-$$"
+  if OPENCLAW_VAULT_ROOT="$VAULT_ROOT" mc-vault set _doctor_test "$TEST_VAL" &>/dev/null 2>&1 && \
+     OPENCLAW_VAULT_ROOT="$VAULT_ROOT" mc-vault export _doctor_test 2>/dev/null | grep -q "$TEST_VAL"; then
+    OPENCLAW_VAULT_ROOT="$VAULT_ROOT" mc-vault rm _doctor_test &>/dev/null 2>&1 || true
+    ok "vault encrypt/decrypt ok"
+  else
+    OPENCLAW_VAULT_ROOT="$VAULT_ROOT" mc-vault rm _doctor_test &>/dev/null 2>&1 || true
+    broke "vault encrypt/decrypt failed — age binaries ok but vault may be corrupt"
+  fi
+fi
+
+# ── directories ───────────────────────────────────────────────────────────────
+section "directories"
+
+for dir in \
+  "$OPENCLAW_DIR/soul-backups" \
+  "$OPENCLAW_DIR/projects" \
+  "$OPENCLAW_DIR/user/memory"; do
+  if [[ ! -d "$dir" ]]; then
+    if ask "Create $dir?"; then
+      mkdir -p "$dir" && fixed "created $dir" || broke "failed to create $dir"
+    else
+      skip "$dir"
+    fi
+  else
+    ok "$dir"
+  fi
+done
+
+# ── plugin deps ───────────────────────────────────────────────────────────────
+section "plugin dependencies"
+
+PLUGINS_DIR="$MINICLAW_DIR/plugins"
+
+if [[ ! -d "$PLUGINS_DIR" ]]; then
+  broke "plugins dir not found — run install.sh first"
+elif ! command -v bun &>/dev/null; then
+  skip "bun not found — cannot install plugin deps"
+else
+  for plugin_dir in "$PLUGINS_DIR"/*/; do
+    plugin_name="$(basename "$plugin_dir")"
+    if [[ -f "$plugin_dir/package.json" && ! -d "$plugin_dir/node_modules" ]]; then
+      if ask "Install deps for $plugin_name (bun install)?"; then
+        (cd "$plugin_dir" && bun install 2>/dev/null) \
+          && fixed "$plugin_name deps installed" || broke "$plugin_name bun install failed"
+      else
+        skip "$plugin_name deps"
+      fi
+    else
+      ok "$plugin_name deps present"
+    fi
+  done
+fi
+
+# ── summary ───────────────────────────────────────────────────────────────────
+echo ""
+echo "────────────────────────────────────────"
+echo "  ${FIXED} fixed  ${SKIPPED} skipped  ${FAILED} failed"
+echo "────────────────────────────────────────"
+
+if [[ $FAILED -gt 0 ]]; then
+  echo ""
+  echo "  Run mc-smoke to verify remaining issues."
+  echo ""
+  exit 1
+fi
+
+if [[ $FIXED -gt 0 ]]; then
+  echo ""
+  echo "  Run mc-smoke to confirm everything is healthy."
+  echo ""
+fi
