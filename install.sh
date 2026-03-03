@@ -16,9 +16,14 @@ OPENCLAW_CONFIG="$OPENCLAW_DIR/openclaw.json"
 MINICLAW_DIR="$OPENCLAW_DIR/miniclaw"
 PROJECTS_DIR="$OPENCLAW_DIR/projects"
 LOCAL_BIN="${LOCAL_BIN:-$HOME/.local/bin}"
+LOG_FILE="/tmp/miniclaw-install.log"
 
 CHECK_ONLY=false
 [[ "${1:-}" == "--check" ]] && CHECK_ONLY=true
+
+# Tee all output to log file so it can be tailed remotely
+exec > >(tee -a "$LOG_FILE") 2>&1
+echo "=== miniclaw-os install started $(date) ===" >> "$LOG_FILE"
 
 # ── Colours ───────────────────────────────────────────────────────────────────
 GREEN='\033[0;32m'
@@ -35,6 +40,7 @@ step() { echo -e "\n${BOLD}── $1${RESET}"; }
 echo -e "\n${BOLD}miniclaw-os installer${RESET}"
 echo "  source : $REPO_DIR"
 echo "  install: $MINICLAW_DIR"
+echo "  log    : $LOG_FILE"
 
 # ── Verify prerequisites ───────────────────────────────────────────────────────
 step "Verifying prerequisites"
