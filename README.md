@@ -26,9 +26,15 @@ CLI tools:
 
 ---
 
+## Platform
+
+**macOS (Apple Silicon)** — currently supported. Linux with full desktop access is in progress.
+
+---
+
 ## Install
 
-No prerequisites needed. The installer handles everything from scratch.
+No other prerequisites needed. The installer handles everything from scratch.
 
 ```bash
 git clone https://github.com/augmentedmike/miniclaw-os.git
