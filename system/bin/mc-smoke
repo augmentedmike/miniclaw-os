@@ -149,7 +149,7 @@ else
   for plugin_dir in "$MINICLAW_PLUGINS_DIR"/*/; do
     plugin_name="$(basename "$plugin_dir")"
     # Only run if there are test files
-    if ! find "$plugin_dir" \( -name "*.test.ts" -o -name "*.test.js" \) 2>/dev/null | grep -q .; then
+    if ! find "$plugin_dir" -not -path "*/node_modules/*" \( -name "*.test.ts" -o -name "*.test.js" \) 2>/dev/null | grep -q .; then
       warn "$plugin_name" "no tests found"
       continue
     fi
