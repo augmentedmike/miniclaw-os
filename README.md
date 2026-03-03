@@ -11,8 +11,8 @@ A collection of plugins and CLI tools that extend OpenClaw into a full personal 
 | Plugin | Brain Region | What it does |
 |--------|-------------|--------------|
 | `mc-board` | Prefrontal cortex | Kanban board — tracks work from backlog → shipped with enforced state gates |
-| `mc-designer` | Occipital lobe (generative) | Visual creation studio — layered image generation and compositing via Gemini |
-| `mc-trust` | — | Cross-agent trust and identity — cryptographic handshakes between AI agents |
+| `mc-designer` | Occipital lobe | Visual creation studio — layered image generation and compositing via Gemini |
+| `mc-trust` | Immune system | Cross-agent trust and identity — cryptographic verification between agents |
 | `mc-context` | Hippocampus | Engineered context windows — time-based retention, image pruning, memory injection |
 
 CLI tools:
@@ -20,25 +20,15 @@ CLI tools:
 | Tool | What it does |
 |------|-------------|
 | `mc-vault` | Age-encrypted secret store — store API keys, tokens, and private notes on disk |
-| `mc` | Thin CLI wrapper around the openclaw binary |
+| `mc` | Thin CLI wrapper — `mc board`, `mc designer`, `mc trust`, `mc vault`, `mc smoke` |
 | `mc-smoke` | Verifies the full miniclaw stack is installed and working |
-
----
-
-## Requirements
-
-- **OpenClaw** installed at `~/.openclaw` — [openclaw.ai](https://openclaw.ai)
-- macOS (arm64) — tested on Apple Silicon
-- Python 3 (for the installer's config patcher)
-- `rsync` (standard on macOS)
+| `mc-doctor` | Diagnoses and fixes miniclaw issues — interactive or `--auto` |
 
 ---
 
 ## Install
 
-### Option 1 — Full installer (recommended)
-
-Installs everything: all plugins, CLI tools, and patches `openclaw.json` automatically.
+No prerequisites needed. The installer handles everything from scratch.
 
 ```bash
 git clone https://github.com/augmentedmike/miniclaw-os.git
@@ -46,19 +36,15 @@ cd miniclaw-os
 ./install.sh
 ```
 
-Restart OpenClaw to load the plugins:
+This installs: Homebrew, Node.js, git, Python 3, jq, age, Bun, QMD, OpenClaw, all plugins, and CLI tools.
 
-```bash
-openclaw gateway restart
-```
-
-Verify everything is working:
+Restart OpenClaw to load the plugins, then verify:
 
 ```bash
 mc-smoke
 ```
 
-Re-running `install.sh` is safe. Plugins are rsynced (updated), existing `openclaw.json` plugin config is never overwritten.
+Re-running `install.sh` is safe — skips anything already installed, updates what's stale.
 
 **Check-only mode** — verify prerequisites without making any changes:
 
@@ -66,34 +52,12 @@ Re-running `install.sh` is safe. Plugins are rsynced (updated), existing `opencl
 ./install.sh --check
 ```
 
----
-
-### Option 2 — Individual plugins via OpenClaw
-
-Install only the plugins you want, one at a time, using OpenClaw's built-in plugin system.
+**Fix issues** — run after mc-smoke reports failures:
 
 ```bash
-# Link a single plugin from a local clone
-openclaw plugins install -l ./plugins/mc-board
-openclaw plugins install -l ./plugins/mc-designer
-openclaw plugins install -l ./plugins/mc-context
-openclaw plugins install -l ./plugins/mc-trust
-
-# Or install directly without cloning (when published to npm)
-openclaw plugins install @augmentedmike/mc-board
+mc-doctor          # interactive
+mc-doctor --auto   # fix everything without prompting
 ```
-
-Each plugin is independently installable — you don't need the full stack.
-
----
-
-## What the full installer does
-
-1. Verifies OpenClaw is installed and on PATH
-2. Rsyncs each plugin from `plugins/` into `~/.openclaw/miniclaw/plugins/`
-3. Patches `~/.openclaw/openclaw.json` — adds plugins to allow list, load paths, and sets default config (skipped if already configured)
-4. Copies CLI tools from `system/bin/` into `~/.local/bin/`
-5. Checks that `~/.local/bin` is on your `$PATH`
 
 ---
 
@@ -105,7 +69,7 @@ Some plugins need additional configuration after install.
 
 mc-designer requires a Google Gemini API key for image generation.
 
-See **[plugins/mc-designer/docs/SETUP.md](plugins/mc-designer/docs/SETUP.md)** for a step-by-step guide (normie-friendly).
+See **[plugins/mc-designer/docs/SETUP.md](plugins/mc-designer/docs/SETUP.md)** for a step-by-step guide.
 
 Quick version:
 1. Get a free key at `https://aistudio.google.com/app/apikey`
@@ -113,10 +77,12 @@ Quick version:
 
 ### mc-vault — initial setup
 
+The installer initialises the vault and prompts for secrets during install. To manage secrets later:
+
 ```bash
-mc-vault list          # list stored secrets
-mc-vault set my-key    # store a new secret (prompts for value)
-mc-vault get my-key    # retrieve a secret
+mc vault list                   # list stored secrets
+mc vault set my-key             # store a new secret (prompts for value)
+mc vault get my-key             # retrieve a secret
 ```
 
 ---
@@ -126,13 +92,13 @@ mc-vault get my-key    # retrieve a secret
 ### mc-board — kanban board
 
 ```bash
-mc brain create --title "Fix login bug" --priority high
-mc brain list
-mc brain board
-mc brain move <id> in-progress
-mc brain move <id> in-review
-mc brain move <id> shipped
-mc brain archive <id>
+mc board create --title "Fix login bug" --priority high
+mc board list
+mc board board
+mc board move <id> in-progress
+mc board move <id> in-review
+mc board move <id> shipped
+mc board archive <id>
 ```
 
 Column flow: `backlog → in-progress → in-review → shipped`
@@ -141,33 +107,56 @@ Column flow: `backlog → in-progress → in-review → shipped`
 
 ```bash
 # Generate an image
-openclaw cli designer gen "a minimalist logo on white background"
+mc designer gen "a minimalist logo on white background"
 
 # Work with canvases and layers
-openclaw cli designer canvas new mybrand
-openclaw cli designer gen "blue gradient background" --canvas mybrand --layer bg
-openclaw cli designer gen "bold sans-serif wordmark" --canvas mybrand --layer text
-openclaw cli designer layer opacity mybrand text 90
-openclaw cli designer composite mybrand
+mc designer canvas create --name mybrand --width 1920 --height 1080
+mc designer gen "blue gradient background" --canvas mybrand --layer bg
+mc designer gen "bold sans-serif wordmark" --canvas mybrand --layer text
+mc designer layer list mybrand
+mc designer composite mybrand
 
 # Usage and cost
-openclaw cli designer stats
-openclaw cli designer stats --full
+mc designer stats
+mc designer stats --full
 ```
 
-### mc-vault — secrets
+### mc-trust — identity and verification
 
 ```bash
-mc-vault set gh-token           # store (prompts for value)
-mc-vault get gh-token           # retrieve
-mc-vault export gh-token        # raw output for eval/piping
-mc-vault list                   # list all keys with notes
-mc-vault memo set private-note  # encrypted private note
+mc trust init                   # generate identity keypair for this agent
+mc trust show                   # display this agent's public key
+mc trust peer add <id> <key>    # register a peer's public key
+mc trust peer list              # list known peers
+mc trust revoke <id>            # remove trust for a peer
 ```
 
 ### mc-context
 
-No manual interaction needed — runs automatically on every agent prompt build. Manages the context window for channel sessions: time-based message retention, image pruning, and memory injection.
+No manual interaction needed — runs automatically on every agent prompt build.
+
+### mc-vault — secrets
+
+```bash
+mc vault set gh-token           # store (prompts for value)
+mc vault get gh-token           # retrieve
+mc vault export gh-token        # raw output for eval/piping
+mc vault list                   # list all keys
+```
+
+---
+
+## What the installer does
+
+1. Installs Homebrew, Node.js 22, git, Python 3, jq, age
+2. Installs Bun and QMD
+3. Installs or updates OpenClaw (`npm install -g openclaw@latest`)
+4. Creates `~/.openclaw/miniclaw/`, `~/.openclaw/projects/`, `~/.openclaw/soul-backups/`, `~/.openclaw/user/memory/`
+5. Rsyncs each plugin into `~/.openclaw/miniclaw/plugins/` and runs `bun install`
+6. Patches `~/.openclaw/openclaw.json` — adds plugins to allow list, load paths, and default config
+7. Copies CLI tools (`mc`, `mc-vault`, `mc-smoke`, `mc-doctor`) into `~/.local/bin/`
+8. Registers the `mc-memory` QMD collection for semantic search
+9. Initialises the vault and prompts for secrets interactively
 
 ---
 
@@ -178,40 +167,40 @@ miniclaw-os/
 ├── install.sh                        # Full installer (idempotent)
 ├── README.md
 ├── plugins/
-│   ├── mc-board/               # Prefrontal cortex — kanban board
+│   ├── mc-board/                     # Prefrontal cortex — kanban board
 │   │   ├── openclaw.plugin.json
 │   │   ├── index.ts
 │   │   ├── core/                     # Card store, board renderer, state machine
 │   │   ├── cli/                      # CLI commands
 │   │   ├── tools/                    # Agent tool definitions
 │   │   └── web/                      # Web debug view (port 4220)
-│   ├── mc-designer/            # Occipital lobe — image creation
+│   ├── mc-designer/                  # Occipital lobe — image creation
 │   │   ├── openclaw.plugin.json
 │   │   ├── index.ts
-│   │   ├── PLAN.md                   # Full roadmap incl. future Photoshop filters
 │   │   ├── src/                      # Gemini client, canvas store, compositor
 │   │   ├── cli/                      # CLI commands
 │   │   └── docs/
+│   │       ├── README.md             # Plugin overview
 │   │       └── SETUP.md              # API key setup guide
-│   ├── mc-trust/               # Cross-agent trust and identity
+│   ├── mc-trust/                     # Immune system — cross-agent trust
 │   │   ├── openclaw.plugin.json
 │   │   ├── index.ts
-│   │   ├── core/                     # Key management, handshake protocol
-│   │   ├── cli/
-│   │   └── tools/
-│   └── mc-context/                # Hippocampus — context management
+│   │   ├── src/                      # Key management, signing
+│   │   └── cli/
+│   └── mc-context/                   # Hippocampus — context management
 │       ├── openclaw.plugin.json
 │       ├── index.ts
-│       └── PLAN.md
+│       └── src/
 └── system/
     └── bin/
-        ├── mc                  # CLI wrapper
-        ├── mc-vault            # Age-encrypted secret store
-        └── mc-smoke       # System health checker
+        ├── mc                        # CLI wrapper
+        ├── mc-vault                  # Age-encrypted secret store
+        ├── mc-smoke                  # System health checker
+        └── mc-doctor                 # Diagnose and fix issues
 ```
 
 ---
 
 ## License
 
-Private. Part of the AugmentedMike / miniclaw ecosystem.
+Private.

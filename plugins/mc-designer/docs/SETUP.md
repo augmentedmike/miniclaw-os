@@ -63,7 +63,7 @@ That's it. The key is now stored in your local `openclaw.json` config.
 Restart the OpenClaw gateway (use the OpenClaw app), then run:
 
 ```bash
-openclaw cli designer gen "a simple red circle on white background"
+mc designer gen "a simple red circle on white background"
 ```
 
 If everything is set up correctly, you'll see output like:
@@ -106,7 +106,7 @@ and update the model name if needed.
 ```bash
 openclaw config get plugins.allow
 ```
-You should see `mc-designer` in the list. If not, ask AugmentedMike.
+You should see `mc-designer` in the list. If not, re-run `install.sh` to register it.
 
 ---
 
