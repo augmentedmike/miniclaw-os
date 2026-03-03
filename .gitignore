@@ -1,6 +1,9 @@
 # End-user data — created and owned by the end user, never committed
 user/
 
+# Vault — NEVER commit secrets, keys, or encrypted blobs
+system/vault/
+
 # Node dependencies
 node_modules/
 **/node_modules/
