@@ -41,19 +41,14 @@ export async function compositeCanvas(canvas: Canvas): Promise<Buffer> {
           position: "centre",
         });
       } else {
-        // Element: scale down only if larger than canvas, preserve natural size
-        const meta = await sharp(layer.imagePath).metadata();
-        const nw = meta.width ?? width;
-        const nh = meta.height ?? height;
-        if (nw > width || nh > height) {
-          img = sharp(layer.imagePath).resize(width, height, {
-            fit: "inside",
-            background: { r: 0, g: 0, b: 0, alpha: 0 },
-          });
+        // Element: use renderWidth/renderHeight if set, otherwise natural size
+        if (layer.renderWidth && layer.renderHeight) {
+          img = sharp(layer.imagePath).resize(layer.renderWidth, layer.renderHeight, {
+            fit: "fill",
+          }).ensureAlpha();
         } else {
-          img = sharp(layer.imagePath);
+          img = sharp(layer.imagePath).ensureAlpha();
         }
-        img = img.ensureAlpha();
       }
 
       if (layer.opacity < 100) {

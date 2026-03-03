@@ -2,240 +2,192 @@
 
 ---
 
-## How image generation actually works
+## How it works
 
-Gemini generates images at its own internal resolution — you cannot control the exact pixel output dimensions. What you can control is:
+Gemini generates images. mc-designer composes them into a layered canvas.
 
-- **What to generate** (the prompt)
-- **The role of the layer** — background (fills canvas) or element (natural size, placed at x,y)
-- **Where to place it** (x/y offset for element layers)
+You cannot control Gemini's output resolution — it generates at whatever size it decides. What you control is how each layer is **sized and placed** on your canvas at composite time:
 
-mc-designer automatically appends canvas context to every prompt so Gemini knows what role the image plays. You write the creative brief; the plugin handles the technical framing.
+- **Background layer (z=0):** fills the canvas edge to edge, cover scaling
+- **Element layers (z≥1):** you specify exact position (`--x --y`) and size (`--w --h`)
+
+Every `gen` call creates a **new layer**. Layer names must be unique per canvas.
 
 ---
 
 ## Layer roles
 
-Every layer has a role that controls how it's composited:
+| Role | What happens at composite | When to use |
+|------|--------------------------|-------------|
+| `background` | Scales to fill canvas (cover, no letterboxing) | Sky, gradient, scene, texture |
+| `element` | Resized to `--w × --h`, placed at `--x, --y` | Logo, product, icon, badge, text art |
 
-| Role | Behaviour | Use for |
-|------|-----------|---------|
-| `background` | Scaled to fill canvas edge to edge (cover) | Sky, gradient, texture, scene backdrop |
-| `element` | Kept at natural size, placed at x/y offset | Logo, product, person, text overlay |
-
-**The first layer on a canvas defaults to `background`. All subsequent layers default to `element`.** Override with `--role`.
+**The first layer defaults to `background`. All others default to `element` and require `--x --y --w --h`.**
 
 ---
 
-## Generating images
+## Commands
+
+### Generate a background (z=0, fills canvas)
 
 ```bash
-mc designer gen "blue gradient sky, wide and cinematic" --canvas homepage
+mc designer gen "prompt" --canvas <name>
+# role=background is automatic for the first layer
 ```
 
-Because this is the first layer, it gets `role=background` automatically. The prompt Gemini actually receives includes:
-
-> *Fill the entire frame edge to edge with no borders, letterboxing, or whitespace. Target aspect ratio 1.00 (1024×1024 pixels). Do not include any UI elements, text, or foreground subjects.*
+### Generate an element (z≥1, sized + placed)
 
 ```bash
-mc designer gen "bold sans-serif wordmark 'ACME' in black" --canvas homepage --layer logo
+mc designer gen "prompt" --canvas <name> --layer <name> \
+  --role element --x <px> --y <px> --w <px> --h <px>
 ```
 
-Because this is not z=0, it gets `role=element` automatically. Gemini is told:
+`--x --y` = top-left corner of where the element sits on the canvas
+`--w --h` = the size to render it at composite time (independent of Gemini's output size)
 
-> *Place the subject centered on a plain white background with clean, well-defined edges. No drop shadows or environmental context.*
-
-**Override role explicitly:**
+### Other commands
 
 ```bash
-mc designer gen "dark semi-transparent overlay" --canvas homepage --role background
-mc designer gen "circular product badge" --canvas homepage --role element --x 860 --y 400
+mc designer canvas new <name> --width <px> --height <px>
+mc designer canvas list
+mc designer canvas show <name>
+mc designer canvas clear <name>    # remove all layers, keep canvas
+mc designer canvas rm <name>       # delete canvas entirely
+
+mc designer layer add <canvas> <file> --name <name> --role element --x <px> --y <px> --w <px> --h <px>
+mc designer layer rm <canvas> <layer>
+mc designer layer clear <canvas>   # remove all layers
+mc designer layer toggle <canvas> <layer>
+mc designer layer opacity <canvas> <layer> <0-100>
+mc designer layer blend <canvas> <layer> normal|multiply|screen|overlay
+mc designer layer rename <canvas> <layer> <newname>
+mc designer layer mv <canvas> <layer> --z <index>
+
+mc designer edit <canvas> <layer> "instructions"
+mc designer composite <canvas> [--out <file>]
+mc designer alpha strip <file>
+mc designer stats [--full]
 ```
 
 ---
 
-## What makes a good prompt for each role
+## Worked example — mobile hero + header
+
+**Canvas: 390×844** (iPhone 14 viewport)
+
+```
+┌─────────────────────────────┐  ← 390px wide
+│  [logo]        [nav icon]   │  ← header: ~80px tall
+│                             │
+│                             │
+│     [headline text art]     │  ← center-ish
+│                             │
+│   [hero background image]   │  ← fills entire canvas
+│                             │
+│    [CTA button graphic]     │  ← bottom area
+└─────────────────────────────┘
+```
+
+```bash
+# 1. Create the canvas
+mc designer canvas new mobile-hero --width 390 --height 844
+
+# 2. Hero background — full bleed photo, fills 390×844 (auto role=background)
+mc designer gen "golden hour cityscape, warm orange and pink sky, cinematic" \
+  --canvas mobile-hero --layer bg
+
+# 3. Dark overlay — semi-transparent layer to make text readable on top
+mc designer gen "solid black rectangle" \
+  --canvas mobile-hero --layer overlay --role element \
+  --x 0 --y 0 --w 390 --h 844
+mc designer layer opacity mobile-hero overlay 45
+
+# 4. Logo — top-left, small, ~120×40px
+mc designer gen "minimal wordmark 'ACME' in white, sans-serif, on black background" \
+  --canvas mobile-hero --layer logo --role element \
+  --x 24 --y 20 --w 120 --h 40
+
+# 5. Nav icon — top-right, hamburger menu icon, ~32×32px
+mc designer gen "three horizontal white lines hamburger menu icon on black background" \
+  --canvas mobile-hero --layer nav --role element \
+  --x 334 --y 24 --w 32 --h 32
+
+# 6. Headline — center, large text art, ~320×120px
+mc designer gen "bold white headline text 'Built for Speed' on black background" \
+  --canvas mobile-hero --layer headline --role element \
+  --x 35 --y 320 --w 320 --h 120
+
+# 7. CTA button — bottom area, full width minus margins, ~342×52px
+mc designer gen "rounded rectangle button, bright blue, white text 'Get Started'" \
+  --canvas mobile-hero --layer cta --role element \
+  --x 24 --y 720 --w 342 --h 52
+
+# 8. Check the stack
+mc designer canvas show mobile-hero
+# z5  ✓  cta       role=element  342×52  at (24, 720)
+# z4  ✓  headline  role=element  320×120 at (35, 320)
+# z3  ✓  nav       role=element  32×32   at (334, 24)
+# z2  ✓  logo      role=element  120×40  at (24, 20)
+# z1  ✓  overlay   role=element  390×844 at (0, 0)  opacity=45%
+# z0  ✓  bg        role=background (full bleed)
+
+# 9. Composite
+mc designer composite mobile-hero --out ~/Desktop/mobile-hero.png
+```
+
+After compositing, open the result and iterate:
+
+```bash
+# Regenerate a layer you don't like (remove old, gen new)
+mc designer layer rm mobile-hero headline
+mc designer gen "bold white headline 'Move Fast' large type on black background" \
+  --canvas mobile-hero --layer headline --role element \
+  --x 35 --y 300 --w 320 --h 140
+
+# Edit a layer in place
+mc designer edit mobile-hero bg "shift the sky to deeper purple and pink tones"
+
+# Re-composite
+mc designer composite mobile-hero --out ~/Desktop/mobile-hero-v2.png
+```
+
+---
+
+## Prompting tips
 
 ### Background layers
-
-Tell Gemini the subject, mood, and fill behaviour. It does not need to know about other layers.
-
+Write what you'd describe to a photographer. The system appends fill instructions automatically.
 ```bash
-# Works well
-mc designer gen "soft blue-to-white gradient, minimal, clean" --canvas hero
-mc designer gen "dark textured concrete wall, subtle grain" --canvas card
-mc designer gen "aerial ocean view, deep teal water, sunny day" --canvas banner
+# Good
+"golden hour cityscape, warm orange sky, cinematic, wide"
+"soft blue-to-white gradient, minimal, clean"
+"dark textured concrete, subtle grain, moody"
 
-# Avoid — will confuse compositing
-mc designer gen "sky with a logo in the corner"   # logo belongs on its own layer
-mc designer gen "product hero shot with background"  # split these into two layers
+# Avoid — these belong on separate element layers
+"cityscape with a logo in the corner"
+"gradient background with a button"
 ```
 
 ### Element layers
-
-Tell Gemini exactly what the subject is. Ask for a clean white background — this makes alpha stripping work when you need it.
-
+Ask for the subject on a solid background. The system appends isolation instructions automatically.
 ```bash
-# Works well
-mc designer gen "white ceramic coffee mug, studio lighting, white background" --canvas hero --layer product
-mc designer gen "minimal line icon of a crab, black on white, vector style" --canvas icon --layer subject
-mc designer gen "bold wordmark 'ACME' in Helvetica-style sans-serif, black text on white" --canvas brand --layer logo
+# Good — white or black bg makes compositing clean
+"white ceramic mug, studio lighting, white background"
+"minimal crab icon, black on white, flat vector style"
+"rounded blue button, white text 'Start', clean"
 
-# Avoid
-mc designer gen "coffee mug on a wooden table"   # the table will be in the image
-mc designer gen "a logo with a gradient background"  # makes alpha stripping impossible
+# Avoid — context in the background defeats compositing
+"mug on a wooden café table"
+"logo with a gradient behind it"
 ```
 
----
-
-## Positioning element layers
-
-Element layers are placed at pixel coordinates relative to the top-left of the canvas. At generation time:
-
+### Text
+Gemini handles simple, short text reasonably. Keep it short and specify font style:
 ```bash
-# Generate centered at roughly 860,400 on a 1920×1080 canvas
-mc designer gen "circular badge, red, 'SALE'" \
-  --canvas homepage --layer badge --role element --x 860 --y 400
+"bold white sans-serif text 'ACME' on black background"
+"headline 'Move Fast' large bold white type, black bg"
 ```
-
-After generation, reposition an existing layer:
-
-```bash
-mc designer layer mv homepage badge --z 3    # change stack order
-```
-
-*(x/y repositioning after the fact requires editing the canvas JSON directly — layer move is z-index only. Set x/y at generation time.)*
-
----
-
-## Canvas setup
-
-```bash
-# Create a canvas at specific dimensions
-mc designer canvas new homepage --width 1920 --height 1080
-
-# List canvases
-mc designer canvas list
-
-# Inspect layer stack (top to bottom)
-mc designer canvas show homepage
-```
-
-`canvas show` output:
-```
-Canvas: homepage  1920×1080  (2 layers)
-  z1  ✓  logo      opacity=100%  blend=normal  role=element
-       prompt: "bold wordmark 'ACME' in black on white"
-  z0  ✓  bg        opacity=100%  blend=normal  role=background
-       prompt: "soft blue-to-white gradient, minimal, clean"
-```
-
----
-
-## Layer management
-
-```bash
-# Show/hide
-mc designer layer toggle homepage logo
-
-# Opacity (0–100)
-mc designer layer opacity homepage logo 80
-
-# Blend modes: normal | multiply | screen | overlay
-mc designer layer blend homepage logo multiply
-
-# Rename
-mc designer layer rename homepage layer-1 background
-
-# Remove
-mc designer layer rm homepage logo
-
-# Import your own image as a layer
-mc designer layer add homepage ./my-logo.png --name logo --role element --x 100 --y 50
-mc designer layer add homepage ./bg-texture.png --name texture --role background
-```
-
----
-
-## Editing a layer
-
-Sends the current layer image back to Gemini with new instructions. Replaces the layer in place.
-
-```bash
-mc designer edit homepage bg "shift the gradient to warmer tones, more orange"
-mc designer edit homepage logo "make the text heavier, increase contrast"
-```
-
-Edit works best for adjustments. For significant changes (different subject, different layout), generate a new layer instead.
-
----
-
-## Compositing
-
-Flattens all visible layers in z-order into a single PNG:
-
-```bash
-mc designer composite homepage
-mc designer composite homepage --out ~/Desktop/homepage-final.png
-```
-
-- Background layers (role=background) fill the canvas with cover scaling
-- Element layers (role=element) are placed at their natural size at x/y
-- Hidden layers are skipped
-- Opacity and blend mode are applied per layer
-
----
-
-## Alpha stripping (background removal)
-
-Removes the white background from an element layer image so it composites cleanly:
-
-```bash
-mc designer alpha strip ~/.openclaw/media/designer/layers/homepage/layer-1234567890.png
-# outputs: layer-1234567890.nobg.png
-```
-
-> **Current limitation:** this is a basic alpha conversion, not AI segmentation. It works well on elements generated with a clean white background (as the element prompt instructs). For complex subjects with similar-toned backgrounds, results will be imperfect.
-
-After stripping, re-add the .nobg.png as a new layer to replace the original.
-
----
-
-## Usage and costs
-
-```bash
-mc designer stats           # summary
-mc designer stats --full    # per-call breakdown
-```
-
----
-
-## Full worked example
-
-```bash
-# 1. Create a 1920×1080 homepage canvas
-mc designer canvas new homepage --width 1920 --height 1080
-
-# 2. Generate the background (auto role=background, fills canvas)
-mc designer gen "soft gradient, pale blue top to white bottom, minimal" \
-  --canvas homepage --layer bg
-
-# 3. Generate the product (auto role=element, white background for clean edges)
-mc designer gen "white ceramic coffee mug, studio lighting, white background, centered" \
-  --canvas homepage --layer product --x 760 --y 300
-
-# 4. Import your own logo
-mc designer layer add homepage ./logo.png --name logo --role element --x 80 --y 60
-
-# 5. Check the stack
-mc designer canvas show homepage
-
-# 6. Adjust product opacity
-mc designer layer opacity homepage product 95
-
-# 7. Composite
-mc designer composite homepage --out ~/Desktop/homepage-v1.png
-```
+For precise typography, generate text as an element and use real font rendering (import via `layer add`).
 
 ---
 

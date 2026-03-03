@@ -27,6 +27,12 @@ export interface Layer {
    * Defaults to "background" for z=0, "element" for all others.
    */
   role: LayerRole;
+  /**
+   * For element layers: target render size in pixels at composite time.
+   * If unset, uses the image's natural size.
+   */
+  renderWidth?: number;
+  renderHeight?: number;
   /** Original generation prompt, if this layer was AI-generated */
   prompt?: string;
   createdAt: string;

@@ -31,12 +31,14 @@ export function registerDesignerCommands(ctx: Ctx): void {
     .option("-l, --layer <name>", "Layer name")
     .option("-W, --width <px>", "Canvas width when auto-creating", String(cfg.defaultWidth))
     .option("-H, --height <px>", "Canvas height when auto-creating", String(cfg.defaultHeight))
-    .option("-r, --role <role>", "Layer role: background (fills canvas) or element (natural size, placed at x,y)")
-    .option("-x, --x <px>", "X offset for element layers", "0")
-    .option("-y, --y <px>", "Y offset for element layers", "0")
+    .option("-r, --role <role>", "Layer role: background (fills canvas) or element (sized + placed)")
+    .option("-x, --x <px>", "X position for element layers (required for elements)")
+    .option("-y, --y <px>", "Y position for element layers (required for elements)")
+    .option("--w <px>", "Render width for element layers (required for elements)")
+    .option("--h <px>", "Render height for element layers (required for elements)")
     .action(async (prompt: string, opts: {
       canvas: string; layer?: string; width: string; height: string;
-      role?: string; x: string; y: string;
+      role?: string; x?: string; y?: string; w?: string; h?: string;
     }) => {
       const canvasName = opts.canvas;
       let canvas = store.loadCanvas(canvasName);
@@ -54,6 +56,16 @@ export function registerDesignerCommands(ctx: Ctx): void {
       const role = (opts.role === "background" || opts.role === "element")
         ? opts.role
         : (nextZ === 0 ? "background" : "element");
+
+      // Element layers require x, y, w, h
+      if (role === "element") {
+        const missing = (["x", "y", "w", "h"] as const).filter((k) => !opts[k]);
+        if (missing.length > 0) {
+          console.error(`Element layers require: ${missing.map((k) => `--${k}`).join(", ")}`);
+          console.error(`Example: mc designer gen "..." --canvas ${opts.canvas} --role element --x 60 --y 48 --w 200 --h 80`);
+          process.exit(1);
+        }
+      }
 
       // Engineer the prompt with canvas context so Gemini knows what it's making
       const engineeredPrompt = buildGeminiPrompt(prompt, role, canvas.width, canvas.height);
@@ -92,6 +104,14 @@ export function registerDesignerCommands(ctx: Ctx): void {
 
       const layerId = `layer-${Date.now()}`;
       const layerName = opts.layer ?? `layer-${canvas.layers.length + 1}`;
+
+      // Each layer must have a unique name on this canvas
+      if (store.findLayer(canvas, layerName)) {
+        console.error(`Layer "${layerName}" already exists on canvas "${canvasName}".`);
+        console.error(`Each image must be on its own uniquely named layer. Use --layer <name> to specify one.`);
+        process.exit(1);
+      }
+
       const imagePath = store.saveLayerImage(canvasName, layerId, result!.buffer);
 
       const layer: Layer = {
@@ -101,10 +121,12 @@ export function registerDesignerCommands(ctx: Ctx): void {
         imagePath,
         opacity: 100,
         visible: true,
-        x: parseInt(opts.x, 10),
-        y: parseInt(opts.y, 10),
+        x: opts.x !== undefined ? parseInt(opts.x, 10) : 0,
+        y: opts.y !== undefined ? parseInt(opts.y, 10) : 0,
         blendMode: "normal",
         role,
+        renderWidth: opts.w !== undefined ? parseInt(opts.w, 10) : undefined,
+        renderHeight: opts.h !== undefined ? parseInt(opts.h, 10) : undefined,
         prompt,
         createdAt: new Date().toISOString(),
       };
@@ -473,19 +495,13 @@ function buildGeminiPrompt(
 
   if (role === "background") {
     return (
-      `${userPrompt}\n\n` +
-      `[Canvas context: this is a full-frame background image. ` +
-      `Fill the entire frame edge to edge with no borders, letterboxing, or whitespace. ` +
-      `Target aspect ratio ${ratio} (${aspect} pixels). ` +
-      `Do not include any UI elements, text, or foreground subjects.]`
+      `${userPrompt}. ` +
+      `Full bleed, fills entire frame edge to edge, aspect ratio ${ratio}, no borders or whitespace.`
     );
   } else {
     return (
-      `${userPrompt}\n\n` +
-      `[Canvas context: this is an isolated foreground element that will be composited onto a background. ` +
-      `Place the subject centered on a plain white background with clean, well-defined edges. ` +
-      `No drop shadows, gradients, or environmental context behind the subject. ` +
-      `The canvas it will appear on is ${aspect} pixels.]`
+      `${userPrompt}. ` +
+      `Subject centered on solid white background, clean hard edges, no shadows or gradients behind it.`
     );
   }
 }
