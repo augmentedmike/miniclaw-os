@@ -8,6 +8,7 @@ import type { GeminiClient } from "../src/gemini.js";
 import { compositeCanvas, stripBackground } from "../src/composite.js";
 import type { Layer } from "../src/types.js";
 import { promptAndVaultKey, isAuthError } from "../src/vault.js";
+import { displayImage } from "../src/display.js";
 
 interface Ctx {
   program: Command;
@@ -98,6 +99,7 @@ export function registerDesignerCommands(ctx: Ctx): void {
       console.log(`Layer "${layerName}" added to canvas "${canvasName}"`);
       console.log(`Image saved: ${imagePath}`);
       console.log(`Tokens: ${result.usage.inputTokens} in / ${result.usage.outputTokens} out  |  ${Date.now() - t0}ms`);
+      await displayImage(imagePath);
     });
 
   // ---- designer edit ----
@@ -144,6 +146,7 @@ export function registerDesignerCommands(ctx: Ctx): void {
 
       console.log(`Layer "${layerName}" updated`);
       console.log(`Tokens: ${result.usage.inputTokens} in / ${result.usage.outputTokens} out`);
+      await displayImage(layer.imagePath);
     });
 
   // ---- designer canvas ----
@@ -350,6 +353,7 @@ export function registerDesignerCommands(ctx: Ctx): void {
       fs.mkdirSync(path.dirname(outPath), { recursive: true });
       fs.writeFileSync(outPath, buffer);
       console.log(`Composited image saved: ${outPath}`);
+      await displayImage(outPath);
     });
 
   // ---- designer alpha ----
