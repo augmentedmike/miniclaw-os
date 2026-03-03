@@ -15,6 +15,11 @@ export class GeminiClient {
     this.genAI = new GoogleGenerativeAI(apiKey);
   }
 
+  setApiKey(key: string): void {
+    this.apiKey = key;
+    this.genAI = new GoogleGenerativeAI(key);
+  }
+
   /**
    * Generate an image from a text prompt.
    * Returns the first image in the response.

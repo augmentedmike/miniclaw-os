@@ -11,6 +11,7 @@ export interface DesignerConfig {
   layersDir: string;
   outputDir: string;
   usageLog: string;
+  vaultBin: string;
 }
 
 export function resolveConfig(raw: Record<string, unknown>): DesignerConfig {
@@ -29,6 +30,7 @@ export function resolveConfig(raw: Record<string, unknown>): DesignerConfig {
     layersDir: path.join(mediaDir, "layers"),
     outputDir: path.join(mediaDir, "output"),
     usageLog: path.join(mediaDir, "usage.jsonl"),
+    vaultBin: resolvePath(r.vaultBin ?? "~/.local/bin/mc-vault"),
   };
 }
 

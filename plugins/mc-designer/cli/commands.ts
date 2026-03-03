@@ -7,6 +7,7 @@ import type { DesignerStore } from "../src/store.js";
 import type { GeminiClient } from "../src/gemini.js";
 import { compositeCanvas, stripBackground } from "../src/composite.js";
 import type { Layer } from "../src/types.js";
+import { promptAndVaultKey, isAuthError } from "../src/vault.js";
 
 interface Ctx {
   program: Command;
@@ -41,14 +42,36 @@ export function registerDesignerCommands(ctx: Ctx): void {
         console.log(`Created canvas "${canvasName}" (${canvas.width}×${canvas.height})`);
       }
 
+      // Prompt for key if missing or on auth failure
+      const ensureKey = async (err?: unknown) => {
+        if (!err || isAuthError(err)) {
+          const newKey = await promptAndVaultKey(cfg.vaultBin);
+          if (!newKey) process.exit(1);
+          gemini.setApiKey(newKey);
+        }
+      };
+
+      if (!cfg.apiKey) await ensureKey();
+
       console.log(`Generating image for: "${prompt}" ...`);
       const t0 = Date.now();
       let result;
       try {
         result = await gemini.generate(prompt, "generate");
       } catch (err) {
-        console.error(`Generation failed: ${err}`);
-        process.exit(1);
+        if (isAuthError(err)) {
+          console.error("Auth failed — invalid or missing API key.");
+          await ensureKey(err);
+          try {
+            result = await gemini.generate(prompt, "generate");
+          } catch (retryErr) {
+            console.error(`Generation failed: ${retryErr}`);
+            process.exit(1);
+          }
+        } else {
+          console.error(`Generation failed: ${err}`);
+          process.exit(1);
+        }
       }
 
       const layerId = `layer-${Date.now()}`;
@@ -88,13 +111,32 @@ export function registerDesignerCommands(ctx: Ctx): void {
       const layer = store.findLayer(canvas, layerName);
       if (!layer) { console.error(`Layer "${layerName}" not found in canvas "${canvasName}"`); process.exit(1); }
 
+      if (!cfg.apiKey) {
+        const newKey = await promptAndVaultKey(cfg.vaultBin);
+        if (!newKey) process.exit(1);
+        gemini.setApiKey(newKey);
+      }
+
       console.log(`Editing layer "${layerName}": "${instructions}" ...`);
       let result;
       try {
         result = await gemini.edit(layer.imagePath, instructions);
       } catch (err) {
-        console.error(`Edit failed: ${err}`);
-        process.exit(1);
+        if (isAuthError(err)) {
+          console.error("Auth failed — invalid or missing API key.");
+          const newKey = await promptAndVaultKey(cfg.vaultBin);
+          if (!newKey) process.exit(1);
+          gemini.setApiKey(newKey);
+          try {
+            result = await gemini.edit(layer.imagePath, instructions);
+          } catch (retryErr) {
+            console.error(`Edit failed: ${retryErr}`);
+            process.exit(1);
+          }
+        } else {
+          console.error(`Edit failed: ${err}`);
+          process.exit(1);
+        }
       }
 
       store.saveLayerImage(canvasName, layer.id, result.buffer);

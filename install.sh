@@ -237,7 +237,7 @@ plugin_defaults = {
     },
     "mc-designer": {
         "enabled": True,
-        "config": { "apiKey": "", "model": "gemini-2.0-flash-exp", "mediaDir": "~/.openclaw/media/designer", "defaultWidth": 1024, "defaultHeight": 1024 },
+        "config": { "apiKey": "", "model": "gemini-2.0-flash-exp", "mediaDir": "~/.openclaw/media/designer", "defaultWidth": 1024, "defaultHeight": 1024, "vaultBin": "~/.local/bin/mc-vault" },
     },
     "mc-trust": {
         "enabled": True,
@@ -346,6 +346,25 @@ for entry in "${VAULT_SECRETS[@]}"; do
     warn "Skipped: $key"
   fi
 done
+
+# ── mc-designer (optional) ─────────────────────────────────────────────────────
+echo ""
+printf "  Enable mc-designer (AI image generation)? [y/N] "
+read -r enable_designer
+if [[ "$enable_designer" == "y" || "$enable_designer" == "Y" ]]; then
+  echo ""
+  echo "  Get a free Gemini API key at: https://aistudio.google.com/app/apikey"
+  printf "  Gemini API key\n  > "
+  read -r -s gemini_key; echo ""
+  if [[ -n "$gemini_key" ]]; then
+    echo -n "$gemini_key" | OPENCLAW_VAULT_ROOT="$VAULT_ROOT" "$MC_VAULT" set gemini-api-key -
+    ok "Stored: gemini-api-key"
+  else
+    warn "Skipped: gemini-api-key (mc-designer will prompt when you first use it)"
+  fi
+else
+  warn "Skipped: mc-designer setup (run install.sh again or use 'mc vault set gemini-api-key' to enable later)"
+fi
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo ""

@@ -18,13 +18,20 @@ import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { resolveConfig } from "./src/config.js";
 import { DesignerStore } from "./src/store.js";
 import { GeminiClient } from "./src/gemini.js";
+import { readApiKeyFromVault } from "./src/vault.js";
 import { registerDesignerCommands } from "./cli/commands.js";
 
 export default function register(api: OpenClawPluginApi): void {
   const cfg = resolveConfig((api.pluginConfig ?? {}) as Record<string, unknown>);
 
+  // Try vault if no key in config
   if (!cfg.apiKey) {
-    api.logger.warn("mc-designer: no apiKey configured — plugin loaded but gen/edit commands will fail. See docs/SETUP.md");
+    const vaultKey = readApiKeyFromVault(cfg.vaultBin);
+    if (vaultKey) {
+      cfg.apiKey = vaultKey;
+    } else {
+      api.logger.warn("mc-designer: no apiKey found — gen/edit will prompt on first use");
+    }
   }
 
   const store = new DesignerStore(cfg);
