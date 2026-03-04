@@ -12,7 +12,7 @@
 
 set -euo pipefail
 
-MINICLAW_VERSION="${MINICLAW_VERSION:-v1.0.0}"
+MINICLAW_VERSION="${MINICLAW_VERSION:-v1.0.1}"
 REPO_URL="https://github.com/augmentedmike/miniclaw-os.git"
 OPENCLAW_DIR="${OPENCLAW_DIR:-$HOME/.openclaw}"
 PROJECTS_DIR="$OPENCLAW_DIR/projects"
