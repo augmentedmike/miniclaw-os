@@ -249,7 +249,7 @@ plugin_defaults = {
     },
     "mc-queue": {
         "enabled": True,
-        "config": { "enabled": True, "haikuModel": "claude-haiku-4-5-20251001", "maxToolCallsPerTurn": 3, "applyToChannels": True, "applyToDMs": True, "tgLogChatId": "", "tgBotName": "@augmentedmike_bot" },
+        "config": { "enabled": True, "haikuModel": "claude-haiku-4-5-20251001", "maxToolCallsPerTurn": 3, "applyToChannels": True, "applyToDMs": True, "tgLogChatId": "", "tgBotName": "@augmentedmike_bot", "boardUrl": "" },
     },
     "mc-soul": {
         "enabled": True,

@@ -12,7 +12,8 @@
       "haikuModel":          { "type": "string" },
       "maxToolCallsPerTurn": { "type": "number" },
       "tgLogChatId":         { "type": "string" },
-      "tgBotName":           { "type": "string" }
+      "tgBotName":           { "type": "string" },
+      "boardUrl":            { "type": "string" }
     }
   }
 }

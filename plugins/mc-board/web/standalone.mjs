@@ -486,7 +486,11 @@ function renderCard(card, projectMap) {
       <span class="card-id">${escHtml(card.id)}</span>
       <span class="priority-dot" style="background:${priorityColor}" title="${card.priority}"></span>
     </div>
-    <div class="card-title">${escHtml(card.title)}</div>
+    <div class="card-worker"></div>
+    <div class="card-title-row">
+      <div class="card-title">${escHtml(card.title)}</div>
+      <span class="card-active-dot"></span>
+    </div>
     ${problemPreview}${projectBadge}${tagsHtml}
     ${showProgress ? progressBar(checked, total) : ""}
     <div class="card-meta">updated ${fmtDate(card.updated_at)}</div>
@@ -515,6 +519,7 @@ function renderProjectDropdown(projects, selectedProjectId) {
   }
   const options = [
     `<option value="" ${selectedProjectId === "" ? "selected" : ""}>All projects</option>`,
+    `<option value="~active" ${selectedProjectId === "~active" ? "selected" : ""}>⬤ All active</option>`,
     ...projects.map(p => {
       const archived = p.status === "archived" ? " (archived)" : "";
       const sel = selectedProjectId === p.id ? "selected" : "";
@@ -604,12 +609,16 @@ function renderPage(cards, projects, selectedProjectId, refreshedAt) {
 
     /* ---- Cards ---- */
     .card{background:rgba(24,24,27,.7);border:1px solid rgba(63,63,70,.4);border-radius:8px;padding:12px;transition:border-color .15s,box-shadow .15s;cursor:pointer}
-    @keyframes card-pulse{0%,100%{box-shadow:0 0 0 0 rgba(59,130,246,.5)}50%{box-shadow:0 0 0 4px rgba(59,130,246,.15)}}
-    .card--active{border-color:#3b82f6!important;animation:card-pulse 1.8s ease-in-out infinite}
+    /* Active card indicator — pulsing green dot after title */
+    @keyframes dot-ping{0%{transform:scale(1);opacity:1}75%,100%{transform:scale(2.5);opacity:0}}
+    .card-title-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+    .card-title-row .card-title{margin-bottom:0;flex:1}
+    .card-active-dot{display:none;width:13px;height:13px;border-radius:50%;background:#22c55e;flex-shrink:0;position:relative}
+    .card-active-dot::after{content:'';position:absolute;inset:0;border-radius:50%;background:#22c55e;animation:dot-ping 1.3s cubic-bezier(0,0,.2,1) infinite}
+    .card--active .card-active-dot{display:inline-block}
     .card--active .card-worker{display:flex}
-    .card-worker{display:none;align-items:center;gap:5px;font-size:10px;color:#60a5fa;background:rgba(37,99,235,.12);border:1px solid rgba(59,130,246,.25);border-radius:4px;padding:2px 7px;margin-bottom:6px;width:fit-content}
-    .card-worker::before{content:"▶";font-size:8px}
-    .card--recent{border-color:rgba(59,130,246,.2)!important}
+    .card-worker{display:none;align-items:center;gap:5px;font-size:10px;color:#86efac;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;margin-bottom:4px}
+    .card--recent{}
     .card:hover{border-color:rgba(113,113,122,.6);background:rgba(39,39,42,.8)}
     /* ---- Toasts ---- */
     #toast-container{position:fixed;bottom:20px;right:20px;display:flex;flex-direction:column;gap:8px;z-index:9999;pointer-events:none}
@@ -1061,7 +1070,7 @@ function renderPage(cards, projects, selectedProjectId, refreshedAt) {
       return '<div class="card" data-id="' + escHtml(card.id) + '" onclick="openCard(\\'' + escHtml(card.id) + '\\')">' +
         '<div class="card-header"><span class="card-id">' + escHtml(card.id) + '</span><span class="priority-dot" style="background:' + prioColor + '" title="' + escHtml(card.priority) + '"></span></div>' +
         '<div class="card-worker"></div>' +
-        '<div class="card-title">' + escHtml(card.title) + "</div>" +
+        '<div class="card-title-row"><div class="card-title">' + escHtml(card.title) + '</div><span class="card-active-dot"></span></div>' +
         preview + projBadge + tagsHtml + progHtml +
         '<div class="card-meta">updated ' + fmtDate(card.updated_at) + "</div></div>";
     }
@@ -1075,13 +1084,14 @@ function renderPage(cards, projects, selectedProjectId, refreshedAt) {
         "</div>";
     }
 
-    function updateStats(cards, projects) {
+    function updateStats(cards, projects, counts) {
       const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
       set("stat-projects",   projects.length);
-      set("stat-backlog",    cards.filter(c => c.column === "backlog").length);
-      set("stat-inprogress", cards.filter(c => c.column === "in-progress").length);
-      set("stat-inreview",   cards.filter(c => c.column === "in-review").length);
-      set("stat-shipped",    cards.filter(c => c.column === "shipped").length);
+      // Use server-provided counts (all cards) when available; fall back to local filtered
+      set("stat-backlog",    counts ? counts.backlog    : cards.filter(c => c.column === "backlog").length);
+      set("stat-inprogress", counts ? counts.inProgress : cards.filter(c => c.column === "in-progress").length);
+      set("stat-inreview",   counts ? counts.inReview   : cards.filter(c => c.column === "in-review").length);
+      set("stat-shipped",    counts ? counts.shipped    : cards.filter(c => c.column === "shipped").length);
     }
 
     function applyBoardData(data) {
@@ -1091,7 +1101,14 @@ function renderPage(cards, projects, selectedProjectId, refreshedAt) {
       data.projects.forEach(p => PROJECT_MAP[p.id] = p.name);
 
       const projectMap = Object.fromEntries(data.projects.map(p => [p.id, p.name]));
-      const activeCols = ["backlog","in-progress","in-review"].map(col => buildColHtml(col, data.cards, projectMap)).join("");
+      // Sort active cards to top before rendering columns
+      const activeIdSet = new Set([..._prevActiveIds]);
+      const sortedCards = [...data.cards].sort((a, b) => {
+        const aA = activeIdSet.has(a.id) ? 0 : 1;
+        const bA = activeIdSet.has(b.id) ? 0 : 1;
+        return aA - bA;
+      });
+      const activeCols = ["backlog","in-progress","in-review"].map(col => buildColHtml(col, sortedCards, projectMap)).join("");
       const shippedCards = data.cards.filter(c => c.column === "shipped");
       const shippedHtml = shippedCards.length === 0
         ? '<div class="column-empty">empty</div>'
@@ -1114,14 +1131,17 @@ function renderPage(cards, projects, selectedProjectId, refreshedAt) {
       const scount = document.getElementById("shipped-count");
       if (scount) scount.textContent = shippedCards.length;
 
-      updateStats(data.cards, data.projects);
+      updateStats(data.cards, data.projects, data.counts);
       document.getElementById("footer").textContent = "Last updated: " + new Date().toISOString() + " · port 4220";
+      // Re-apply active classes immediately after DOM rebuild (avoids race with pollActiveAgents interval)
+      pollActiveAgents();
     }
 
     let pendingData = null;
     async function pollBoard() {
       try {
-        const qs = BOARD_PROJECT ? "?project=" + encodeURIComponent(BOARD_PROJECT) : "";
+        // ~active view fetches all cards (filtering is done client-side by pollActiveAgents)
+        const qs = (BOARD_PROJECT && BOARD_PROJECT !== "~active") ? "?project=" + encodeURIComponent(BOARD_PROJECT) : "";
         const res = await fetch("/data" + qs);
         if (!res.ok) return;
         const data = await res.json();
@@ -1198,27 +1218,10 @@ function renderPage(cards, projects, selectedProjectId, refreshedAt) {
           }
         }
 
-        // Update top bar
-        if (bar) {
-          if (entries.length === 0) {
-            bar.style.display = "none";
-          } else {
-            bar.style.display = "flex";
-            bar.innerHTML = '<span style="color:#52525b;margin-right:4px">▶ active:</span>' +
-              entries.map(e => {
-                const age = Math.round((now - new Date(e.pickedUpAt).getTime()) / 1000);
-                const ageStr = age < 60 ? age + "s" : Math.round(age / 60) + "m";
-                return '<span style="background:#27272a;border-radius:4px;padding:2px 8px;margin-right:6px">' +
-                  '<span style="color:#71717a">' + escHtml(e.worker) + '</span>' +
-                  ' <span style="color:#e4e4e7">' + escHtml(e.cardId) + '</span>' +
-                  ' <span style="color:#a1a1aa">— ' + escHtml(e.title.slice(0, 40)) + (e.title.length > 40 ? "…" : "") + '</span>' +
-                  ' <span style="color:#52525b">(' + ageStr + ')</span>' +
-                  '</span>';
-              }).join("");
-          }
-        }
+        // Top bar hidden — active indicators are on the cards instead
+        if (bar) bar.style.display = "none";
 
-        // Update card DOM — add/remove active + recent classes, set worker badge
+        // Update card DOM — pulsing dot + worker badge
         document.querySelectorAll(".card[data-id]").forEach(el => {
           const id = el.dataset.id;
           const isActive = activeIds.has(id);
@@ -1230,10 +1233,14 @@ function renderPage(cards, projects, selectedProjectId, refreshedAt) {
             if (isActive) {
               const e = activeIds.get(id);
               const workerShort = e.worker.replace("board-worker-", "");
-              workerEl.textContent = workerShort + " working…";
+              workerEl.textContent = workerShort + "…";
             } else {
               workerEl.textContent = "";
             }
+          }
+          // In "All active" view: hide cards that aren't active
+          if (BOARD_PROJECT === "~active") {
+            el.style.display = isActive ? "" : "none";
           }
         });
 
@@ -1250,6 +1257,7 @@ function renderPage(cards, projects, selectedProjectId, refreshedAt) {
 
         // New log events (deduplicated by cardId+action+at)
         const TOAST_EVENT_ICONS = { pickup: "🔵", release: "✅", move: "📋", ship: "🚀", create: "📌", edit: "✏️" };
+        let needBoardRefresh = false;
         for (const ev of log) {
           const key = ev.cardId + ":" + ev.action + ":" + ev.at;
           if (_prevLogKeys.has(key)) continue;
@@ -1265,7 +1273,12 @@ function renderPage(cards, projects, selectedProjectId, refreshedAt) {
             : ev.cardId;
           const subText = ev.worker ? ev.worker.replace("board-worker-", "") : "";
           showToast(icon, titleText, subText);
+          // Move/ship/create means the board needs refreshing to show updated columns
+          if (ev.action === "move" || ev.action === "ship" || ev.action === "create") {
+            needBoardRefresh = true;
+          }
         }
+        if (needBoardRefresh) pollBoard();
 
         _prevActiveIds = nowActiveIds;
         // Cap log key set to avoid unbounded growth
@@ -1665,8 +1678,15 @@ const server = http.createServer((req, res) => {
       const cards = selectedProjectId
         ? allCards.filter(c => c.project_id === selectedProjectId)
         : allCards;
+      // Always return full counts so stat pills reflect the whole board
+      const counts = {
+        backlog:    allCards.filter(c => c.column === "backlog").length,
+        inProgress: allCards.filter(c => c.column === "in-progress").length,
+        inReview:   allCards.filter(c => c.column === "in-review").length,
+        shipped:    allCards.filter(c => c.column === "shipped").length,
+      };
       res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-cache" });
-      res.end(JSON.stringify({ cards, projects: allProjects }));
+      res.end(JSON.stringify({ cards, projects: allProjects, counts }));
     } catch {
       res.writeHead(500); res.end("{}");
     }
@@ -1799,6 +1819,26 @@ const server = http.createServer((req, res) => {
       res.end(html);
     } catch (err) {
       console.error(`[brain-web] card detail error: ${err}`);
+      res.writeHead(500, { "Content-Type": "text/plain" }); res.end("Internal Server Error");
+    }
+    return;
+  }
+
+  // /board/~active — show only cards currently being worked on
+  if (parts[0] === "board" && parts[1] === "~active" && parts.length === 2) {
+    try {
+      const activeFile = path.join(stateDir, "active-work.json");
+      let activeData = { active: [] };
+      try { activeData = JSON.parse(fs.readFileSync(activeFile, "utf-8")); } catch { /* empty */ }
+      const activeIdSet = new Set(activeData.active.map(e => e.cardId));
+      const allCards = listCards(cardsDir);
+      const allProjects = listProjects(projectsDir);
+      const cards = allCards.filter(c => activeIdSet.has(c.id));
+      const html = renderPage(cards, allProjects, "~active", new Date());
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache, no-store" });
+      res.end(html);
+    } catch (err) {
+      console.error(`[brain-web] ~active error: ${err}`);
       res.writeHead(500, { "Content-Type": "text/plain" }); res.end("Internal Server Error");
     }
     return;

@@ -19,8 +19,8 @@
  *
  * TG channel split:
  *   DM  (allowFrom)   — conversational replies to Michael, clean
- *   Log channel        — brain notifications: pickup, release, move, ship
- *                        Set tgLogChatId in mc-queue config to enable.
+ *   Log channel        — brain notifications: ship + human-blocked cards only
+ *                        Set tgLogChatId + boardUrl in mc-queue config to enable.
  *
  * Session key format examples:
  *   TG DM:    agent:main:telegram:direct:8755232806
@@ -111,74 +111,60 @@ async function sendTgLog(
 // ---- Board event detection ----
 
 type BoardEvent =
-  | { kind: "pickup"; cardId: string; worker: string }
-  | { kind: "release"; cardId: string; worker: string }
-  | { kind: "move"; cardId: string; column: string }
-  | { kind: "create"; title: string }
-  | { kind: "ship"; cardId: string };
+  | { kind: "ship"; cardId: string; title: string }
+  | { kind: "human_needed"; cardId: string; title: string; reason: string };
 
-function formatBoardEvent(ev: BoardEvent): string {
+function formatBoardEvent(ev: BoardEvent, boardUrl: string): string {
+  const link = boardUrl ? ` — <a href="${boardUrl}">${boardUrl}</a>` : "";
   switch (ev.kind) {
-    case "pickup":
-      return `🔵 <b>${ev.worker}</b> picked up <code>${ev.cardId}</code>`;
-    case "release":
-      return `✅ <b>${ev.worker}</b> released <code>${ev.cardId}</code>`;
-    case "move":
-      return `📋 <code>${ev.cardId}</code> → <b>${ev.column}</b>`;
-    case "create":
-      return `📌 New card: <b>${ev.title}</b>`;
     case "ship":
-      return `🚀 Shipped: <code>${ev.cardId}</code>`;
+      return `🚀 Shipped: <b>${ev.title || ev.cardId}</b> <code>${ev.cardId}</code>${link}`;
+    case "human_needed":
+      return `🚨 <b>Human needed:</b> <code>${ev.cardId}</code> ${ev.title ? "— " + ev.title : ""}\n${ev.reason}${link}`;
   }
 }
+
+// BLOCKER_PATTERNS — if any match in the notes field, it's human-needed
+const BLOCKER_PATTERNS = [
+  /\bBLOCKED\b/i,
+  /\bneeds? human\b/i,
+  /\bhuman (review|decision|input|approval|needed)\b/i,
+  /\bawaiting (human|michael|approval)\b/i,
+  /\bescalat/i,
+];
 
 function parseBrainTool(
   toolName: string,
   params: Record<string, unknown>,
 ): BoardEvent | null {
-  switch (toolName) {
-    case "brain_pickup":
-      return {
-        kind: "pickup",
-        cardId: String(params.card_id ?? params.cardId ?? ""),
-        worker: String(params.worker ?? ""),
-      };
-    case "brain_release":
-      return {
-        kind: "release",
-        cardId: String(params.card_id ?? params.cardId ?? ""),
-        worker: String(params.worker ?? ""),
-      };
-    case "brain_move_card": {
-      const col = String(params.column ?? "");
+  // Only care about ship events and human-needed updates
+  if (toolName === "brain_move_card") {
+    const col = String(params.column ?? "");
+    if (col === "shipped") {
       const id = String(params.id ?? params.card_id ?? "");
-      if (col === "shipped") return { kind: "ship", cardId: id };
-      return { kind: "move", cardId: id, column: col };
+      const title = String(params.title ?? "");
+      return { kind: "ship", cardId: id, title };
     }
-    case "brain_create_card":
-      return { kind: "create", title: String(params.title ?? "") };
-    default:
-      return null;
+    return null;
   }
+  if (toolName === "brain_update_card") {
+    const notes = String(params.notes ?? "");
+    const id = String(params.id ?? params.card_id ?? "");
+    const title = String(params.title ?? "");
+    if (notes && BLOCKER_PATTERNS.some(p => p.test(notes))) {
+      // Extract first line of notes as reason
+      const reason = notes.split("\n")[0].slice(0, 200);
+      return { kind: "human_needed", cardId: id, title, reason };
+    }
+    return null;
+  }
+  return null;
 }
 
 function parseBashBoardCommand(cmd: string): BoardEvent | null {
-  // mc-board pickup <id> --worker <worker>
-  const pickupM = cmd.match(/mc-board pickup\s+(\S+)\s+--worker\s+(\S+)/);
-  if (pickupM) return { kind: "pickup", cardId: pickupM[1], worker: pickupM[2] };
-
-  // mc-board release <id> --worker <worker>
-  const releaseM = cmd.match(/mc-board release\s+(\S+)\s+--worker\s+(\S+)/);
-  if (releaseM) return { kind: "release", cardId: releaseM[1], worker: releaseM[2] };
-
   // mc-board move <id> shipped
   const shipM = cmd.match(/mc-board move\s+(\S+)\s+shipped/);
-  if (shipM) return { kind: "ship", cardId: shipM[1] };
-
-  // mc-board move <id> <column>
-  const moveM = cmd.match(/mc-board move\s+(\S+)\s+(\S+)/);
-  if (moveM) return { kind: "move", cardId: moveM[1], column: moveM[2] };
-
+  if (shipM) return { kind: "ship", cardId: shipM[1], title: "" };
   return null;
 }
 
@@ -193,6 +179,7 @@ export default function register(api: OpenClawPluginApi) {
     applyToDMs?: boolean;
     tgLogChatId?: string;
     tgBotName?: string;
+    boardUrl?: string;
   };
 
   const enabled = cfg.enabled ?? true;
@@ -202,6 +189,7 @@ export default function register(api: OpenClawPluginApi) {
   const applyToDMs = cfg.applyToDMs ?? true;
   const tgLogChatId = cfg.tgLogChatId ?? "";
   const tgBotName = cfg.tgBotName ?? "@augmentedmike_bot";
+  const boardUrl = process.env.MINICLAW_BOARD_URL ?? cfg.boardUrl ?? "";
 
   // Read bot token from OpenClaw's telegram channel config
   const tgBotToken =
@@ -313,7 +301,7 @@ You are running as Haiku — fast, responsive. Long work goes to cron. Your job 
     );
   });
 
-  // ---- 4. Log board events from cron workers to TG log channel ----
+  // ---- 4. Log ship/blocked events from cron workers to TG log channel ----
   api.on("after_tool_call", async (event, ctx) => {
     if (!tgLogChatId || !tgBotToken) return;
 
@@ -322,20 +310,20 @@ You are running as Haiku — fast, responsive. Long work goes to cron. Your job 
 
     const { toolName, params } = event;
 
-    // brain_* agent tools
+    // brain_* agent tools — only ship + human_needed
     const brainEv = parseBrainTool(toolName, params);
     if (brainEv) {
-      await sendTgLog(tgBotToken, tgLogChatId, formatBoardEvent(brainEv), api.logger);
+      await sendTgLog(tgBotToken, tgLogChatId, formatBoardEvent(brainEv, boardUrl), api.logger);
       return;
     }
 
-    // bash/computer tool: parse mc-board CLI calls
+    // bash/computer: only mc-board ship
     if (toolName === "bash" || toolName === "computer") {
       const cmd = String(params.command ?? params.input ?? "");
       if (cmd.includes("mc-board")) {
         const bashEv = parseBashBoardCommand(cmd);
         if (bashEv) {
-          await sendTgLog(tgBotToken, tgLogChatId, formatBoardEvent(bashEv), api.logger);
+          await sendTgLog(tgBotToken, tgLogChatId, formatBoardEvent(bashEv, boardUrl), api.logger);
         }
       }
     }
