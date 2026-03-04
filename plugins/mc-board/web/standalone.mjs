@@ -387,6 +387,82 @@ function progressBar(checked, total) {
     <span class="criteria-label">${checked}/${total} criteria</span>`;
 }
 
+function renderCardDetail(card, project) {
+  const style = COLUMN_STYLES[card.column] ?? COLUMN_STYLES.backlog;
+  const priorityColor = PRIORITY_COLORS[card.priority] ?? PRIORITY_COLORS.low;
+  const { checked, total } = criteriaProgress(card.acceptance_criteria);
+  const tagsHtml = card.tags.length > 0
+    ? card.tags.map(t => `<span class="tag">${escHtml(t)}</span>`).join("") : "";
+  const breadcrumbBase = project
+    ? `<a class="breadcrumb-link" href="/board/${escHtml(project.id)}">${escHtml(project.name)}</a>`
+    : `<a class="breadcrumb-link" href="/board">Board</a>`;
+  const sections = [
+    { label: "Problem Description", content: card.problem_description },
+    { label: "Implementation Plan", content: card.implementation_plan },
+    { label: "Acceptance Criteria", content: card.acceptance_criteria },
+    { label: "Notes / Outcome", content: card.notes },
+    { label: "Review Notes", content: card.review_notes },
+  ];
+  const sectionsHtml = sections.filter(s => s.content?.trim()).map(s => `
+    <section class="ds">
+      <h2 class="ds-title">${escHtml(s.label)}</h2>
+      <div class="ds-body">${escHtml(s.content).replace(/- \[x\]/g,'<span style="color:#22c55e">✓</span>').replace(/- \[ \]/g,'<span style="color:#52525b">○</span>').replace(/\n/g,'<br>')}</div>
+    </section>`).join("");
+  const historyHtml = (card.history ?? []).map(h =>
+    `<li><span class="ds-hcol">${escHtml(h.column)}</span> <span class="ds-hdate">${fmtDate(h.moved_at)}</span></li>`).join("");
+  const pbar = total > 0 ? progressBar(checked, total) : "";
+  return `<!DOCTYPE html><html lang="en"><head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>${escHtml(card.title)} — Brain Board</title>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{background:#09090b;color:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,monospace;padding:28px;min-height:100vh}
+    a{color:inherit}
+    .wrap{max-width:820px;margin:0 auto}
+    .crumb{font-size:12px;color:#71717a;margin-bottom:20px;display:flex;align-items:center;gap:6px}
+    .breadcrumb-link{color:#93c5fd;text-decoration:none}.breadcrumb-link:hover{text-decoration:underline}
+    .crumb-sep{color:#3f3f46}
+    .card-id{font-size:11px;color:#52525b;font-family:monospace;margin-bottom:8px}
+    .card-title{font-size:26px;font-weight:700;color:#fafafa;line-height:1.3;margin-bottom:14px}
+    .meta-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+    .col-badge{font-size:11px;font-weight:700;letter-spacing:.06em;padding:3px 10px;border-radius:9999px}
+    .bg-zinc-600{background:#52525b}.text-zinc-100{color:#f4f4f5}
+    .bg-blue-600{background:#2563eb}.text-blue-50{color:#eff6ff}
+    .bg-amber-500{background:#f59e0b}.text-amber-950{color:#451a03}
+    .bg-green-600{background:#16a34a}.text-green-50{color:#f0fdf4}
+    .prio{display:flex;align-items:center;gap:6px;font-size:12px;color:#a1a1aa}
+    .prio-dot{width:8px;height:8px;border-radius:50%}
+    .tag{font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(63,63,70,.6);color:#a1a1aa;border:1px solid rgba(63,63,70,.4)}
+    .cbar-wrap{margin-bottom:16px}
+    .criteria-bar{height:4px;background:#27272a;border-radius:2px;overflow:hidden;margin-bottom:4px;display:inline-block;width:120px}
+    .criteria-fill{height:100%;border-radius:2px}
+    .criteria-label{font-size:10px;color:#71717a}
+    .ds{border-top:1px solid #27272a;padding-top:20px;margin-bottom:24px}
+    .ds-title{font-size:12px;font-weight:700;letter-spacing:.06em;color:#71717a;text-transform:uppercase;margin-bottom:10px}
+    .ds-body{font-size:14px;color:#d4d4d8;line-height:1.7;font-family:inherit}
+    .ds-hist h2{font-size:12px;font-weight:700;letter-spacing:.06em;color:#71717a;text-transform:uppercase;margin-bottom:10px}
+    .ds-hist ul{list-style:none;display:flex;flex-direction:column;gap:6px;border-top:1px solid #27272a;padding-top:20px;margin-bottom:24px}
+    .ds-hcol{display:inline-block;font-size:11px;font-weight:600;padding:1px 8px;border-radius:4px;background:#27272a;color:#a1a1aa;font-family:monospace}
+    .ds-hdate{font-size:11px;color:#52525b}
+    .ts{font-size:11px;color:#3f3f46;margin-top:8px}
+    .footer{margin-top:28px;font-size:11px;color:#3f3f46;text-align:center}
+  </style></head><body><div class="wrap">
+  <nav class="crumb">${breadcrumbBase}<span class="crumb-sep">›</span><span>${escHtml(card.title)}</span></nav>
+  <div class="card-id">${escHtml(card.id)}</div>
+  <h1 class="card-title">${escHtml(card.title)}</h1>
+  <div class="meta-row">
+    <span class="col-badge ${style.badge}">${style.label}</span>
+    <span class="prio"><span class="prio-dot" style="background:${priorityColor}"></span>${escHtml(card.priority)}</span>
+    ${tagsHtml ? `<span>${tagsHtml}</span>` : ""}
+  </div>
+  ${pbar ? `<div class="cbar-wrap">${pbar}</div>` : ""}
+  <div class="ts">Created ${fmtDate(card.created_at)} · Updated ${fmtDate(card.updated_at)}</div>
+  ${sectionsHtml || "<p style='color:#52525b;font-size:13px;margin-top:20px'>No content yet.</p>"}
+  <div class="ds-hist"><h2>History</h2><ul>${historyHtml || "<li style='color:#3f3f46'>none</li>"}</ul></div>
+  <footer class="footer">Brain Board · <a href="/board" style="color:#52525b">← board</a>${project ? ` · <a href="/board/${escHtml(project.id)}" style="color:#52525b">← ${escHtml(project.name)}</a>` : ""}</footer>
+</div></body></html>`;
+}
+
 function renderCard(card, projectMap) {
   const { checked, total } = criteriaProgress(card.acceptance_criteria);
   const showProgress = card.column === "in-progress" || card.column === "in-review";
@@ -399,7 +475,7 @@ function renderCard(card, projectMap) {
     : "";
   const projectName = card.project_id ? projectMap.get(card.project_id) : undefined;
   const projectBadge = projectName
-    ? `<a class="project-badge" href="/?project=${escHtml(card.project_id)}" onclick="event.stopPropagation()">${escHtml(projectName)}</a>`
+    ? `<a class="project-badge" href="/board/${escHtml(card.project_id)}" onclick="event.stopPropagation()">${escHtml(projectName)}</a>`
     : "";
 
   return `<div class="card" data-id="${escHtml(card.id)}" onclick="openCard('${escHtml(card.id)}')">
@@ -425,7 +501,7 @@ function renderColumn(col, cards, projectMap) {
     <div class="column-cards">
       ${colCards.length === 0
         ? `<div class="column-empty">empty</div>`
-        : colCards.map(c => renderCard(c, projectMap)).join("")}
+        : colCards.slice(0, 10).map(c => renderCard(c, projectMap)).join("")}
     </div>
   </div>`;
 }
@@ -442,13 +518,13 @@ function renderProjectDropdown(projects, selectedProjectId) {
       return `<option value="${escHtml(p.id)}" ${sel}>${escHtml(p.name)}${archived}</option>`;
     }),
   ].join("");
-  return `<form class="project-filter" method="get" action="/">
+  return `<div class="project-filter">
     <label class="filter-label" for="proj-sel">Project</label>
-    <select id="proj-sel" name="project" onchange="this.form.submit()" class="filter-select">
+    <select id="proj-sel" name="project" onchange="window.location.href=this.value?'/board/'+this.value:'/board'" class="filter-select">
       ${options}
     </select>
-    ${selectedProjectId ? `<a class="filter-clear" href="/">✕</a>` : ""}
-  </form>`;
+    ${selectedProjectId ? `<a class="filter-clear" href="/board">✕</a>` : ""}
+  </div>`;
 }
 
 function renderPage(cards, projects, selectedProjectId, refreshedAt) {
@@ -631,6 +707,8 @@ function renderPage(cards, projects, selectedProjectId, refreshedAt) {
     .modal-priority{font-size:11px;padding:2px 8px;border-radius:9999px;border:1px solid currentColor}
     .modal-project-badge{font-size:11px;padding:2px 9px;border-radius:4px;background:rgba(37,99,235,.15);color:#93c5fd;border:1px solid rgba(37,99,235,.3);text-decoration:none}
     .modal-project-badge:hover{background:rgba(37,99,235,.25)}
+    .modal-permalink{font-size:11px;padding:2px 7px;border-radius:4px;color:#52525b;text-decoration:none;border:1px solid #27272a;margin-left:auto}
+    .modal-permalink:hover{color:#a1a1aa;border-color:#3f3f46}
     .priority-high{color:#ef4444;border-color:#ef4444}
     .priority-medium{color:#f97316;border-color:#f97316}
     .priority-low{color:#71717a;border-color:#52525b}
@@ -693,12 +771,12 @@ function renderPage(cards, projects, selectedProjectId, refreshedAt) {
   <div class="tab-panel" id="tab-memory" style="display:none">
     <div class="mem-layout">
       <div>
-        <div class="mem-col-header">Long-term (KB)</div>
+        <div class="mem-col-header" id="kb-col-header">Long-term (KB)</div>
         <input class="mem-search" id="kb-search" type="text" placeholder="Search knowledge base..." oninput="debouncedKbSearch(this.value)">
         <div class="mem-list" id="kb-list"><div class="mem-loading">Loading...</div></div>
       </div>
       <div>
-        <div class="mem-col-header">Short-term (QMD)</div>
+        <div class="mem-col-header" id="qmd-col-header">Short-term (QMD)</div>
         <input class="mem-search" id="qmd-search" type="text" placeholder="Search memory notes..." oninput="debouncedQmdSearch(this.value)">
         <div class="mem-list" id="qmd-list"><div class="mem-empty">Type to search</div></div>
       </div>
@@ -770,8 +848,9 @@ function renderPage(cards, projects, selectedProjectId, refreshedAt) {
       // Board controls: keep cell in layout, just hide content
       const bc = document.getElementById("board-controls");
       if (bc) bc.style.visibility = (tab === "board") ? "visible" : "hidden";
-      // URL hash
-      try { history.replaceState(null, "", "#" + tab); } catch {}
+      // URL — real paths, no hash
+      const TAB_PATHS = { board: "/board", memory: "/memory", cron: "/scheduling" };
+      try { history.replaceState(null, "", TAB_PATHS[tab] || "/" + tab); } catch {}
     }
 
     function switchTab(tab) {
@@ -795,8 +874,9 @@ function renderPage(cards, projects, selectedProjectId, refreshedAt) {
       }
     }
 
-    // Init: respect URL hash or default to board
-    const initTab = TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "board";
+    // Init: respect URL path or default to board
+    const _pathSeg = location.pathname.split("/").filter(Boolean)[0] ?? "";
+    const initTab = _pathSeg === "memory" ? "memory" : _pathSeg === "scheduling" ? "cron" : "board";
     showTab(initTab);
     if (initTab === "board") {
       boardPollInterval = setInterval(pollBoard, 10000);
@@ -892,7 +972,10 @@ function renderPage(cards, projects, selectedProjectId, refreshedAt) {
         : "";
       const projectName = card.project_id ? PROJECT_MAP[card.project_id] : null;
       const projectBadge = projectName
-        ? '<a class="modal-project-badge" href="/?project=' + escHtml(card.project_id) + '">' + escHtml(projectName) + '</a>'
+        ? '<a class="modal-project-badge" href="/board/' + escHtml(card.project_id) + '">' + escHtml(projectName) + '</a>'
+        : "";
+      const permalink = card.project_id
+        ? '<a class="modal-permalink" href="/board/' + escHtml(card.project_id) + '/' + escHtml(card.id) + '" title="Permalink">🔗 permalink</a>'
         : "";
       const historyHtml = (card.history || []).map(h =>
         '<div class="history-row"><span class="history-col">' + escHtml(h.column) + '</span><span>' + escHtml(h.moved_at) + '</span></div>'
@@ -904,6 +987,7 @@ function renderPage(cards, projects, selectedProjectId, refreshedAt) {
           '<span class="modal-col-badge ' + style.badge + '">' + style.label + '</span>' +
           '<span class="modal-priority priority-' + escHtml(card.priority) + '">' + escHtml(card.priority) + '</span>' +
           projectBadge +
+          permalink +
         '</div>' +
         '<div class="modal-title">' + escHtml(card.title) + '</div>' +
         (tagsHtml ? '<div class="modal-tags">' + tagsHtml + '</div>' : '') +
@@ -945,7 +1029,7 @@ function renderPage(cards, projects, selectedProjectId, refreshedAt) {
         ? '<p class="card-preview">' + escHtml((card.problem_description.split("\\n")[0] ?? "").slice(0, 100)) + "</p>" : "";
       const projName = card.project_id ? (projectMap || PROJECT_MAP)[card.project_id] : null;
       const projBadge = projName
-        ? '<a class="project-badge" href="/?project=' + escHtml(card.project_id) + '" onclick="event.stopPropagation()">' + escHtml(projName) + "</a>" : "";
+        ? '<a class="project-badge" href="/board/' + escHtml(card.project_id) + '" onclick="event.stopPropagation()">' + escHtml(projName) + "</a>" : "";
       const prioColor = PRIO_COLORS[card.priority] ?? PRIO_COLORS.low;
       return '<div class="card" data-id="' + escHtml(card.id) + '" onclick="openCard(\\'' + escHtml(card.id) + '\\')">' +
         '<div class="card-header"><span class="card-id">' + escHtml(card.id) + '</span><span class="priority-dot" style="background:' + prioColor + '" title="' + escHtml(card.priority) + '"></span></div>' +
@@ -959,7 +1043,7 @@ function renderPage(cards, projects, selectedProjectId, refreshedAt) {
       const colCards = cards.filter(c => c.column === col);
       return '<div class="column">' +
         '<div class="column-header"><span class="column-badge ' + s.badge + '">' + s.label + '</span><span class="column-count">' + colCards.length + "</span></div>" +
-        '<div class="column-cards">' + (colCards.length === 0 ? '<div class="column-empty">empty</div>' : colCards.map(c => buildCardHtml(c, projectMap)).join("")) + "</div>" +
+        '<div class="column-cards">' + (colCards.length === 0 ? '<div class="column-empty">empty</div>' : colCards.slice(0, 10).map(c => buildCardHtml(c, projectMap)).join("")) + "</div>" +
         "</div>";
     }
 
@@ -1064,11 +1148,13 @@ function renderPage(cards, projects, selectedProjectId, refreshedAt) {
 
     function renderKbList(entries) {
       const list = document.getElementById("kb-list");
+      const hdr = document.getElementById("kb-col-header");
+      if (hdr) hdr.textContent = "Long-term (KB)" + (entries && entries.length ? " (" + entries.length + ")" : "");
       if (!entries || entries.length === 0) {
         list.innerHTML = '<div class="mem-empty">No entries found</div>';
         return;
       }
-      list.innerHTML = entries.slice(0, 30).map((e, i) => {
+      list.innerHTML = entries.slice(0, 10).map((e, i) => {
         const snippet = e.snippet || e.summary || e.body || "";
         const snipText = snippet.replace(/^@@.*@@\\n?/gm, "").trim().slice(0, 150);
         return '<div class="mem-card" onclick="openKbEntry(' + i + ')">' +
@@ -1138,11 +1224,13 @@ function renderPage(cards, projects, selectedProjectId, refreshedAt) {
 
     function renderQmdList(results) {
       const list = document.getElementById("qmd-list");
+      const hdr = document.getElementById("qmd-col-header");
+      if (hdr) hdr.textContent = "Short-term (QMD)" + (results && results.length ? " (" + results.length + ")" : "");
       if (!results || results.length === 0) {
         list.innerHTML = '<div class="mem-empty">No results</div>';
         return;
       }
-      list.innerHTML = results.slice(0, 20).map((r, i) => {
+      list.innerHTML = results.slice(0, 10).map((r, i) => {
         // Handle both qmd search results (r.file = "qmd://coll/...") and plain file objects
         const isQmd = (r.file || "").startsWith("qmd://");
         const coll = isQmd
@@ -1508,30 +1596,68 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  if (pathname !== "/" && pathname !== "/index.html") {
-    res.writeHead(404, { "Content-Type": "text/plain" });
-    res.end("Not Found");
+  const parts = pathname.split("/").filter(Boolean);
+
+  // /board/:projectId/:cardId — card detail page
+  if (parts[0] === "board" && parts.length === 3) {
+    try {
+      const [, projectId, cardId] = parts;
+      const allCards = listCards(cardsDir);
+      const allProjects = listProjects(projectsDir);
+      const card = allCards.find(c => c.id === cardId);
+      if (!card) { res.writeHead(404, { "Content-Type": "text/plain" }); res.end("Card not found"); return; }
+      const project = allProjects.find(p => p.id === projectId);
+      const html = renderCardDetail(card, project);
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache, no-store" });
+      res.end(html);
+    } catch (err) {
+      console.error(`[brain-web] card detail error: ${err}`);
+      res.writeHead(500, { "Content-Type": "text/plain" }); res.end("Internal Server Error");
+    }
     return;
   }
 
-  try {
-    const allCards = listCards(cardsDir);
-    const allProjects = listProjects(projectsDir);
-    const cards = selectedProjectId
-      ? allCards.filter(c => c.project_id === selectedProjectId)
-      : allCards;
-    const html = renderPage(cards, allProjects, selectedProjectId, new Date());
-    res.writeHead(200, {
-      "Content-Type": "text/html; charset=utf-8",
-      "Cache-Control": "no-cache, no-store",
-      "X-Content-Type-Options": "nosniff",
-    });
-    res.end(html);
-  } catch (err) {
-    console.error(`[brain-web] render error: ${err}`);
-    res.writeHead(500, { "Content-Type": "text/plain" });
-    res.end("Internal Server Error");
+  // /board/:projectId — project filtered board
+  if (parts[0] === "board" && parts.length === 2) {
+    try {
+      const projectId = parts[1];
+      const allCards = listCards(cardsDir);
+      const allProjects = listProjects(projectsDir);
+      const project = allProjects.find(p => p.id === projectId);
+      if (!project) { res.writeHead(404, { "Content-Type": "text/plain" }); res.end("Project not found"); return; }
+      const cards = allCards.filter(c => c.project_id === projectId);
+      const html = renderPage(cards, allProjects, projectId, new Date());
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache, no-store" });
+      res.end(html);
+    } catch (err) {
+      console.error(`[brain-web] project filter error: ${err}`);
+      res.writeHead(500, { "Content-Type": "text/plain" }); res.end("Internal Server Error");
+    }
+    return;
   }
+
+  // /, /board, /memory, /scheduling — main page (tab controlled by URL path)
+  if (parts.length === 0 || pathname === "/board" || pathname === "/memory" || pathname === "/scheduling") {
+    try {
+      const allCards = listCards(cardsDir);
+      const allProjects = listProjects(projectsDir);
+      const html = renderPage(allCards, allProjects, "", new Date());
+      res.writeHead(200, {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-cache, no-store",
+        "X-Content-Type-Options": "nosniff",
+      });
+      res.end(html);
+    } catch (err) {
+      console.error(`[brain-web] render error: ${err}`);
+      res.writeHead(500, { "Content-Type": "text/plain" });
+      res.end("Internal Server Error");
+    }
+    return;
+  }
+
+  res.writeHead(404, { "Content-Type": "text/plain" });
+  res.end("Not Found");
 });
 
 server.listen(webPort, "0.0.0.0", () => {

@@ -6,6 +6,7 @@ import { ArchiveStore } from "../src/archive.js";
 import { COLUMNS, canTransition, checkGate, formatGateError } from "../src/state.js";
 import {
   renderCardDetail,
+  renderColumnContext,
   renderFullBoard,
   renderProjectBoard,
   renderProjectList,
@@ -85,20 +86,24 @@ Examples:
     .description("List cards, optionally filtered by column or project")
     .option("--column <col>", "Filter by column: backlog, in-progress, in-review, shipped")
     .option("--project <id>", "Filter by project ID (prj_<hex>)")
+    .option("--skip-hold", "Exclude cards tagged 'on-hold'")
     .addHelpText("after", `
 Without --column, lists all cards across all columns.
+Use --skip-hold to exclude cards being handled outside the queue (tagged 'on-hold').
 
 Examples:
   miniclaw brain list
   miniclaw brain list --column backlog
+  miniclaw brain list --column backlog --skip-hold
   miniclaw brain list --project prj_a1b2c3d4`)
-    .action((opts: { column?: string; project?: string }) => {
+    .action((opts: { column?: string; project?: string; skipHold?: boolean }) => {
       if (opts.column && !COLUMNS.includes(opts.column as Column)) {
         console.error(`Invalid column: ${opts.column}. Valid: ${COLUMNS.join(", ")}`);
         process.exit(1);
       }
       let cards = store.list(opts.column as Column | undefined);
       if (opts.project) cards = cards.filter(c => c.project_id === opts.project);
+      if (opts.skipHold) cards = cards.filter(c => !c.tags.includes("on-hold"));
       if (cards.length === 0) {
         console.log("No cards.");
         return;
@@ -108,6 +113,35 @@ Examples:
         const projStr = card.project_id ? `  {${card.project_id}}` : "";
         console.log(`${card.id}  [${card.column}]  [${card.priority}]  ${card.title}${tagsStr}${projStr}`);
       }
+    });
+
+  // ---- brain context ----
+  brain
+    .command("context")
+    .description("Dump all cards in a column as a rich LLM-ready context block for triage")
+    .requiredOption("--column <col>", "Column to dump: backlog, in-progress, in-review, shipped")
+    .option("--skip-hold", "Exclude cards tagged 'on-hold' (being handled outside the queue)")
+    .addHelpText("after", `
+Outputs all cards in the column with full detail (problem, plan, criteria),
+grouped by project and ordered by priority desc → oldest first.
+Designed for feeding into a Haiku triage prompt to select the next candidates.
+
+Tag a card as 'on-hold' to signal it's being worked on outside the queue:
+  openclaw mc-board update <id> --tags "on-hold,<reason-tag>"
+Then use --skip-hold so triage workers skip it automatically.
+
+Examples:
+  openclaw mc-board context --column backlog
+  openclaw mc-board context --column backlog --skip-hold`)
+    .action((opts: { column: string; skipHold?: boolean }) => {
+      if (!COLUMNS.includes(opts.column as Column)) {
+        console.error(`Invalid column: ${opts.column}. Valid: ${COLUMNS.join(", ")}`);
+        process.exit(1);
+      }
+      let cards = store.list(opts.column as Column);
+      if (opts.skipHold) cards = cards.filter(c => !c.tags.includes("on-hold"));
+      const allProjects = projects.list();
+      console.log(renderColumnContext(opts.column as Column, cards, allProjects));
     });
 
   // ---- brain show ----

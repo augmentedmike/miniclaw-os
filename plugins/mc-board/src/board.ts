@@ -209,3 +209,65 @@ export function suggestNext(cards: Card[]): Card | null {
     return (priorityScore[b.priority] ?? 0) - (priorityScore[a.priority] ?? 0);
   })[0] ?? null;
 }
+
+/**
+ * Render all cards in a column as a rich LLM-ready context block.
+ * Grouped by project, ordered by priority desc → created_at asc.
+ * Used by the triage worker cron to let Haiku evaluate and select candidates.
+ */
+export function renderColumnContext(col: Column, cards: Card[], projects: Project[]): string {
+  const colCards = cards.filter(c => c.column === col);
+  if (colCards.length === 0) return `No cards in ${col}.`;
+
+  const priorityScore: Record<string, number> = { high: 3, medium: 2, low: 1 };
+  const sortCards = (list: Card[]) =>
+    [...list].sort((a, b) => {
+      const pd = (priorityScore[b.priority] ?? 0) - (priorityScore[a.priority] ?? 0);
+      if (pd !== 0) return pd;
+      return a.created_at.localeCompare(b.created_at);
+    });
+
+  const projectMap = new Map(projects.map(p => [p.id, p.name]));
+  const grouped = new Map<string, Card[]>();
+  const unlinked: Card[] = [];
+
+  for (const card of colCards) {
+    if (card.project_id) {
+      const grp = grouped.get(card.project_id) ?? [];
+      grp.push(card);
+      grouped.set(card.project_id, grp);
+    } else {
+      unlinked.push(card);
+    }
+  }
+
+  const lines: string[] = [
+    `# ${col.toUpperCase().replace("-", " ")} COLUMN — ${colCards.length} card(s)`,
+    `(ordered by priority desc, then oldest first within each project)`,
+    "",
+  ];
+
+  const renderCard = (card: Card, idx: number) => {
+    const tagsStr = card.tags.length > 0 ? card.tags.join(", ") : "(none)";
+    lines.push(`## [${idx + 1}] ${card.id} — ${card.title}`);
+    lines.push(`Priority: ${card.priority}  |  Tags: ${tagsStr}  |  Created: ${card.created_at}`);
+    lines.push(`Problem: ${card.problem_description || "(empty)"}`);
+    lines.push(`Plan: ${card.implementation_plan || "(empty)"}`);
+    lines.push(`Criteria: ${card.acceptance_criteria || "(empty)"}`);
+    lines.push("");
+  };
+
+  let idx = 0;
+  for (const [projectId, projectCards] of grouped) {
+    const name = projectMap.get(projectId) ?? projectId;
+    lines.push(`### Project: ${name} (${projectId})`);
+    for (const card of sortCards(projectCards)) renderCard(card, idx++);
+  }
+
+  if (unlinked.length > 0) {
+    lines.push(`### (No project)`);
+    for (const card of sortCards(unlinked)) renderCard(card, idx++);
+  }
+
+  return lines.join("\n").trimEnd();
+}

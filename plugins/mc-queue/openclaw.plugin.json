@@ -1,0 +1,14 @@
+{
+  "id": "mc-queue",
+  "name": "Queue Triage",
+  "description": "Enforces queue-based execution for channel sessions: channel messages triage to board cards, cron workers execute. Prevents inline work in TG/Discord/Slack DMs and groups.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "enabled":         { "type": "boolean" },
+      "applyToChannels": { "type": "boolean" },
+      "applyToDMs":      { "type": "boolean" }
+    }
+  }
+}
