@@ -6,9 +6,13 @@
     "type": "object",
     "additionalProperties": false,
     "properties": {
-      "enabled":         { "type": "boolean" },
-      "applyToChannels": { "type": "boolean" },
-      "applyToDMs":      { "type": "boolean" }
+      "enabled":             { "type": "boolean" },
+      "applyToChannels":     { "type": "boolean" },
+      "applyToDMs":          { "type": "boolean" },
+      "haikuModel":          { "type": "string" },
+      "maxToolCallsPerTurn": { "type": "number" },
+      "tgLogChatId":         { "type": "string" },
+      "tgBotName":           { "type": "string" }
     }
   }
 }
