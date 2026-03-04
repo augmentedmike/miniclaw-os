@@ -12,6 +12,9 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OPENCLAW_DIR="${OPENCLAW_DIR:-$HOME/.openclaw}"
+# STATE_DIR is where runtime data lives (cards, logs, cron, workspace, etc.)
+# Defaults to OPENCLAW_DIR so a fresh install "just works".
+STATE_DIR="${OPENCLAW_STATE_DIR:-$OPENCLAW_DIR}"
 MINICLAW_DIR="$OPENCLAW_DIR/miniclaw"
 PROJECTS_DIR="$OPENCLAW_DIR/projects"
 LOCAL_BIN="${LOCAL_BIN:-$HOME/.local/bin}"
@@ -138,38 +141,36 @@ else
     || warn "QMD install failed — run: bun install -g qmd"
 fi
 
-# ── Step 4: OpenClaw ──────────────────────────────────────────────────────────
+# ── Step 4: OpenClaw (from MiniClaw fork) ─────────────────────────────────────
 step "Step 4: OpenClaw"
+
+OPENCLAW_FORK="augmentedmike/openclaw"
+OPENCLAW_NPM_SRC="github:$OPENCLAW_FORK"
 
 if command -v openclaw &>/dev/null; then
   INSTALLED=$(openclaw --version 2>/dev/null | head -1 || echo "?")
-  LATEST=$(npm show openclaw version 2>/dev/null || echo "?")
-  if [[ "$INSTALLED" == "$LATEST" ]]; then
-    ok "OpenClaw $INSTALLED (latest)"
-  elif [[ "$CHECK_ONLY" == true ]]; then
-    warn "OpenClaw $INSTALLED installed, latest is $LATEST"
-  else
-    info "Updating OpenClaw $INSTALLED → $LATEST..."
-    npm install -g openclaw@latest && ok "OpenClaw updated to $(openclaw --version 2>/dev/null | head -1)"
-  fi
+  ok "OpenClaw $INSTALLED already installed"
 elif [[ "$CHECK_ONLY" == true ]]; then
   fail "OpenClaw not installed"
 else
-  info "Installing OpenClaw..."
-  npm install -g openclaw@latest || die "OpenClaw install failed"
+  info "Installing OpenClaw from $OPENCLAW_FORK..."
+  npm install -g "$OPENCLAW_NPM_SRC" || die "OpenClaw install failed"
   ok "OpenClaw $(openclaw --version 2>/dev/null | head -1) installed"
 fi
 
-# Init ~/.openclaw if needed
+# Init dirs if needed
 if [[ ! -d "$OPENCLAW_DIR" ]]; then
-  [[ "$CHECK_ONLY" == true ]] && fail "~/.openclaw not found" || mkdir -p "$OPENCLAW_DIR"
+  [[ "$CHECK_ONLY" == true ]] && fail "$OPENCLAW_DIR not found" || mkdir -p "$OPENCLAW_DIR"
+fi
+if [[ "$STATE_DIR" != "$OPENCLAW_DIR" && ! -d "$STATE_DIR" ]]; then
+  mkdir -p "$STATE_DIR"
 fi
 
-if [[ ! -f "$OPENCLAW_DIR/openclaw.json" ]]; then
+if [[ ! -f "$STATE_DIR/openclaw.json" ]]; then
   if [[ "$CHECK_ONLY" == true ]]; then
     warn "openclaw.json not found"
   else
-    python3 - "$OPENCLAW_DIR/openclaw.json" <<'PYEOF'
+    python3 - "$STATE_DIR/openclaw.json" <<'PYEOF'
 import json, sys
 cfg = {
   "meta": {},
@@ -179,7 +180,7 @@ cfg = {
 with open(sys.argv[1], "w") as f:
     json.dump(cfg, f, indent=2); f.write("\n")
 PYEOF
-    ok "openclaw.json created"
+    ok "openclaw.json created at $STATE_DIR/openclaw.json"
   fi
 else
   ok "openclaw.json found"
@@ -215,7 +216,7 @@ done
 # ── Step 7: Patch openclaw.json ───────────────────────────────────────────────
 step "Step 7: openclaw.json"
 
-python3 - "$OPENCLAW_DIR/openclaw.json" "$MINICLAW_DIR" <<'PYEOF'
+python3 - "$STATE_DIR/openclaw.json" "$MINICLAW_DIR" "$STATE_DIR" <<'PYEOF'
 import json, sys, os
 
 config_path, mcl_dir = sys.argv[1], sys.argv[2]
@@ -230,10 +231,12 @@ p.setdefault("allow", [])
 p.setdefault("load", {}).setdefault("paths", [])
 p.setdefault("entries", {})
 
+state_dir = sys.argv[3] if len(sys.argv) > 3 else os.path.expanduser("~/.openclaw")
+
 plugin_defaults = {
     "mc-board": {
         "enabled": True,
-        "config": { "cardsDir": "~/.openclaw/user/brain/cards", "qmdBin": "~/.bun/bin/qmd", "qmdCollection": "mc-board", "webPort": 4220 },
+        "config": { "cardsDir": state_dir + "/user/brain/cards", "qmdBin": "~/.bun/bin/qmd", "qmdCollection": "mc-board", "webPort": 4220 },
     },
     "mc-context": {
         "enabled": True,
@@ -241,11 +244,11 @@ plugin_defaults = {
     },
     "mc-designer": {
         "enabled": True,
-        "config": { "apiKey": "", "model": "gemini-3.1-flash-image-preview", "mediaDir": "~/.openclaw/media/designer", "defaultWidth": 1024, "defaultHeight": 1024, "vaultBin": "~/.local/bin/mc-vault" },
+        "config": { "apiKey": "", "model": "gemini-3.1-flash-image-preview", "mediaDir": state_dir + "/media/designer", "defaultWidth": 1024, "defaultHeight": 1024, "vaultBin": "~/.local/bin/mc-vault" },
     },
     "mc-kb": {
         "enabled": True,
-        "config": { "dbDir": "~/.openclaw/user/brain/kb", "modelPath": "~/.cache/qmd/models/hf_ggml-org_embeddinggemma-300M-Q8_0.gguf", "qmdBin": "~/.bun/bin/qmd", "qmdCollection": "kb", "contextN": 3, "contextThreshold": 0.75 },
+        "config": { "dbDir": state_dir + "/user/brain/kb", "modelPath": "~/.cache/qmd/models/hf_ggml-org_embeddinggemma-300M-Q8_0.gguf", "qmdBin": "~/.bun/bin/qmd", "qmdCollection": "kb", "contextN": 3, "contextThreshold": 0.75 },
     },
     "mc-queue": {
         "enabled": True,
@@ -257,7 +260,7 @@ plugin_defaults = {
     },
     "mc-trust": {
         "enabled": True,
-        "config": { "agentId": "am", "trustDir": "~/.openclaw/trust", "vaultBin": "~/.openclaw/miniclaw/system/bin/mc-vault", "sessionTtlMs": 3600000 },
+        "config": { "agentId": "am", "trustDir": state_dir + "/trust", "vaultBin": mcl_dir + "/system/bin/mc-vault", "sessionTtlMs": 3600000 },
     },
 }
 
@@ -419,7 +422,7 @@ register_cron "board-worker-backlog" '{
   "payload": {
     "kind": "agentTurn",
     "timeoutSeconds": 600,
-    "message": "Board worker — BACKLOG triage.\n\nMAX_CONCURRENT_COLUMN_TASKS=3. You may work on at most 3 cards per project, selecting the best candidate from each.\n\n1. Check what is already being worked: openclaw mc-board active\n2. Get full column context (excludes on-hold cards): openclaw mc-board context --column backlog --skip-hold\n3. Group cards by project. For each project pick at most 1 card — highest priority, then oldest. Skip any card already in the active list.\n4. For each selected card:\n   a. Register pickup: openclaw mc-board pickup <id> --worker board-worker-backlog\n   b. Read full detail: openclaw mc-board show <id>\n   c. Fill any missing fields (problem, plan, criteria) — research what is needed\n   d. Move to in-progress: openclaw mc-board move <id> in-progress\n   e. Release: openclaw mc-board release <id> --worker board-worker-backlog\n5. Done. Silent exit."
+    "message": "Board worker — BACKLOG triage.\n\nMAX_CONCURRENT_COLUMN_TASKS=3. You may work on at most 3 cards per project, selecting the best candidate from each.\n\n1. Check what is already being worked: openclaw mc-board active\n2. Get full column context (excludes on-hold cards): openclaw mc-board context --column backlog --skip-hold\n3. Group cards by project. For each project pick at most 1 card — highest priority, then oldest. Skip any card already in the active list.\n   If 0 cards available: Stop here. Silent exit. Do NOT send any Telegram message.\n4. For each selected card:\n   a. Register pickup: openclaw mc-board pickup <id> --worker board-worker-backlog\n   b. Read full detail: openclaw mc-board show <id>\n   c. Fill any missing fields (problem, plan, criteria) — research what is needed\n   d. Move to in-progress: openclaw mc-board move <id> in-progress\n   e. Release: openclaw mc-board release <id> --worker board-worker-backlog\n5. Done. Silent exit."
   },
   "delivery": {"mode": "none"}
 }'
@@ -432,7 +435,7 @@ register_cron "board-worker-in-progress" '{
   "payload": {
     "kind": "agentTurn",
     "timeoutSeconds": 600,
-    "message": "Board worker — IN-PROGRESS triage.\n\nMAX_CONCURRENT_COLUMN_TASKS=3. You may work on at most 3 cards, selecting the best candidate per project.\n\n1. Check active workers: openclaw mc-board active\n2. Get full column context (excludes on-hold): openclaw mc-board context --column in-progress --skip-hold\n3. Group by project. Per project pick 1 card — highest priority then oldest. Skip cards already active.\n4. For each selected card:\n   a. Register pickup: openclaw mc-board pickup <id> --worker board-worker-in-progress\n   b. Read full detail: openclaw mc-board show <id>\n   c. Do one unit of work toward completing it — whatever the plan calls for next\n   d. Check off any acceptance criteria now met (- [x])\n   e. Update notes with what was done: openclaw mc-board update <id> --notes \"<what was done>\"\n   f. If all criteria checked: openclaw mc-board move <id> in-review\n   g. Release: openclaw mc-board release <id> --worker board-worker-in-progress\n5. Done. Silent exit."
+    "message": "Board worker — IN-PROGRESS triage.\n\nMAX_CONCURRENT_COLUMN_TASKS=3. You may work on at most 3 cards, selecting the best candidate per project.\n\n1. Check active workers: openclaw mc-board active\n2. Get full column context (excludes on-hold): openclaw mc-board context --column in-progress --skip-hold\n3. Group by project. Per project pick 1 card — highest priority then oldest. Skip cards already active.\n   If 0 cards available: Stop here. Silent exit. Do NOT send any Telegram message.\n4. For each selected card:\n   a. Register pickup: openclaw mc-board pickup <id> --worker board-worker-in-progress\n   b. Read full detail: openclaw mc-board show <id>\n   c. Do one unit of work toward completing it — whatever the plan calls for next\n   d. Check off any acceptance criteria now met (- [x])\n   e. Update notes with what was done: openclaw mc-board update <id> --notes \"<what was done>\"\n   f. If all criteria checked: openclaw mc-board move <id> in-review\n   g. Release: openclaw mc-board release <id> --worker board-worker-in-progress\n5. Done. Silent exit."
   },
   "delivery": {"mode": "none"}
 }'
@@ -445,15 +448,78 @@ register_cron "board-worker-in-review" '{
   "payload": {
     "kind": "agentTurn",
     "timeoutSeconds": 600,
-    "message": "Board worker — IN-REVIEW triage.\n\nMAX_CONCURRENT_COLUMN_TASKS=3. Select best candidate per project.\n\n1. Check active workers: openclaw mc-board active\n2. Get full column context (excludes on-hold): openclaw mc-board context --column in-review --skip-hold\n3. Group by project. Per project pick 1 card — highest priority then oldest. Skip cards already active.\n4. For each selected card:\n   a. Register pickup: openclaw mc-board pickup <id> --worker board-worker-in-review\n   b. Read full detail: openclaw mc-board show <id>\n   c. Audit: verify the work product exists and all criteria are genuinely met\n   d. If it holds up:\n      - openclaw mc-board update <id> --review \"Audited [date]: [what was checked, findings]\"\n      - openclaw mc-board move <id> shipped\n   e. If it fails:\n      - Uncheck failed criteria and add a note explaining what is wrong\n      - openclaw mc-board update <id> --notes \"Review failed: <reason>\"\n      - Leave in in-review for another pass\n   f. Release: openclaw mc-board release <id> --worker board-worker-in-review\n5. Done. Silent exit."
+    "message": "Board worker — IN-REVIEW triage.\n\nMAX_CONCURRENT_COLUMN_TASKS=3. Select best candidate per project.\n\n1. Check active workers: openclaw mc-board active\n2. Get full column context (excludes on-hold): openclaw mc-board context --column in-review --skip-hold\n3. Group by project. Per project pick 1 card — highest priority then oldest. Skip cards already active.\n   If 0 cards available: Stop here. Silent exit. Do NOT send any Telegram message.\n4. For each selected card:\n   a. Register pickup: openclaw mc-board pickup <id> --worker board-worker-in-review\n   b. Read full detail: openclaw mc-board show <id>\n   c. Audit: verify the work product exists and all criteria are genuinely met\n   d. If it holds up:\n      - openclaw mc-board update <id> --review \"Audited [date]: [what was checked, findings]\"\n      - openclaw mc-board move <id> shipped\n   e. If it fails:\n      - Uncheck failed criteria and add a note explaining what is wrong\n      - openclaw mc-board update <id> --notes \"Review failed: <reason>\"\n      - Leave in in-review for another pass\n   f. Release: openclaw mc-board release <id> --worker board-worker-in-review\n5. Done. Silent exit."
   },
   "delivery": {"mode": "none"}
 }'
+
+# ── Step 13: Shell env ────────────────────────────────────────────────────────
+step "Step 13: Shell environment"
+
+for rcfile in "$HOME/.zshrc" "$HOME/.bashrc"; do
+  [[ -f "$rcfile" ]] || continue
+  if grep -q "OPENCLAW_STATE_DIR" "$rcfile"; then
+    ok "OPENCLAW_STATE_DIR already in $rcfile"
+  else
+    echo "" >> "$rcfile"
+    echo "# MiniClaw — OpenClaw state directory" >> "$rcfile"
+    echo "export OPENCLAW_STATE_DIR=\"$STATE_DIR\"" >> "$rcfile"
+    ok "Added OPENCLAW_STATE_DIR=$STATE_DIR to $rcfile"
+  fi
+done
+
+# ── Step 14: Board web LaunchAgent ────────────────────────────────────────────
+step "Step 14: Board web server LaunchAgent"
+
+BOARD_PLIST="$HOME/Library/LaunchAgents/com.miniclaw.board-web.plist"
+if [[ ! -f "$BOARD_PLIST" ]]; then
+  mkdir -p "$HOME/Library/LaunchAgents"
+  cat > "$BOARD_PLIST" << PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.miniclaw.board-web</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>$(which node || echo /opt/homebrew/bin/node)</string>
+    <string>$MINICLAW_DIR/plugins/mc-board/web/standalone.mjs</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>5</integer>
+  <key>StandardOutPath</key>
+  <string>$STATE_DIR/logs/miniclaw-board-web.log</string>
+  <key>StandardErrorPath</key>
+  <string>$STATE_DIR/logs/miniclaw-board-web.log</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>
+    <string>$HOME</string>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>OPENCLAW_STATE_DIR</key>
+    <string>$STATE_DIR</string>
+  </dict>
+</dict>
+</plist>
+PLIST
+  mkdir -p "$STATE_DIR/logs"
+  launchctl load "$BOARD_PLIST" 2>/dev/null && ok "Board web LaunchAgent loaded (port 4220)" \
+    || warn "LaunchAgent created — run: launchctl load $BOARD_PLIST"
+else
+  ok "Board web LaunchAgent already exists"
+fi
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}${BOLD}miniclaw-os installed.${NC}"
 echo ""
+echo "  Board:   http://localhost:4220"
 echo "  Verify:  mc-smoke"
 echo "  Restart OpenClaw to load plugins."
 echo ""

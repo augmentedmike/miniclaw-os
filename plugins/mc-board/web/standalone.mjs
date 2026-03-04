@@ -14,22 +14,26 @@ import { spawnSync } from "node:child_process";
 
 // ---- Config ----
 
+// Resolve the active OpenClaw state directory from env var (set by LaunchAgent)
+const OPENCLAW_STATE_DIR = (process.env.OPENCLAW_STATE_DIR ?? "").trim()
+  || path.join(os.homedir(), ".openclaw");
+
 function resolveConfig() {
-  const configPath = path.join(os.homedir(), ".openclaw", "openclaw.json");
+  const configPath = path.join(OPENCLAW_STATE_DIR, "openclaw.json");
   try {
     const raw = JSON.parse(fs.readFileSync(configPath, "utf-8"));
     const entry = raw?.plugins?.entries?.["mc-board"]?.config
       ?? raw?.plugins?.entries?.["miniclaw-brain"]?.config
       ?? {};
     const cardsDir = resolvePath(
-      entry.cardsDir ?? "~/.openclaw/user/augmentedmike_bot/brain/cards",
+      entry.cardsDir ?? path.join(OPENCLAW_STATE_DIR, "user", "augmentedmike_bot", "brain", "cards"),
     );
     const webPort = Number(entry.webPort ?? 4220);
     const stateDir = path.dirname(cardsDir);
     const projectsDir = path.join(stateDir, "projects");
     return { cardsDir, projectsDir, stateDir, webPort };
   } catch {
-    const cardsDir = path.join(os.homedir(), ".openclaw", "user", "augmentedmike_bot", "brain", "cards");
+    const cardsDir = path.join(OPENCLAW_STATE_DIR, "user", "augmentedmike_bot", "brain", "cards");
     const stateDir = path.dirname(cardsDir);
     return {
       cardsDir,
@@ -375,9 +379,15 @@ function fmtDate(iso) {
   } catch { return iso; }
 }
 
+function normalizeCriteria(criteria) {
+  // Workers sometimes store literal \n (two chars) instead of real newlines
+  return criteria.replace(/\\n/g, "\n");
+}
+
 function criteriaProgress(criteria) {
-  const total = (criteria.match(/^- \[[ x]\]/gm) ?? []).length;
-  const checked = (criteria.match(/^- \[x\]/gm) ?? []).length;
+  const c = normalizeCriteria(criteria);
+  const total = (c.match(/^- \[[ x]\]/gm) ?? []).length;
+  const checked = (c.match(/^- \[x\]/gm) ?? []).length;
   return { checked, total };
 }
 
@@ -409,7 +419,7 @@ function renderCardDetail(card, project) {
   const sectionsHtml = sections.filter(s => s.content?.trim()).map(s => `
     <section class="ds">
       <h2 class="ds-title">${escHtml(s.label)}</h2>
-      <div class="ds-body">${escHtml(s.content).replace(/- \[x\]/g,'<span style="color:#22c55e">✓</span>').replace(/- \[ \]/g,'<span style="color:#52525b">○</span>').replace(/\n/g,'<br>')}</div>
+      <div class="ds-body">${escHtml(normalizeCriteria(s.content)).replace(/- \[x\]/g,'<span style="color:#22c55e">✓</span>').replace(/- \[ \]/g,'<span style="color:#52525b">○</span>').replace(/\n/g,'<br>')}</div>
     </section>`).join("");
   const historyHtml = (card.history ?? []).map(h =>
     `<li><span class="ds-hcol">${escHtml(h.column)}</span> <span class="ds-hdate">${fmtDate(h.moved_at)}</span></li>`).join("");
@@ -481,7 +491,7 @@ function renderCard(card, projectMap) {
     ? `<a class="project-badge" href="/board/${escHtml(card.project_id)}" onclick="event.stopPropagation()">${escHtml(projectName)}</a>`
     : "";
 
-  return `<div class="card" data-id="${escHtml(card.id)}" onclick="openCard('${escHtml(card.id)}')">
+  return `<div class="card" data-id="${escHtml(card.id)}" onclick="event.stopPropagation();openCard('${escHtml(card.id)}')">
     <div class="card-header">
       <span class="card-id">${escHtml(card.id)}</span>
       <span class="priority-dot" style="background:${priorityColor}" title="${card.priority}"></span>
@@ -508,7 +518,7 @@ function renderColumn(col, cards, projectMap) {
     <div class="column-cards">
       ${colCards.length === 0
         ? `<div class="column-empty">empty</div>`
-        : colCards.slice(0, 10).map(c => renderCard(c, projectMap)).join("")}
+        : colCards.slice(0, 20).map(c => renderCard(c, projectMap)).join("")}
     </div>
   </div>`;
 }
@@ -973,7 +983,12 @@ function renderPage(cards, projects, selectedProjectId, refreshedAt) {
     }
     function closeModal(backdropId) {
       document.getElementById(backdropId).classList.remove("open");
-      if (backdropId === "backdrop" && pendingData) { applyBoardData(pendingData); pendingData = null; }
+      if (backdropId === "backdrop") {
+        // Restore board URL
+        const boardUrl = BOARD_PROJECT ? '/board/' + BOARD_PROJECT : '/board';
+        try { history.pushState(null, '', boardUrl); } catch {}
+        if (pendingData) { applyBoardData(pendingData); pendingData = null; }
+      }
     }
 
     document.addEventListener("keydown", e => {
@@ -990,7 +1005,9 @@ function renderPage(cards, projects, selectedProjectId, refreshedAt) {
 
     function renderSectionBody(content) {
       if (!content || !content.trim()) return '<span style="color:#3f3f46;font-style:italic">empty</span>';
-      return content.split("\\n").map(line => {
+      // Normalize literal backslash-n sequences (workers sometimes store them instead of real newlines)
+      const normalized = content.replace(/\\\\n/g, "\\n");
+      return normalized.split("\\n").map(line => {
         const unc = line.match(/^- \\[ \\] (.+)/);
         const chk = line.match(/^- \\[x\\] (.+)/);
         if (unc) return '<label class="check-item"><input type="checkbox" disabled> ' + escHtml(unc[1]) + '</label>';
@@ -1002,6 +1019,11 @@ function renderPage(cards, projects, selectedProjectId, refreshedAt) {
     function openCard(id) {
       const card = CARDS.find(c => c.id === id);
       if (!card) return;
+      // Update URL to /board/project_id/card_id (or /board/card_id if no project)
+      const cardUrl = card.project_id
+        ? '/board/' + card.project_id + '/' + card.id
+        : '/board/' + card.id;
+      try { history.pushState({ cardId: id }, '', cardUrl); } catch {}
       const style = COLUMN_STYLES[card.column] || COLUMN_STYLES.backlog;
       const tagsHtml = card.tags.length
         ? card.tags.map(t => '<span class="tag">' + escHtml(t) + '</span>').join("")
@@ -1049,8 +1071,10 @@ function renderPage(cards, projects, selectedProjectId, refreshedAt) {
       "shipped":     { badge: "bg-green-600 text-green-50", label: "SHIPPED" },
     };
 
+    function normCrit(s) { return (s||"").replace(/\\\\n/g, "\\n"); }
+
     function buildCardHtml(card, projectMap) {
-      const crit = card.acceptance_criteria ?? "";
+      const crit = normCrit(card.acceptance_criteria);
       const total = (crit.match(/^- \\[[ x]\\]/gm) ?? []).length;
       const checked = (crit.match(/^- \\[x\\]/gm) ?? []).length;
       const showProg = card.column === "in-progress" || card.column === "in-review";
@@ -1067,7 +1091,7 @@ function renderPage(cards, projects, selectedProjectId, refreshedAt) {
       const projBadge = projName
         ? '<a class="project-badge" href="/board/' + escHtml(card.project_id) + '" onclick="event.stopPropagation()">' + escHtml(projName) + "</a>" : "";
       const prioColor = PRIO_COLORS[card.priority] ?? PRIO_COLORS.low;
-      return '<div class="card" data-id="' + escHtml(card.id) + '" onclick="openCard(\\'' + escHtml(card.id) + '\\')">' +
+      return '<div class="card" data-id="' + escHtml(card.id) + '" onclick="event.stopPropagation();openCard(\\'' + escHtml(card.id) + '\\')">' +
         '<div class="card-header"><span class="card-id">' + escHtml(card.id) + '</span><span class="priority-dot" style="background:' + prioColor + '" title="' + escHtml(card.priority) + '"></span></div>' +
         '<div class="card-worker"></div>' +
         '<div class="card-title-row"><div class="card-title">' + escHtml(card.title) + '</div><span class="card-active-dot"></span></div>' +
@@ -1078,9 +1102,17 @@ function renderPage(cards, projects, selectedProjectId, refreshedAt) {
     function buildColHtml(col, cards, projectMap) {
       const s = COL_STYLES[col];
       const colCards = cards.filter(c => c.column === col);
+      // Always include active cards + up to 20 total so active cards are never hidden
+      const shown = colCards.length <= 20
+        ? colCards
+        : (() => {
+            const active = colCards.filter(c => _prevActiveIds.has(c.id));
+            const rest = colCards.filter(c => !_prevActiveIds.has(c.id));
+            return [...active, ...rest].slice(0, Math.max(20, active.length));
+          })();
       return '<div class="column">' +
         '<div class="column-header"><span class="column-badge ' + s.badge + '">' + s.label + '</span><span class="column-count">' + colCards.length + "</span></div>" +
-        '<div class="column-cards">' + (colCards.length === 0 ? '<div class="column-empty">empty</div>' : colCards.slice(0, 10).map(c => buildCardHtml(c, projectMap)).join("")) + "</div>" +
+        '<div class="column-cards">' + (colCards.length === 0 ? '<div class="column-empty">empty</div>' : shown.map(c => buildCardHtml(c, projectMap)).join("")) + "</div>" +
         "</div>";
     }
 

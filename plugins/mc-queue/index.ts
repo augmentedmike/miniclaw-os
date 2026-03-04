@@ -34,12 +34,16 @@ import * as os from "node:os";
 import * as path from "node:path";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 
+// Resolve the active OpenClaw state directory from env var (set by LaunchAgent)
+const OPENCLAW_STATE_DIR = (process.env.OPENCLAW_STATE_DIR ?? "").trim()
+  || path.join(os.homedir(), ".openclaw");
+
 // ---- Load workspace soul files at startup ----
 
 function readWorkspaceFile(filename: string): string {
   try {
     return fs.readFileSync(
-      path.join(os.homedir(), ".openclaw", "workspace", filename),
+      path.join(OPENCLAW_STATE_DIR, "workspace", filename),
       "utf8",
     ).trim();
   } catch {
@@ -111,14 +115,33 @@ async function sendTgLog(
 // ---- Board event detection ----
 
 type BoardEvent =
-  | { kind: "ship"; cardId: string; title: string }
-  | { kind: "human_needed"; cardId: string; title: string; reason: string };
+  | { kind: "ship"; cardId: string; title: string; projectId?: string }
+  | { kind: "human_needed"; cardId: string; title: string; reason: string; projectId?: string };
+
+/** Look up a card's project_id from the brain cards directory. Best-effort, returns "" if not found. */
+function lookupCardProjectId(cardId: string): string {
+  try {
+    const cardsDir = path.join(OPENCLAW_STATE_DIR, "user", "augmentedmike_bot", "brain", "cards");
+    const files = fs.readdirSync(cardsDir).filter(f => f.startsWith(cardId) && f.endsWith(".md"));
+    if (!files.length) return "";
+    const content = fs.readFileSync(path.join(cardsDir, files[0]), "utf8");
+    const m = content.match(/^project_id:\s*(.+)$/m);
+    return m ? m[1].trim() : "";
+  } catch {
+    return "";
+  }
+}
 
 function formatBoardEvent(ev: BoardEvent, boardUrl: string): string {
-  const link = boardUrl ? ` — <a href="${boardUrl}">${boardUrl}</a>` : "";
+  const projectId = ev.projectId || lookupCardProjectId(ev.cardId);
+  const cardPath = projectId
+    ? `/board/${projectId}/${ev.cardId}`
+    : `/board/${ev.cardId}`;
+  const fullUrl = boardUrl ? boardUrl.replace(/\/$/, "") + cardPath : "";
+  const link = fullUrl ? ` — <a href="${fullUrl}">${ev.cardId}</a>` : "";
   switch (ev.kind) {
     case "ship":
-      return `🚀 Shipped: <b>${ev.title || ev.cardId}</b> <code>${ev.cardId}</code>${link}`;
+      return `🚀 Shipped: <b>${ev.title || ev.cardId}</b>${link}`;
     case "human_needed":
       return `🚨 <b>Human needed:</b> <code>${ev.cardId}</code> ${ev.title ? "— " + ev.title : ""}\n${ev.reason}${link}`;
   }

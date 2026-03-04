@@ -1,14 +1,18 @@
 #!/usr/bin/env bash
 # bootstrap.sh — miniclaw-os one-line installer
 #
-# Installs all system dependencies, OpenClaw, and miniclaw plugins.
+# Installs all system dependencies, OpenClaw (MiniClaw fork), and miniclaw plugins.
 # Safe to re-run — skips anything already installed.
 #
-# Usage:
+# Usage (stable release):
+#   curl -fsSL https://raw.githubusercontent.com/augmentedmike/miniclaw-os/v1.0.0/bootstrap.sh | bash
+#
+# Usage (latest main):
 #   curl -fsSL https://raw.githubusercontent.com/augmentedmike/miniclaw-os/main/bootstrap.sh | bash
 
 set -euo pipefail
 
+MINICLAW_VERSION="${MINICLAW_VERSION:-v1.0.0}"
 REPO_URL="https://github.com/augmentedmike/miniclaw-os.git"
 OPENCLAW_DIR="${OPENCLAW_DIR:-$HOME/.openclaw}"
 PROJECTS_DIR="$OPENCLAW_DIR/projects"
@@ -182,22 +186,16 @@ else
   bun install -g qmd 2>/dev/null && ok "QMD installed" || warn "QMD install failed — run: bun install -g qmd"
 fi
 
-# ── Step 10: OpenClaw ─────────────────────────────────────────────────────────
+# ── Step 10: OpenClaw (from MiniClaw fork) ────────────────────────────────────
 step "Step 10: OpenClaw"
 
+OPENCLAW_FORK="github:augmentedmike/openclaw"
+
 if command -v openclaw &>/dev/null; then
-  CURRENT_VER=$(openclaw --version 2>/dev/null | head -1 || echo "installed")
-  LATEST_VER=$(npm show openclaw version 2>/dev/null || echo "unknown")
-  if [[ "$CURRENT_VER" == "$LATEST_VER" ]]; then
-    ok "OpenClaw $CURRENT_VER (latest)"
-  else
-    info "Updating OpenClaw $CURRENT_VER → $LATEST_VER..."
-    npm install -g openclaw@latest || die "OpenClaw update failed"
-    ok "OpenClaw updated to $(openclaw --version 2>/dev/null | head -1)"
-  fi
+  ok "OpenClaw $(openclaw --version 2>/dev/null | head -1) already installed"
 else
-  info "Installing OpenClaw..."
-  npm install -g openclaw@latest || die "OpenClaw install failed"
+  info "Installing OpenClaw from MiniClaw fork..."
+  npm install -g "$OPENCLAW_FORK" || die "OpenClaw install failed"
   command -v openclaw &>/dev/null && ok "OpenClaw $(openclaw --version 2>/dev/null | head -1) installed" || die "openclaw not found in PATH after install"
 fi
 
@@ -245,14 +243,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 mkdir -p "$PROJECTS_DIR"
 
 if [[ "$SCRIPT_DIR" == "$MINICLAW_OS_DIR" ]]; then
-  # Already running from inside the repo — just pull latest
-  git -C "$MINICLAW_OS_DIR" pull --ff-only 2>/dev/null && ok "miniclaw-os up to date" || ok "miniclaw-os ready"
+  # Already running from inside the repo
+  ok "miniclaw-os ready (running in-place)"
 elif [[ -d "$MINICLAW_OS_DIR/.git" ]]; then
-  git -C "$MINICLAW_OS_DIR" pull --ff-only
-  ok "miniclaw-os updated"
+  git -C "$MINICLAW_OS_DIR" fetch --tags --quiet
+  git -C "$MINICLAW_OS_DIR" checkout "$MINICLAW_VERSION" --quiet 2>/dev/null || git -C "$MINICLAW_OS_DIR" pull --ff-only
+  ok "miniclaw-os @ $MINICLAW_VERSION"
 else
-  git clone "$REPO_URL" "$MINICLAW_OS_DIR"
-  ok "miniclaw-os cloned → $MINICLAW_OS_DIR"
+  git clone --branch "$MINICLAW_VERSION" --depth 1 "$REPO_URL" "$MINICLAW_OS_DIR"
+  ok "miniclaw-os $MINICLAW_VERSION → $MINICLAW_OS_DIR"
 fi
 
 # ── Step 13: Run miniclaw installer ──────────────────────────────────────────
