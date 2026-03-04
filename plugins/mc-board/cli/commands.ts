@@ -627,7 +627,8 @@ When duplicates are found, the list() command keeps the most recently
 updated version — but stale files should be deleted manually.
 
   openclaw mc-board check-dupes`)
-    .action(() => {
+    .option("--fix", "Automatically delete stale duplicates, keeping the most recently updated file")
+    .action((opts: { fix?: boolean }) => {
       const dupes = store.detectDuplicates();
       if (dupes.size === 0) {
         console.log("No duplicate card IDs found. Board integrity OK.");
@@ -636,11 +637,28 @@ updated version — but stale files should be deleted manually.
       console.error(`Found ${dupes.size} duplicate card ID(s):\n`);
       for (const [id, files] of dupes) {
         console.error(`  ${id}:`);
-        for (const f of files) console.error(`    ${f}`);
+        // Sort by updated_at descending — keep the newest
+        const sorted = [...files].sort((a, b) => {
+          const ra = fs.statSync(path.join(store.cardsDir, a)).mtimeMs;
+          const rb = fs.statSync(path.join(store.cardsDir, b)).mtimeMs;
+          return rb - ra;
+        });
+        const [keep, ...stale] = sorted;
+        console.error(`    keep:   ${keep}`);
+        for (const f of stale) {
+          if (opts.fix) {
+            fs.unlinkSync(path.join(store.cardsDir, f));
+            console.error(`    deleted: ${f}`);
+          } else {
+            console.error(`    stale:  ${f}`);
+          }
+        }
       }
-      console.error(`\nThe most recently updated file per ID is used by list/show.`);
-      console.error(`Delete the stale files to clean up.`);
-      process.exit(1);
+      if (!opts.fix) {
+        console.error(`\nRun with --fix to automatically delete stale duplicates.`);
+        process.exit(1);
+      }
+      console.log(`\nFixed ${dupes.size} duplicate(s).`);
     });
 
 }

@@ -152,6 +152,15 @@ export class CardStore {
 
   private _write(card: Card): void {
     const filename = cardFilename(card);
+    // Delete any stale files with the same card ID but different slugs
+    // (happens when concurrent workers both mutate the same card)
+    try {
+      for (const f of fs.readdirSync(this.cardsDir)) {
+        if (f.startsWith(card.id + "-") && f.endsWith(".md") && f !== filename) {
+          fs.unlinkSync(path.join(this.cardsDir, f));
+        }
+      }
+    } catch { /* best-effort */ }
     fs.writeFileSync(path.join(this.cardsDir, filename), serializeCard(card), "utf-8");
   }
 }
