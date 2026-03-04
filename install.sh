@@ -10,7 +10,7 @@
 
 set -euo pipefail
 
-REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd 2>/dev/null)" || REPO_DIR="$(pwd)"
 OPENCLAW_DIR="${OPENCLAW_DIR:-$HOME/.openclaw}"
 # STATE_DIR is where runtime data lives (cards, logs, cron, workspace, etc.)
 # Defaults to OPENCLAW_DIR so a fresh install "just works".
@@ -341,44 +341,48 @@ else
   ok "Vault already initialised"
 fi
 
-echo ""
-echo "  Enter secrets (leave blank to skip):"
-echo ""
-
-VAULT_SECRETS=(
-  "gh-token:GitHub personal access token"
-  "gmail-app-password:Gmail app password"
-)
-
-for entry in "${VAULT_SECRETS[@]}"; do
-  key="${entry%%:*}"; desc="${entry#*:}"
-  printf "  %s (%s)\n  > " "$key" "$desc"
-  read -r -s value; echo ""
-  if [[ -n "$value" ]]; then
-    echo -n "$value" | OPENCLAW_VAULT_ROOT="$VAULT_ROOT" "$MC_VAULT" set "$key" -
-    ok "Stored: $key"
-  else
-    warn "Skipped: $key"
-  fi
-done
-
-# ── mc-designer (optional) ─────────────────────────────────────────────────────
-echo ""
-printf "  Enable mc-designer (AI image generation)? [y/N] "
-read -r enable_designer
-if [[ "$enable_designer" == "y" || "$enable_designer" == "Y" ]]; then
+if [ -t 0 ]; then
   echo ""
-  echo "  Get a free Gemini API key at: https://aistudio.google.com/app/apikey"
-  printf "  Gemini API key\n  > "
-  read -r -s gemini_key; echo ""
-  if [[ -n "$gemini_key" ]]; then
-    echo -n "$gemini_key" | OPENCLAW_VAULT_ROOT="$VAULT_ROOT" "$MC_VAULT" set gemini-api-key -
-    ok "Stored: gemini-api-key"
+  echo "  Enter secrets (leave blank to skip):"
+  echo ""
+
+  VAULT_SECRETS=(
+    "gh-token:GitHub personal access token"
+    "gmail-app-password:Gmail app password"
+  )
+
+  for entry in "${VAULT_SECRETS[@]}"; do
+    key="${entry%%:*}"; desc="${entry#*:}"
+    printf "  %s (%s)\n  > " "$key" "$desc"
+    read -r -s value; echo ""
+    if [[ -n "$value" ]]; then
+      echo -n "$value" | OPENCLAW_VAULT_ROOT="$VAULT_ROOT" "$MC_VAULT" set "$key" -
+      ok "Stored: $key"
+    else
+      warn "Skipped: $key"
+    fi
+  done
+
+  # ── mc-designer (optional) ─────────────────────────────────────────────────
+  echo ""
+  printf "  Enable mc-designer (AI image generation)? [y/N] "
+  read -r enable_designer
+  if [[ "$enable_designer" == "y" || "$enable_designer" == "Y" ]]; then
+    echo ""
+    echo "  Get a free Gemini API key at: https://aistudio.google.com/app/apikey"
+    printf "  Gemini API key\n  > "
+    read -r -s gemini_key; echo ""
+    if [[ -n "$gemini_key" ]]; then
+      echo -n "$gemini_key" | OPENCLAW_VAULT_ROOT="$VAULT_ROOT" "$MC_VAULT" set gemini-api-key -
+      ok "Stored: gemini-api-key"
+    else
+      warn "Skipped: gemini-api-key (mc-designer will prompt when you first use it)"
+    fi
   else
-    warn "Skipped: gemini-api-key (mc-designer will prompt when you first use it)"
+    warn "Skipped: mc-designer setup (run install.sh again or use 'mc vault set gemini-api-key' to enable later)"
   fi
 else
-  warn "Skipped: mc-designer setup (run install.sh again or use 'mc vault set gemini-api-key' to enable later)"
+  warn "Non-interactive: skipping secret prompts. Run ./install.sh directly to enter secrets."
 fi
 
 # ── Step 12: Brain board crons ────────────────────────────────────────────────

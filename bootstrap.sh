@@ -47,8 +47,12 @@ echo "    • Homebrew, Node.js 22, Git, Python 3, jq, bun, QMD"
 echo "    • OpenClaw (npm global)"
 echo "    • miniclaw-os plugins and CLI tools"
 echo ""
-read -rp "  Continue? (y/N): " CONFIRM
-[[ "$CONFIRM" == "y" || "$CONFIRM" == "Y" ]] || { echo "  Aborted."; exit 0; }
+if [ -t 0 ]; then
+  read -rp "  Continue? (y/N): " CONFIRM
+  [[ "$CONFIRM" == "y" || "$CONFIRM" == "Y" ]] || { echo "  Aborted."; exit 0; }
+else
+  info "Non-interactive mode — proceeding automatically"
+fi
 
 # Homebrew prefix
 if [[ "$ARCH" == "arm64" ]]; then
@@ -239,7 +243,7 @@ fi
 # ── Step 12: Clone or update miniclaw-os ─────────────────────────────────────
 step "Step 12: miniclaw-os"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd 2>/dev/null)" || SCRIPT_DIR=""
 mkdir -p "$PROJECTS_DIR"
 
 if [[ "$SCRIPT_DIR" == "$MINICLAW_OS_DIR" ]]; then
