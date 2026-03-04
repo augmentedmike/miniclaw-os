@@ -340,8 +340,8 @@ You are running as Haiku — fast, responsive. Long work goes to cron. Your job 
       return;
     }
 
-    // bash/computer: only mc-board ship
-    if (toolName === "bash" || toolName === "computer") {
+    // bash/exec/computer: only mc-board ship (board workers use exec, not bash)
+    if (toolName === "bash" || toolName === "exec" || toolName === "computer") {
       const cmd = String(params.command ?? params.input ?? "");
       if (cmd.includes("mc-board")) {
         const bashEv = parseBashBoardCommand(cmd);
