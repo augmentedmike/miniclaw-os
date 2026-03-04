@@ -1876,20 +1876,32 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // /board/:projectId — project filtered board
+  // /board/:projectId — project filtered board (or /board/:cardId fallback)
   if (parts[0] === "board" && parts.length === 2) {
     try {
-      const projectId = parts[1];
+      const seg = parts[1];
       const allCards = listCards(cardsDir);
       const allProjects = listProjects(projectsDir);
-      const project = allProjects.find(p => p.id === projectId);
-      if (!project) { res.writeHead(404, { "Content-Type": "text/plain" }); res.end("Project not found"); return; }
-      const cards = allCards.filter(c => c.project_id === projectId);
-      const html = renderPage(cards, allProjects, projectId, new Date());
-      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache, no-store" });
-      res.end(html);
+      const project = allProjects.find(p => p.id === seg);
+      if (project) {
+        const cards = allCards.filter(c => c.project_id === seg);
+        const html = renderPage(cards, allProjects, seg, new Date());
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache, no-store" });
+        res.end(html);
+        return;
+      }
+      // Fallback: treat as a bare card ID (e.g. TG notification links without project prefix)
+      const card = allCards.find(c => c.id === seg);
+      if (card) {
+        const cardProject = card.project_id ? allProjects.find(p => p.id === card.project_id) : undefined;
+        const html = renderCardDetail(card, cardProject);
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache, no-store" });
+        res.end(html);
+        return;
+      }
+      res.writeHead(404, { "Content-Type": "text/plain" }); res.end("Not found"); return;
     } catch (err) {
-      console.error(`[brain-web] project filter error: ${err}`);
+      console.error(`[brain-web] project/card lookup error: ${err}`);
       res.writeHead(500, { "Content-Type": "text/plain" }); res.end("Internal Server Error");
     }
     return;

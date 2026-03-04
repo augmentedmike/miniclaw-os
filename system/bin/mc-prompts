@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# mc-prompts — manage cron job prompts as physical files
+#
+# Usage:
+#   mc-prompts sync           — load all messageFile contents into jobs.json message fields
+#   mc-prompts edit <name>    — open a prompt file in $EDITOR
+#   mc-prompts list           — list all prompt files
+#   mc-prompts show <name>    — print a prompt file
+#   mc-prompts diff           — show any jobs.json messages that differ from their file
+
+set -euo pipefail
+
+JOBS_FILE="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}/cron/jobs.json"
+# Also check ~/am/cron/jobs.json as fallback
+[[ -f "$JOBS_FILE" ]] || JOBS_FILE="$HOME/am/cron/jobs.json"
+PROMPTS_DIR="$(dirname "$JOBS_FILE")/prompts"
+
+usage() {
+  echo "Usage: mc-prompts <sync|edit|list|show|diff> [name]"
+  exit 1
+}
+
+cmd="${1:-}"
+[[ -z "$cmd" ]] && usage
+
+case "$cmd" in
+  sync)
+    python3 - "$JOBS_FILE" "$PROMPTS_DIR" <<'PYEOF'
+import json, os, sys
+
+jobs_file, prompts_dir = sys.argv[1], sys.argv[2]
+with open(jobs_file) as f:
+    data = json.load(f)
+
+updated = 0
+for job in data["jobs"]:
+    payload = job.get("payload", {})
+    mf = payload.get("messageFile", "")
+    if not mf:
+        continue
+    path = os.path.expanduser(mf)
+    if not os.path.exists(path):
+        print(f"  MISSING: {path}", file=sys.stderr)
+        continue
+    with open(path) as f:
+        content = f.read()
+    if payload.get("message") != content:
+        payload["message"] = content
+        updated += 1
+        print(f"  synced: {job.get('name', job['id'])}")
+
+with open(jobs_file, "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+
+print(f"Done — {updated} job(s) updated.")
+PYEOF
+    ;;
+
+  edit)
+    name="${2:-}"
+    [[ -z "$name" ]] && { echo "Usage: mc-prompts edit <name>"; exit 1; }
+    file="$PROMPTS_DIR/$name.md"
+    [[ -f "$file" ]] || { echo "Not found: $file"; exit 1; }
+    "${EDITOR:-nano}" "$file"
+    echo ""
+    read -rp "Sync to jobs.json now? [Y/n] " yn
+    [[ "$yn" == "n" || "$yn" == "N" ]] || exec "$0" sync
+    ;;
+
+  list)
+    echo "Prompt files in $PROMPTS_DIR:"
+    ls -1 "$PROMPTS_DIR"/*.md 2>/dev/null | xargs -I{} basename {} .md | sort
+    ;;
+
+  show)
+    name="${2:-}"
+    [[ -z "$name" ]] && { echo "Usage: mc-prompts show <name>"; exit 1; }
+    cat "$PROMPTS_DIR/$name.md"
+    ;;
+
+  diff)
+    python3 - "$JOBS_FILE" "$PROMPTS_DIR" <<'PYEOF'
+import json, os, sys
+
+jobs_file, prompts_dir = sys.argv[1], sys.argv[2]
+with open(jobs_file) as f:
+    data = json.load(f)
+
+any_diff = False
+for job in data["jobs"]:
+    payload = job.get("payload", {})
+    mf = payload.get("messageFile", "")
+    if not mf:
+        continue
+    path = os.path.expanduser(mf)
+    if not os.path.exists(path):
+        print(f"  MISSING FILE: {path}")
+        any_diff = True
+        continue
+    with open(path) as f:
+        file_content = f.read()
+    if payload.get("message", "") != file_content:
+        print(f"  DIFFERS: {job.get('name', job['id'])}")
+        any_diff = True
+
+if not any_diff:
+    print("All in sync.")
+PYEOF
+    ;;
+
+  *)
+    usage
+    ;;
+esac
