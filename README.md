@@ -1,35 +1,39 @@
-# MiniClaw
+# MiniClaw — Your Super Agent
 
-**Give your Mac an AI that actually works for you.**
+<p align="center">
+    <img src="https://raw.githubusercontent.com/augmentedmike/miniclaw-os/main/assets/miniclaw-logo.png" alt="MiniClaw" width="500">
+</p>
 
-MiniClaw is a personal AI assistant that lives on your computer — not in a cloud somewhere. It has a real personality, remembers your life, and can actually do things: send emails, write code, manage your calendar, run your projects. It's yours forever, it never gets shut down, and no one else can read your conversations.
+<p align="center">
+  <strong>Your own AI. Your Mac. Your data.</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/augmentedmike/miniclaw-os/releases"><img src="https://img.shields.io/github/v/release/augmentedmike/miniclaw-os?include_prereleases&style=for-the-badge" alt="Latest Release"></a>
+  <a href="https://github.com/augmentedmike/miniclaw-os/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="MIT License"></a>
+  <a href="https://discord.gg/clawd"><img src="https://img.shields.io/discord/1456350064065904867?label=Discord&logo=discord&logoColor=white&color=5865F2&style=for-the-badge" alt="Discord"></a>
+</p>
+
+**MiniClaw** is a personal AI that lives on your Mac — not in someone else's cloud. It has a real personality, remembers your life, and can actually *do* things: draft emails, write code, manage projects, run tasks overnight. Everything you do stays on your machine. Everything.
+
+[Getting Started](#install) · [Docs](https://docs.openclaw.ai) · [GitHub](https://github.com/augmentedmike/miniclaw-os) · [Discord](https://discord.gg/clawd)
 
 ---
 
 ## What does it feel like?
 
-Imagine having a brilliant friend who happens to know everything — and they're always available. You can:
+Imagine having a brilliant friend who knows everything — and they're *always* available.
 
-- **Ask it to do things** — "Draft a reply to that last email from Sarah"
-- **Have it work in the background** — it checks your calendar, monitors your inbox, runs tasks overnight
-- **Talk to it like a person** — it remembers what you said yesterday, last week, last year
-- **Trust it completely** — everything stays on your machine
-
----
-
-## What do you need?
-
-- A Mac (any Mac made after 2020 works great)
-- An internet connection for the first setup
-- About 15 minutes
-
-That's it. You don't need to know how to code. You don't need to be "technical." If you can install an app from the internet, you can do this.
+- **Ask it to do things.** "Draft a reply to that email from Sarah."
+- **It works in the background.** Checks your calendar, monitors your inbox, runs tasks overnight.
+- **It remembers you.** What you said yesterday, last week, last year.
+- **You can trust it completely.** Everything stays on your machine.
 
 ---
 
-## Install
+## Install (5 minutes)
 
-Open your **Terminal** app. (It's in Applications → Utilities → Terminal. Looks like a black window with a blinking cursor.)
+Open **Terminal** (Applications → Utilities → Terminal).
 
 Paste this and press Enter:
 
@@ -37,9 +41,17 @@ Paste this and press Enter:
 curl -fsSL https://raw.githubusercontent.com/augmentedmike/miniclaw-os/main/bootstrap.sh | bash
 ```
 
-It will ask you a few questions, install everything it needs, and set itself up. The whole process takes about 10–15 minutes depending on your internet speed.
+The installer will:
+1. Install Homebrew (the macOS package manager)
+2. Install Node.js and Python
+3. Install OpenClaw (the AI engine)
+4. Install MiniClaw plugins (memory, vision, planning, security)
+5. Set up a private vault for your API keys
+6. Start everything and verify it works
 
-When it's done, you'll see:
+Takes about 10–15 minutes. **Safe to re-run** — it skips anything already installed.
+
+When it's done:
 
 ```
 ✓ MiniClaw is ready.
@@ -47,90 +59,103 @@ When it's done, you'll see:
 
 ---
 
-## After install
+## Getting Started
 
-Start talking to your AI by opening your favorite chat app — MiniClaw connects to Telegram, WhatsApp, iMessage, and more. The installer will walk you through linking one.
+Once installed, start chatting:
 
-Or you can open a browser and go to `http://localhost:18789` to chat right from your computer.
-
----
-
-## What does it install?
-
-The installer sets up everything from scratch — no manual steps, no guessing. Here's what it does in plain English:
-
-1. Installs Homebrew (a tool that installs other tools — the whole Mac developer community uses it)
-2. Installs Node.js and Python (the languages MiniClaw runs in)
-3. Installs OpenClaw, the AI engine that powers everything
-4. Installs the MiniClaw "brain plugins" — memory, vision, planning, and security
-5. Sets up a private vault to keep your API keys and passwords safe
-6. Starts everything up and verifies it's working
-
-**Safe to re-run.** If something goes wrong or you want to update, just run the same command again. It skips anything that's already installed and only fixes what needs fixing.
+- **Browser:** Open `http://localhost:18789`
+- **Chat apps:** Telegram, WhatsApp, iMessage, Discord, Slack, and more (the installer walks you through linking one)
+- **Terminal:** Use `openclaw agent "your message here"` for CLI access
 
 ---
 
-## Is it safe?
+## Features
 
-Yes. A few things worth knowing:
-
-- **Everything runs on your Mac.** Your conversations, your data, your memory — none of it leaves your machine unless you explicitly ask it to do something online.
-- **The code is open source.** You can read every line at [github.com/augmentedmike/miniclaw-os](https://github.com/augmentedmike/miniclaw-os). Nothing hidden, nothing suspicious.
-- **The installer uses Homebrew** — the same tool millions of developers use every day on macOS. Standard stuff.
+- **Local-first.** Everything runs on your Mac. No cloud, no surveillance, no shutdown notices.
+- **Always on.** Set up automated tasks — checks, reminders, background work.
+- **Real memory.** Your AI remembers your preferences, your habits, your life.
+- **It can see.** Take screenshots, analyze images, use your camera (with permission).
+- **It can read & write.** Email drafts, code, documents, notes.
+- **Built on OpenClaw.** The same AI runtime used by teams and solo builders worldwide.
 
 ---
 
-## If something breaks
+## Brain Architecture
 
-Run this in Terminal:
+MiniClaw's mind is built like an actual brain. Each region does one thing well.
 
-```bash
-mc-doctor
-```
+| Component | Purpose |
+|-----------|---------|
+| **mc-board** (Prefrontal Cortex) | Planning & task management — your AI tracks work like you do |
+| **mc-designer** (Occipital Lobe) | Vision & image creation — generates and edits images with Gemini |
+| **mc-kb** (Hippocampus) | Memory — what your AI knows and remembers over time |
+| **mc-trust** (Immune System) | Security — verifies identity of other agents it works with |
 
-It will diagnose the problem and ask if you want it to fix things automatically. Usually says yes.
+You don't need to manage these directly. They just work.
 
-Or run:
+---
 
+## Troubleshooting
+
+Something broken?
+
+**Quick health check:**
 ```bash
 mc-smoke
 ```
 
-This gives you a quick health check — green means everything is working.
+**Full diagnosis & repair:**
+```bash
+mc-doctor
+```
+
+It'll diagnose what's wrong and offer to fix it.
 
 ---
 
-## The brain regions (for the curious)
+## Safety & Privacy
 
-MiniClaw is built on a metaphor: your AI has a brain, and each part of the brain does something specific.
-
-| Part | What it does |
-|------|-------------|
-| **Prefrontal Cortex** (`mc-board`) | Tracks work — a kanban board your AI uses to manage tasks and projects |
-| **Occipital Lobe** (`mc-designer`) | Vision and image creation — generates and edits images with Gemini |
-| **Hippocampus** (`mc-context`) | Memory — manages what your AI remembers and for how long |
-| **Immune System** (`mc-trust`) | Security — verifies the identity of other AI agents it works with |
-
-You don't need to interact with any of these directly. They just work.
+- **Your data stays yours.** Nothing leaves your Mac unless you explicitly ask it to.
+- **Open source.** Read the code at [github.com/augmentedmike/miniclaw-os](https://github.com/augmentedmike/miniclaw-os).
+- **No surveillance.** No telemetry, no tracking, no home-phoning.
+- **Standards-based.** Built on Homebrew, Node.js, OpenClaw — the tools millions of developers trust.
 
 ---
 
-## Powered by
+## What does it need?
 
-- [OpenClaw](https://openclaw.ai) — the AI agent runtime underneath MiniClaw
-- [Gemini](https://aistudio.google.com) — image generation (free API key required for visuals)
-- Your choice of LLM — Claude, GPT-4, or others through your own API keys
+- **A Mac** — any Mac from 2020 onward (Intel or Apple Silicon)
+- **Internet** — for setup and online tasks
+- **API keys** — you choose Claude, GPT-4, or other LLMs (they stay in your vault)
+
+---
+
+## Powered By
+
+- [OpenClaw](https://openclaw.ai) — the AI agent engine
+- [Gemini](https://aistudio.google.com) — image generation (optional)
+- Your LLM of choice — Claude, GPT-4, Gemini, or others (via your own API keys)
+
+---
+
+## Learn More
+
+- [Full Docs](https://docs.openclaw.ai) — architecture, guides, troubleshooting
+- [Showcase](https://docs.openclaw.ai/start/showcase) — what others have built
+- [GitHub](https://github.com/augmentedmike/miniclaw-os) — source code & issues
+- [Discord](https://discord.gg/clawd) — community & help
+- [miniclaw.bot](https://miniclaw.bot) — setup help & consulting
 
 ---
 
 ## Questions?
 
-Book 30 minutes with Michael, the founder: [miniclaw.bot](https://miniclaw.bot)
+Book a 30-minute setup session with Michael (the creator): **[miniclaw.bot](https://miniclaw.bot)** — $100, no subscription.
 
-He'll set it up with you over screenshare. $100 for a session. No subscription.
+Or join the [Discord](https://discord.gg/clawd) and ask the community.
 
 ---
 
 ## License
 
-Open source. Built by [AugmentedMike](https://augmentedmike.com).
+MIT. Open source. Built by [AugmentedMike](https://augmentedmike.com).
