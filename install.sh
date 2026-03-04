@@ -235,17 +235,29 @@ plugin_defaults = {
         "enabled": True,
         "config": { "cardsDir": "~/.openclaw/user/brain/cards", "qmdBin": "~/.bun/bin/qmd", "qmdCollection": "mc-board", "webPort": 4220 },
     },
+    "mc-context": {
+        "enabled": True,
+        "config": { "windowMinutes": 60, "windowMinMessages": 10, "maxImagesInHistory": 2, "applyToChannels": True, "applyToDMs": True, "replaceMessages": True },
+    },
     "mc-designer": {
         "enabled": True,
         "config": { "apiKey": "", "model": "gemini-3.1-flash-image-preview", "mediaDir": "~/.openclaw/media/designer", "defaultWidth": 1024, "defaultHeight": 1024, "vaultBin": "~/.local/bin/mc-vault" },
     },
+    "mc-kb": {
+        "enabled": True,
+        "config": { "dbDir": "~/.openclaw/user/brain/kb", "modelPath": "~/.cache/qmd/models/hf_ggml-org_embeddinggemma-300M-Q8_0.gguf", "qmdBin": "~/.bun/bin/qmd", "qmdCollection": "kb", "contextN": 3, "contextThreshold": 0.75 },
+    },
+    "mc-queue": {
+        "enabled": True,
+        "config": { "enabled": True, "haikuModel": "claude-haiku-4-5-20251001", "maxToolCallsPerTurn": 3, "applyToChannels": True, "applyToDMs": True },
+    },
+    "mc-soul": {
+        "enabled": True,
+        "config": {},
+    },
     "mc-trust": {
         "enabled": True,
         "config": { "agentId": "am", "trustDir": "~/.openclaw/trust", "vaultBin": "~/.openclaw/miniclaw/system/bin/mc-vault", "sessionTtlMs": 3600000 },
-    },
-    "mc-context": {
-        "enabled": True,
-        "config": { "windowMinutes": 60, "windowMinMessages": 10, "maxImagesInHistory": 2, "applyToChannels": True, "applyToDMs": True, "replaceMessages": True },
     },
 }
 
@@ -401,38 +413,41 @@ print(next((j['id'] for j in jobs if j.get('name')=='$name'),''))
 
 register_cron "board-worker-backlog" '{
   "name": "board-worker-backlog",
-  "schedule": {"kind": "every", "everyMs": 900000},
+  "schedule": {"kind": "cron", "expr": "*/5 * * * *"},
   "sessionTarget": "isolated",
+  "model": "claude-haiku-4-5-20251001",
   "payload": {
     "kind": "agentTurn",
     "timeoutSeconds": 600,
-    "message": "Board worker — BACKLOG.\n\n1. Run: openclaw mc-board next\n2. If the top card is in backlog: read it fully with openclaw mc-board show <id>\n3. Fill problem_description, implementation_plan, and acceptance_criteria if missing — research what'"'"'s needed\n4. Run: openclaw mc-board move <id> in-progress\n5. Done. Silent exit."
+    "message": "Board worker — BACKLOG triage.\n\nMAX_CONCURRENT_COLUMN_TASKS=3. You may work on at most 3 cards per project, selecting the best candidate from each.\n\n1. Check what is already being worked: openclaw mc-board active\n2. Get full column context (excludes on-hold cards): openclaw mc-board context --column backlog --skip-hold\n3. Group cards by project. For each project pick at most 1 card — highest priority, then oldest. Skip any card already in the active list.\n4. For each selected card:\n   a. Register pickup: openclaw mc-board pickup <id> --worker board-worker-backlog\n   b. Read full detail: openclaw mc-board show <id>\n   c. Fill any missing fields (problem, plan, criteria) — research what is needed\n   d. Move to in-progress: openclaw mc-board move <id> in-progress\n   e. Release: openclaw mc-board release <id> --worker board-worker-backlog\n5. Done. Silent exit."
   },
   "delivery": {"mode": "none"}
 }'
 
 register_cron "board-worker-in-progress" '{
   "name": "board-worker-in-progress",
-  "schedule": {"kind": "every", "everyMs": 900000},
+  "schedule": {"kind": "cron", "expr": "1-59/5 * * * *"},
   "sessionTarget": "isolated",
+  "model": "claude-haiku-4-5-20251001",
   "payload": {
     "kind": "agentTurn",
     "timeoutSeconds": 600,
-    "message": "Board worker — IN-PROGRESS.\n\n1. Run: openclaw mc-board list --column in-progress --json\n2. Take the top card (highest priority, oldest first)\n3. Read it: openclaw mc-board show <id>\n4. Do one unit of work toward completing it — whatever the plan calls for next\n5. Check off any acceptance criteria now met (- [x])\n6. Update notes with what was done\n7. If all criteria are checked: openclaw mc-board move <id> in-review\n8. Done. Silent exit."
+    "message": "Board worker — IN-PROGRESS triage.\n\nMAX_CONCURRENT_COLUMN_TASKS=3. You may work on at most 3 cards, selecting the best candidate per project.\n\n1. Check active workers: openclaw mc-board active\n2. Get full column context (excludes on-hold): openclaw mc-board context --column in-progress --skip-hold\n3. Group by project. Per project pick 1 card — highest priority then oldest. Skip cards already active.\n4. For each selected card:\n   a. Register pickup: openclaw mc-board pickup <id> --worker board-worker-in-progress\n   b. Read full detail: openclaw mc-board show <id>\n   c. Do one unit of work toward completing it — whatever the plan calls for next\n   d. Check off any acceptance criteria now met (- [x])\n   e. Update notes with what was done: openclaw mc-board update <id> --notes \"<what was done>\"\n   f. If all criteria checked: openclaw mc-board move <id> in-review\n   g. Release: openclaw mc-board release <id> --worker board-worker-in-progress\n5. Done. Silent exit."
   },
   "delivery": {"mode": "none"}
 }'
 
 register_cron "board-worker-in-review" '{
   "name": "board-worker-in-review",
-  "schedule": {"kind": "every", "everyMs": 900000},
+  "schedule": {"kind": "cron", "expr": "2-59/5 * * * *"},
   "sessionTarget": "isolated",
+  "model": "claude-haiku-4-5-20251001",
   "payload": {
     "kind": "agentTurn",
     "timeoutSeconds": 600,
-    "message": "Board worker — IN-REVIEW.\n\n1. Run: openclaw mc-board list --column in-review --json\n2. Take the top card\n3. Read it: openclaw mc-board show <id>\n4. Audit: verify the work product exists and criteria are genuinely met\n5. If it holds up: openclaw mc-board update <id> --review '\''Audited [date]: [what was checked, findings]'\'' then openclaw mc-board move <id> shipped — notify Mike on Telegram\n6. If it fails: uncheck failed criteria, add a note explaining what'\''s wrong, leave in in-review — notify Mike on Telegram\n7. Done."
+    "message": "Board worker — IN-REVIEW triage.\n\nMAX_CONCURRENT_COLUMN_TASKS=3. Select best candidate per project.\n\n1. Check active workers: openclaw mc-board active\n2. Get full column context (excludes on-hold): openclaw mc-board context --column in-review --skip-hold\n3. Group by project. Per project pick 1 card — highest priority then oldest. Skip cards already active.\n4. For each selected card:\n   a. Register pickup: openclaw mc-board pickup <id> --worker board-worker-in-review\n   b. Read full detail: openclaw mc-board show <id>\n   c. Audit: verify the work product exists and all criteria are genuinely met\n   d. If it holds up:\n      - openclaw mc-board update <id> --review \"Audited [date]: [what was checked, findings]\"\n      - openclaw mc-board move <id> shipped\n   e. If it fails:\n      - Uncheck failed criteria and add a note explaining what is wrong\n      - openclaw mc-board update <id> --notes \"Review failed: <reason>\"\n      - Leave in in-review for another pass\n   f. Release: openclaw mc-board release <id> --worker board-worker-in-review\n5. Done. Silent exit."
   },
-  "delivery": {"mode": "announce"}
+  "delivery": {"mode": "none"}
 }'
 
 # ── Done ──────────────────────────────────────────────────────────────────────

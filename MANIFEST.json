@@ -1,0 +1,184 @@
+{
+  "name": "miniclaw-os",
+  "version": "0.3.0",
+  "description": "AugmentedMike's AI operating system — plugins, tools, and infrastructure for OpenClaw",
+
+  "plugins": [
+    {
+      "id": "mc-board",
+      "label": "Brain Board",
+      "description": "State-machine kanban board — the agent's prefrontal cortex. Task planning, project tracking, cron dispatch queue.",
+      "path": "plugins/mc-board",
+      "entry": "index.ts",
+      "cli": true,
+      "tools": ["brain_board", "brain_create_card", "brain_update_card", "brain_move_card", "brain_show_card", "brain_next_task", "brain_column_context", "brain_pickup", "brain_release", "brain_active", "brain_pickup_log", "brain_project_create", "brain_project_list", "brain_project_show"],
+      "web": { "port": 4220, "standalone": "web/standalone.mjs" },
+      "config": {
+        "cardsDir": "~/.openclaw/user/brain/cards",
+        "qmdBin": "~/.bun/bin/qmd",
+        "qmdCollection": "mc-board",
+        "webPort": 4220
+      }
+    },
+    {
+      "id": "mc-context",
+      "label": "Smart Context",
+      "description": "Memory window management — hippocampus. Controls history pruning, image limits, tool result truncation.",
+      "path": "plugins/mc-context",
+      "entry": "index.ts",
+      "cli": false,
+      "tools": [],
+      "config": {
+        "windowMinutes": 60,
+        "windowMinMessages": 10,
+        "maxImagesInHistory": 2,
+        "maxToolResultChars": 4000,
+        "applyToChannels": true,
+        "applyToDMs": true,
+        "replaceMessages": true
+      }
+    },
+    {
+      "id": "mc-designer",
+      "label": "Designer",
+      "description": "Image generation via Gemini — occipital lobe. Canvas-based image creation with layer support.",
+      "path": "plugins/mc-designer",
+      "entry": "index.ts",
+      "cli": true,
+      "tools": [],
+      "optional": true,
+      "requires": ["gemini-api-key"],
+      "config": {
+        "apiKey": "",
+        "model": "gemini-3.1-flash-image-preview",
+        "mediaDir": "~/.openclaw/media/designer",
+        "defaultWidth": 1024,
+        "defaultHeight": 1024,
+        "vaultBin": "~/.local/bin/mc-vault"
+      }
+    },
+    {
+      "id": "mc-kb",
+      "label": "Knowledge Base",
+      "description": "Vector-backed long-term memory — semantic search over facts, errors, workflows, decisions.",
+      "path": "plugins/mc-kb",
+      "entry": "index.ts",
+      "cli": true,
+      "tools": ["kb_search", "kb_add", "kb_update", "kb_get"],
+      "config": {
+        "dbDir": "~/.openclaw/user/brain/kb",
+        "modelPath": "~/.cache/qmd/models/hf_ggml-org_embeddinggemma-300M-Q8_0.gguf",
+        "qmdBin": "~/.bun/bin/qmd",
+        "qmdCollection": "kb",
+        "contextN": 3,
+        "contextThreshold": 0.75
+      }
+    },
+    {
+      "id": "mc-queue",
+      "label": "Message Queue",
+      "description": "Haiku triage for all messaging sessions — IMMEDIATE/QUICK/TASK classification, soul context injection, tool call limit.",
+      "path": "plugins/mc-queue",
+      "entry": "index.ts",
+      "cli": false,
+      "tools": [],
+      "config": {
+        "enabled": true,
+        "haikuModel": "claude-haiku-4-5-20251001",
+        "maxToolCallsPerTurn": 3,
+        "applyToChannels": true,
+        "applyToDMs": true
+      }
+    },
+    {
+      "id": "mc-soul",
+      "label": "Soul",
+      "description": "Workspace file management and identity backup — SOUL.md, IDENTITY.md, AGENTS.md snapshots.",
+      "path": "plugins/mc-soul",
+      "entry": "index.ts",
+      "cli": true,
+      "tools": [],
+      "config": {}
+    },
+    {
+      "id": "mc-trust",
+      "label": "Trust",
+      "description": "Ed25519 agent identity and mutual authentication — cryptographic handshakes between agents.",
+      "path": "plugins/mc-trust",
+      "entry": "index.ts",
+      "cli": true,
+      "tools": ["trust_challenge", "trust_respond", "trust_complete", "trust_verify", "trust_sessions"],
+      "config": {
+        "agentId": "am",
+        "trustDir": "~/.openclaw/trust",
+        "vaultBin": "~/.openclaw/miniclaw/system/bin/mc-vault",
+        "sessionTtlMs": 3600000
+      }
+    }
+  ],
+
+  "cli": [
+    {
+      "name": "mc",
+      "path": "system/bin/mc",
+      "description": "Main miniclaw CLI wrapper"
+    },
+    {
+      "name": "mc-vault",
+      "path": "system/bin/mc-vault",
+      "description": "age-encrypted secret store — get/set/export/list/rm"
+    },
+    {
+      "name": "mc-smoke",
+      "path": "system/bin/mc-smoke",
+      "description": "Health check — verifies all miniclaw components are installed and running"
+    },
+    {
+      "name": "mc-doctor",
+      "path": "system/bin/mc-doctor",
+      "description": "Diagnostics and auto-repair — identifies and fixes common configuration issues"
+    }
+  ],
+
+  "crons": [
+    {
+      "name": "board-worker-backlog",
+      "description": "Haiku triage: surveys backlog, selects best candidate per project (max 3), fills details, moves to in-progress",
+      "schedule": { "kind": "cron", "expr": "*/5 * * * *" },
+      "model": "claude-haiku-4-5-20251001",
+      "timeoutSeconds": 600,
+      "sessionTarget": "isolated"
+    },
+    {
+      "name": "board-worker-in-progress",
+      "description": "Haiku triage: surveys in-progress, selects best per project (max 3), does one unit of work, checks criteria",
+      "schedule": { "kind": "cron", "expr": "1-59/5 * * * *" },
+      "model": "claude-haiku-4-5-20251001",
+      "timeoutSeconds": 600,
+      "sessionTarget": "isolated"
+    },
+    {
+      "name": "board-worker-in-review",
+      "description": "Haiku triage: surveys in-review, selects best per project (max 3), verifies + deploys, ships or fails back",
+      "schedule": { "kind": "cron", "expr": "2-59/5 * * * *" },
+      "model": "claude-haiku-4-5-20251001",
+      "timeoutSeconds": 600,
+      "sessionTarget": "isolated"
+    }
+  ],
+
+  "launchAgents": [
+    {
+      "name": "com.augmentedmike.miniclaw-brain-web",
+      "description": "Brain board web UI — standalone.mjs server on port 4220",
+      "script": "plugins/mc-board/web/standalone.mjs",
+      "plist": "system/launchagents/com.augmentedmike.miniclaw-brain-web.plist"
+    }
+  ],
+
+  "vaultSecrets": [
+    { "key": "gh-token", "description": "GitHub personal access token", "required": true },
+    { "key": "gmail-app-password", "description": "Gmail app password for email integration", "required": false },
+    { "key": "gemini-api-key", "description": "Gemini API key for mc-designer (image generation)", "required": false }
+  ]
+}
