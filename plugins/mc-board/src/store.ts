@@ -9,6 +9,7 @@ import {
   parseCard,
   serializeCard,
 } from "./card.js";
+import { type TitleConflict, findTitleConflict } from "./dedup.js";
 
 export class CardStore {
   readonly cardsDir: string;
@@ -120,6 +121,25 @@ export class CardStore {
     card.history.push({ column: target, moved_at: now });
     this._write(card);
     return card;
+  }
+
+  /**
+   * Check whether a proposed title conflicts with any existing card.
+   *
+   * Optionally filter by project_id (pass undefined to search all cards).
+   * Pass excludeId to skip a specific card — useful when renaming a card.
+   *
+   * Returns the conflicting card + similarity score, or null if clear.
+   */
+  checkTitleConflict(
+    title: string,
+    opts?: { projectId?: string; excludeId?: string },
+  ): TitleConflict | null {
+    let candidates = this.list().filter(c => c.column !== "shipped");
+    if (opts?.projectId) {
+      candidates = candidates.filter(c => c.project_id === opts.projectId);
+    }
+    return findTitleConflict(title, candidates, opts?.excludeId);
   }
 
   /**

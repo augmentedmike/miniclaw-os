@@ -1801,6 +1801,28 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // /api/active-work — list currently active board work
+  if (pathname === "/api/active-work") {
+    try {
+      const activeFile = path.join(stateDir, "active-work.json");
+      const content = fs.readFileSync(activeFile, "utf-8");
+      const data = JSON.parse(content);
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+      });
+      res.end(JSON.stringify(data.active || []));
+    } catch (err) {
+      // File doesn't exist yet or parse error
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+      });
+      res.end(JSON.stringify([]));
+    }
+    return;
+  }
+
   // /api/search/kb — KB full-text search via openclaw mc-kb
   if (pathname === "/api/search/kb") {
     const q = typeof parsed.query.q === "string" ? parsed.query.q.trim() : "";

@@ -2,6 +2,7 @@ import * as path from "node:path";
 import type { Command } from "commander";
 import type { CardStore } from "../src/store.js";
 import type { ProjectStore } from "../src/project-store.js";
+import { formatConflictError } from "../src/dedup.js";
 import { ActiveWorkStore } from "../src/active-work.js";
 import { ArchiveStore } from "../src/archive.js";
 import { COLUMNS, canTransition, checkGate, formatGateError } from "../src/state.js";
@@ -76,6 +77,12 @@ Examples:
           console.error(`Project not found: ${opts.project}`);
           process.exit(1);
         }
+      }
+      // Pre-create duplicate title check
+      const conflict = store.checkTitleConflict(opts.title, { projectId: opts.project });
+      if (conflict) {
+        console.error(formatConflictError(opts.title, conflict));
+        process.exit(1);
       }
       const card = store.create({ title: opts.title, priority, tags, project_id: opts.project });
       console.log(`Created ${card.id}: ${card.title}${opts.project ? ` [project: ${opts.project}]` : ""}`);
@@ -270,6 +277,19 @@ Examples:
               `Cannot move ${card.id} from "${card.column}" to "${target}". Columns must advance sequentially: ${COLUMNS.join(" → ")}`,
             );
             process.exit(1);
+          }
+
+          // Title conflict check when moving to in-progress — catches
+          // duplicate work that slipped through at create time.
+          if (target === "in-progress") {
+            const conflict = store.checkTitleConflict(card.title, {
+              projectId: card.project_id,
+              excludeId: card.id,
+            });
+            if (conflict) {
+              process.stderr.write(formatConflictError(card.title, conflict) + "\n");
+              process.exit(1);
+            }
           }
 
           const gate = checkGate(card, target);
