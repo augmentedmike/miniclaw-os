@@ -366,6 +366,75 @@ else
   warn "Skipped: mc-designer setup (run install.sh again or use 'mc vault set gemini-api-key' to enable later)"
 fi
 
+# ── Step 12: Brain board crons ────────────────────────────────────────────────
+step "Step 12: Brain board cron workers"
+
+OC_PORT="${OPENCLAW_PORT:-18789}"
+OC_TOKEN_FILE="$OPENCLAW_DIR/gateway-token.txt"
+OC_API="http://127.0.0.1:$OC_PORT"
+
+register_cron() {
+  local name="$1"
+  local payload="$2"
+  # Check if already registered
+  existing=$(curl -sf -H "Authorization: Bearer $(cat "$OC_TOKEN_FILE" 2>/dev/null)" \
+    "$OC_API/api/cron/jobs" 2>/dev/null | python3 -c "
+import sys,json
+jobs=json.load(sys.stdin).get('jobs',[])
+print(next((j['id'] for j in jobs if j.get('name')=='$name'),''))
+" 2>/dev/null || echo "")
+  if [[ -n "$existing" ]]; then
+    ok "Cron '$name' already registered ($existing)"
+    return
+  fi
+  result=$(curl -sf -X POST \
+    -H "Authorization: Bearer $(cat "$OC_TOKEN_FILE" 2>/dev/null)" \
+    -H "Content-Type: application/json" \
+    -d "$payload" \
+    "$OC_API/api/cron/jobs" 2>/dev/null || echo "")
+  if echo "$result" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('id',''))" 2>/dev/null | grep -q .; then
+    ok "Cron '$name' registered"
+  else
+    warn "Could not register '$name' — OpenClaw may not be running. Run install.sh again after starting OpenClaw."
+  fi
+}
+
+register_cron "board-worker-backlog" '{
+  "name": "board-worker-backlog",
+  "schedule": {"kind": "every", "everyMs": 900000},
+  "sessionTarget": "isolated",
+  "payload": {
+    "kind": "agentTurn",
+    "timeoutSeconds": 600,
+    "message": "Board worker — BACKLOG.\n\n1. Run: openclaw mc-board next\n2. If the top card is in backlog: read it fully with openclaw mc-board show <id>\n3. Fill problem_description, implementation_plan, and acceptance_criteria if missing — research what'"'"'s needed\n4. Run: openclaw mc-board move <id> in-progress\n5. Done. Silent exit."
+  },
+  "delivery": {"mode": "none"}
+}'
+
+register_cron "board-worker-in-progress" '{
+  "name": "board-worker-in-progress",
+  "schedule": {"kind": "every", "everyMs": 900000},
+  "sessionTarget": "isolated",
+  "payload": {
+    "kind": "agentTurn",
+    "timeoutSeconds": 600,
+    "message": "Board worker — IN-PROGRESS.\n\n1. Run: openclaw mc-board list --column in-progress --json\n2. Take the top card (highest priority, oldest first)\n3. Read it: openclaw mc-board show <id>\n4. Do one unit of work toward completing it — whatever the plan calls for next\n5. Check off any acceptance criteria now met (- [x])\n6. Update notes with what was done\n7. If all criteria are checked: openclaw mc-board move <id> in-review\n8. Done. Silent exit."
+  },
+  "delivery": {"mode": "none"}
+}'
+
+register_cron "board-worker-in-review" '{
+  "name": "board-worker-in-review",
+  "schedule": {"kind": "every", "everyMs": 900000},
+  "sessionTarget": "isolated",
+  "payload": {
+    "kind": "agentTurn",
+    "timeoutSeconds": 600,
+    "message": "Board worker — IN-REVIEW.\n\n1. Run: openclaw mc-board list --column in-review --json\n2. Take the top card\n3. Read it: openclaw mc-board show <id>\n4. Audit: verify the work product exists and criteria are genuinely met\n5. If it holds up: openclaw mc-board update <id> --review '\''Audited [date]: [what was checked, findings]'\'' then openclaw mc-board move <id> shipped — notify Mike on Telegram\n6. If it fails: uncheck failed criteria, add a note explaining what'\''s wrong, leave in in-review — notify Mike on Telegram\n7. Done."
+  },
+  "delivery": {"mode": "announce"}
+}'
+
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}${BOLD}miniclaw-os installed.${NC}"
