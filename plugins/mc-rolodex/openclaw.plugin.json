@@ -1,0 +1,16 @@
+{
+  "name": "mc-rolodex",
+  "version": "1.0.0",
+  "description": "Interactive contact browser UI for MiniClaw",
+  "author": "AugmentedMike",
+  "license": "MIT",
+  "enabled": true,
+  "hooks": [],
+  "commands": [
+    {
+      "name": "mc-rolodex",
+      "description": "Interactive contact browser",
+      "hidden": false
+    }
+  ]
+}
