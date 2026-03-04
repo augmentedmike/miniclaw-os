@@ -10,11 +10,17 @@
  *                               the incoming message and responds naturally.
  *   3. before_tool_call      → Enforce max tool calls per turn so Haiku can't
  *                               accidentally do long-running inline work.
+ *   4. after_tool_call       → Log brain/board events to TG log channel.
  *
  * Classification (done by Haiku at runtime, not hardcoded):
  *   IMMEDIATE  — answer from history/knowledge directly
  *   QUICK      — one-tool lookup (KB/QMD/memory), natural "let me check..."
  *   TASK       — multi-step work → board card + natural ack → cron executes
+ *
+ * TG channel split:
+ *   DM  (allowFrom)   — conversational replies to Michael, clean
+ *   Log channel        — brain notifications: pickup, release, move, ship
+ *                        Set tgLogChatId in mc-queue config to enable.
  *
  * Session key format examples:
  *   TG DM:    agent:main:telegram:direct:8755232806
@@ -65,6 +71,106 @@ function isMessagingSession(sessionKey?: string): boolean {
   );
 }
 
+function isCronSession(sessionKey?: string): boolean {
+  if (!sessionKey) return false;
+  return sessionKey.includes(":cron:");
+}
+
+// ---- Telegram log helper ----
+
+async function sendTgLog(
+  botToken: string,
+  chatId: string,
+  text: string,
+  logger: { warn: (m: string) => void },
+): Promise<void> {
+  if (!botToken || !chatId) return;
+  try {
+    const res = await fetch(
+      `https://api.telegram.org/bot${botToken}/sendMessage`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
+      },
+    );
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      logger.warn(`mc-queue: tg log failed ${res.status}: ${body.slice(0, 200)}`);
+    }
+  } catch (e) {
+    logger.warn(`mc-queue: tg log error: ${e}`);
+  }
+}
+
+// ---- Board event detection ----
+
+type BoardEvent =
+  | { kind: "pickup"; cardId: string; worker: string }
+  | { kind: "release"; cardId: string; worker: string }
+  | { kind: "move"; cardId: string; column: string }
+  | { kind: "create"; title: string }
+  | { kind: "ship"; cardId: string };
+
+function formatBoardEvent(ev: BoardEvent): string {
+  switch (ev.kind) {
+    case "pickup":
+      return `🔵 <b>${ev.worker}</b> picked up <code>${ev.cardId}</code>`;
+    case "release":
+      return `✅ <b>${ev.worker}</b> released <code>${ev.cardId}</code>`;
+    case "move":
+      return `📋 <code>${ev.cardId}</code> → <b>${ev.column}</b>`;
+    case "create":
+      return `📌 New card: <b>${ev.title}</b>`;
+    case "ship":
+      return `🚀 Shipped: <code>${ev.cardId}</code>`;
+  }
+}
+
+function parseBrainTool(
+  toolName: string,
+  params: Record<string, unknown>,
+): BoardEvent | null {
+  switch (toolName) {
+    case "brain_pickup":
+      return {
+        kind: "pickup",
+        cardId: String(params.card_id ?? params.cardId ?? ""),
+        worker: String(params.worker ?? ""),
+      };
+    case "brain_release":
+      return {
+        kind: "release",
+        cardId: String(params.card_id ?? params.cardId ?? ""),
+        worker: String(params.worker ?? ""),
+      };
+    case "brain_create_card":
+      return { kind: "create", title: String(params.title ?? "") };
+    default:
+      return null;
+  }
+}
+
+function parseBashBoardCommand(cmd: string): BoardEvent | null {
+  // mc-board pickup <id> --worker <worker>
+  const pickupM = cmd.match(/mc-board pickup\s+(\S+)\s+--worker\s+(\S+)/);
+  if (pickupM) return { kind: "pickup", cardId: pickupM[1], worker: pickupM[2] };
+
+  // mc-board release <id> --worker <worker>
+  const releaseM = cmd.match(/mc-board release\s+(\S+)\s+--worker\s+(\S+)/);
+  if (releaseM) return { kind: "release", cardId: releaseM[1], worker: releaseM[2] };
+
+  // mc-board move <id> shipped
+  const shipM = cmd.match(/mc-board move\s+(\S+)\s+shipped/);
+  if (shipM) return { kind: "ship", cardId: shipM[1] };
+
+  // mc-board move <id> <column>
+  const moveM = cmd.match(/mc-board move\s+(\S+)\s+(\S+)/);
+  if (moveM) return { kind: "move", cardId: moveM[1], column: moveM[2] };
+
+  return null;
+}
+
 // ---- Plugin registration ----
 
 export default function register(api: OpenClawPluginApi) {
@@ -74,6 +180,7 @@ export default function register(api: OpenClawPluginApi) {
     maxToolCallsPerTurn?: number;
     applyToChannels?: boolean;
     applyToDMs?: boolean;
+    tgLogChatId?: string;
   };
 
   const enabled = cfg.enabled ?? true;
@@ -81,6 +188,13 @@ export default function register(api: OpenClawPluginApi) {
   const maxToolCallsPerTurn = cfg.maxToolCallsPerTurn ?? 3;
   const applyToChannels = cfg.applyToChannels ?? true;
   const applyToDMs = cfg.applyToDMs ?? true;
+  const tgLogChatId = cfg.tgLogChatId ?? "";
+
+  // Read bot token from OpenClaw's telegram channel config
+  const tgBotToken =
+    (api.config as Record<string, unknown> & {
+      channels?: { telegram?: { botToken?: string } };
+    })?.channels?.telegram?.botToken ?? "";
 
   if (!enabled) {
     api.logger.info("mc-queue loaded (disabled)");
@@ -88,7 +202,7 @@ export default function register(api: OpenClawPluginApi) {
   }
 
   api.logger.info(
-    `mc-queue loaded (model=${haikuModel}, maxTools=${maxToolCallsPerTurn}, channels=${applyToChannels}, dms=${applyToDMs})`,
+    `mc-queue loaded (model=${haikuModel}, maxTools=${maxToolCallsPerTurn}, channels=${applyToChannels}, dms=${applyToDMs}, tgLog=${tgLogChatId ? "enabled" : "disabled"})`,
   );
 
   // Per-turn tool call counter keyed by runId
@@ -174,6 +288,34 @@ You are running as Haiku — fast, responsive. Long work goes to cron. Your job 
     );
   });
 
+  // ---- 4. Log board events from cron workers to TG log channel ----
+  api.on("after_tool_call", async (event, ctx) => {
+    if (!tgLogChatId || !tgBotToken) return;
+
+    const sessionKey = ctx.sessionKey ?? "";
+    if (!isCronSession(sessionKey)) return;
+
+    const { toolName, params } = event;
+
+    // brain_* agent tools
+    const brainEv = parseBrainTool(toolName, params);
+    if (brainEv) {
+      await sendTgLog(tgBotToken, tgLogChatId, formatBoardEvent(brainEv), api.logger);
+      return;
+    }
+
+    // bash/computer tool: parse mc-board CLI calls
+    if (toolName === "bash" || toolName === "computer") {
+      const cmd = String(params.command ?? params.input ?? "");
+      if (cmd.includes("mc-board")) {
+        const bashEv = parseBashBoardCommand(cmd);
+        if (bashEv) {
+          await sendTgLog(tgBotToken, tgLogChatId, formatBoardEvent(bashEv), api.logger);
+        }
+      }
+    }
+  });
+
   // ---- Clean up run tracking on agent end ----
   api.on("agent_end", async (_event, ctx) => {
     const sessionKey = ctx.sessionKey ?? "";
@@ -195,7 +337,8 @@ You are running as Haiku — fast, responsive. Long work goes to cron. Your job 
         `Model: ${haikuModel}\n` +
         `Max tool calls/turn: ${maxToolCallsPerTurn}\n` +
         `Apply to channels: ${applyToChannels}\n` +
-        `Apply to DMs: ${applyToDMs}`,
+        `Apply to DMs: ${applyToDMs}\n` +
+        `TG log channel: ${tgLogChatId || "not configured"}`,
     }),
   });
 }
