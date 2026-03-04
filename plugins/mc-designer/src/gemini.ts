@@ -1,5 +1,7 @@
 import * as fs from "node:fs";
-import { GoogleGenAI } from "@google/genai";
+import * as os from "node:os";
+import * as path from "node:path";
+import { spawnSync } from "node:child_process";
 import type { UsageRecord } from "./types.js";
 
 interface GenerateResult {
@@ -8,60 +10,59 @@ interface GenerateResult {
   usage: Omit<UsageRecord, "ts" | "canvasName" | "layerName">;
 }
 
-/** Map canvas aspect ratio to the nearest Gemini-supported value */
-function nearestAspectRatio(w: number, h: number): string {
-  const r = w / h;
-  const options: [number, string][] = [
-    [1,       "1:1"],
-    [4/3,     "4:3"],
-    [3/4,     "3:4"],
-    [16/9,    "16:9"],
-    [9/16,    "9:16"],
-  ];
-  let best = options[0][1];
-  let bestDiff = Infinity;
-  for (const [ratio, label] of options) {
-    const diff = Math.abs(r - ratio);
-    if (diff < bestDiff) { bestDiff = diff; best = label; }
-  }
-  return best;
+const GEMINI_HOST = "https://generativelanguage.googleapis.com";
+
+/** Call the Gemini REST API via curl (bypasses any Node.js fetch/https patches). */
+function geminiRequest(apiKey: string, model: string, body: unknown): unknown {
+  const payload = JSON.stringify(body);
+  const url = `${GEMINI_HOST}/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+  const tmpFile = path.join(os.tmpdir(), `mc-designer-req-${Date.now()}.json`);
+  fs.writeFileSync(tmpFile, payload);
+
+  const result = spawnSync("curl", [
+    "-s",
+    "-X", "POST",
+    "-H", "Content-Type: application/json",
+    "-d", `@${tmpFile}`,
+    url,
+  ], { encoding: "utf8", maxBuffer: 50 * 1024 * 1024 });
+
+  fs.unlinkSync(tmpFile);
+
+  if (result.error) throw result.error;
+  if (!result.stdout) throw new Error("curl returned no output");
+
+  const json = JSON.parse(result.stdout) as any;
+  if (json.error) throw new Error(JSON.stringify(json.error));
+  return json;
 }
 
 export class GeminiClient {
-  private ai: GoogleGenAI;
-
-  constructor(private apiKey: string, private model: string) {
-    this.ai = new GoogleGenAI({ apiKey });
-  }
+  constructor(private apiKey: string, private model: string) {}
 
   setApiKey(key: string): void {
     this.apiKey = key;
-    this.ai = new GoogleGenAI({ apiKey: key });
   }
 
-  /**
-   * Generate an image from a text prompt.
-   */
   async generate(
     prompt: string,
     op: "generate" | "edit" = "generate",
-    canvasWidth?: number,
-    canvasHeight?: number,
+    seed?: number,
+    aspectRatio?: string,
   ): Promise<GenerateResult> {
     const t0 = Date.now();
 
-    const aspectRatio = canvasWidth && canvasHeight
-      ? nearestAspectRatio(canvasWidth, canvasHeight)
-      : "1:1";
+    const genConfig: Record<string, unknown> = {};
+    if (seed !== undefined) genConfig.seed = seed;
+    if (aspectRatio) genConfig.imageConfig = { aspectRatio };
 
-    const response = await this.ai.models.generateContent({
-      model: this.model,
-      contents: prompt,
-      config: {
-        responseModalities: ["TEXT", "IMAGE"],
-        imageConfig: { aspectRatio },
-      },
-    });
+    const body: Record<string, unknown> = {
+      contents: [{ parts: [{ text: prompt }] }],
+      ...(Object.keys(genConfig).length > 0 ? { generationConfig: genConfig } : {}),
+    };
+
+    const response = geminiRequest(this.apiKey, this.model, body) as any;
 
     const durationMs = Date.now() - t0;
     const candidate = response.candidates?.[0];
@@ -99,29 +100,50 @@ export class GeminiClient {
     };
   }
 
-  /**
-   * Edit an existing image with natural language instructions.
-   */
-  async edit(imagePath: string, instructions: string): Promise<GenerateResult> {
+  /** Send an image to Gemini and get back a text-only response (no image generated). */
+  async inspect(imagePath: string, prompt: string): Promise<string> {
+    const imageBuffer = fs.readFileSync(imagePath);
+    const base64 = imageBuffer.toString("base64");
+
+    const body: Record<string, unknown> = {
+      contents: [{
+        role: "user",
+        parts: [
+          { inlineData: { mimeType: "image/png", data: base64 } },
+          { text: prompt },
+        ],
+      }],
+      generationConfig: { responseModalities: ["TEXT"] },
+    };
+
+    const response = geminiRequest(this.apiKey, this.model, body) as any;
+
+    const text = response.candidates?.[0]?.content?.parts
+      ?.filter((p: any) => p.text)
+      ?.map((p: any) => p.text as string)
+      ?.join("\n") ?? "";
+
+    if (!text) throw new Error("Gemini inspect returned no text");
+    return text;
+  }
+
+  async edit(imagePath: string, instructions: string, seed?: number): Promise<GenerateResult> {
     const imageBuffer = fs.readFileSync(imagePath);
     const base64 = imageBuffer.toString("base64");
     const t0 = Date.now();
 
-    const response = await this.ai.models.generateContent({
-      model: this.model,
-      contents: [
-        {
-          role: "user",
-          parts: [
-            { text: instructions },
-            { inlineData: { mimeType: "image/png", data: base64 } },
-          ],
-        },
-      ],
-      config: {
-        responseModalities: ["IMAGE"],
-      },
-    });
+    const body: Record<string, unknown> = {
+      contents: [{
+        role: "user",
+        parts: [
+          { text: instructions },
+          { inlineData: { mimeType: "image/png", data: base64 } },
+        ],
+      }],
+      ...(seed !== undefined ? { generationConfig: { seed } } : {}),
+    };
+
+    const response = geminiRequest(this.apiKey, this.model, body) as any;
 
     const durationMs = Date.now() - t0;
     const candidate = response.candidates?.[0];

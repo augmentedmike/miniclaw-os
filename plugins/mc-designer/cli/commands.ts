@@ -68,7 +68,7 @@ export function registerDesignerCommands(ctx: Ctx): void {
       }
 
       // Engineer the prompt with canvas context so Gemini knows what it's making
-      const engineeredPrompt = buildGeminiPrompt(prompt, role, canvas.width, canvas.height);
+      const engineeredPrompt = buildGeminiPrompt(prompt, role, canvas.width, canvas.height, canvas.style);
 
       // Prompt for key if missing or on auth failure
       const ensureKey = async (err?: unknown) => {
@@ -81,17 +81,19 @@ export function registerDesignerCommands(ctx: Ctx): void {
 
       if (!cfg.apiKey) await ensureKey();
 
-      console.log(`Generating image for: "${prompt}" (role=${role}, canvas=${canvas.width}×${canvas.height}) ...`);
+      const seedInfo = canvas.seed !== undefined ? `, seed=${canvas.seed}` : "";
+      const aspectRatio = pickAspectRatio(canvas.width, canvas.height);
+      console.log(`Generating image for: "${prompt}" (role=${role}, canvas=${canvas.width}×${canvas.height}, ar=${aspectRatio}${seedInfo}) ...`);
       const t0 = Date.now();
       let result;
       try {
-        result = await gemini.generate(engineeredPrompt, "generate", canvas.width, canvas.height);
+        result = await gemini.generate(engineeredPrompt, "generate", canvas.seed, aspectRatio);
       } catch (err) {
         if (isAuthError(err)) {
           console.error("Auth failed — invalid or missing API key.");
           await ensureKey(err);
           try {
-            result = await gemini.generate(engineeredPrompt, "generate", canvas.width, canvas.height);
+            result = await gemini.generate(engineeredPrompt, "generate", canvas.seed, aspectRatio);
           } catch (retryErr) {
             console.error(`Generation failed: ${retryErr}`);
             process.exit(1);
@@ -160,7 +162,7 @@ export function registerDesignerCommands(ctx: Ctx): void {
       console.log(`Editing layer "${layerName}": "${instructions}" ...`);
       let result;
       try {
-        result = await gemini.edit(layer.imagePath, instructions);
+        result = await gemini.edit(layer.imagePath, instructions, canvas.seed);
       } catch (err) {
         if (isAuthError(err)) {
           console.error("Auth failed — invalid or missing API key.");
@@ -168,7 +170,7 @@ export function registerDesignerCommands(ctx: Ctx): void {
           if (!newKey) process.exit(1);
           gemini.setApiKey(newKey);
           try {
-            result = await gemini.edit(layer.imagePath, instructions);
+            result = await gemini.edit(layer.imagePath, instructions, canvas.seed);
           } catch (retryErr) {
             console.error(`Edit failed: ${retryErr}`);
             process.exit(1);
@@ -196,13 +198,18 @@ export function registerDesignerCommands(ctx: Ctx): void {
     .option("-W, --width <px>", "Width in pixels", String(cfg.defaultWidth))
     .option("-H, --height <px>", "Height in pixels", String(cfg.defaultHeight))
     .option("--bg <hex>", "Background color hex (default: #18181b zinc-900)", "#18181b")
-    .action((name: string, opts: { width: string; height: string; bg: string }) => {
+    .option("--seed <n>", "Seed for reproducible Gemini outputs (stored on canvas, used for all gen/edit calls)")
+    .option("--style <text>", "Art direction style prepended to every gen/edit prompt on this canvas")
+    .action((name: string, opts: { width: string; height: string; bg: string; seed?: string; style?: string }) => {
       if (store.loadCanvas(name)) {
         console.error(`Canvas "${name}" already exists`);
         process.exit(1);
       }
-      const c = store.createCanvas(name, parseInt(opts.width, 10), parseInt(opts.height, 10), opts.bg);
-      console.log(`Canvas "${c.name}" created (${c.width}×${c.height}, bg=${c.background})`);
+      const seed = opts.seed !== undefined ? parseInt(opts.seed, 10) : undefined;
+      const c = store.createCanvas(name, parseInt(opts.width, 10), parseInt(opts.height, 10), opts.bg, seed, opts.style);
+      const seedInfo = c.seed !== undefined ? `, seed=${c.seed}` : "";
+      const styleInfo = c.style ? `\n  style: "${c.style}"` : "";
+      console.log(`Canvas "${c.name}" created (${c.width}×${c.height}, bg=${c.background}${seedInfo})${styleInfo}`);
     });
 
   canvas
@@ -233,6 +240,21 @@ export function registerDesignerCommands(ctx: Ctx): void {
         const vis = l.visible ? "✓" : "○";
         console.log(`  z${l.z}  ${vis}  ${l.name}  opacity=${l.opacity}%  blend=${l.blendMode}`);
         if (l.prompt) console.log(`       prompt: "${l.prompt}"`);
+      }
+    });
+
+  canvas
+    .command("style <name> [style]")
+    .description("Set or clear the art direction style for a canvas (prepended to all gen/edit prompts)")
+    .action((name: string, style?: string) => {
+      const c = store.loadCanvas(name);
+      if (!c) { console.error(`Canvas "${name}" not found`); process.exit(1); }
+      c.style = style || undefined;
+      store.saveCanvas(c);
+      if (c.style) {
+        console.log(`Canvas "${name}" style set: "${c.style}"`);
+      } else {
+        console.log(`Canvas "${name}" style cleared`);
       }
     });
 
@@ -476,9 +498,25 @@ export function registerDesignerCommands(ctx: Ctx): void {
         console.log("");
       }
     });
+
 }
 
 // ── Prompt engineering ────────────────────────────────────────────────────────
+
+/** Pick the Gemini aspectRatio closest to the canvas dimensions. */
+function pickAspectRatio(w: number, h: number): string {
+  const ratio = w / h;
+  const candidates = [
+    { ar: "1:1",  val: 1 },
+    { ar: "16:9", val: 16 / 9 },
+    { ar: "9:16", val: 9 / 16 },
+    { ar: "4:3",  val: 4 / 3 },
+    { ar: "3:4",  val: 3 / 4 },
+  ];
+  return candidates.reduce((best, c) =>
+    Math.abs(c.val - ratio) < Math.abs(best.val - ratio) ? c : best
+  ).ar;
+}
 
 /**
  * Append canvas context to the user's prompt so Gemini understands:
@@ -490,19 +528,19 @@ function buildGeminiPrompt(
   role: "background" | "element",
   canvasWidth: number,
   canvasHeight: number,
+  style?: string,
 ): string {
-  const aspect = `${canvasWidth}×${canvasHeight}`;
-  const ratio = (canvasWidth / canvasHeight).toFixed(2);
+  const stylePrefix = style ? `${style}. ` : "";
 
   if (role === "background") {
     return (
-      `${userPrompt}. ` +
-      `Full bleed, fills entire frame edge to edge, aspect ratio ${ratio}, no borders or whitespace.`
+      `${stylePrefix}${userPrompt}. ` +
+      `Full bleed, fills entire frame edge to edge, no borders or whitespace.`
     );
   } else {
     return (
-      `${userPrompt}. ` +
-      `Subject centered on solid white background, clean hard edges, no shadows or gradients behind it.`
+      `${stylePrefix}${userPrompt}. ` +
+      `Fills the entire frame edge to edge, no margins, no padding, no whitespace around the subject.`
     );
   }
 }
