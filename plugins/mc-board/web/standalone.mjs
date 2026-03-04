@@ -507,9 +507,26 @@ function renderCard(card, projectMap) {
   </div>`;
 }
 
-function renderColumn(col, cards, projectMap) {
+const PRIORITY_RANK = { high: 0, medium: 1, low: 2 };
+
+function sortColumnCards(cards, activeIds) {
+  return [...cards].sort((a, b) => {
+    // 1. Active cards first
+    const aActive = activeIds.has(a.id) ? 0 : 1;
+    const bActive = activeIds.has(b.id) ? 0 : 1;
+    if (aActive !== bActive) return aActive - bActive;
+    // 2. Priority: high → medium → low
+    const ap = PRIORITY_RANK[a.priority] ?? 2;
+    const bp = PRIORITY_RANK[b.priority] ?? 2;
+    if (ap !== bp) return ap - bp;
+    // 3. Oldest created_at first (longest waiting)
+    return (a.created_at ?? "") < (b.created_at ?? "") ? -1 : 1;
+  });
+}
+
+function renderColumn(col, cards, projectMap, activeIds = new Set()) {
   const style = COLUMN_STYLES[col];
-  const colCards = cards.filter(c => c.column === col);
+  const colCards = sortColumnCards(cards.filter(c => c.column === col), activeIds);
   return `<div class="column">
     <div class="column-header">
       <span class="column-badge ${style.badge}">${style.label}</span>
@@ -547,12 +564,18 @@ function renderProjectDropdown(projects, selectedProjectId) {
 
 function renderPage(cards, projects, selectedProjectId, refreshedAt) {
   const projectMap = new Map(projects.map(p => [p.id, p.name]));
+  // Load active card IDs for sort priority
+  let activeIds = new Set();
+  try {
+    const activeData = JSON.parse(fs.readFileSync(path.join(stateDir, "active-work.json"), "utf-8"));
+    activeIds = new Set((activeData.active ?? []).map(e => e.cardId));
+  } catch { /* no active-work.json yet */ }
   const nBacklog    = cards.filter(c => c.column === "backlog").length;
   const nInProgress = cards.filter(c => c.column === "in-progress").length;
   const nInReview   = cards.filter(c => c.column === "in-review").length;
   const nShipped    = cards.filter(c => c.column === "shipped").length;
   const nProjects   = projects.length;
-  const activeCols  = ["backlog","in-progress","in-review"].map(col => renderColumn(col, cards, projectMap)).join("");
+  const activeCols  = ["backlog","in-progress","in-review"].map(col => renderColumn(col, cards, projectMap, activeIds)).join("");
   const shippedCards = cards.filter(c => c.column === "shipped");
   const shippedCardsHtml = shippedCards.length === 0
     ? `<div class="column-empty">empty</div>`
@@ -1099,17 +1122,23 @@ function renderPage(cards, projects, selectedProjectId, refreshedAt) {
         '<div class="card-meta">updated ' + fmtDate(card.updated_at) + "</div></div>";
     }
 
+    const PRIO_RANK = { high: 0, medium: 1, low: 2 };
+    function sortColCards(cards, activeIds) {
+      return [...cards].sort((a, b) => {
+        const aA = activeIds.has(a.id) ? 0 : 1;
+        const bA = activeIds.has(b.id) ? 0 : 1;
+        if (aA !== bA) return aA - bA;
+        const ap = PRIO_RANK[a.priority] ?? 2;
+        const bp = PRIO_RANK[b.priority] ?? 2;
+        if (ap !== bp) return ap - bp;
+        return (a.created_at ?? "") < (b.created_at ?? "") ? -1 : 1;
+      });
+    }
+
     function buildColHtml(col, cards, projectMap) {
       const s = COL_STYLES[col];
-      const colCards = cards.filter(c => c.column === col);
-      // Always include active cards + up to 20 total so active cards are never hidden
-      const shown = colCards.length <= 20
-        ? colCards
-        : (() => {
-            const active = colCards.filter(c => _prevActiveIds.has(c.id));
-            const rest = colCards.filter(c => !_prevActiveIds.has(c.id));
-            return [...active, ...rest].slice(0, Math.max(20, active.length));
-          })();
+      const colCards = sortColCards(cards.filter(c => c.column === col), _prevActiveIds);
+      const shown = colCards.slice(0, Math.max(20, [..._prevActiveIds].filter(id => colCards.find(c => c.id === id)).length));
       return '<div class="column">' +
         '<div class="column-header"><span class="column-badge ' + s.badge + '">' + s.label + '</span><span class="column-count">' + colCards.length + "</span></div>" +
         '<div class="column-cards">' + (colCards.length === 0 ? '<div class="column-empty">empty</div>' : shown.map(c => buildCardHtml(c, projectMap)).join("")) + "</div>" +
@@ -1133,14 +1162,7 @@ function renderPage(cards, projects, selectedProjectId, refreshedAt) {
       data.projects.forEach(p => PROJECT_MAP[p.id] = p.name);
 
       const projectMap = Object.fromEntries(data.projects.map(p => [p.id, p.name]));
-      // Sort active cards to top before rendering columns
-      const activeIdSet = new Set([..._prevActiveIds]);
-      const sortedCards = [...data.cards].sort((a, b) => {
-        const aA = activeIdSet.has(a.id) ? 0 : 1;
-        const bA = activeIdSet.has(b.id) ? 0 : 1;
-        return aA - bA;
-      });
-      const activeCols = ["backlog","in-progress","in-review"].map(col => buildColHtml(col, sortedCards, projectMap)).join("");
+      const activeCols = ["backlog","in-progress","in-review"].map(col => buildColHtml(col, data.cards, projectMap)).join("");
       const shippedCards = data.cards.filter(c => c.column === "shipped");
       const shippedHtml = shippedCards.length === 0
         ? '<div class="column-empty">empty</div>'
