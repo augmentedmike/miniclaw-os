@@ -54,9 +54,21 @@ export class CardStore {
 
   list(column?: Column): Card[] {
     const files = this._cardFiles();
-    const cards = files.map(f => this._read(f));
+    // Deduplicate by ID — keep the most recently updated file per ID
+    const byId = new Map<string, Card>();
+    for (const f of files) {
+      try {
+        const card = this._read(f);
+        const existing = byId.get(card.id);
+        if (!existing || card.updated_at > existing.updated_at) {
+          byId.set(card.id, card);
+        }
+      } catch {
+        // skip unparseable files
+      }
+    }
+    const cards = [...byId.values()];
     if (column) return cards.filter(c => c.column === column);
-    // Sort: newest updated_at first within column order
     return cards;
   }
 
@@ -108,6 +120,25 @@ export class CardStore {
     card.history.push({ column: target, moved_at: now });
     this._write(card);
     return card;
+  }
+
+  /**
+   * Detect duplicate card IDs across files. Returns a map of id → filenames[].
+   * Any entry with filenames.length > 1 is a duplicate.
+   */
+  detectDuplicates(): Map<string, string[]> {
+    const seen = new Map<string, string[]>();
+    for (const f of this._cardFiles()) {
+      try {
+        const card = this._read(f);
+        const files = seen.get(card.id) ?? [];
+        files.push(f);
+        seen.set(card.id, files);
+      } catch {
+        // ignore unparseable files
+      }
+    }
+    return new Map([...seen.entries()].filter(([, files]) => files.length > 1));
   }
 
   private _cardFiles(): string[] {

@@ -2,6 +2,7 @@ import * as path from "node:path";
 import type { Command } from "commander";
 import type { CardStore } from "../src/store.js";
 import type { ProjectStore } from "../src/project-store.js";
+import { ActiveWorkStore } from "../src/active-work.js";
 import { ArchiveStore } from "../src/archive.js";
 import { COLUMNS, canTransition, checkGate, formatGateError } from "../src/state.js";
 import {
@@ -511,6 +512,137 @@ archived projects.
         process.exit(1);
       }
     });
+
+  const activeWork = new ActiveWorkStore(ctx.stateDir);
+
+  // ---- brain pickup ----
+  brain
+    .command("pickup <id>")
+    .description("Record that a worker has picked up a card to work on")
+    .requiredOption("--worker <name>", "Worker name (e.g. board-worker-backlog)")
+    .option("--column <col>", "Column being worked in (default: card's current column)")
+    .addHelpText("after", `
+Called by board worker crons to record which card they picked up.
+Writes to active-work.json so the dashboard can show live agent activity.
+
+Examples:
+  openclaw mc-board pickup crd_abc123 --worker board-worker-backlog
+  openclaw mc-board pickup crd_abc123 --worker board-worker-in-progress --column in-progress`)
+    .action((id: string, opts: { worker: string; column?: string }) => {
+      try {
+        const card = store.findById(id);
+        const entry = activeWork.pickup({
+          cardId: card.id,
+          projectId: card.project_id,
+          title: card.title,
+          worker: opts.worker,
+          column: opts.column ?? card.column,
+        });
+        console.log(`Pickup recorded: ${entry.cardId} — ${entry.title} (worker: ${entry.worker})`);
+      } catch (err) {
+        console.error(String(err));
+        process.exit(1);
+      }
+    });
+
+  // ---- brain release ----
+  brain
+    .command("release <id>")
+    .description("Record that a worker has finished with a card")
+    .requiredOption("--worker <name>", "Worker name")
+    .addHelpText("after", `
+Called by board worker crons when they complete or hand off a card.
+Removes it from the active-work.json live view.
+
+  openclaw mc-board release crd_abc123 --worker board-worker-backlog`)
+    .action((id: string, opts: { worker: string }) => {
+      const released = activeWork.release(id, opts.worker);
+      if (released) {
+        console.log(`Released: ${id} (worker: ${opts.worker})`);
+      } else {
+        console.log(`${id} was not in active list (already released or never picked up)`);
+      }
+    });
+
+  // ---- brain active ----
+  brain
+    .command("active")
+    .description("Show all cards currently being actively worked by agent loops")
+    .addHelpText("after", `
+Shows real-time view of which tickets each cron worker has picked up.
+Workers call 'pickup' at start and 'release' when done/moved.
+
+  openclaw mc-board active`)
+    .action(() => {
+      const entries = activeWork.listActive();
+      if (entries.length === 0) {
+        console.log("No active agent loops.");
+        return;
+      }
+      console.log(`Active agent loops (${entries.length}):\n`);
+      for (const e of entries) {
+        const age = Math.round((Date.now() - new Date(e.pickedUpAt).getTime()) / 1000);
+        const ageStr = age < 60 ? `${age}s ago` : `${Math.round(age / 60)}m ago`;
+        const proj = e.projectId ? ` [${e.projectId}]` : "";
+        console.log(`  ${e.worker}${proj}`);
+        console.log(`    card:   ${e.cardId} — ${e.title}`);
+        console.log(`    column: ${e.column}`);
+        console.log(`    picked: ${e.pickedUpAt} (${ageStr})`);
+        console.log();
+      }
+    });
+
+  // ---- brain pickup-log ----
+  brain
+    .command("pickup-log")
+    .description("Show recent pickup/release history for all board workers")
+    .option("--limit <n>", "Number of entries to show (default: 20)", "20")
+    .addHelpText("after", `
+Shows the last N pickup and release events across all board workers.
+Useful for auditing which agent processed which ticket and when.
+
+  openclaw mc-board pickup-log
+  openclaw mc-board pickup-log --limit 50`)
+    .action((opts: { limit: string }) => {
+      const limit = parseInt(opts.limit, 10) || 20;
+      const log = activeWork.recentLog(limit);
+      if (log.length === 0) {
+        console.log("No pickup history yet.");
+        return;
+      }
+      for (const e of log) {
+        const icon = e.action === "pickup" ? "▶" : "■";
+        const proj = e.projectId ? ` [${e.projectId}]` : "";
+        console.log(`${icon} ${e.at}  ${e.worker}${proj}  ${e.cardId}${e.title ? " — " + e.title : ""}  (${e.action})`);
+      }
+    });
+
+  // ---- brain check-dupes ----
+  brain
+    .command("check-dupes")
+    .description("Detect cards with duplicate IDs across files (data integrity check)")
+    .addHelpText("after", `
+Scans the cards directory for files containing duplicate card IDs.
+When duplicates are found, the list() command keeps the most recently
+updated version — but stale files should be deleted manually.
+
+  openclaw mc-board check-dupes`)
+    .action(() => {
+      const dupes = store.detectDuplicates();
+      if (dupes.size === 0) {
+        console.log("No duplicate card IDs found. Board integrity OK.");
+        return;
+      }
+      console.error(`Found ${dupes.size} duplicate card ID(s):\n`);
+      for (const [id, files] of dupes) {
+        console.error(`  ${id}:`);
+        for (const f of files) console.error(`    ${f}`);
+      }
+      console.error(`\nThe most recently updated file per ID is used by list/show.`);
+      console.error(`Delete the stale files to clean up.`);
+      process.exit(1);
+    });
+
 }
 
 function normalizePriority(p: string): Priority | null {

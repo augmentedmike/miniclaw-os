@@ -25,13 +25,16 @@ function resolveConfig() {
       entry.cardsDir ?? "~/.openclaw/user/augmentedmike_bot/brain/cards",
     );
     const webPort = Number(entry.webPort ?? 4220);
-    const projectsDir = path.join(path.dirname(cardsDir), "projects");
-    return { cardsDir, projectsDir, webPort };
+    const stateDir = path.dirname(cardsDir);
+    const projectsDir = path.join(stateDir, "projects");
+    return { cardsDir, projectsDir, stateDir, webPort };
   } catch {
     const cardsDir = path.join(os.homedir(), ".openclaw", "user", "augmentedmike_bot", "brain", "cards");
+    const stateDir = path.dirname(cardsDir);
     return {
       cardsDir,
-      projectsDir: path.join(path.dirname(cardsDir), "projects"),
+      projectsDir: path.join(stateDir, "projects"),
+      stateDir,
       webPort: 4220,
     };
   }
@@ -754,6 +757,7 @@ function renderPage(cards, projects, selectedProjectId, refreshedAt) {
 
   <!-- Board tab -->
   <div class="tab-panel" id="tab-board" style="display:flex;flex-direction:column">
+    <div id="active-agents-bar" style="display:none;background:#18181b;border-bottom:1px solid #27272a;padding:8px 20px;font-size:12px;color:#a1a1aa;gap:16px;flex-wrap:wrap"></div>
     <div class="board">
       ${activeCols}
       <div class="column shipped-col" id="shipped-col" onclick="toggleShipped(event)">
@@ -1105,6 +1109,36 @@ function renderPage(cards, projects, selectedProjectId, refreshedAt) {
         }
       } catch { /* network error — skip cycle */ }
     }
+
+    // ==================== ACTIVE AGENTS ====================
+    async function pollActiveAgents() {
+      try {
+        const res = await fetch("/data/active");
+        if (!res.ok) return;
+        const data = await res.json();
+        const bar = document.getElementById("active-agents-bar");
+        if (!bar) return;
+        const entries = data.active || [];
+        if (entries.length === 0) {
+          bar.style.display = "none";
+          return;
+        }
+        bar.style.display = "flex";
+        bar.innerHTML = '<span style="color:#52525b;margin-right:4px">▶ active:</span>' +
+          entries.map(e => {
+            const age = Math.round((Date.now() - new Date(e.pickedUpAt).getTime()) / 1000);
+            const ageStr = age < 60 ? age + "s" : Math.round(age / 60) + "m";
+            return '<span style="background:#27272a;border-radius:4px;padding:2px 8px;margin-right:6px">' +
+              '<span style="color:#71717a">' + escHtml(e.worker) + '</span>' +
+              ' <span style="color:#e4e4e7">' + escHtml(e.cardId) + '</span>' +
+              ' <span style="color:#a1a1aa">— ' + escHtml(e.title.slice(0, 40)) + (e.title.length > 40 ? "…" : "") + '</span>' +
+              ' <span style="color:#52525b">(' + ageStr + ')</span>' +
+              '</span>';
+          }).join("");
+      } catch { /* skip */ }
+    }
+    pollActiveAgents();
+    setInterval(pollActiveAgents, 10000);
 
     // ==================== MEMORY / KB ====================
     let kbEntries = [];
@@ -1472,7 +1506,7 @@ function renderPage(cards, projects, selectedProjectId, refreshedAt) {
 
 // ==================== HTTP SERVER ====================
 
-const { cardsDir, projectsDir, webPort } = resolveConfig();
+const { cardsDir, projectsDir, stateDir, webPort } = resolveConfig();
 console.log(`[brain-web] cardsDir=${cardsDir} projectsDir=${projectsDir} port=${webPort}`);
 
 const server = http.createServer((req, res) => {
@@ -1536,6 +1570,21 @@ const server = http.createServer((req, res) => {
     } catch (err) {
       console.error(`[brain-web] /data/qmd error: ${err}`);
       res.writeHead(500); res.end("[]");
+    }
+    return;
+  }
+
+  // /data/active — active agent loops (pickup log)
+  if (pathname === "/data/active") {
+    try {
+      const activeFile = path.join(stateDir, "active-work.json");
+      let data = { active: [], log: [] };
+      try { data = JSON.parse(fs.readFileSync(activeFile, "utf-8")); } catch { /* empty */ }
+      res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-cache" });
+      res.end(JSON.stringify(data));
+    } catch (err) {
+      console.error(`[brain-web] /data/active error: ${err}`);
+      res.writeHead(500); res.end('{"active":[],"log":[]}');
     }
     return;
   }
