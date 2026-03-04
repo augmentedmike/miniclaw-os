@@ -17,7 +17,7 @@ import { getEmbedder } from "./src/embedder.js";
 import { hybridSearch } from "./src/search.js";
 import { formatEntryLine } from "./src/entry.js";
 import { registerKbCommands } from "./cli/commands.js";
-import { kbTools } from "./tools/definitions.js";
+import { createKbTools } from "./tools/definitions.js";
 
 // ---- Config ----
 
@@ -117,8 +117,8 @@ export default function register(api: OpenClawPluginApi): void {
     }
   });
 
-  // ---- Agent tools ----
-  for (const tool of kbTools) {
+  // ---- Agent tools (use in-process store+embedder — no subprocess spawning) ----
+  for (const tool of createKbTools(store, embedder, api.logger)) {
     api.registerTool(tool);
   }
 }
