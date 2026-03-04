@@ -14,7 +14,8 @@
       "applyToChannels":    { "type": "boolean" },
       "applyToDMs":         { "type": "boolean" },
       "replaceMessages":    { "type": "boolean" },
-      "useHaikuForChannels":{ "type": "boolean" }
+      "useHaikuForChannels":  { "type": "boolean" },
+      "maxToolResultChars":   { "type": "number" }
     }
   }
 }
