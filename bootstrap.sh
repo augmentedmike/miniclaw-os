@@ -250,9 +250,15 @@ if [[ "$SCRIPT_DIR" == "$MINICLAW_OS_DIR" ]]; then
   # Already running from inside the repo
   ok "miniclaw-os ready (running in-place)"
 elif [[ -d "$MINICLAW_OS_DIR/.git" ]]; then
-  git -C "$MINICLAW_OS_DIR" fetch --tags --quiet
-  git -C "$MINICLAW_OS_DIR" checkout "$MINICLAW_VERSION" --quiet 2>/dev/null || git -C "$MINICLAW_OS_DIR" pull --ff-only
-  ok "miniclaw-os @ $MINICLAW_VERSION"
+  CURRENT_VER=$(git -C "$MINICLAW_OS_DIR" describe --tags --exact-match 2>/dev/null || echo "unknown")
+  if [[ "$CURRENT_VER" == "$MINICLAW_VERSION" ]]; then
+    ok "miniclaw-os already @ $MINICLAW_VERSION"
+  else
+    info "Updating miniclaw-os $CURRENT_VER → $MINICLAW_VERSION (re-cloning)..."
+    rm -rf "$MINICLAW_OS_DIR"
+    git clone --branch "$MINICLAW_VERSION" --depth 1 "$REPO_URL" "$MINICLAW_OS_DIR"
+    ok "miniclaw-os $MINICLAW_VERSION → $MINICLAW_OS_DIR"
+  fi
 else
   git clone --branch "$MINICLAW_VERSION" --depth 1 "$REPO_URL" "$MINICLAW_OS_DIR"
   ok "miniclaw-os $MINICLAW_VERSION → $MINICLAW_OS_DIR"
