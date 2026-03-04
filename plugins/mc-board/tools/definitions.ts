@@ -186,6 +186,119 @@ export const brainTools: AnyAgentTool[] = [
     },
   },
 
+  // ---- Triage / queue dispatch tools ----
+
+  {
+    name: "brain_column_context",
+    label: "Brain Column Context",
+    description:
+      "Get full LLM-ready context for all cards in a column, grouped by project " +
+      "and ordered by priority desc then oldest-first. Use this at the START of every " +
+      "board worker turn to survey the column and decide what to pick up. " +
+      "Pass skip_hold='true' to exclude cards tagged 'on-hold' (being worked outside the queue).",
+    parameters: schema(
+      {
+        column: strEnum(
+          ["backlog", "in-progress", "in-review", "shipped"],
+          "Column to inspect",
+        ),
+        skip_hold: optStr("Set to 'true' to exclude cards tagged 'on-hold'"),
+      },
+      ["column"],
+    ) as never,
+    execute: async (_id, params: Record<string, string | undefined>) => {
+      const args = ["context", "--column", params.column!];
+      if (params.skip_hold === "true") args.push("--skip-hold");
+      const { stdout, stderr, exitCode } = runBrain(args);
+      if (exitCode !== 0) return err(stderr || "brain context failed");
+      return ok(stdout);
+    },
+  },
+
+  {
+    name: "brain_pickup",
+    label: "Brain Pickup",
+    description:
+      "Register that this agent loop has picked up a card to work on. " +
+      "ALWAYS call this BEFORE doing any work on a card. " +
+      "This records the live agent→card mapping so the dashboard shows which " +
+      "process has which ticket. Call brain_release when done or handing off.",
+    parameters: schema(
+      {
+        card_id: str("Card ID (crd_<hex>)"),
+        worker: str(
+          "Worker name identifying this loop — e.g. 'board-worker-backlog', " +
+          "'board-worker-in-progress', 'board-worker-in-review'",
+        ),
+        column: optStr("Column being worked in (defaults to card's current column)"),
+      },
+      ["card_id", "worker"],
+    ) as never,
+    execute: async (_id, params: Record<string, string | undefined>) => {
+      const args = ["pickup", params.card_id!, "--worker", params.worker!];
+      if (params.column) args.push("--column", params.column);
+      const { stdout, stderr, exitCode } = runBrain(args);
+      if (exitCode !== 0) return err(stderr || "brain pickup failed");
+      return ok(stdout);
+    },
+  },
+
+  {
+    name: "brain_release",
+    label: "Brain Release",
+    description:
+      "Signal that this agent loop has finished with a card — work done, " +
+      "card moved, or turn ending. ALWAYS call this after completing or handing " +
+      "off a card. Removes the card from the live active-work view.",
+    parameters: schema(
+      {
+        card_id: str("Card ID (crd_<hex>)"),
+        worker: str("Worker name — must match what was passed to brain_pickup"),
+      },
+      ["card_id", "worker"],
+    ) as never,
+    execute: async (_id, params: Record<string, string>) => {
+      const { stdout, stderr, exitCode } = runBrain([
+        "release", params.card_id, "--worker", params.worker,
+      ]);
+      if (exitCode !== 0) return err(stderr || "brain release failed");
+      return ok(stdout);
+    },
+  },
+
+  {
+    name: "brain_active",
+    label: "Brain Active Loops",
+    description:
+      "Show all cards currently being worked by agent loops. " +
+      "Check this before picking up a card to avoid duplicate work — if a card " +
+      "is already active, skip it and pick a different one.",
+    parameters: schema({}) as never,
+    execute: async () => {
+      const { stdout, stderr, exitCode } = runBrain(["active"]);
+      if (exitCode !== 0) return err(stderr || "brain active failed");
+      return ok(stdout || "No active agent loops.");
+    },
+  },
+
+  {
+    name: "brain_pickup_log",
+    label: "Brain Pickup Log",
+    description:
+      "Show recent pickup/release history across all board workers. " +
+      "Useful for auditing what each agent loop processed and when.",
+    parameters: schema({
+      limit: optStr("Number of entries to show (default: 20)"),
+    }) as never,
+    execute: async (_id, params: Record<string, string | undefined>) => {
+      const args = ["pickup-log"];
+      if (params.limit) args.push("--limit", params.limit);
+      const { stdout, stderr, exitCode } = runBrain(args);
+      if (exitCode !== 0) return err(stderr || "brain pickup-log failed");
+      return ok(stdout || "No pickup history yet.");
+    },
+  },
+
   // ---- Project tools ----
 
   {
