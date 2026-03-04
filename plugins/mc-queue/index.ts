@@ -76,6 +76,11 @@ function isCronSession(sessionKey?: string): boolean {
   return sessionKey.includes(":cron:");
 }
 
+function isLogChannelSession(sessionKey: string, logChatId: string): boolean {
+  if (!logChatId) return false;
+  return sessionKey.includes(logChatId);
+}
+
 // ---- Telegram log helper ----
 
 async function sendTgLog(
@@ -181,6 +186,7 @@ export default function register(api: OpenClawPluginApi) {
     applyToChannels?: boolean;
     applyToDMs?: boolean;
     tgLogChatId?: string;
+    tgBotName?: string;
   };
 
   const enabled = cfg.enabled ?? true;
@@ -189,6 +195,7 @@ export default function register(api: OpenClawPluginApi) {
   const applyToChannels = cfg.applyToChannels ?? true;
   const applyToDMs = cfg.applyToDMs ?? true;
   const tgLogChatId = cfg.tgLogChatId ?? "";
+  const tgBotName = cfg.tgBotName ?? "@augmentedmike_bot";
 
   // Read bot token from OpenClaw's telegram channel config
   const tgBotToken =
@@ -213,6 +220,11 @@ export default function register(api: OpenClawPluginApi) {
     const sessionKey = ctx.sessionKey ?? "";
     if (!isMessagingSession(sessionKey)) return;
 
+    // Log channel always uses Haiku (fast redirect response)
+    if (isLogChannelSession(sessionKey, tgLogChatId)) {
+      return { modelOverride: haikuModel };
+    }
+
     const isDM = sessionKey.includes(":direct:");
     const isGroup =
       sessionKey.includes(":group:") || sessionKey.includes(":channel:");
@@ -226,6 +238,13 @@ export default function register(api: OpenClawPluginApi) {
   api.on("before_prompt_build", async (_event, ctx) => {
     const sessionKey = ctx.sessionKey ?? "";
     if (!isMessagingSession(sessionKey)) return;
+
+    // Log channel — readonly redirect, no agent triage
+    if (isLogChannelSession(sessionKey, tgLogChatId)) {
+      return {
+        prependContext: `This is a readonly queue log channel. You must respond to any message with exactly this text and nothing else:\n\nChat with ${tgBotName} directly. This is a readonly view of the queue work.`,
+      };
+    }
 
     const isDM = sessionKey.includes(":direct:");
     const isGroup =
