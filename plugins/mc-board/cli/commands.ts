@@ -1,9 +1,16 @@
 import * as path from "node:path";
 import type { Command } from "commander";
 import type { CardStore } from "../src/store.js";
+import type { ProjectStore } from "../src/project-store.js";
 import { ArchiveStore } from "../src/archive.js";
 import { COLUMNS, canTransition, checkGate, formatGateError } from "../src/state.js";
-import { renderCardDetail, renderFullBoard, suggestNext } from "../src/board.js";
+import {
+  renderCardDetail,
+  renderFullBoard,
+  renderProjectBoard,
+  renderProjectList,
+  suggestNext,
+} from "../src/board.js";
 import type { Column, Priority } from "../src/card.js";
 import { cardFilename } from "../src/card.js";
 
@@ -13,7 +20,7 @@ export interface CliContext {
   logger: { info: (m: string) => void; warn: (m: string) => void; error: (m: string) => void };
 }
 
-export function registerBrainCommands(ctx: CliContext, store: CardStore): void {
+export function registerBrainCommands(ctx: CliContext, store: CardStore, projects: ProjectStore): void {
   const archive = new ArchiveStore(ctx.stateDir);
   const { program } = ctx;
 
@@ -43,14 +50,16 @@ Examples:
     .requiredOption("--title <title>", "Card title (required)")
     .option("--priority <p>", "Priority level: high, medium, low", "medium")
     .option("--tags <tags>", "Comma-separated tags, e.g. miniclaw,build")
+    .option("--project <id>", "Link to a project by ID (prj_<hex>)")
     .addHelpText("after", `
 New cards always start in backlog. Fill in problem, plan, and criteria
 before moving to in-progress.
 
 Examples:
   miniclaw brain create --title "Fix login bug"
-  miniclaw brain create --title "Add dark mode" --priority high --tags ui,miniclaw`)
-    .action((opts: { title: string; priority: string; tags?: string }) => {
+  miniclaw brain create --title "Add dark mode" --priority high --tags ui,miniclaw
+  miniclaw brain create --title "API redesign" --project prj_a1b2c3d4`)
+    .action((opts: { title: string; priority: string; tags?: string; project?: string }) => {
       const priority = normalizePriority(opts.priority);
       if (!priority) {
         console.error(`Invalid priority: ${opts.priority}. Use: high, medium, low`);
@@ -59,35 +68,45 @@ Examples:
       const tags = opts.tags
         ? opts.tags.split(",").map((t: string) => t.trim()).filter(Boolean)
         : [];
-      const card = store.create({ title: opts.title, priority, tags });
-      console.log(`Created ${card.id}: ${card.title}`);
+      // Validate project if provided
+      if (opts.project) {
+        try { projects.findById(opts.project); } catch {
+          console.error(`Project not found: ${opts.project}`);
+          process.exit(1);
+        }
+      }
+      const card = store.create({ title: opts.title, priority, tags, project_id: opts.project });
+      console.log(`Created ${card.id}: ${card.title}${opts.project ? ` [project: ${opts.project}]` : ""}`);
     });
 
   // ---- brain list ----
   brain
     .command("list")
-    .description("List cards, optionally filtered by column")
+    .description("List cards, optionally filtered by column or project")
     .option("--column <col>", "Filter by column: backlog, in-progress, in-review, shipped")
+    .option("--project <id>", "Filter by project ID (prj_<hex>)")
     .addHelpText("after", `
 Without --column, lists all cards across all columns.
 
 Examples:
   miniclaw brain list
   miniclaw brain list --column backlog
-  miniclaw brain list --column shipped`)
-    .action((opts: { column?: string }) => {
+  miniclaw brain list --project prj_a1b2c3d4`)
+    .action((opts: { column?: string; project?: string }) => {
       if (opts.column && !COLUMNS.includes(opts.column as Column)) {
         console.error(`Invalid column: ${opts.column}. Valid: ${COLUMNS.join(", ")}`);
         process.exit(1);
       }
-      const cards = store.list(opts.column as Column | undefined);
+      let cards = store.list(opts.column as Column | undefined);
+      if (opts.project) cards = cards.filter(c => c.project_id === opts.project);
       if (cards.length === 0) {
         console.log("No cards.");
         return;
       }
       for (const card of cards) {
         const tagsStr = card.tags.length > 0 ? `  [${card.tags.join(", ")}]` : "";
-        console.log(`${card.id}  [${card.column}]  [${card.priority}]  ${card.title}${tagsStr}`);
+        const projStr = card.project_id ? `  {${card.project_id}}` : "";
+        console.log(`${card.id}  [${card.column}]  [${card.priority}]  ${card.title}${tagsStr}${projStr}`);
       }
     });
 
@@ -122,6 +141,7 @@ criteria, notes, review notes, and full column history with timestamps.
     .option("--criteria <text>", "Acceptance criteria as markdown checklist (- [ ] / - [x])")
     .option("--notes <text>", "Notes / outcome — observations, decisions, results")
     .option("--review <text>", "Review notes — filled after critic/audit pass, required to ship")
+    .option("--project <id>", "Link card to a project by ID (prj_<hex>), or 'none' to unlink")
     .addHelpText("after", `
 At least one option required. Pass any combination.
 
@@ -152,6 +172,17 @@ Examples:
         if (opts.criteria !== undefined) updates.acceptance_criteria = opts.criteria;
         if (opts.notes !== undefined) updates.notes = opts.notes;
         if (opts.review !== undefined) updates.review_notes = opts.review;
+        if (opts.project !== undefined) {
+          if (opts.project === "none") {
+            updates.project_id = undefined;
+          } else {
+            try { projects.findById(opts.project); } catch {
+              console.error(`Project not found: ${opts.project}`);
+              process.exit(1);
+            }
+            updates.project_id = opts.project;
+          }
+        }
 
         if (Object.keys(updates).length === 0) {
           console.error("No fields to update. Provide at least one option.");
@@ -345,6 +376,106 @@ Reads across all archive files. Prefix match on card id.
         process.exit(1);
       }
       console.log(renderCardDetail(card));
+    });
+
+  // ---- brain project ----
+  const project = brain
+    .command("project")
+    .description("Manage projects — organize cards into named initiatives");
+
+  // brain project create
+  project
+    .command("create")
+    .description("Create a new project")
+    .requiredOption("--name <name>", "Project name (required)")
+    .option("--description <desc>", "Short description of the project")
+    .addHelpText("after", `
+Projects are containers for cards. Create a project, then link cards to it
+with 'brain create --project <id>' or 'brain update <id> --project <id>'.
+
+Examples:
+  miniclaw brain project create --name "Telegram Overhaul"
+  miniclaw brain project create --name "v2 API" --description "REST redesign initiative"`)
+    .action((opts: { name: string; description?: string }) => {
+      const proj = projects.create({ name: opts.name, description: opts.description });
+      console.log(`Created ${proj.id}: ${proj.name}`);
+    });
+
+  // brain project list
+  project
+    .command("list")
+    .description("List all active projects with card counts")
+    .option("--all", "Include archived projects")
+    .addHelpText("after", `
+  miniclaw brain project list
+  miniclaw brain project list --all`)
+    .action((opts: { all?: boolean }) => {
+      const projs = projects.list(opts.all);
+      const cards = store.list();
+      const counts = new Map<string, number>();
+      for (const card of cards) {
+        if (card.project_id) counts.set(card.project_id, (counts.get(card.project_id) ?? 0) + 1);
+      }
+      console.log(renderProjectList(projs, counts));
+    });
+
+  // brain project show
+  project
+    .command("show <id>")
+    .description("Show a project's full board — all cards in the project grouped by column")
+    .addHelpText("after", `
+  miniclaw brain project show prj_a1b2c3d4`)
+    .action((id: string) => {
+      try {
+        const proj = projects.findById(id);
+        const cards = store.listByProject(id);
+        console.log(renderProjectBoard(proj, cards));
+      } catch (err) {
+        console.error(String(err));
+        process.exit(1);
+      }
+    });
+
+  // brain project archive
+  project
+    .command("archive <id>")
+    .description("Archive a project (hides it from the default list, cards are preserved)")
+    .addHelpText("after", `
+Archiving a project does not delete cards. Cards remain on the board and
+can be re-linked to another project. Use --all on 'project list' to see
+archived projects.
+
+  miniclaw brain project archive prj_a1b2c3d4`)
+    .action((id: string) => {
+      try {
+        const proj = projects.archive(id);
+        console.log(`Archived project ${proj.id}: ${proj.name}`);
+      } catch (err) {
+        console.error(String(err));
+        process.exit(1);
+      }
+    });
+
+  // brain project update
+  project
+    .command("update <id>")
+    .description("Update a project's name or description")
+    .option("--name <name>", "New project name")
+    .option("--description <desc>", "New project description")
+    .addHelpText("after", `
+  miniclaw brain project update prj_a1b2c3d4 --name "New Name"`)
+    .action((id: string, opts: { name?: string; description?: string }) => {
+      if (!opts.name && opts.description === undefined) {
+        console.error("No fields to update. Provide --name or --description.");
+        process.exit(1);
+      }
+      try {
+        const proj = projects.update(id, { name: opts.name, description: opts.description });
+        console.log(`Updated project ${proj.id}: ${proj.name}`);
+      } catch (err) {
+        console.error(String(err));
+        process.exit(1);
+      }
     });
 }
 

@@ -28,7 +28,7 @@ function optStr(description: string): unknown {
 // ---- Tool runner ----
 
 function runBrain(args: string[]): { stdout: string; stderr: string; exitCode: number } {
-  const result = spawnSync("openclaw", ["brain", ...args], {
+  const result = spawnSync("openclaw", ["mc-board", ...args], {
     encoding: "utf-8",
     timeout: 15000,
   });
@@ -79,6 +79,7 @@ export const brainTools: AnyAgentTool[] = [
         title: str("Card title — short, imperative description of the task"),
         priority: strEnum(["high", "medium", "low"], "Priority level (default: medium)"),
         tags: optStr("Comma-separated tags (e.g. miniclaw,build)"),
+        project_id: optStr("Link to a project by ID (prj_<hex>) — optional"),
       },
       ["title"],
     ) as never,
@@ -86,6 +87,7 @@ export const brainTools: AnyAgentTool[] = [
       const args = ["create", "--title", params.title!];
       if (params.priority) args.push("--priority", params.priority);
       if (params.tags) args.push("--tags", params.tags);
+      if (params.project_id) args.push("--project", params.project_id);
       const { stdout, stderr, exitCode } = runBrain(args);
       if (exitCode !== 0) return err(stderr || "brain create failed");
       return ok(stdout);
@@ -115,6 +117,7 @@ export const brainTools: AnyAgentTool[] = [
         "Document what was audited and any findings.",
       ),
       tags: optStr("Comma-separated tags"),
+      project_id: optStr("Link to a project (prj_<hex>), or 'none' to unlink from current project"),
     }, ["id"]) as never,
     execute: async (_id, params: Record<string, string | undefined>) => {
       const args = ["update", params.id!];
@@ -126,6 +129,7 @@ export const brainTools: AnyAgentTool[] = [
       if (params.notes) args.push("--notes", params.notes);
       if (params.review) args.push("--review", params.review);
       if (params.tags) args.push("--tags", params.tags);
+      if (params.project_id) args.push("--project", params.project_id);
       const { stdout, stderr, exitCode } = runBrain(args);
       if (exitCode !== 0) return err(stderr || "brain update failed");
       return ok(stdout);
@@ -178,6 +182,60 @@ export const brainTools: AnyAgentTool[] = [
     execute: async () => {
       const { stdout, stderr, exitCode } = runBrain(["next"]);
       if (exitCode !== 0) return err(stderr || "brain next failed");
+      return ok(stdout);
+    },
+  },
+
+  // ---- Project tools ----
+
+  {
+    name: "brain_project_create",
+    label: "Brain Project Create",
+    description:
+      "Create a new project to organize related cards into an initiative. " +
+      "Returns the project ID (prj_<hex>) which can be used to link cards.",
+    parameters: schema(
+      {
+        name: str("Project name — short descriptive title for the initiative"),
+        description: optStr("Optional description of the project's goal or scope"),
+      },
+      ["name"],
+    ) as never,
+    execute: async (_id, params: Record<string, string | undefined>) => {
+      const args = ["project", "create", "--name", params.name!];
+      if (params.description) args.push("--description", params.description);
+      const { stdout, stderr, exitCode } = runBrain(args);
+      if (exitCode !== 0) return err(stderr || "project create failed");
+      return ok(stdout);
+    },
+  },
+
+  {
+    name: "brain_project_list",
+    label: "Brain Project List",
+    description:
+      "List all active projects with card counts. Use this to see what initiatives " +
+      "are in flight and find project IDs for linking cards.",
+    parameters: schema({ include_archived: optStr("Set to 'true' to include archived projects") }) as never,
+    execute: async (_id, params: Record<string, string | undefined>) => {
+      const args = ["project", "list"];
+      if (params.include_archived === "true") args.push("--all");
+      const { stdout, stderr, exitCode } = runBrain(args);
+      if (exitCode !== 0) return err(stderr || "project list failed");
+      return ok(stdout);
+    },
+  },
+
+  {
+    name: "brain_project_show",
+    label: "Brain Project Show",
+    description:
+      "Show a project's full kanban board — all cards linked to this project, " +
+      "organized by column with priority and progress indicators.",
+    parameters: schema({ id: str("Project ID (prj_<hex>)") }, ["id"]) as never,
+    execute: async (_id, params: Record<string, string>) => {
+      const { stdout, stderr, exitCode } = runBrain(["project", "show", params.id]);
+      if (exitCode !== 0) return err(stderr || "project show failed");
       return ok(stdout);
     },
   },

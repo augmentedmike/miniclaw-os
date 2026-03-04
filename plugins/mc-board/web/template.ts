@@ -1,4 +1,5 @@
 import type { Card, Column } from "../src/card.js";
+import type { Project } from "../src/project.js";
 import { COLUMNS } from "../src/state.js";
 
 // ---- Column styling ----
@@ -38,7 +39,7 @@ function progressBar(checked: number, total: number): string {
 
 // ---- Card HTML ----
 
-function renderCard(card: Card): string {
+function renderCard(card: Card, projectMap: Map<string, string>): string {
   const { checked, total } = criteriaProgress(card.acceptance_criteria);
   const progress = (card.column === "in-progress" || card.column === "in-review")
     ? progressBar(checked, total)
@@ -53,6 +54,11 @@ function renderCard(card: Card): string {
     ? `<p class="card-preview">${escHtml(card.problem_description.split("\n")[0]?.slice(0, 100) ?? "")}</p>`
     : "";
 
+  const projectName = card.project_id ? projectMap.get(card.project_id) : undefined;
+  const projectBadge = projectName
+    ? `<a class="project-badge" href="/?project=${escHtml(card.project_id!)}" title="Filter by project">${escHtml(projectName)}</a>`
+    : "";
+
   return `
     <div class="card">
       <div class="card-header">
@@ -61,6 +67,7 @@ function renderCard(card: Card): string {
       </div>
       <div class="card-title">${escHtml(card.title)}</div>
       ${problemPreview}
+      ${projectBadge}
       ${tagsHtml}
       ${progress}
       <div class="card-meta">updated ${fmtDate(card.updated_at)}</div>
@@ -70,7 +77,7 @@ function renderCard(card: Card): string {
 
 // ---- Column HTML ----
 
-function renderColumn(col: Column, cards: Card[]): string {
+function renderColumn(col: Column, cards: Card[], projectMap: Map<string, string>): string {
   const style = COLUMN_STYLES[col];
   const colCards = cards.filter(c => c.column === col);
 
@@ -83,26 +90,67 @@ function renderColumn(col: Column, cards: Card[]): string {
       <div class="column-cards">
         ${colCards.length === 0
           ? `<div class="column-empty">empty</div>`
-          : colCards.map(renderCard).join("")}
+          : colCards.map(c => renderCard(c, projectMap)).join("")}
       </div>
     </div>
   `;
 }
 
+// ---- Project dropdown ----
+
+function renderProjectDropdown(projects: Project[], selectedProjectId: string): string {
+  if (projects.length === 0) return "";
+
+  const options = [
+    `<option value="" ${selectedProjectId === "" ? "selected" : ""}>All projects</option>`,
+    ...projects.map(p => {
+      const archived = p.status === "archived" ? " (archived)" : "";
+      const sel = selectedProjectId === p.id ? "selected" : "";
+      return `<option value="${escHtml(p.id)}" ${sel}>${escHtml(p.name)}${archived}</option>`;
+    }),
+  ].join("");
+
+  return `
+    <form class="project-filter" method="get" action="/">
+      <label class="filter-label" for="project-select">Project</label>
+      <select id="project-select" name="project" onchange="this.form.submit()" class="filter-select">
+        ${options}
+      </select>
+      ${selectedProjectId ? `<a class="filter-clear" href="/">✕</a>` : ""}
+    </form>
+  `;
+}
+
 // ---- Full page ----
 
-export function renderPage(cards: Card[], refreshedAt: Date): string {
-  const columns = COLUMNS.map(col => renderColumn(col, cards)).join("");
+export function renderPage(
+  cards: Card[],
+  projects: Project[],
+  selectedProjectId: string,
+  refreshedAt: Date,
+): string {
+  const projectMap = new Map(projects.map(p => [p.id, p.name]));
+  const columns = COLUMNS.map(col => renderColumn(col, cards, projectMap)).join("");
   const totalActive = cards.filter(c => c.column !== "shipped").length;
   const totalShipped = cards.filter(c => c.column === "shipped").length;
+
+  const selectedProject = selectedProjectId
+    ? projects.find(p => p.id === selectedProjectId)
+    : undefined;
+
+  const title = selectedProject
+    ? `Brain Board — ${escHtml(selectedProject.name)}`
+    : "Brain Board";
+
+  const refreshParam = selectedProjectId ? `?project=${encodeURIComponent(selectedProjectId)}` : "";
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="refresh" content="10">
-  <title>Brain Board — Miniclaw</title>
+  <meta http-equiv="refresh" content="10;url=/${refreshParam}">
+  <title>${title} — Miniclaw</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -116,9 +164,10 @@ export function renderPage(cards: Card[], refreshedAt: Date): string {
 
     .page-header {
       display: flex;
-      align-items: baseline;
+      align-items: center;
       gap: 16px;
       margin-bottom: 28px;
+      flex-wrap: wrap;
     }
 
     .page-title {
@@ -138,6 +187,57 @@ export function renderPage(cards: Card[], refreshedAt: Date): string {
       font-size: 12px;
       color: #52525b;
     }
+
+    /* ---- Project filter ---- */
+
+    .project-filter {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .filter-label {
+      font-size: 12px;
+      color: #71717a;
+      white-space: nowrap;
+    }
+
+    .filter-select {
+      background: #18181b;
+      color: #e4e4e7;
+      border: 1px solid #3f3f46;
+      border-radius: 6px;
+      padding: 4px 28px 4px 10px;
+      font-size: 13px;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      min-width: 160px;
+    }
+
+    .filter-select:focus {
+      outline: none;
+      border-color: #52525b;
+    }
+
+    .filter-clear {
+      color: #52525b;
+      text-decoration: none;
+      font-size: 13px;
+      padding: 4px 6px;
+      border-radius: 4px;
+      line-height: 1;
+    }
+
+    .filter-clear:hover {
+      color: #a1a1aa;
+      background: #27272a;
+    }
+
+    /* ---- Board ---- */
 
     .board {
       display: grid;
@@ -259,6 +359,24 @@ export function renderPage(cards: Card[], refreshedAt: Date): string {
       white-space: nowrap;
     }
 
+    .project-badge {
+      display: inline-block;
+      font-size: 10px;
+      padding: 1px 7px;
+      border-radius: 4px;
+      background: rgba(37, 99, 235, 0.15);
+      color: #93c5fd;
+      border: 1px solid rgba(37, 99, 235, 0.3);
+      margin-bottom: 7px;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .project-badge:hover {
+      background: rgba(37, 99, 235, 0.25);
+      border-color: rgba(37, 99, 235, 0.5);
+    }
+
     .card-tags {
       display: flex;
       flex-wrap: wrap;
@@ -312,6 +430,7 @@ export function renderPage(cards: Card[], refreshedAt: Date): string {
   <header class="page-header">
     <h1 class="page-title">Brain Board</h1>
     <span class="page-subtitle">miniclaw · read-only · auto-refresh 10s</span>
+    ${renderProjectDropdown(projects, selectedProjectId)}
     <span class="page-stats">${totalActive} active · ${totalShipped} shipped</span>
   </header>
 

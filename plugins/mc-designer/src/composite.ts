@@ -36,10 +36,10 @@ export async function compositeCanvas(canvas: Canvas): Promise<Buffer> {
       let img: sharp.Sharp;
 
       if (role === "background") {
-        // Fill the entire canvas, cropping if needed to avoid letterboxing
+        // Fill the entire canvas — anchor south so bottom captions are never cropped
         img = sharp(layer.imagePath).resize(width, height, {
           fit: "cover",
-          position: "centre",
+          position: "south",
         });
       } else {
         // Element: use renderWidth/renderHeight if set, otherwise natural size

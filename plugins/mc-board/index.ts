@@ -13,7 +13,8 @@ import * as path from "node:path";
 import * as os from "node:os";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { CardStore } from "./src/store.js";
-import { renderCompactBoard } from "./src/board.js";
+import { ProjectStore } from "./src/project-store.js";
+import { renderCompactBoard, renderCompactBoardWithProjects } from "./src/board.js";
 import { QmdClient } from "./src/qmd.js";
 import { registerBrainCommands } from "./cli/commands.js";
 import { brainTools } from "./tools/definitions.js";
@@ -50,18 +51,22 @@ function resolvePath(p: string): string {
 export default function register(api: OpenClawPluginApi): void {
   const cfg = resolveConfig(api);
   const store = new CardStore(cfg.cardsDir);
-  const qmd = new QmdClient(cfg.qmdBin, cfg.qmdCollection);
-
-  api.logger.info(`mc-board loaded (cardsDir=${cfg.cardsDir})`);
 
   // stateDir is the parent of cardsDir (e.g. ~/.openclaw/.../brain/)
   const stateDir = path.dirname(cfg.cardsDir);
+  const projectsDir = path.join(stateDir, "projects");
+  const projectStore = new ProjectStore(projectsDir);
+
+  const qmd = new QmdClient(cfg.qmdBin, cfg.qmdCollection);
+
+  api.logger.info(`mc-board loaded (cardsDir=${cfg.cardsDir}, projectsDir=${projectsDir})`);
 
   // ---- Phase 1: CLI ----
   api.registerCli((ctx) => {
     registerBrainCommands(
       { program: ctx.program, stateDir, logger: api.logger },
       store,
+      projectStore,
     );
   });
 
@@ -71,7 +76,10 @@ export default function register(api: OpenClawPluginApi): void {
       const cards = store.list();
       if (cards.length === 0) return;
 
-      const boardText = renderCompactBoard(cards);
+      const projects = projectStore.list();
+      const boardText = projects.length > 0
+        ? renderCompactBoardWithProjects(cards, projects)
+        : renderCompactBoard(cards);
       return { prependContext: boardText };
     } catch (err) {
       // Never crash the prompt build

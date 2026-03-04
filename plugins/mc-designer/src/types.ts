@@ -45,6 +45,10 @@ export interface Canvas {
   height: number;
   /** Canvas background color shown in preview and under all layers. Hex, e.g. "#18181b". Default: "#18181b" (zinc-900). */
   background: string;
+  /** Optional seed passed to Gemini generationConfig for reproducible outputs. */
+  seed?: number;
+  /** Optional style directive prepended to every gen/edit prompt on this canvas. */
+  style?: string;
   layers: Layer[];
   createdAt: string;
   updatedAt: string;

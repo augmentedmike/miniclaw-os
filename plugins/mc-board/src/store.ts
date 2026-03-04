@@ -22,6 +22,7 @@ export class CardStore {
     title: string;
     priority?: Priority;
     tags?: string[];
+    project_id?: string;
   }): Card {
     const now = new Date().toISOString();
     const card: Card = {
@@ -30,6 +31,7 @@ export class CardStore {
       column: "backlog",
       priority: opts.priority ?? "medium",
       tags: opts.tags ?? [],
+      ...(opts.project_id ? { project_id: opts.project_id } : {}),
       created_at: now,
       updated_at: now,
       history: [{ column: "backlog", moved_at: now }],
@@ -58,6 +60,10 @@ export class CardStore {
     return cards;
   }
 
+  listByProject(projectId: string): Card[] {
+    return this.list().filter(c => c.project_id === projectId);
+  }
+
   update(
     id: string,
     updates: Partial<
@@ -66,6 +72,7 @@ export class CardStore {
         | "title"
         | "priority"
         | "tags"
+        | "project_id"
         | "problem_description"
         | "implementation_plan"
         | "acceptance_criteria"

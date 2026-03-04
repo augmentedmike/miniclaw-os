@@ -1,0 +1,14 @@
+{
+  "name": "mc-kb",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "index.ts",
+  "description": "SQLite vector knowledge base — long-term semantic memory",
+  "dependencies": {
+    "better-sqlite3": "^11.9.0"
+  },
+  "devDependencies": {
+    "openclaw": "*",
+    "@types/better-sqlite3": "^7.6.13"
+  }
+}

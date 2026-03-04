@@ -51,13 +51,15 @@ export class DesignerStore {
     fs.writeFileSync(this.canvasPath(canvas.name), JSON.stringify(canvas, null, 2));
   }
 
-  createCanvas(name: string, width: number, height: number, background = "#18181b"): Canvas {
+  createCanvas(name: string, width: number, height: number, background = "#18181b", seed?: number, style?: string): Canvas {
     const canvas: Canvas = {
       id: `canvas-${Date.now()}`,
       name,
       width,
       height,
       background,
+      ...(seed !== undefined ? { seed } : {}),
+      ...(style ? { style } : {}),
       layers: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),

@@ -16,6 +16,7 @@ export interface Card {
   column: Column;
   priority: Priority;
   tags: string[];
+  project_id?: string;    // optional — links card to a Project (prj_<hex>)
   created_at: string;
   updated_at: string;
   history: HistoryEntry[];
@@ -193,12 +194,15 @@ export function parseCard(content: string): Card {
     ? (fm.tags as string[])
     : [];
 
+  const project_id = fm.project_id ? String(fm.project_id) : undefined;
+
   return {
     id: String(fm.id ?? ""),
     title: String(fm.title ?? ""),
     column: (fm.column as Column) ?? "backlog",
     priority: (fm.priority as Priority) ?? "medium",
     tags,
+    ...(project_id ? { project_id } : {}),
     created_at: String(fm.created_at ?? new Date().toISOString()),
     updated_at: String(fm.updated_at ?? new Date().toISOString()),
     history,
@@ -216,6 +220,8 @@ export function serializeCard(card: Card): string {
 
   const title = card.title.replace(/"/g, '\\"');
 
+  const projectLine = card.project_id ? `project_id: ${card.project_id}\n` : "";
+
   const frontmatter =
     `---\n` +
     `id: ${card.id}\n` +
@@ -223,6 +229,7 @@ export function serializeCard(card: Card): string {
     `column: ${card.column}\n` +
     `priority: ${card.priority}\n` +
     `tags: ${tagsStr}\n` +
+    projectLine +
     `created_at: ${card.created_at}\n` +
     `updated_at: ${card.updated_at}\n` +
     `history:\n` +
