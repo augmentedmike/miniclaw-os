@@ -149,6 +149,12 @@ function parseBrainTool(
         cardId: String(params.card_id ?? params.cardId ?? ""),
         worker: String(params.worker ?? ""),
       };
+    case "brain_move_card": {
+      const col = String(params.column ?? "");
+      const id = String(params.id ?? params.card_id ?? "");
+      if (col === "shipped") return { kind: "ship", cardId: id };
+      return { kind: "move", cardId: id, column: col };
+    }
     case "brain_create_card":
       return { kind: "create", title: String(params.title ?? "") };
     default:
