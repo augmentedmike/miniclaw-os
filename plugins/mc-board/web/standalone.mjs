@@ -603,8 +603,27 @@ function renderPage(cards, projects, selectedProjectId, refreshedAt) {
     .shipped-col:not(.open):hover .shipped-label{color:#a1a1aa}
 
     /* ---- Cards ---- */
-    .card{background:rgba(24,24,27,.7);border:1px solid rgba(63,63,70,.4);border-radius:8px;padding:12px;transition:border-color .15s;cursor:pointer}
+    .card{background:rgba(24,24,27,.7);border:1px solid rgba(63,63,70,.4);border-radius:8px;padding:12px;transition:border-color .15s,box-shadow .15s;cursor:pointer}
+    @keyframes card-pulse{0%,100%{box-shadow:0 0 0 0 rgba(59,130,246,.5)}50%{box-shadow:0 0 0 4px rgba(59,130,246,.15)}}
+    .card--active{border-color:#3b82f6!important;animation:card-pulse 1.8s ease-in-out infinite}
+    .card--active .card-worker{display:flex}
+    .card-worker{display:none;align-items:center;gap:5px;font-size:10px;color:#60a5fa;background:rgba(37,99,235,.12);border:1px solid rgba(59,130,246,.25);border-radius:4px;padding:2px 7px;margin-bottom:6px;width:fit-content}
+    .card-worker::before{content:"▶";font-size:8px}
+    .card--recent{border-color:rgba(59,130,246,.2)!important}
     .card:hover{border-color:rgba(113,113,122,.6);background:rgba(39,39,42,.8)}
+    /* ---- Toasts ---- */
+    #toast-container{position:fixed;bottom:20px;right:20px;display:flex;flex-direction:column;gap:8px;z-index:9999;pointer-events:none}
+    .toast{display:flex;align-items:center;gap:8px;background:#1c1c1f;border:1px solid #3f3f46;border-radius:8px;padding:10px 14px;font-size:12px;color:#e4e4e7;min-width:240px;max-width:340px;pointer-events:auto;box-shadow:0 4px 12px rgba(0,0,0,.5);animation:toast-in .22s ease}
+    @keyframes toast-in{from{transform:translateX(20px);opacity:0}to{transform:translateX(0);opacity:1}}
+    .toast.toast-out{animation:toast-out .2s ease forwards}
+    @keyframes toast-out{to{transform:translateX(20px);opacity:0}}
+    .toast-icon{font-size:14px;flex-shrink:0}
+    .toast-body{display:flex;flex-direction:column;gap:2px;min-width:0}
+    .toast-title{font-weight:600;color:#fafafa;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .toast-sub{color:#71717a;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    /* Notifs toggle in topbar */
+    .notif-toggle{display:flex;align-items:center;gap:5px;font-size:11px;color:#52525b;padding:0 12px;border-left:1px solid #27272a;white-space:nowrap;height:100%;cursor:pointer;user-select:none}
+    .notif-toggle input{accent-color:#3b82f6;cursor:pointer}
     .card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
     .card-id{font-size:10px;color:#52525b;font-family:monospace;letter-spacing:.03em}
     .priority-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
@@ -753,7 +772,11 @@ function renderPage(cards, projects, selectedProjectId, refreshedAt) {
       <span class="stat-pill">in&nbsp;review<b id="stat-inreview">${nInReview}</b></span>
       <span class="stat-pill">shipped<b id="stat-shipped">${nShipped}</b></span>
     </div>
+    <label class="notif-toggle" title="Toggle board notifications">
+      <input type="checkbox" id="notif-toggle-cb" onchange="saveNotifPref(this.checked)" checked> notifs
+    </label>
   </div>
+  <div id="toast-container"></div>
 
   <!-- Board tab -->
   <div class="tab-panel" id="tab-board" style="display:flex;flex-direction:column">
@@ -1037,6 +1060,7 @@ function renderPage(cards, projects, selectedProjectId, refreshedAt) {
       const prioColor = PRIO_COLORS[card.priority] ?? PRIO_COLORS.low;
       return '<div class="card" data-id="' + escHtml(card.id) + '" onclick="openCard(\\'' + escHtml(card.id) + '\\')">' +
         '<div class="card-header"><span class="card-id">' + escHtml(card.id) + '</span><span class="priority-dot" style="background:' + prioColor + '" title="' + escHtml(card.priority) + '"></span></div>' +
+        '<div class="card-worker"></div>' +
         '<div class="card-title">' + escHtml(card.title) + "</div>" +
         preview + projBadge + tagsHtml + progHtml +
         '<div class="card-meta">updated ' + fmtDate(card.updated_at) + "</div></div>";
@@ -1110,6 +1134,48 @@ function renderPage(cards, projects, selectedProjectId, refreshedAt) {
       } catch { /* network error — skip cycle */ }
     }
 
+    // ==================== NOTIFICATIONS ====================
+    (function() {
+      const cb = document.getElementById("notif-toggle-cb");
+      if (cb) {
+        const saved = localStorage.getItem("brain-toasts");
+        if (saved === "false") cb.checked = false;
+      }
+    })();
+
+    function saveNotifPref(on) {
+      localStorage.setItem("brain-toasts", on ? "true" : "false");
+    }
+
+    function notifsOn() {
+      const cb = document.getElementById("notif-toggle-cb");
+      return cb ? cb.checked : true;
+    }
+
+    function showToast(icon, title, sub) {
+      if (!notifsOn()) return;
+      const container = document.getElementById("toast-container");
+      if (!container) return;
+      const el = document.createElement("div");
+      el.className = "toast";
+      el.innerHTML = '<span class="toast-icon">' + icon + '</span>' +
+        '<div class="toast-body">' +
+          '<div class="toast-title">' + escHtml(title) + '</div>' +
+          (sub ? '<div class="toast-sub">' + escHtml(sub) + '</div>' : '') +
+        '</div>';
+      container.appendChild(el);
+      const dismiss = () => {
+        el.classList.add("toast-out");
+        setTimeout(() => el.remove(), 220);
+      };
+      el.onclick = dismiss;
+      setTimeout(dismiss, 5000);
+    }
+
+    // State tracking for diff-based toast firing
+    let _prevActiveIds = new Set();
+    let _prevLogKeys = new Set();
+
     // ==================== ACTIVE AGENTS ====================
     async function pollActiveAgents() {
       try {
@@ -1117,24 +1183,96 @@ function renderPage(cards, projects, selectedProjectId, refreshedAt) {
         if (!res.ok) return;
         const data = await res.json();
         const bar = document.getElementById("active-agents-bar");
-        if (!bar) return;
         const entries = data.active || [];
-        if (entries.length === 0) {
-          bar.style.display = "none";
-          return;
+        const log = data.log || [];
+        const now = Date.now();
+
+        // Active card IDs (currently being worked)
+        const activeIds = new Map(entries.map(e => [e.cardId, e]));
+
+        // Recently worked IDs — any release in last 30 min
+        const recentIds = new Set();
+        for (const ev of log) {
+          if (ev.action === "release" && (now - new Date(ev.at).getTime()) < 30 * 60 * 1000) {
+            recentIds.add(ev.cardId);
+          }
         }
-        bar.style.display = "flex";
-        bar.innerHTML = '<span style="color:#52525b;margin-right:4px">▶ active:</span>' +
-          entries.map(e => {
-            const age = Math.round((Date.now() - new Date(e.pickedUpAt).getTime()) / 1000);
-            const ageStr = age < 60 ? age + "s" : Math.round(age / 60) + "m";
-            return '<span style="background:#27272a;border-radius:4px;padding:2px 8px;margin-right:6px">' +
-              '<span style="color:#71717a">' + escHtml(e.worker) + '</span>' +
-              ' <span style="color:#e4e4e7">' + escHtml(e.cardId) + '</span>' +
-              ' <span style="color:#a1a1aa">— ' + escHtml(e.title.slice(0, 40)) + (e.title.length > 40 ? "…" : "") + '</span>' +
-              ' <span style="color:#52525b">(' + ageStr + ')</span>' +
-              '</span>';
-          }).join("");
+
+        // Update top bar
+        if (bar) {
+          if (entries.length === 0) {
+            bar.style.display = "none";
+          } else {
+            bar.style.display = "flex";
+            bar.innerHTML = '<span style="color:#52525b;margin-right:4px">▶ active:</span>' +
+              entries.map(e => {
+                const age = Math.round((now - new Date(e.pickedUpAt).getTime()) / 1000);
+                const ageStr = age < 60 ? age + "s" : Math.round(age / 60) + "m";
+                return '<span style="background:#27272a;border-radius:4px;padding:2px 8px;margin-right:6px">' +
+                  '<span style="color:#71717a">' + escHtml(e.worker) + '</span>' +
+                  ' <span style="color:#e4e4e7">' + escHtml(e.cardId) + '</span>' +
+                  ' <span style="color:#a1a1aa">— ' + escHtml(e.title.slice(0, 40)) + (e.title.length > 40 ? "…" : "") + '</span>' +
+                  ' <span style="color:#52525b">(' + ageStr + ')</span>' +
+                  '</span>';
+              }).join("");
+          }
+        }
+
+        // Update card DOM — add/remove active + recent classes, set worker badge
+        document.querySelectorAll(".card[data-id]").forEach(el => {
+          const id = el.dataset.id;
+          const isActive = activeIds.has(id);
+          const isRecent = recentIds.has(id) && !isActive;
+          el.classList.toggle("card--active", isActive);
+          el.classList.toggle("card--recent", isRecent);
+          const workerEl = el.querySelector(".card-worker");
+          if (workerEl) {
+            if (isActive) {
+              const e = activeIds.get(id);
+              const workerShort = e.worker.replace("board-worker-", "");
+              workerEl.textContent = workerShort + " working…";
+            } else {
+              workerEl.textContent = "";
+            }
+          }
+        });
+
+        // ---- Toast diffing ----
+        // New pickups: in activeIds but not in _prevActiveIds
+        const nowActiveIds = new Set(activeIds.keys());
+        for (const id of nowActiveIds) {
+          if (!_prevActiveIds.has(id)) {
+            const e = activeIds.get(id);
+            const w = e.worker.replace("board-worker-", "");
+            showToast("🔵", "Picked up: " + id, w + " — " + e.title.slice(0, 50));
+          }
+        }
+
+        // New log events (deduplicated by cardId+action+at)
+        const TOAST_EVENT_ICONS = { pickup: "🔵", release: "✅", move: "📋", ship: "🚀", create: "📌", edit: "✏️" };
+        for (const ev of log) {
+          const key = ev.cardId + ":" + ev.action + ":" + ev.at;
+          if (_prevLogKeys.has(key)) continue;
+          _prevLogKeys.add(key);
+          // Only toast recent events (last 12s to avoid stale replays on load)
+          if ((now - new Date(ev.at).getTime()) > 12000) continue;
+          const icon = TOAST_EVENT_ICONS[ev.action] ?? "📋";
+          const titleText = ev.action === "create" ? "New card: " + (ev.title || ev.cardId)
+            : ev.action === "move"   ? "Moved: " + ev.cardId + " → " + ev.column
+            : ev.action === "ship"   ? "Shipped: " + ev.cardId
+            : ev.action === "release" ? "Released: " + ev.cardId
+            : ev.action === "edit"   ? "Edited: " + ev.cardId
+            : ev.cardId;
+          const subText = ev.worker ? ev.worker.replace("board-worker-", "") : "";
+          showToast(icon, titleText, subText);
+        }
+
+        _prevActiveIds = nowActiveIds;
+        // Cap log key set to avoid unbounded growth
+        if (_prevLogKeys.size > 500) {
+          const arr = [..._prevLogKeys];
+          _prevLogKeys = new Set(arr.slice(arr.length - 300));
+        }
       } catch { /* skip */ }
     }
     pollActiveAgents();
