@@ -51,7 +51,7 @@ Examples:
     .command("create")
     .description("Create a new card in the backlog")
     .requiredOption("--title <title>", "Card title (required)")
-    .option("--priority <p>", "Priority level: high, medium, low", "medium")
+    .option("--priority <p>", "Priority level: critical, high, medium, low", "medium")
     .option("--tags <tags>", "Comma-separated tags, e.g. miniclaw,build")
     .option("--project <id>", "Link to a project by ID (prj_<hex>)")
     .option("--work-type <type>", "Card type: 'work' or 'verify' (optional)")
@@ -197,7 +197,7 @@ criteria, notes, review notes, and full column history with timestamps.
     .command("update <id>")
     .description("Update one or more fields on a card")
     .option("--title <title>", "Card title")
-    .option("--priority <priority>", "Priority: high, medium, low")
+    .option("--priority <priority>", "Priority: critical, high, medium, low")
     .option("--tags <tags>", "Comma-separated tags, e.g. miniclaw,build")
     .option("--problem <text>", "Problem description — why this work is needed")
     .option("--plan <text>", "Implementation plan — how to solve it")
@@ -765,6 +765,7 @@ updated version — but stale files should be deleted manually.
 
 function normalizePriority(p: string): Priority | null {
   const map: Record<string, Priority> = {
+    critical: "critical", c: "critical",
     high: "high", h: "high",
     medium: "medium", med: "medium", m: "medium",
     low: "low", l: "low",

@@ -2,6 +2,76 @@ import type { Card, Column } from "./card.js";
 import type { Project } from "./project.js";
 import { COLUMNS } from "./state.js";
 
+// ---- Tag Taxonomy ----
+// Sourced from ref/BOARD_TAGS.md
+
+export const VALID_TAGS = {
+  // Team/Role
+  "team-ai": "Work owned by AM (digital agents, automation)",
+  "team-human": "Work requiring Michael or human judgment",
+  "team-product": "Product direction, strategy, positioning",
+  "team-design": "Visual/UX work, design systems",
+
+  // Lifecycle
+  "wip": "Work-in-progress",
+  "blocked": "Depends on external input or unblocked cards",
+  "waiting-feedback": "Awaiting review, approval, or human response",
+  "on-hold": "Intentionally paused; not actively worked",
+  "shipped": "Released, deployed, or complete",
+
+  // Work Type
+  "feature": "New functionality or capability",
+  "bug": "Defect, regression, or incorrect behavior",
+  "refactor": "Improve or restructure without behavior change",
+  "doc": "Documentation, guides, or process docs",
+  "test": "Testing infrastructure or test coverage",
+  "deploy": "Deployment, CI/CD, release engineering",
+  "ops": "Operational work: infrastructure, monitoring",
+
+  // Domain
+  "board": "Brain Board itself",
+  "kb": "Knowledge Base",
+  "designer": "mc-designer plugin",
+  "queue": "mc-queue plugin",
+  "miniclaw-os": "MiniClaw platform core",
+  "am-blog": "AM Comic Blog",
+  "substack": "Substack publishing",
+  "product": "Product initiatives",
+  "infra": "Infrastructure, CI, monitoring",
+
+  // Status Flags
+  "focus": "Current priority; pick first",
+  "urgent": "Time-sensitive; immediate attention",
+  "critical": "High impact; failure blocks other work",
+  "breaking-change": "Requires coordination or migration",
+  "security": "Security fix or hardening",
+  "performance": "Performance optimization",
+} as const;
+
+export function validateTag(tag: string): { valid: boolean; message?: string } {
+  if (tag in VALID_TAGS) return { valid: true };
+  return {
+    valid: false,
+    message: `Unknown tag: "${tag}". See ref/BOARD_TAGS.md for valid tags.`,
+  };
+}
+
+export function validateCardTags(tags: string[]): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  for (const tag of tags) {
+    const result = validateTag(tag);
+    if (!result.valid && result.message) {
+      errors.push(result.message);
+    }
+  }
+  return { valid: errors.length === 0, errors };
+}
+
+export function filterCardsByTags(cards: Card[], filterTags: string[]): Card[] {
+  if (filterTags.length === 0) return cards;
+  return cards.filter(card => filterTags.some(tag => card.tags.includes(tag)));
+}
+
 export function renderCompactBoard(cards: Card[]): string {
   if (cards.length === 0) return "(no cards on board)";
 
@@ -192,7 +262,7 @@ export function renderProjectList(projects: Project[], cardCounts: Map<string, n
 }
 
 export function suggestNext(cards: Card[]): Card | null {
-  const priorityScore: Record<string, number> = { high: 3, medium: 2, low: 1 };
+  const priorityScore: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
   const columnScore: Record<Column, number> = {
     "in-progress": 3,
     "in-review": 2,
@@ -214,10 +284,17 @@ export function suggestNext(cards: Card[]): Card | null {
  * Render all cards in a column as a rich LLM-ready context block.
  * Grouped by project, ordered by priority desc → created_at asc.
  * Used by the triage worker cron to let Haiku evaluate and select candidates.
+ * @param col - Column to render
+ * @param cards - All cards
+ * @param projects - All projects
+ * @param filterTags - Optional tags to filter by (returns only cards with ANY of these tags)
  */
-export function renderColumnContext(col: Column, cards: Card[], projects: Project[]): string {
-  const colCards = cards.filter(c => c.column === col);
-  if (colCards.length === 0) return `No cards in ${col}.`;
+export function renderColumnContext(col: Column, cards: Card[], projects: Project[], filterTags?: string[]): string {
+  let colCards = cards.filter(c => c.column === col);
+  if (filterTags && filterTags.length > 0) {
+    colCards = filterCardsByTags(colCards, filterTags);
+  }
+  if (colCards.length === 0) return `No cards in ${col}${filterTags ? ` with tags: ${filterTags.join(", ")}` : ""}.`;
 
   const priorityScore: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
   const sortCards = (list: Card[]) =>
