@@ -4,7 +4,7 @@
 
 import { randomBytes } from "node:crypto";
 
-export type EntryType = "fact" | "workflow" | "guide" | "howto" | "error" | "postmortem";
+export type EntryType = "fact" | "workflow" | "guide" | "howto" | "error" | "postmortem" | "lesson";
 export type Severity = "low" | "medium" | "high";
 
 export interface KBEntry {
@@ -65,7 +65,7 @@ export function entryToMarkdown(entry: KBEntry): string {
   return lines.join("\n");
 }
 
-export const VALID_TYPES: EntryType[] = ["fact", "workflow", "guide", "howto", "error", "postmortem"];
+export const VALID_TYPES: EntryType[] = ["fact", "workflow", "guide", "howto", "error", "postmortem", "lesson"];
 export const VALID_SEVERITIES: Severity[] = ["low", "medium", "high"];
 
 export function validateType(t: string): EntryType {
