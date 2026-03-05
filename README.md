@@ -9,14 +9,13 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/augmentedmike/miniclaw-os/releases"><img src="https://img.shields.io/github/v/release/augmentedmike/miniclaw-os?include_prereleases&style=for-the-badge" alt="Latest Release"></a>
+  <a href="https://github.com/augmentedmike/miniclaw-os/releases"><img src="https://img.shields.io/badge/version-v0.0.1-blue?style=for-the-badge" alt="v0.0.1"></a>
   <a href="https://github.com/augmentedmike/miniclaw-os/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="MIT License"></a>
-  <a href="https://discord.gg/clawd"><img src="https://img.shields.io/discord/1456350064065904867?label=Discord&logo=discord&logoColor=white&color=5865F2&style=for-the-badge" alt="Discord"></a>
 </p>
 
 **MiniClaw** is a personal AI that lives on your Mac — not in someone else's cloud. It has a real personality, remembers your life, and can actually *do* things: draft emails, write code, manage projects, run tasks overnight. Everything you do stays on your machine. Everything.
 
-[Getting Started](#install) · [Docs](https://docs.openclaw.ai) · [GitHub](https://github.com/augmentedmike/miniclaw-os) · [Discord](https://discord.gg/clawd)
+[Getting Started](#install) · [Docs](https://docs.openclaw.ai) · [GitHub](https://github.com/augmentedmike/miniclaw-os) · [miniclaw.bot](https://miniclaw.bot)
 
 ---
 
@@ -64,7 +63,7 @@ When it's done:
 Once installed, start chatting:
 
 - **Browser:** Open `http://localhost:18789`
-- **Chat apps:** Telegram, WhatsApp, iMessage, Discord, Slack, and more (the installer walks you through linking one)
+- **Chat apps:** Telegram, WhatsApp, iMessage, Slack, and more (the installer walks you through linking one)
 - **Terminal:** Use `openclaw agent "your message here"` for CLI access
 
 ---
@@ -84,14 +83,42 @@ Once installed, start chatting:
 
 MiniClaw's mind is built like an actual brain. Each region does one thing well.
 
-| Component | Purpose |
-|-----------|---------|
-| **mc-board** (Prefrontal Cortex) | Planning & task management — your AI tracks work like you do |
-| **mc-designer** (Occipital Lobe) | Vision & image creation — generates and edits images with Gemini |
-| **mc-kb** (Hippocampus) | Memory — what your AI knows and remembers over time |
-| **mc-trust** (Immune System) | Security — verifies identity of other agents it works with |
+| Plugin | Brain Region | Purpose |
+|--------|-------------|---------|
+| **mc-board** | Prefrontal Cortex | Planning & task management — kanban board, autonomous work queue |
+| **mc-kb** | Hippocampus | Long-term memory — vector search across everything your AI knows |
+| **mc-context** | Working Memory | Session context window management — keeps relevant history in view |
+| **mc-designer** | Occipital Lobe | Vision & image creation — generates and edits images with Gemini |
+| **mc-trust** | Immune System | Security — verifies identity of agents it works with |
+| **mc-soul** | Identity | Personality, voice, and values — who your AI actually is |
+| **mc-queue** | Basal Ganglia | Async task queue — non-blocking Telegram and channel routing |
+| **mc-rolodex** | Social Cortex | Contact management — who your AI knows and how to reach them |
 
 You don't need to manage these directly. They just work.
+
+---
+
+## CLI Tools
+
+| Tool | Purpose |
+|------|---------|
+| `mc` | Main CLI — interact with your agent from the terminal |
+| `mc-vault` | Secret store — age-encrypted, local-only key/value vault |
+| `mc-doctor` | Full diagnosis & repair — finds and fixes broken installs |
+| `mc-smoke` | Quick health check — verifies everything is running |
+| `mc-prompts` | Prompt management — view and edit agent prompt library |
+
+---
+
+## How It Works
+
+MiniClaw solves a fundamental problem with AI agents: **blocking**.
+
+Traditional AI gateways handle Telegram messages synchronously — while the agent thinks, the connection blocks. Long tasks stall. Multiple channels compete.
+
+MiniClaw routes everything through an **async queue** (`mc-queue`). Messages arrive, get queued, and agents process them independently. The gateway never blocks. Multiple channels (Telegram DMs, group channels, cron jobs, web) all run concurrently.
+
+Agents communicate using **Haiku** (Claude's fastest model) by default. Short, efficient responses save tokens for the reasoning that matters — not chat loop overhead. When a task needs depth, the agent escalates to a larger model automatically.
 
 ---
 
@@ -141,18 +168,14 @@ It'll diagnose what's wrong and offer to fix it.
 ## Learn More
 
 - [Full Docs](https://docs.openclaw.ai) — architecture, guides, troubleshooting
-- [Showcase](https://docs.openclaw.ai/start/showcase) — what others have built
 - [GitHub](https://github.com/augmentedmike/miniclaw-os) — source code & issues
-- [Discord](https://discord.gg/clawd) — community & help
 - [miniclaw.bot](https://miniclaw.bot) — setup help & consulting
 
 ---
 
 ## Questions?
 
-Book a 30-minute setup session with Michael (the creator): **[miniclaw.bot](https://miniclaw.bot)** — $100, no subscription.
-
-Or join the [Discord](https://discord.gg/clawd) and ask the community.
+Book a 30-minute setup session with the creator: **[miniclaw.bot](https://miniclaw.bot)**
 
 ---
 
