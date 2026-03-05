@@ -1,0 +1,20 @@
+{
+  "id": "mc-jobs",
+  "name": "MiniClaw Jobs",
+  "description": "Role-specific job templates with prompts, procedures, and review gates. Define and activate jobs (e.g., Software Developer) to give agents role-specific workflows.",
+  "version": "0.1.0",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "jobsDir": {
+        "type": "string",
+        "description": "Directory for job templates. Defaults to ~/.miniclaw/jobs."
+      },
+      "defaultJob": {
+        "type": "string",
+        "description": "Default job to activate. Defaults to 'software-developer'."
+      }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "mc-jobs",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "index.ts",
+  "description": "Role-specific job templates and workflows for MiniClaw agents",
+  "devDependencies": {
+    "openclaw": "*"
+  }
+}

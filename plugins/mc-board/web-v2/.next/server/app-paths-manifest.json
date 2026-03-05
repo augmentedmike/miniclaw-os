@@ -1,0 +1,16 @@
+{
+  "/_global-error/page": "app/_global-error/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/active/route": "app/api/active/route.js",
+  "/api/board/action/route": "app/api/board/action/route.js",
+  "/api/board/route": "app/api/board/route.js",
+  "/api/card/[id]/route": "app/api/card/[id]/route.js",
+  "/api/cron/route": "app/api/cron/route.js",
+  "/api/kb/route": "app/api/kb/route.js",
+  "/api/qmd/route": "app/api/qmd/route.js",
+  "/board/page": "app/board/page.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
+  "/memory/page": "app/memory/page.js",
+  "/page": "app/page.js",
+  "/scheduling/page": "app/scheduling/page.js"
+}

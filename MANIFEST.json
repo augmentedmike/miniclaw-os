@@ -114,6 +114,19 @@
         "vaultBin": "~/.openclaw/miniclaw/system/bin/mc-vault",
         "sessionTtlMs": 3600000
       }
+    },
+    {
+      "id": "mc-jobs",
+      "label": "Jobs",
+      "description": "Role-specific job templates with workflows, procedures, and review gates for agents.",
+      "path": "plugins/mc-jobs",
+      "entry": "index.ts",
+      "cli": true,
+      "tools": [],
+      "config": {
+        "jobsDir": "~/.miniclaw/jobs",
+        "defaultJob": "software-developer"
+      }
     }
   ],
 
