@@ -8,6 +8,7 @@
   "/api/cron/route": "/api/cron",
   "/api/kb/route": "/api/kb",
   "/api/qmd/route": "/api/qmd",
+  "/api/watch/[cardId]/route": "/api/watch/[cardId]",
   "/board/page": "/board",
   "/favicon.ico/route": "/favicon.ico",
   "/memory/page": "/memory",

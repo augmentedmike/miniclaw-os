@@ -1,6 +1,1 @@
-{
-  "/api/board/route": "app/api/board/route.js",
-  "/api/cron/route": "app/api/cron/route.js",
-  "/api/kb/route": "app/api/kb/route.js",
-  "/page": "app/page.js"
-}
+{}

@@ -38,6 +38,7 @@ export const CardItem = memo(function CardItem({ card, projectName, isActive, wo
 
   return (
     <div
+      data-card-id={card.id}
       onClick={() => onClick(card.id)}
       className={`card${isActive ? " card--active" : ""}`}
     >

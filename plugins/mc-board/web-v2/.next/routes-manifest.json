@@ -28,6 +28,14 @@
         "nxtPid": "nxtPid"
       },
       "namedRegex": "^/api/card/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/watch/[cardId]",
+      "regex": "^/api/watch/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPcardId": "nxtPcardId"
+      },
+      "namedRegex": "^/api/watch/(?<nxtPcardId>[^/]+?)(?:/)?$"
     }
   ],
   "staticRoutes": [

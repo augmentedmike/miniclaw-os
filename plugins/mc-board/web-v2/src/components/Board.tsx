@@ -234,6 +234,7 @@ export function Board({ selectedProject, onToast, notifsEnabled, onBoardData }: 
       <CardModal
         cardId={openCardId}
         projects={projects}
+        activeIds={activeIds}
         onClose={closeCard}
         onToast={onToast}
         onMutate={() => mutate()}

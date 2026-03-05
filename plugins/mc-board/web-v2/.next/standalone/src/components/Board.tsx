@@ -27,9 +27,25 @@ interface Props {
   onBoardData?: (projects: Project[], counts: Counts) => void;
 }
 
+function fuzzyMatch(query: string, card: { id: string; title: string; tags: string[] }): boolean {
+  const q = query.toLowerCase();
+  const haystack = `${card.id} ${card.title} ${card.tags.join(" ")}`.toLowerCase();
+  return haystack.includes(q);
+}
+
+const COL_LABEL: Record<string, string> = {
+  backlog: "Backlog",
+  "in-progress": "In Progress",
+  "in-review": "In Review",
+  shipped: "Shipped",
+};
+
 export function Board({ selectedProject, onToast, notifsEnabled, onBoardData }: Props) {
   const [openCardId, setOpenCardId] = useState<string | null>(null);
   const [shippedOpen, setShippedOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
   // Track which log keys we've already toasted (cardId:action:at)
   const seenLogKeys = useRef<Set<string>>(new Set());
   const initialized = useRef(false);
@@ -111,6 +127,42 @@ export function Board({ selectedProject, onToast, notifsEnabled, onBoardData }: 
 
   const activeIds = useMemo(() => new Set(data?.activeIds ?? []), [data?.activeIds]);
 
+  const searchResults = useMemo(() => {
+    const q = searchQuery.trim();
+    if (!q || q.length < 2) return [];
+    const cards = data?.cards ?? [];
+    const projects = data?.projects ?? [];
+    return cards
+      .filter(c => fuzzyMatch(q, c))
+      .slice(0, 12)
+      .map(c => ({
+        ...c,
+        projectName: projects.find(p => p.id === c.project_id)?.name ?? "",
+      }));
+  }, [searchQuery, data]);
+
+  // Close search dropdown on outside click
+  useEffect(() => {
+    function onDown(e: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, []);
+
+  const handleSearchSelect = (cardId: string) => {
+    setSearchQuery("");
+    setSearchOpen(false);
+    openCard(cardId);
+    // Scroll to card after modal opens (small delay for render)
+    setTimeout(() => {
+      const el = document.querySelector(`[data-card-id="${cardId}"]`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 100);
+  };
+
   if (isLoading && !data) {
     return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flex: 1, color: "#52525b", fontSize: 13 }}>Loading...</div>;
   }
@@ -120,6 +172,49 @@ export function Board({ selectedProject, onToast, notifsEnabled, onBoardData }: 
 
   return (
     <div className="board-tab">
+      {/* Search bar */}
+      <div ref={searchRef} className="relative" style={{ padding: "8px 16px 0" }}>
+        <input
+          type="text"
+          placeholder="Search cards…"
+          value={searchQuery}
+          onChange={e => { setSearchQuery(e.target.value); setSearchOpen(true); }}
+          onFocus={() => setSearchOpen(true)}
+          style={{
+            width: "100%", maxWidth: 400,
+            background: "#18181b", border: "1px solid #3f3f46",
+            borderRadius: 8, padding: "6px 12px", color: "#e4e4e7",
+            fontSize: 13, outline: "none", boxSizing: "border-box",
+          }}
+        />
+        {searchOpen && searchResults.length > 0 && (
+          <div style={{
+            position: "absolute", top: "100%", left: 16, zIndex: 100,
+            width: "min(420px, calc(100vw - 32px))",
+            background: "#1c1c1e", border: "1px solid #3f3f46",
+            borderRadius: 10, boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+            marginTop: 4, overflow: "hidden",
+          }}>
+            {searchResults.map(c => (
+              <div
+                key={c.id}
+                onClick={() => handleSearchSelect(c.id)}
+                style={{
+                  padding: "8px 14px", cursor: "pointer",
+                  borderBottom: "1px solid #27272a",
+                  display: "flex", alignItems: "center", gap: 10,
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = "#27272a")}
+                onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+              >
+                <span style={{ fontSize: 11, color: "#71717a", flexShrink: 0, width: 80, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.id}</span>
+                <span style={{ fontSize: 13, color: "#e4e4e7", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.title}</span>
+                <span style={{ fontSize: 11, color: "#52525b", flexShrink: 0 }}>{COL_LABEL[c.column] ?? c.column}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
       <div className="board">
         {COLS.map(col => (
           <Column
@@ -139,6 +234,7 @@ export function Board({ selectedProject, onToast, notifsEnabled, onBoardData }: 
       <CardModal
         cardId={openCardId}
         projects={projects}
+        activeIds={activeIds}
         onClose={closeCard}
         onToast={onToast}
         onMutate={() => mutate()}
