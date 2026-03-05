@@ -13,6 +13,8 @@ export interface Card {
   priority: Priority;
   tags: string[];
   project_id?: string;
+  work_type?: "work" | "verify";
+  linked_card_id?: string;
   created_at: string;
   updated_at: string;
   history: HistoryEntry[];

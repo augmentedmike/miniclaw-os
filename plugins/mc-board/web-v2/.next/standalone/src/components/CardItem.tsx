@@ -60,6 +60,29 @@ export const CardItem = memo(function CardItem({ card, projectName, isActive, wo
         <span className="card-active-dot" />
       </div>
 
+      {/* Type badge */}
+      {card.work_type && (
+        <div style={{ marginBottom: 4 }}>
+          <span style={{
+            display: "inline-block",
+            padding: "2px 6px",
+            borderRadius: "3px",
+            fontSize: "11px",
+            fontWeight: "600",
+            textTransform: "uppercase",
+            background: card.work_type === "work" ? "#dbeafe" : "#fce7f3",
+            color: card.work_type === "work" ? "#0c4a6e" : "#831843",
+          }}>
+            {card.work_type}
+          </span>
+          {card.linked_card_id && (
+            <span style={{ marginLeft: 6, fontSize: "12px", color: "#71717a" }}>
+              → {card.linked_card_id}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Tags */}
       {card.tags.length > 0 && (
         <div className="card-tags">

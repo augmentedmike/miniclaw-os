@@ -268,6 +268,40 @@ export function CardModal({ cardId, projects, activeIds, onClose, onToast, onMut
               </div>
             )}
 
+            {card.work_type && (
+              <div className="px-5 pt-3 border-t border-zinc-800 pt-4">
+                <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-2">Relationship</h3>
+                <div className="flex items-center gap-2 text-sm">
+                  <span style={{
+                    display: "inline-block",
+                    padding: "2px 8px",
+                    borderRadius: "3px",
+                    fontSize: "11px",
+                    fontWeight: "600",
+                    textTransform: "uppercase",
+                    background: card.work_type === "work" ? "#dbeafe" : "#fce7f3",
+                    color: card.work_type === "work" ? "#0c4a6e" : "#831843",
+                  }}>
+                    {card.work_type}
+                  </span>
+                  {card.linked_card_id && (
+                    <>
+                      <span className="text-zinc-600">→</span>
+                      <button
+                        onClick={() => {
+                          // This would navigate to the linked card in a real implementation
+                          onToast?.("ℹ", "Linked to", card.linked_card_id);
+                        }}
+                        className="text-blue-400 hover:text-blue-300 font-mono underline"
+                      >
+                        {card.linked_card_id}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="px-5 py-4 space-y-5">
               {SECTIONS.map(({ label, field }) => {
                 const val = card[field] as string;

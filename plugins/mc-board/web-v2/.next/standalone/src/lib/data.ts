@@ -62,6 +62,8 @@ export function parseCard(content: string): Card {
     priority: (meta.priority as Priority) ?? "medium",
     tags: (meta.tags as string[]) ?? [],
     project_id: meta.project_id ? String(meta.project_id) : undefined,
+    work_type: meta.work_type ? (String(meta.work_type) as "work" | "verify") : undefined,
+    linked_card_id: meta.linked_card_id ? String(meta.linked_card_id) : undefined,
     created_at: String(meta.created_at ?? ""),
     updated_at: String(meta.updated_at ?? ""),
     history: historyRaw.map(h => ({ column: h.column as Column, moved_at: h.moved_at })) as HistoryEntry[],
