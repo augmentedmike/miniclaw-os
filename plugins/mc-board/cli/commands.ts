@@ -301,6 +301,42 @@ Examples:
 
         store.move(card, target);
         console.log(`Moved ${card.id} → ${target}`);
+
+        // ---- Auto-archive trigger for failed verify cards ----
+        if (card.work_type === 'verify' && target === 'shipped') {
+          // Check if the verify card has unchecked criteria (failure indicator)
+          const unchecked = (card.acceptance_criteria.match(/^- \[ \]/gm) ?? []).length;
+          if (unchecked > 0 && card.linked_card_id) {
+            // Failed verify: archive this card and resurfacew the work card
+            try {
+              const workCard = store.findById(card.linked_card_id);
+              
+              // Archive the failed verify card
+              const sourceFile = path.join(store.cardsDir, cardFilename(card));
+              archive.archiveCard(card, sourceFile);
+              
+              // Clear all criteria checkboxes on work card
+              const uncheckedCriteria = (workCard.acceptance_criteria.match(/^- \[x\]/gm) ?? []).length;
+              const totalCriteria = (workCard.acceptance_criteria.match(/^- \[[ x]\]/gm) ?? []).length;
+              
+              // Reset all criteria to unchecked
+              const resetCriteria = workCard.acceptance_criteria
+                .split('\n')
+                .map(line => line.replace(/^- \[x\]/, '- [ ]'))
+                .join('\n');
+              
+              // Update work card with reset criteria and move back to in-progress
+              store.update(workCard.id, { acceptance_criteria: resetCriteria });
+              store.move(workCard, 'in-progress');
+              
+              console.log(`Auto-archive: Failed verify ${card.id} archived.`);
+              console.log(`Auto-resurfaced: ${workCard.id} moved back to in-progress (${uncheckedCriteria}/${totalCriteria} criteria failed).`);
+            } catch (err) {
+              // Log but don't fail the move — the verify card is already shipped
+              ctx.logger.warn(`Auto-archive failed for ${card.id}: ${err}`);
+            }
+          }
+        }
       } catch (err) {
         console.error(String(err));
         process.exit(1);

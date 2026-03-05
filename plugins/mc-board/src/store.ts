@@ -24,6 +24,8 @@ export class CardStore {
     priority?: Priority;
     tags?: string[];
     project_id?: string;
+    work_type?: 'work' | 'verify';
+    linked_card_id?: string;
   }): Card {
     const now = new Date().toISOString();
     const card: Card = {
@@ -33,6 +35,8 @@ export class CardStore {
       priority: opts.priority ?? "medium",
       tags: opts.tags ?? [],
       ...(opts.project_id ? { project_id: opts.project_id } : {}),
+      ...(opts.work_type ? { work_type: opts.work_type } : {}),
+      ...(opts.linked_card_id ? { linked_card_id: opts.linked_card_id } : {}),
       created_at: now,
       updated_at: now,
       history: [{ column: "backlog", moved_at: now }],
@@ -86,6 +90,8 @@ export class CardStore {
         | "priority"
         | "tags"
         | "project_id"
+        | "work_type"
+        | "linked_card_id"
         | "problem_description"
         | "implementation_plan"
         | "acceptance_criteria"

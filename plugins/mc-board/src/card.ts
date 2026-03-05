@@ -17,6 +17,8 @@ export interface Card {
   priority: Priority;
   tags: string[];
   project_id?: string;    // optional — links card to a Project (prj_<hex>)
+  work_type?: 'work' | 'verify';  // optional — designates work vs verification card
+  linked_card_id?: string;        // optional — for verify cards, links to source work card
   created_at: string;
   updated_at: string;
   history: HistoryEntry[];
@@ -195,6 +197,10 @@ export function parseCard(content: string): Card {
     : [];
 
   const project_id = fm.project_id ? String(fm.project_id) : undefined;
+  const work_type = fm.work_type && (fm.work_type === 'work' || fm.work_type === 'verify')
+    ? (fm.work_type as 'work' | 'verify')
+    : undefined;
+  const linked_card_id = fm.linked_card_id ? String(fm.linked_card_id) : undefined;
 
   return {
     id: String(fm.id ?? ""),
@@ -203,6 +209,8 @@ export function parseCard(content: string): Card {
     priority: (fm.priority as Priority) ?? "medium",
     tags,
     ...(project_id ? { project_id } : {}),
+    ...(work_type ? { work_type } : {}),
+    ...(linked_card_id ? { linked_card_id } : {}),
     created_at: String(fm.created_at ?? new Date().toISOString()),
     updated_at: String(fm.updated_at ?? new Date().toISOString()),
     history,
@@ -221,6 +229,8 @@ export function serializeCard(card: Card): string {
   const title = card.title.replace(/"/g, '\\"');
 
   const projectLine = card.project_id ? `project_id: ${card.project_id}\n` : "";
+  const workTypeLine = card.work_type ? `work_type: ${card.work_type}\n` : "";
+  const linkedCardLine = card.linked_card_id ? `linked_card_id: ${card.linked_card_id}\n` : "";
 
   const frontmatter =
     `---\n` +
@@ -230,6 +240,8 @@ export function serializeCard(card: Card): string {
     `priority: ${card.priority}\n` +
     `tags: ${tagsStr}\n` +
     projectLine +
+    workTypeLine +
+    linkedCardLine +
     `created_at: ${card.created_at}\n` +
     `updated_at: ${card.updated_at}\n` +
     `history:\n` +
