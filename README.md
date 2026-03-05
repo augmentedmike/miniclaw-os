@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/augmentedmike/miniclaw-os/releases"><img src="https://img.shields.io/badge/version-v0.0.1-blue?style=for-the-badge" alt="v0.0.1"></a>
-  <a href="https://github.com/augmentedmike/miniclaw-os/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="MIT License"></a>
+  <a href="https://github.com/augmentedmike/miniclaw-os/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=for-the-badge" alt="Apache 2.0 License"></a>
 </p>
 
 **MiniClaw** is a personal AI that lives on your Mac — not in someone else's cloud. It has a real personality, remembers your life, and can actually *do* things: draft emails, write code, manage projects, run tasks overnight. Everything you do stays on your machine. Everything.
@@ -621,6 +621,6 @@ Book a 30-minute setup session with the creator: **[miniclaw.bot](https://minicl
 
 ## License
 
-MIT. Open source. Built by [AugmentedMike](https://augmentedmike.com).
+Apache 2.0. Open source. Built by [AugmentedMike](https://augmentedmike.com).
 
 Made with coffee and conviction.
