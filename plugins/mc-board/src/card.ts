@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 export type Column = "backlog" | "in-progress" | "in-review" | "shipped";
-export type Priority = "high" | "medium" | "low";
+export type Priority = "critical" | "high" | "medium" | "low";
 
 export interface HistoryEntry {
   column: Column;

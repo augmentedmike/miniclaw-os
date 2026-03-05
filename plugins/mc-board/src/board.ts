@@ -219,7 +219,7 @@ export function renderColumnContext(col: Column, cards: Card[], projects: Projec
   const colCards = cards.filter(c => c.column === col);
   if (colCards.length === 0) return `No cards in ${col}.`;
 
-  const priorityScore: Record<string, number> = { high: 3, medium: 2, low: 1 };
+  const priorityScore: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
   const sortCards = (list: Card[]) =>
     [...list].sort((a, b) => {
       const pd = (priorityScore[b.priority] ?? 0) - (priorityScore[a.priority] ?? 0);

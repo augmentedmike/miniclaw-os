@@ -29,6 +29,10 @@ export function checkGate(card: Card, target: Column): GateResult {
       failures.push({ field: "implementation_plan", reason: "required before starting work" });
     if (!card.acceptance_criteria.trim())
       failures.push({ field: "acceptance_criteria", reason: "required before starting work" });
+    // CRITICAL cards have the same gate requirements as regular cards
+    // (title, problem, plan, criteria all required)
+    if (card.priority === "critical" && !card.acceptance_criteria.trim())
+      failures.push({ field: "acceptance_criteria", reason: "CRITICAL priority requires explicit criteria — must be specific and measurable" });
   }
 
   if (target === "in-review") {
