@@ -1,0 +1,16 @@
+{
+  "name": "mc-docs",
+  "version": "1.0.0",
+  "description": "Document authoring, versioning, and linked document management for MiniClaw",
+  "author": "AugmentedMike",
+  "license": "MIT",
+  "enabled": true,
+  "hooks": [],
+  "commands": [
+    {
+      "name": "mc-docs",
+      "description": "Manage documents, versions, and document-card links",
+      "hidden": false
+    }
+  ]
+}
