@@ -54,6 +54,8 @@ Examples:
     .option("--priority <p>", "Priority level: high, medium, low", "medium")
     .option("--tags <tags>", "Comma-separated tags, e.g. miniclaw,build")
     .option("--project <id>", "Link to a project by ID (prj_<hex>)")
+    .option("--work-type <type>", "Card type: 'work' or 'verify' (optional)")
+    .option("--linked-card-id <id>", "For verify cards, the source work card ID (optional)")
     .addHelpText("after", `
 New cards always start in backlog. Fill in problem, plan, and criteria
 before moving to in-progress.
@@ -61,8 +63,9 @@ before moving to in-progress.
 Examples:
   miniclaw brain create --title "Fix login bug"
   miniclaw brain create --title "Add dark mode" --priority high --tags ui,miniclaw
-  miniclaw brain create --title "API redesign" --project prj_a1b2c3d4`)
-    .action((opts: { title: string; priority: string; tags?: string; project?: string }) => {
+  miniclaw brain create --title "API redesign" --project prj_a1b2c3d4
+  miniclaw brain create --title "VERIFY: Fix login bug" --work-type verify --linked-card-id crd_abc123`)
+    .action((opts: { title: string; priority: string; tags?: string; project?: string; workType?: string; linkedCardId?: string }) => {
       const priority = normalizePriority(opts.priority);
       if (!priority) {
         console.error(`Invalid priority: ${opts.priority}. Use: high, medium, low`);
@@ -78,14 +81,32 @@ Examples:
           process.exit(1);
         }
       }
+      // Validate work_type if provided
+      let work_type: 'work' | 'verify' | undefined;
+      if (opts.workType) {
+        if (opts.workType !== 'work' && opts.workType !== 'verify') {
+          console.error(`Invalid work-type: ${opts.workType}. Use: work, verify`);
+          process.exit(1);
+        }
+        work_type = opts.workType as 'work' | 'verify';
+      }
+      // Validate linked_card_id if provided
+      let linked_card_id: string | undefined;
+      if (opts.linkedCardId) {
+        try { store.findById(opts.linkedCardId); } catch {
+          console.error(`Linked card not found: ${opts.linkedCardId}`);
+          process.exit(1);
+        }
+        linked_card_id = opts.linkedCardId;
+      }
       // Pre-create duplicate title check
       const conflict = store.checkTitleConflict(opts.title, { projectId: opts.project });
       if (conflict) {
         console.error(formatConflictError(opts.title, conflict));
         process.exit(1);
       }
-      const card = store.create({ title: opts.title, priority, tags, project_id: opts.project });
-      console.log(`Created ${card.id}: ${card.title}${opts.project ? ` [project: ${opts.project}]` : ""}`);
+      const card = store.create({ title: opts.title, priority, tags, project_id: opts.project, work_type, linked_card_id });
+      console.log(`Created ${card.id}: ${card.title}${opts.project ? ` [project: ${opts.project}]` : ""}${work_type ? ` [${work_type}${linked_card_id ? ` → ${linked_card_id}` : ''}]` : ""}`);
     });
 
   // ---- brain list ----
@@ -184,6 +205,8 @@ criteria, notes, review notes, and full column history with timestamps.
     .option("--notes <text>", "Notes / outcome — observations, decisions, results")
     .option("--review <text>", "Review notes — filled after critic/audit pass, required to ship")
     .option("--project <id>", "Link card to a project by ID (prj_<hex>), or 'none' to unlink")
+    .option("--work-type <type>", "Card type: 'work' or 'verify', or 'none' to clear")
+    .option("--linked-card-id <id>", "For verify cards, the source work card ID, or 'none' to clear")
     .addHelpText("after", `
 At least one option required. Pass any combination.
 
@@ -223,6 +246,27 @@ Examples:
               process.exit(1);
             }
             updates.project_id = opts.project;
+          }
+        }
+        if (opts.workType !== undefined) {
+          if (opts.workType === "none") {
+            updates.work_type = undefined;
+          } else if (opts.workType === "work" || opts.workType === "verify") {
+            updates.work_type = opts.workType;
+          } else {
+            console.error(`Invalid work-type: ${opts.workType}. Use: work, verify, none`);
+            process.exit(1);
+          }
+        }
+        if (opts.linkedCardId !== undefined) {
+          if (opts.linkedCardId === "none") {
+            updates.linked_card_id = undefined;
+          } else {
+            try { store.findById(opts.linkedCardId); } catch {
+              console.error(`Linked card not found: ${opts.linkedCardId}`);
+              process.exit(1);
+            }
+            updates.linked_card_id = opts.linkedCardId;
           }
         }
 
