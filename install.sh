@@ -341,7 +341,12 @@ else
   ok "Vault already initialised"
 fi
 
-if [ -t 0 ]; then
+if ! tty -s && [[ ! -e /dev/tty ]]; then
+  warn "No terminal available — skipping secret prompts. Run ./install.sh directly to enter secrets."
+else
+  # Read from /dev/tty directly so this works even when stdin is a pipe (curl | bash)
+  TTY_IN=/dev/tty
+
   echo ""
   echo "  Enter secrets (leave blank to skip):"
   echo ""
@@ -354,7 +359,7 @@ if [ -t 0 ]; then
   for entry in "${VAULT_SECRETS[@]}"; do
     key="${entry%%:*}"; desc="${entry#*:}"
     printf "  %s (%s)\n  > " "$key" "$desc"
-    read -r -s value; echo ""
+    read -r -s value < "$TTY_IN"; echo ""
     if [[ -n "$value" ]]; then
       echo -n "$value" | OPENCLAW_VAULT_ROOT="$VAULT_ROOT" "$MC_VAULT" set "$key" -
       ok "Stored: $key"
@@ -366,12 +371,12 @@ if [ -t 0 ]; then
   # ── mc-designer (optional) ─────────────────────────────────────────────────
   echo ""
   printf "  Enable mc-designer (AI image generation)? [y/N] "
-  read -r enable_designer
+  read -r enable_designer < "$TTY_IN"
   if [[ "$enable_designer" == "y" || "$enable_designer" == "Y" ]]; then
     echo ""
     echo "  Get a free Gemini API key at: https://aistudio.google.com/app/apikey"
     printf "  Gemini API key\n  > "
-    read -r -s gemini_key; echo ""
+    read -r -s gemini_key < "$TTY_IN"; echo ""
     if [[ -n "$gemini_key" ]]; then
       echo -n "$gemini_key" | OPENCLAW_VAULT_ROOT="$VAULT_ROOT" "$MC_VAULT" set gemini-api-key -
       ok "Stored: gemini-api-key"
@@ -381,8 +386,6 @@ if [ -t 0 ]; then
   else
     warn "Skipped: mc-designer setup (run install.sh again or use 'mc vault set gemini-api-key' to enable later)"
   fi
-else
-  warn "Non-interactive: skipping secret prompts. Run ./install.sh directly to enter secrets."
 fi
 
 # ── Step 12: Brain board crons ────────────────────────────────────────────────
