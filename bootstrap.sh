@@ -12,7 +12,7 @@
 
 set -euo pipefail
 
-MINICLAW_VERSION="${MINICLAW_VERSION:-v1.0.2}"
+MINICLAW_VERSION="${MINICLAW_VERSION:-v0.0.1}"
 REPO_URL="https://github.com/augmentedmike/miniclaw-os.git"
 OPENCLAW_DIR="${OPENCLAW_DIR:-$HOME/.openclaw}"
 PROJECTS_DIR="$OPENCLAW_DIR/projects"
@@ -47,8 +47,11 @@ echo "    • Homebrew, Node.js 22, Git, Python 3, jq, bun, QMD"
 echo "    • OpenClaw (npm global)"
 echo "    • miniclaw-os plugins and CLI tools"
 echo ""
-if tty -s || [[ -e /dev/tty ]]; then
+if { true < /dev/tty; } 2>/dev/null; then
   read -rp "  Continue? (y/N): " CONFIRM < /dev/tty
+  [[ "$CONFIRM" == "y" || "$CONFIRM" == "Y" ]] || { echo "  Aborted."; exit 0; }
+elif [ -t 0 ]; then
+  read -rp "  Continue? (y/N): " CONFIRM
   [[ "$CONFIRM" == "y" || "$CONFIRM" == "Y" ]] || { echo "  Aborted."; exit 0; }
 else
   info "No terminal detected — proceeding automatically"

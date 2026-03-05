@@ -341,11 +341,17 @@ else
   ok "Vault already initialised"
 fi
 
-if ! tty -s && [[ ! -e /dev/tty ]]; then
-  warn "No terminal available — skipping secret prompts. Run ./install.sh directly to enter secrets."
-else
+if { true < /dev/tty; } 2>/dev/null; then
   # Read from /dev/tty directly so this works even when stdin is a pipe (curl | bash)
   TTY_IN=/dev/tty
+elif [ -t 0 ]; then
+  TTY_IN=/dev/stdin
+else
+  warn "No terminal available — skipping secret prompts. Run ./install.sh directly to enter secrets."
+  TTY_IN=""
+fi
+
+if [[ -n "$TTY_IN" ]]; then
 
   echo ""
   echo "  Enter secrets (leave blank to skip):"
@@ -386,7 +392,7 @@ else
   else
     warn "Skipped: mc-designer setup (run install.sh again or use 'mc vault set gemini-api-key' to enable later)"
   fi
-fi
+fi # TTY_IN check
 
 # ── Step 12: Brain board crons ────────────────────────────────────────────────
 step "Step 12: Brain board cron workers"
