@@ -1,4 +1,3 @@
-import * as path from "node:path";
 import type { Command } from "commander";
 import type { CardStore } from "../src/store.js";
 import type { ProjectStore } from "../src/project-store.js";
@@ -13,9 +12,9 @@ import {
   renderProjectBoard,
   renderProjectList,
   suggestNext,
+  validateCardTags,
 } from "../src/board.js";
 import type { Column, Priority } from "../src/card.js";
-import { cardFilename } from "../src/card.js";
 
 export interface CliContext {
   program: Command;
@@ -68,12 +67,20 @@ Examples:
     .action((opts: { title: string; priority: string; tags?: string; project?: string; workType?: string; linkedCardId?: string }) => {
       const priority = normalizePriority(opts.priority);
       if (!priority) {
-        console.error(`Invalid priority: ${opts.priority}. Use: high, medium, low`);
+        console.error(`Invalid priority: ${opts.priority}. Use: critical, high, medium, low`);
         process.exit(1);
       }
       const tags = opts.tags
         ? opts.tags.split(",").map((t: string) => t.trim()).filter(Boolean)
         : [];
+      // Validate tags
+      const tagValidation = validateCardTags(tags);
+      if (!tagValidation.valid) {
+        console.warn(`⚠️  Warning: Invalid tags found:`);
+        for (const err of tagValidation.errors) {
+          console.warn(`  ${err}`);
+        }
+      }
       // Validate project if provided
       if (opts.project) {
         try { projects.findById(opts.project); } catch {
@@ -150,6 +157,7 @@ Examples:
     .description("Dump all cards in a column as a rich LLM-ready context block for triage")
     .requiredOption("--column <col>", "Column to dump: backlog, in-progress, in-review, shipped")
     .option("--skip-hold", "Exclude cards tagged 'on-hold' (being handled outside the queue)")
+    .option("--tags <tags>", "Filter by tags (comma-separated; returns cards with ANY of these tags)")
     .addHelpText("after", `
 Outputs all cards in the column with full detail (problem, plan, criteria),
 grouped by project and ordered by priority desc → oldest first.
@@ -159,18 +167,24 @@ Tag a card as 'on-hold' to signal it's being worked on outside the queue:
   openclaw mc-board update <id> --tags "on-hold,<reason-tag>"
 Then use --skip-hold so triage workers skip it automatically.
 
+Use --tags to filter by tag (any tag listed returns the card):
+  openclaw mc-board context --column backlog --tags blocked,urgent
+  openclaw mc-board context --column in-progress --tags focus
+
 Examples:
   openclaw mc-board context --column backlog
-  openclaw mc-board context --column backlog --skip-hold`)
-    .action((opts: { column: string; skipHold?: boolean }) => {
+  openclaw mc-board context --column backlog --skip-hold
+  openclaw mc-board context --column in-progress --tags focus`)
+    .action((opts: { column: string; skipHold?: boolean; tags?: string }) => {
       if (!COLUMNS.includes(opts.column as Column)) {
         console.error(`Invalid column: ${opts.column}. Valid: ${COLUMNS.join(", ")}`);
         process.exit(1);
       }
       let cards = store.list(opts.column as Column);
       if (opts.skipHold) cards = cards.filter(c => !c.tags.includes("on-hold"));
+      const filterTags = opts.tags ? opts.tags.split(",").map(t => t.trim()).filter(Boolean) : undefined;
       const allProjects = projects.list();
-      console.log(renderColumnContext(opts.column as Column, cards, allProjects));
+      console.log(renderColumnContext(opts.column as Column, cards, allProjects, filterTags));
     });
 
   // ---- brain show ----
@@ -204,6 +218,7 @@ criteria, notes, review notes, and full column history with timestamps.
     .option("--criteria <text>", "Acceptance criteria as markdown checklist (- [ ] / - [x])")
     .option("--notes <text>", "Notes / outcome — observations, decisions, results")
     .option("--review <text>", "Review notes — filled after critic/audit pass, required to ship")
+    .option("--research <text>", "Research notes — pre-work context, findings, and links")
     .option("--project <id>", "Link card to a project by ID (prj_<hex>), or 'none' to unlink")
     .option("--work-type <type>", "Card type: 'work' or 'verify', or 'none' to clear")
     .option("--linked-card-id <id>", "For verify cards, the source work card ID, or 'none' to clear")
@@ -230,13 +245,24 @@ Examples:
           }
           updates.priority = p;
         }
-        if (opts.tags !== undefined)
-          updates.tags = opts.tags.split(",").map((t: string) => t.trim()).filter(Boolean);
+        if (opts.tags !== undefined) {
+          const tags = opts.tags.split(",").map((t: string) => t.trim()).filter(Boolean);
+          // Validate tags
+          const tagValidation = validateCardTags(tags);
+          if (!tagValidation.valid) {
+            console.warn(`⚠️  Warning: Invalid tags found:`);
+            for (const err of tagValidation.errors) {
+              console.warn(`  ${err}`);
+            }
+          }
+          updates.tags = tags;
+        }
         if (opts.problem !== undefined) updates.problem_description = opts.problem;
         if (opts.plan !== undefined) updates.implementation_plan = opts.plan;
         if (opts.criteria !== undefined) updates.acceptance_criteria = opts.criteria;
         if (opts.notes !== undefined) updates.notes = opts.notes;
         if (opts.review !== undefined) updates.review_notes = opts.review;
+        if (opts.research !== undefined) updates.research = opts.research;
         if (opts.project !== undefined) {
           if (opts.project === "none") {
             updates.project_id = undefined;
@@ -351,13 +377,13 @@ Examples:
           // Check if the verify card has unchecked criteria (failure indicator)
           const unchecked = (card.acceptance_criteria.match(/^- \[ \]/gm) ?? []).length;
           if (unchecked > 0 && card.linked_card_id) {
-            // Failed verify: archive this card and resurfacew the work card
+            // Failed verify: archive this card and resurface the work card
             try {
               const workCard = store.findById(card.linked_card_id);
-              
-              // Archive the failed verify card
-              const sourceFile = path.join(store.cardsDir, cardFilename(card));
-              archive.archiveCard(card, sourceFile);
+
+              // Archive the failed verify card then delete from DB
+              archive.archiveCard(card);
+              store.delete(card.id);
               
               // Clear all criteria checkboxes on work card
               const uncheckedCriteria = (workCard.acceptance_criteria.match(/^- \[x\]/gm) ?? []).length;
@@ -445,8 +471,8 @@ Examples:
           console.error(`Card ${card.id} is in "${card.column}" — only shipped cards can be archived.`);
           process.exit(1);
         }
-        const sourceFile = path.join(store.cardsDir, cardFilename(card));
-        archive.archiveCard(card, sourceFile);
+        archive.archiveCard(card);
+        store.delete(card.id);
         console.log(`Archived ${card.id}: ${card.title}`);
       } catch (err) {
         console.error(String(err));
@@ -511,6 +537,61 @@ Reads across all archive files. Prefix match on card id.
         process.exit(1);
       }
       console.log(renderCardDetail(card));
+    });
+
+  // ---- brain delete <id> ----
+  brain
+    .command("delete <id>")
+    .alias("remove")
+    .description("Delete a card from the board (irreversible — use archive for shipped cards)")
+    .option("--force", "Skip confirmation prompt")
+    .action((id: string, opts: { force?: boolean }) => {
+      try {
+        const card = store.findById(id);
+        if (!opts.force) {
+          console.error(`Refusing to delete without --force. Run: openclaw mc-board delete ${id} --force`);
+          console.error(`  Card: ${card.id} (${card.column}): "${card.title}"`);
+          process.exit(1);
+        }
+        store.delete(id);
+        console.log(`Deleted ${card.id}: ${card.title}`);
+      } catch (err) {
+        console.error(String(err));
+        process.exit(1);
+      }
+    });
+
+  // ---- brain search ----
+  brain
+    .command("search <query>")
+    .description("Search cards by title, tags, or problem description (case-insensitive)")
+    .option("--column <col>", "Filter by column")
+    .option("--project <id>", "Filter by project ID")
+    .addHelpText("after", `
+Searches all active cards for the query string.
+
+Examples:
+  openclaw mc-board search "login"
+  openclaw mc-board search "sqlite" --column backlog`)
+    .action((query: string, opts: { column?: string; project?: string }) => {
+      const q = query.toLowerCase();
+      let cards = store.list(opts.column as Column | undefined);
+      if (opts.project) cards = cards.filter(c => c.project_id === opts.project);
+      const results = cards.filter(c =>
+        c.title.toLowerCase().includes(q) ||
+        c.tags.some(t => t.toLowerCase().includes(q)) ||
+        c.problem_description.toLowerCase().includes(q) ||
+        c.implementation_plan.toLowerCase().includes(q),
+      );
+      if (results.length === 0) {
+        console.log(`No cards matching: ${query}`);
+        return;
+      }
+      for (const card of results) {
+        const tagsStr = card.tags.length > 0 ? `  [${card.tags.join(", ")}]` : "";
+        const projStr = card.project_id ? `  {${card.project_id}}` : "";
+        console.log(`${card.id}  [${card.column}]  [${card.priority}]  ${card.title}${tagsStr}${projStr}`);
+      }
     });
 
   // ---- brain project ----
@@ -720,45 +801,10 @@ Useful for auditing which agent processed which ticket and when.
   // ---- brain check-dupes ----
   brain
     .command("check-dupes")
-    .description("Detect cards with duplicate IDs across files (data integrity check)")
-    .addHelpText("after", `
-Scans the cards directory for files containing duplicate card IDs.
-When duplicates are found, the list() command keeps the most recently
-updated version — but stale files should be deleted manually.
-
-  openclaw mc-board check-dupes`)
-    .option("--fix", "Automatically delete stale duplicates, keeping the most recently updated file")
-    .action((opts: { fix?: boolean }) => {
-      const dupes = store.detectDuplicates();
-      if (dupes.size === 0) {
-        console.log("No duplicate card IDs found. Board integrity OK.");
-        return;
-      }
-      console.error(`Found ${dupes.size} duplicate card ID(s):\n`);
-      for (const [id, files] of dupes) {
-        console.error(`  ${id}:`);
-        // Sort by updated_at descending — keep the newest
-        const sorted = [...files].sort((a, b) => {
-          const ra = fs.statSync(path.join(store.cardsDir, a)).mtimeMs;
-          const rb = fs.statSync(path.join(store.cardsDir, b)).mtimeMs;
-          return rb - ra;
-        });
-        const [keep, ...stale] = sorted;
-        console.error(`    keep:   ${keep}`);
-        for (const f of stale) {
-          if (opts.fix) {
-            fs.unlinkSync(path.join(store.cardsDir, f));
-            console.error(`    deleted: ${f}`);
-          } else {
-            console.error(`    stale:  ${f}`);
-          }
-        }
-      }
-      if (!opts.fix) {
-        console.error(`\nRun with --fix to automatically delete stale duplicates.`);
-        process.exit(1);
-      }
-      console.log(`\nFixed ${dupes.size} duplicate(s).`);
+    .description("Data integrity check (SQLite PRIMARY KEY enforces uniqueness — always clean)")
+    .option("--fix", "No-op with SQLite storage (kept for script compatibility)")
+    .action(() => {
+      console.log("SQLite store: duplicate IDs are structurally impossible. Board integrity OK.");
     });
 
 }

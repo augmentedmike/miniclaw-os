@@ -1,0 +1,198 @@
+import { listCards } from "@/lib/data";
+import { spawn } from "node:child_process";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import * as os from "node:os";
+
+export const dynamic = "force-dynamic";
+
+const CLAUDE_BIN = process.env.CLAUDE_BIN ?? "claude";
+const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".miniclaw");
+const LOG_DIR = path.join(STATE_DIR, "logs", "backlog-tests");
+
+function watchPid(pid: number, t0: number, onEvent: (msg: string) => void) {
+  const ts = () => `+${((Date.now() - t0) / 1000).toFixed(2)}s`;
+  let seenNet = false;
+  let seenEstablished = false;
+  let stopped = false;
+  let inFlight = false;
+
+  function poll() {
+    if (stopped || inFlight) return;
+    inFlight = true;
+    let out = "";
+    const lsof = spawn("lsof", ["-p", String(pid), "-i", "TCP"], { stdio: ["ignore", "pipe", "ignore"] });
+    lsof.stdout.on("data", (d: Buffer) => { out += d.toString(); });
+    lsof.on("close", (code) => {
+      inFlight = false;
+      if (stopped) return;
+      if (code !== 0) { stopped = true; return; }
+      const lines = out.split("\n");
+      if (!seenNet && lines.some(l => /TCP/.test(l))) {
+        seenNet = true;
+        onEvent(`[${ts()}] pid ${pid}: TCP socket opened\n`);
+      }
+      if (!seenEstablished && lines.some(l => /ESTABLISHED/.test(l))) {
+        seenEstablished = true;
+        const conn = lines.find(l => /ESTABLISHED/.test(l)) ?? "";
+        const host = conn.match(/->(.+?)\(ESTABLISHED\)/)?.[1]?.trim() ?? "remote";
+        onEvent(`[${ts()}] pid ${pid}: connected → ${host}\n`);
+      }
+    });
+  }
+
+  const interval = setInterval(poll, 250);
+  return () => { stopped = true; clearInterval(interval); };
+}
+
+export async function POST(req: Request) {
+  const { prompt } = await req.json();
+  if (typeof prompt !== "string" || !prompt.trim()) {
+    return new Response("prompt required", { status: 400 });
+  }
+
+  const backlogCards = listCards().filter(c => c.column === "backlog");
+  if (backlogCards.length === 0) {
+    return new Response("Backlog is empty — nothing to process.", {
+      headers: { "Content-Type": "text/plain" },
+    });
+  }
+
+  const cardsSummary = backlogCards.map(c =>
+    `[${c.id}] "${c.title}" | priority: ${c.priority} | tags: ${c.tags.join(", ") || "none"}\n  problem: ${(c.problem_description || "").slice(0, 200)}`
+  ).join("\n\n");
+
+  const fullPrompt = prompt.replace("{{CARDS}}", cardsSummary) +
+    "\n\nThis is a DRY RUN — do not modify anything. Just return your analysis.";
+
+  // Create session log file
+  fs.mkdirSync(LOG_DIR, { recursive: true });
+  const ts0 = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  const logFile = path.join(LOG_DIR, `${ts0}.log`);
+  const logStream = fs.createWriteStream(logFile, { flags: "a" });
+
+  const stream = new TransformStream();
+  const writer = stream.writable.getWriter();
+  const enc = new TextEncoder();
+  const t0 = Date.now();
+  const ts = () => `+${((Date.now() - t0) / 1000).toFixed(2)}s`;
+
+  function log(msg: string) {
+    try { writer.write(enc.encode(msg)); } catch {}
+    logStream.write(msg);
+  }
+
+  const { CLAUDECODE: _cc, ...env } = process.env;
+  if (!env.TMPDIR) env.TMPDIR = os.tmpdir();
+
+  // Create a clean run dir so claude has no git repo / trust issues
+  const runDir = path.join(STATE_DIR, "tmp", ts0);
+  fs.mkdirSync(runDir, { recursive: true });
+  fs.writeFileSync(path.join(runDir, "CLAUDE.md"), [
+    "# Backlog Processor",
+    "",
+    "You are running as a backlog processor for the Brain board.",
+    "This is a sandboxed non-interactive session. Do not use tools.",
+    "Respond only with your analysis.",
+  ].join("\n"));
+
+  const debugFile = path.join(LOG_DIR, `${ts0}.debug.log`);
+  log(`log:   ${logFile}\n`);
+  log(`debug: ${debugFile}\n`);
+  log(`run:   ${runDir}\n`);
+  log(`[${ts()}] server: spawning claude (${backlogCards.length} card${backlogCards.length === 1 ? "" : "s"})\n`);
+
+  const proc = spawn(CLAUDE_BIN, [
+    "-p", fullPrompt,
+    "--model", "claude-haiku-4-5-20251001",
+    "--output-format", "stream-json",
+    "--include-partial-messages",
+    "--verbose",
+    "--debug-file", debugFile,
+    "--mcp-config", '{"mcpServers":{}}',
+    "--strict-mcp-config",
+  ], { env, cwd: runDir, stdio: ["ignore", "pipe", "pipe"] });
+
+  // Tail the debug log and stream it live
+  fs.writeFileSync(debugFile, "");
+  const tail = spawn("tail", ["-f", debugFile]);
+  const NOISE = /ENOENT|Broken symlink|detectFileEncoding|managed-settings|settings\.local/;
+  tail.stdout.on("data", (chunk: Buffer) => {
+    const lines = chunk.toString().split("\n").filter(l => l.trim());
+    for (const line of lines) {
+      if (NOISE.test(line)) continue;
+      try {
+        const entry = JSON.parse(line);
+        const msg = entry.message ?? entry.msg ?? line;
+        if (NOISE.test(msg)) continue;
+        log(`  [dbg] ${msg}\n`);
+      } catch {
+        log(`  [dbg] ${line}\n`);
+      }
+    }
+  });
+
+  const pid = proc.pid!;
+  log(`[${ts()}] server: process spawned (pid ${pid}) — watching...\n`);
+
+  const stopWatcher = watchPid(pid, t0, log);
+
+  let buf = "";
+  let firstToken = true;
+
+  proc.stdout.on("data", (chunk: Buffer) => {
+    buf += chunk.toString();
+    const lines = buf.split("\n");
+    buf = lines.pop() ?? "";
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      try {
+        const msg = JSON.parse(line);
+        if (msg.type === "content_block_delta" && msg.delta?.type === "text_delta") {
+          if (firstToken) {
+            log(`[${ts()}] server: first token\n\n`);
+            firstToken = false;
+          }
+          writer.write(enc.encode(msg.delta.text));
+          logStream.write(msg.delta.text);
+        }
+        if (msg.type === "result" && typeof msg.result === "string") {
+          if (firstToken) {
+            log(`[${ts()}] server: result\n\n`);
+            firstToken = false;
+          }
+          writer.write(enc.encode(msg.result));
+          logStream.write(msg.result);
+        }
+      } catch {
+        writer.write(enc.encode(line + "\n"));
+        logStream.write(line + "\n");
+      }
+    }
+  });
+
+  proc.stderr.on("data", (chunk: Buffer) => {
+    log(chunk.toString());
+  });
+
+  proc.on("close", (code) => {
+    stopWatcher();
+    setTimeout(() => tail.kill(), 300); // let tail flush last lines
+    if (buf.trim()) { writer.write(enc.encode(buf)); logStream.write(buf); }
+    log(`\n[${ts()}] done (exit ${code})\n`);
+    logStream.end();
+    writer.close();
+  });
+
+  proc.on("error", (err) => {
+    stopWatcher();
+    tail.kill();
+    log(`\n[${ts()}] error: ${err.message}\n`);
+    logStream.end();
+    writer.close();
+  });
+
+  return new Response(stream.readable, {
+    headers: { "Content-Type": "text/plain; charset=utf-8", "X-Card-Count": String(backlogCards.length) },
+  });
+}

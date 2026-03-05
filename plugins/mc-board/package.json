@@ -4,8 +4,11 @@
   "type": "module",
   "main": "index.ts",
   "description": "State-machine kanban board — the agent's prefrontal cortex",
-  "dependencies": {},
+  "dependencies": {
+    "better-sqlite3": "^11.9.0"
+  },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "openclaw": "*"
   }
 }

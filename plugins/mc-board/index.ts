@@ -4,14 +4,14 @@
  * State-machine-backed kanban board as the agent's internal planning mechanism.
  * The "prefrontal cortex" — tracks tasks from backlog through to shipped.
  *
- * Phase 1: Core + CLI + Context hook
- * Phase 2: Agent tools
- * Phase 3: Web debug view (port 4220)
+ * Storage: SQLite DB at <stateDir>/board.db (migrated from markdown files on first run)
  */
 
 import * as path from "node:path";
 import * as os from "node:os";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
+import { openDb } from "./src/db.js";
+import { migrateIfNeeded } from "./src/migrate.js";
 import { CardStore } from "./src/store.js";
 import { ProjectStore } from "./src/project-store.js";
 import { renderCompactBoard, renderCompactBoardWithProjects } from "./src/board.js";
@@ -22,27 +22,26 @@ import { brainTools } from "./tools/definitions.js";
 // ---- Config types ----
 
 interface BrainConfig {
-  cardsDir: string;
+  stateDir: string;
   qmdBin: string;
   qmdCollection: string;
 }
 
 function resolveConfig(api: OpenClawPluginApi): BrainConfig {
-  const raw = (api.pluginConfig ?? {}) as Partial<BrainConfig & { webPort: number }>;
+  const raw = (api.pluginConfig ?? {}) as Partial<{ cardsDir: string; qmdBin: string; qmdCollection: string }>;
 
-  const cardsDir = resolvePath(
-    raw.cardsDir ?? "~/.openclaw/user/augmentedmike_bot/brain/cards",
-  );
+  // stateDir = parent of cardsDir (the brain/ directory)
+  const cardsDir = resolvePath(raw.cardsDir ?? "~/.openclaw/user/augmentedmike_bot/brain/cards");
+  const stateDir = path.dirname(cardsDir);
+
   const qmdBin = resolvePath(raw.qmdBin ?? "~/.bun/bin/qmd");
   const qmdCollection = raw.qmdCollection ?? "mc-board";
 
-  return { cardsDir, qmdBin, qmdCollection };
+  return { stateDir, qmdBin, qmdCollection };
 }
 
 function resolvePath(p: string): string {
-  if (p.startsWith("~/")) {
-    return path.join(os.homedir(), p.slice(2));
-  }
+  if (p.startsWith("~/")) return path.join(os.homedir(), p.slice(2));
   return p;
 }
 
@@ -50,21 +49,21 @@ function resolvePath(p: string): string {
 
 export default function register(api: OpenClawPluginApi): void {
   const cfg = resolveConfig(api);
-  const store = new CardStore(cfg.cardsDir);
 
-  // stateDir is the parent of cardsDir (e.g. ~/.openclaw/.../brain/)
-  const stateDir = path.dirname(cfg.cardsDir);
-  const projectsDir = path.join(stateDir, "projects");
-  const projectStore = new ProjectStore(projectsDir);
+  // Open (or create) the SQLite database, run schema migrations
+  const db = openDb(cfg.stateDir);
+  migrateIfNeeded(db, cfg.stateDir);
 
+  const store = new CardStore(db);
+  const projectStore = new ProjectStore(db);
   const qmd = new QmdClient(cfg.qmdBin, cfg.qmdCollection);
 
-  api.logger.info(`mc-board loaded (cardsDir=${cfg.cardsDir}, projectsDir=${projectsDir})`);
+  api.logger.info(`mc-board loaded (stateDir=${cfg.stateDir}, db=board.db)`);
 
   // ---- Phase 1: CLI ----
   api.registerCli((ctx) => {
     registerBrainCommands(
-      { program: ctx.program, stateDir, logger: api.logger },
+      { program: ctx.program, stateDir: cfg.stateDir, logger: api.logger },
       store,
       projectStore,
     );
@@ -82,7 +81,6 @@ export default function register(api: OpenClawPluginApi): void {
         : renderCompactBoard(cards);
       return { prependContext: boardText };
     } catch (err) {
-      // Never crash the prompt build
       api.logger.warn(`mc-board: before_prompt_build error: ${err}`);
       return;
     }
@@ -92,5 +90,4 @@ export default function register(api: OpenClawPluginApi): void {
   for (const tool of brainTools) {
     api.registerTool(tool);
   }
-  // Web view runs as a standalone LaunchAgent (com.augmentedmike.mc-board-web)
 }

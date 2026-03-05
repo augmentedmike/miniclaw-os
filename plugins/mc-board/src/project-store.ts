@@ -1,91 +1,77 @@
-import * as fs from "node:fs";
-import * as path from "node:path";
-import {
-  type Project,
-  generateProjectId,
-  projectFilename,
-  slugify,
-} from "./project.js";
+import type { Database } from "./db.js";
+import { type Project, generateProjectId, slugify } from "./project.js";
+
+interface ProjectRow {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+function rowToProject(row: ProjectRow): Project {
+  return {
+    id: row.id,
+    name: row.name,
+    slug: row.slug,
+    description: row.description,
+    status: row.status as "active" | "archived",
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
 
 export class ProjectStore {
-  readonly projectsDir: string;
+  private readonly db: Database;
 
-  constructor(projectsDir: string) {
-    this.projectsDir = projectsDir;
-    fs.mkdirSync(projectsDir, { recursive: true });
+  constructor(db: Database) {
+    this.db = db;
   }
 
   create(opts: { name: string; description?: string }): Project {
     const now = new Date().toISOString();
+    const id = generateProjectId();
     const slug = slugify(opts.name);
-    const project: Project = {
-      id: generateProjectId(),
-      name: opts.name,
-      slug,
-      description: opts.description ?? "",
-      status: "active",
-      created_at: now,
-      updated_at: now,
-    };
-    this._write(project);
-    return project;
+    this.db.prepare(
+      `INSERT INTO projects (id, name, slug, description, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, 'active', ?, ?)`,
+    ).run(id, opts.name, slug, opts.description ?? "", now, now);
+    return this.findById(id);
   }
 
   findById(id: string): Project {
-    const files = this._projectFiles();
-    const file = files.find(f => f.startsWith(id));
-    if (!file) throw new Error(`Project not found: ${id}`);
-    return this._read(file);
+    const row = this.db.prepare(`SELECT * FROM projects WHERE id = ?`).get(id) as ProjectRow | undefined;
+    if (!row) throw new Error(`Project not found: ${id}`);
+    return rowToProject(row);
   }
 
   list(includeArchived = false): Project[] {
-    const files = this._projectFiles();
-    const projects = files.map(f => this._read(f));
-    if (!includeArchived) return projects.filter(p => p.status === "active");
-    return projects;
+    const rows = (includeArchived
+      ? this.db.prepare(`SELECT * FROM projects ORDER BY created_at ASC`).all()
+      : this.db.prepare(`SELECT * FROM projects WHERE status = 'active' ORDER BY created_at ASC`).all()
+    ) as ProjectRow[];
+    return rows.map(rowToProject);
   }
 
   update(id: string, updates: Partial<Pick<Project, "name" | "description">>): Project {
     const project = this.findById(id);
-    const oldFile = path.join(this.projectsDir, projectFilename(project));
-
-    Object.assign(project, updates);
-    if (updates.name) project.slug = slugify(updates.name);
-    project.updated_at = new Date().toISOString();
-
-    // Remove old file if filename changed
-    const newFile = path.join(this.projectsDir, projectFilename(project));
-    if (oldFile !== newFile) {
-      try { fs.unlinkSync(oldFile); } catch { /* best-effort */ }
-    }
-
-    this._write(project);
-    return project;
+    const now = new Date().toISOString();
+    const name = updates.name ?? project.name;
+    const slug = updates.name ? slugify(updates.name) : project.slug;
+    const description = updates.description !== undefined ? updates.description : project.description;
+    this.db.prepare(
+      `UPDATE projects SET name=?, slug=?, description=?, updated_at=? WHERE id=?`,
+    ).run(name, slug, description, now, id);
+    return this.findById(id);
   }
 
   archive(id: string): Project {
-    const project = this.findById(id);
-    project.status = "archived";
-    project.updated_at = new Date().toISOString();
-    this._write(project);
-    return project;
-  }
-
-  private _projectFiles(): string[] {
-    return fs.readdirSync(this.projectsDir).filter(f => f.endsWith(".json"));
-  }
-
-  private _read(filename: string): Project {
-    const content = fs.readFileSync(path.join(this.projectsDir, filename), "utf-8");
-    return JSON.parse(content) as Project;
-  }
-
-  private _write(project: Project): void {
-    const filename = projectFilename(project);
-    fs.writeFileSync(
-      path.join(this.projectsDir, filename),
-      JSON.stringify(project, null, 2),
-      "utf-8",
-    );
+    const now = new Date().toISOString();
+    const exists = this.db.prepare(`SELECT id FROM projects WHERE id = ?`).get(id);
+    if (!exists) throw new Error(`Project not found: ${id}`);
+    this.db.prepare(`UPDATE projects SET status='archived', updated_at=? WHERE id=?`).run(now, id);
+    return this.findById(id);
   }
 }

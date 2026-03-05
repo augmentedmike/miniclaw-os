@@ -29,9 +29,10 @@ export class ArchiveStore {
   }
 
   /**
-   * Archive a shipped card. Removes the source file after archiving.
+   * Archive a shipped card. If sourceFile is provided, removes it after archiving.
+   * With SQLite storage, callers pass no sourceFile and handle deletion via store.delete().
    */
-  archiveCard(card: Card, sourceFile: string): void {
+  archiveCard(card: Card, sourceFile?: string): void {
     const line = JSON.stringify(card) + "\n";
     const lineGz = zlib.gzipSync(Buffer.from(line));
 

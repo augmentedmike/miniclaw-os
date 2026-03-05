@@ -28,6 +28,7 @@ export interface Card {
   acceptance_criteria: string;
   notes: string;
   review_notes: string;
+  research: string;
 }
 
 export function generateId(): string {
@@ -130,6 +131,7 @@ interface BodySections {
   acceptance_criteria: string;
   notes: string;
   review_notes: string;
+  research: string;
 }
 
 function parseBody(bodyText: string): BodySections {
@@ -139,6 +141,7 @@ function parseBody(bodyText: string): BodySections {
     "acceptance criteria": "acceptance_criteria",
     "notes / outcome": "notes",
     "review notes": "review_notes",
+    "research": "research",
   };
 
   const result: BodySections = {
@@ -147,6 +150,7 @@ function parseBody(bodyText: string): BodySections {
     acceptance_criteria: "",
     notes: "",
     review_notes: "",
+    research: "",
   };
 
   const parts = bodyText.split(/^## /m);
@@ -249,7 +253,8 @@ export function serializeCard(card: Card): string {
     `\n---`;
 
   const body =
-    `\n\n## Problem Description\n${card.problem_description}\n` +
+    `\n\n## Research\n${card.research}\n` +
+    `\n## Problem Description\n${card.problem_description}\n` +
     `\n## Implementation Plan\n${card.implementation_plan}\n` +
     `\n## Acceptance Criteria\n${card.acceptance_criteria}\n` +
     `\n## Notes / Outcome\n${card.notes}\n` +

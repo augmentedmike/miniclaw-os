@@ -299,6 +299,30 @@ export const brainTools: AnyAgentTool[] = [
     },
   },
 
+  {
+    name: "brain_search",
+    label: "Brain Search",
+    description:
+      "Search cards by title, tags, problem description, or implementation plan. " +
+      "Case-insensitive substring match across all active cards.",
+    parameters: schema(
+      {
+        query: str("Search query — matched against title, tags, problem, and plan"),
+        column: strEnum(["backlog", "in-progress", "in-review", "shipped"], "Limit to a specific column (optional)"),
+        project_id: optStr("Limit to a specific project ID (optional)"),
+      },
+      ["query"],
+    ) as never,
+    execute: async (_id, params: Record<string, string | undefined>) => {
+      const args = ["search", params.query!];
+      if (params.column) args.push("--column", params.column);
+      if (params.project_id) args.push("--project", params.project_id);
+      const { stdout, stderr, exitCode } = runBrain(args);
+      if (exitCode !== 0) return err(stderr || "brain search failed");
+      return ok(stdout || `No cards matching: ${params.query}`);
+    },
+  },
+
   // ---- Project tools ----
 
   {

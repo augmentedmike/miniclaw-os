@@ -1,12 +1,11 @@
-import * as fs from "node:fs";
-import * as path from "node:path";
+import { openDb, type Database } from "./db.js";
 
 export interface ActiveEntry {
   cardId: string;
   projectId?: string;
   title: string;
-  worker: string;   // e.g. "board-worker-backlog"
-  column: string;   // column being worked in
+  worker: string;
+  column: string;
   pickedUpAt: string;
 }
 
@@ -20,64 +19,92 @@ export interface PickupEvent {
   at: string;
 }
 
-interface ActiveWorkState {
-  active: ActiveEntry[];
-  log: PickupEvent[];
+interface ActiveRow {
+  card_id: string;
+  project_id: string | null;
+  title: string;
+  worker: string;
+  col: string;
+  picked_up_at: string;
+}
+
+interface LogRow {
+  card_id: string;
+  project_id: string | null;
+  title: string;
+  worker: string;
+  col: string;
+  action: string;
+  at: string;
 }
 
 const MAX_LOG = 200;
 
 export class ActiveWorkStore {
-  private readonly file: string;
+  private readonly db: Database;
 
   constructor(stateDir: string) {
-    this.file = path.join(stateDir, "active-work.json");
-  }
-
-  private _read(): ActiveWorkState {
-    try {
-      return JSON.parse(fs.readFileSync(this.file, "utf-8")) as ActiveWorkState;
-    } catch {
-      return { active: [], log: [] };
-    }
-  }
-
-  private _write(state: ActiveWorkState): void {
-    fs.writeFileSync(this.file, JSON.stringify(state, null, 2), "utf-8");
+    this.db = openDb(stateDir);
   }
 
   pickup(entry: Omit<ActiveEntry, "pickedUpAt">): ActiveEntry {
-    const state = this._read();
-    // Remove any existing entry for this card (re-pickup replaces)
-    state.active = state.active.filter(e => e.cardId !== entry.cardId);
     const now = new Date().toISOString();
-    const active: ActiveEntry = { ...entry, pickedUpAt: now };
-    state.active.push(active);
-    state.log.push({ ...entry, action: "pickup", at: now });
-    if (state.log.length > MAX_LOG) state.log = state.log.slice(-MAX_LOG);
-    this._write(state);
-    return active;
+    this.db.prepare(`DELETE FROM active_work WHERE card_id = ?`).run(entry.cardId);
+    this.db.prepare(
+      `INSERT INTO active_work (card_id, project_id, title, worker, col, picked_up_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    ).run(entry.cardId, entry.projectId ?? null, entry.title, entry.worker, entry.column, now);
+    this.db.prepare(
+      `INSERT INTO pickup_log (card_id, project_id, title, worker, col, action, at)
+       VALUES (?, ?, ?, ?, ?, 'pickup', ?)`,
+    ).run(entry.cardId, entry.projectId ?? null, entry.title, entry.worker, entry.column, now);
+    this._trimLog();
+    return { ...entry, pickedUpAt: now };
   }
 
   release(cardId: string, worker: string): boolean {
-    const state = this._read();
-    const before = state.active.length;
-    state.active = state.active.filter(e => e.cardId !== cardId);
-    const released = state.active.length < before;
-    if (released) {
-      state.log.push({ cardId, worker, title: "", column: "", action: "release", at: new Date().toISOString() });
-      if (state.log.length > MAX_LOG) state.log = state.log.slice(-MAX_LOG);
-      this._write(state);
-    }
-    return released;
+    const existing = this.db.prepare(`SELECT card_id FROM active_work WHERE card_id = ?`).get(cardId);
+    if (!existing) return false;
+    this.db.prepare(`DELETE FROM active_work WHERE card_id = ?`).run(cardId);
+    this.db.prepare(
+      `INSERT INTO pickup_log (card_id, project_id, title, worker, col, action, at)
+       VALUES (?, NULL, '', ?, '', 'release', ?)`,
+    ).run(cardId, worker, new Date().toISOString());
+    this._trimLog();
+    return true;
   }
 
   listActive(): ActiveEntry[] {
-    return this._read().active;
+    return (this.db.prepare(`SELECT * FROM active_work`).all() as ActiveRow[]).map(r => ({
+      cardId: r.card_id,
+      projectId: r.project_id ?? undefined,
+      title: r.title,
+      worker: r.worker,
+      column: r.col,
+      pickedUpAt: r.picked_up_at,
+    }));
   }
 
   recentLog(limit = 20): PickupEvent[] {
-    const log = this._read().log;
-    return log.slice(-limit).reverse();
+    return (this.db.prepare(
+      `SELECT * FROM pickup_log ORDER BY id DESC LIMIT ?`,
+    ).all(limit) as LogRow[]).map(r => ({
+      cardId: r.card_id,
+      projectId: r.project_id ?? undefined,
+      title: r.title,
+      worker: r.worker,
+      column: r.col,
+      action: r.action as "pickup" | "release",
+      at: r.at,
+    }));
+  }
+
+  private _trimLog(): void {
+    const { c } = this.db.prepare(`SELECT COUNT(*) AS c FROM pickup_log`).get() as { c: number };
+    if (c > MAX_LOG) {
+      this.db.prepare(
+        `DELETE FROM pickup_log WHERE id IN (SELECT id FROM pickup_log ORDER BY id ASC LIMIT ?)`,
+      ).run(c - MAX_LOG);
+    }
   }
 }
