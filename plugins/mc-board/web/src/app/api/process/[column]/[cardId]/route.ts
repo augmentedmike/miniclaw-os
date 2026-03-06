@@ -52,7 +52,18 @@ export async function POST(
     const logStream = fs.createWriteStream(logFile, { flags: "a" });
     const t0 = Date.now();
     const ts = () => `+${((Date.now() - t0) / 1000).toFixed(2)}s`;
-    function log(msg: string) { logStream.write(msg); }
+    // Track whether last write ended with \n (for merging-safe debug lines)
+    let fileAtLineStart = true;
+    function writeFile(msg: string) {
+      if (!msg) return;
+      logStream.write(msg);
+      if (msg.length > 0) fileAtLineStart = msg[msg.length - 1] === "\n";
+    }
+    function log(msg: string) { writeFile(msg); }
+    function logDbg(msg: string) {
+      const pfx = fileAtLineStart ? "  [dbg] " : "\n  [dbg] ";
+      writeFile(`${pfx}${msg}\n`);
+    }
     const debugFile = path.join(logDir, `${ts0}-${cardId}.debug.log`);
     log(`card:  ${cardId} — ${card.title}\n`);
     log(`log:   ${logFile}\n`);
@@ -103,7 +114,7 @@ export async function POST(
         try {
           const msg = JSON.parse(line);
           if (msg.type === "content_block_delta" && msg.delta?.type === "text_delta") {
-            logStream.write(msg.delta.text);
+            writeFile(msg.delta.text);
           }
           if (msg.type === "content_block_start" && msg.content_block?.type === "tool_use") {
             currentTool = msg.content_block.name ?? "tool";
@@ -124,7 +135,7 @@ export async function POST(
             currentToolInput = "";
           }
           if (msg.type === "result" && typeof msg.result === "string") {
-            logStream.write(msg.result);
+            writeFile(msg.result);
           }
         } catch {}
       }
@@ -132,8 +143,11 @@ export async function POST(
 
     const NOISE = /ENOENT|Broken symlink|detectFileEncoding|managed-settings|settings\.local|\[DEBUG\]/;
     proc.stderr!.on("data", (chunk: Buffer) => {
-      const msg = chunk.toString().trim();
-      if (msg && !NOISE.test(msg)) log(`  [stderr] ${msg}\n`);
+      for (const line of chunk.toString().split("\n")) {
+        if (!line.trim()) continue;
+        if (NOISE.test(line)) continue;
+        logDbg(line);
+      }
     });
 
     // Tail debug file
@@ -144,8 +158,8 @@ export async function POST(
         try {
           const entry = JSON.parse(line);
           const msg = entry.message ?? entry.msg ?? line;
-          if (!NOISE.test(msg)) log(`  [dbg] ${msg}\n`);
-        } catch { log(`  [dbg] ${line}\n`); }
+          if (!NOISE.test(msg)) logDbg(msg);
+        } catch { logDbg(line); }
       }
     });
 
