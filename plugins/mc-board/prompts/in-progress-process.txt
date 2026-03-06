@@ -23,23 +23,35 @@ so agents don't collide on the same filesystem. Do this first, before any file c
 
 Git Butler CLI: `/Applications/GitButler.app/Contents/MacOS/gitbutler-tauri` (alias: `but`)
 
+**work_dir for mc-board plugin cards: `~/am/projects/miniclaw-os`**
+(This is the registered GB project. Plugin edits go here; the live dir `~/am/miniclaw/plugins/`
+is inside `~/am/` which is a separate git repo not managed by GB.)
+
 ```
 # 1. Check if the repo has a Git Butler project set up
 but -C <work_dir> status
+```
 
+If `but status` fails (no Git Butler project for this repo):
+```
+# Register the repo with Git Butler — REQUIRED, do not skip
+but -C <work_dir> setup
+```
+
+If `but setup` also fails — **STOP. Do not proceed. Do not fall back to plain git branches.**
+Alert via: openclaw mc-board update {{CARD_ID}} --notes "BLOCKED: GB setup failed for <work_dir>"
+Then: openclaw mc-board release {{CARD_ID}} --worker board-worker-in-progress
+
+```
 # 2. Create a virtual branch named after this card
 but -C <work_dir> branch new {{CARD_ID}}
 
-# 3. Confirm it's active
-but -C <work_dir> branch list
-```
-
-If `but status` fails (no Git Butler project for this repo), fall back to a standard git branch:
-```
-git -C <work_dir> checkout -b {{CARD_ID}}
+# 3. Smoke test — confirm branch appears before ANY file changes
+but -C <work_dir> status | grep {{CARD_ID}} || { echo "FATAL: branch {{CARD_ID}} not found in GB workspace, aborting"; exit 1; }
 ```
 
 All file changes for this card must happen while on this branch. Never work on main directly.
+Never fall back to `git checkout -b` — GB virtual branches are required for isolation.
 
 ```
 # 4. Record the work path on the card

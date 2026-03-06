@@ -1,0 +1,12 @@
+{
+  "name": "@miniclaw/logging",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Structured JSON logger for the miniclaw-os plugin ecosystem",
+  "exports": {
+    ".": "./logger.ts"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.18"
+  }
+}

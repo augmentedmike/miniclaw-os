@@ -196,8 +196,17 @@ run independently.
 
 ### Step 2 — Core dependencies
 
-Installs (via Homebrew) if missing: Node.js 22, Git, Python 3, jq, age.
-Each is checked with `command -v` first.
+Installs (via Homebrew) if missing: Node.js 22, Git, Python 3, jq, age, Git Butler.
+Each is checked before installing.
+
+Git Butler (`/Applications/GitButler.app/Contents/MacOS/gitbutler-tauri`) is installed
+via `brew install --cask gitbutler`. It is required for agents to create isolated virtual
+branches per card. If the install fails (network error, Homebrew cask unavailable), a
+warning is printed and installation continues — you can install it manually:
+```bash
+brew install --cask gitbutler
+# or download from https://gitbutler.com
+```
 
 ### Step 3 — Bun + QMD
 

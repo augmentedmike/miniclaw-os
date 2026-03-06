@@ -1130,6 +1130,344 @@ Rules:
       });
     });
 
+  // ---- brain plan ----
+  brain
+    .command("plan <file>")
+    .description("Ingest a planning doc and create cards with dependencies and an epic")
+    .option("--project <id>", "Link all created cards to a project by ID (prj_<hex>)")
+    .option("--dry-run", "Print cards that would be created without writing them")
+    .option("--model <model>", "Claude model to use for decomposition", "claude-haiku-4-5-20251001")
+    .addHelpText("after", `
+Reads a markdown or text planning document and uses a Claude agent to decompose
+it into board cards: one epic card for the top-level initiative and sub-task
+cards with dependencies between them.
+
+Cards are created in dependency order so blocked cards are correctly linked.
+
+Examples:
+  openclaw mc-board plan ~/docs/v2-api-plan.md
+  openclaw mc-board plan ~/docs/feature-plan.md --project prj_a1b2c3d4
+  openclaw mc-board plan ~/docs/roadmap.md --dry-run
+  openclaw mc-board plan ~/docs/sprint.md --model claude-sonnet-4-6`)
+    .action((file: string, opts: { project?: string; dryRun?: boolean; model: string }) => {
+      // Validate file
+      if (!fs.existsSync(file)) {
+        console.error(`File not found: ${file}`);
+        process.exit(1);
+      }
+      const docContent = fs.readFileSync(file, "utf8");
+      if (!docContent.trim()) {
+        console.error(`File is empty: ${file}`);
+        process.exit(1);
+      }
+
+      // Validate project if provided
+      if (opts.project) {
+        try { projects.findById(opts.project); } catch {
+          console.error(`Project not found: ${opts.project}`);
+          process.exit(1);
+        }
+      }
+
+      const planPrompt = `You are a project planning agent. You will read a planning document and decompose it into structured board cards.
+
+Your output will be used to automatically create cards on a kanban board. You must produce exactly one epic card for the top-level initiative and one or more sub-task cards.
+
+RULES:
+1. The epic card represents the top-level initiative. Tag it with "epic".
+2. Sub-task cards should be discrete, actionable units of work.
+3. For each sub-task, list which OTHER sub-tasks it depends on using their "key" field (the key you assign, e.g. "T1", "T2").
+4. Keys are just labels for dependency linking — they are not card IDs.
+5. Priority must be one of: critical, high, medium, low
+6. Tags should be relevant short labels (e.g. "feature", "cli", "api", "bug", "docs")
+7. problem_description: Explain WHY this work is needed
+8. implementation_plan: HOW to implement it (numbered steps)
+9. acceptance_criteria: What "done" looks like (markdown checkboxes: - [ ] ...)
+10. depends_on: list of keys from other sub-tasks that must be completed first (empty array [] if none)
+
+PLANNING DOCUMENT:
+${docContent}
+
+Output the decomposition as JSON under exactly this header (no markdown fences):
+---APPLY---
+{
+  "epic": {
+    "title": "...",
+    "problem_description": "...",
+    "implementation_plan": "...",
+    "acceptance_criteria": "- [ ] ...",
+    "priority": "high",
+    "tags": ["epic", "feature"]
+  },
+  "tasks": [
+    {
+      "key": "T1",
+      "title": "...",
+      "problem_description": "...",
+      "implementation_plan": "...",
+      "acceptance_criteria": "- [ ] ...",
+      "priority": "medium",
+      "tags": ["feature"],
+      "depends_on": []
+    },
+    {
+      "key": "T2",
+      "title": "...",
+      "problem_description": "...",
+      "implementation_plan": "...",
+      "acceptance_criteria": "- [ ] ...",
+      "priority": "medium",
+      "tags": ["feature"],
+      "depends_on": ["T1"]
+    }
+  ]
+}
+---END---
+
+Be thorough. Extract all meaningful tasks from the document. If the document already has numbered steps or sections, each major section should become a task.`;
+
+      const logDir = path.join(ctx.stateDir, "logs", "plan");
+      fs.mkdirSync(logDir, { recursive: true });
+      const ts0 = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      const logFile = path.join(logDir, `${ts0}-plan.log`);
+      const logStream = fs.createWriteStream(logFile, { flags: "a" });
+
+      const t0 = Date.now();
+      const ts = () => `+${((Date.now() - t0) / 1000).toFixed(2)}s`;
+      function log(msg: string) { logStream.write(msg); process.stdout.write(msg); }
+
+      const runDir = path.join(ctx.stateDir, "tmp", `${ts0}-plan`);
+      fs.mkdirSync(runDir, { recursive: true });
+      fs.writeFileSync(path.join(runDir, "CLAUDE.md"), [
+        `# Plan: ${path.basename(file)}`,
+        "",
+        "This is a sandboxed non-interactive session. Do not use tools.",
+        "Respond only with your decomposition and the APPLY block.",
+      ].join("\n"));
+
+      const CLAUDE_BIN = process.env.CLAUDE_BIN ?? "claude";
+      const debugFile = path.join(logDir, `${ts0}-plan.debug.log`);
+      fs.writeFileSync(debugFile, "");
+
+      const { CLAUDECODE: _cc, ...env } = process.env as Record<string, string | undefined>;
+      if (!env.TMPDIR) env.TMPDIR = os.tmpdir();
+
+      log(`[${ts()}] plan: ${path.basename(file)} → decomposing with ${opts.model}\n`);
+      log(`[${ts()}] log: ${logFile}\n`);
+      if (opts.dryRun) log(`[${ts()}] dry-run mode: cards will NOT be created\n`);
+
+      const proc = spawn(CLAUDE_BIN, [
+        "-p", planPrompt,
+        "--model", opts.model,
+        "--output-format", "stream-json",
+        "--include-partial-messages",
+        "--verbose",
+        "--debug-file", debugFile,
+        "--mcp-config", '{"mcpServers":{}}',
+        "--strict-mcp-config",
+      ], { env: env as NodeJS.ProcessEnv, cwd: runDir, stdio: ["ignore", "pipe", "pipe"] });
+
+      log(`[${ts()}] pid ${proc.pid}\n`);
+
+      let buf = "";
+      let fullOutput = "";
+
+      const NOISE = /ENOENT|Broken symlink|detectFileEncoding|managed-settings|settings\.local|\[DEBUG\]/;
+      const tail = spawn("tail", ["-f", debugFile]);
+      tail.stdout.on("data", (chunk: Buffer) => {
+        for (const line of chunk.toString().split("\n").filter((l: string) => l.trim())) {
+          if (NOISE.test(line)) continue;
+          try {
+            const entry = JSON.parse(line);
+            const msg = entry.message ?? entry.msg ?? line;
+            if (!NOISE.test(msg)) log(`  [dbg] ${msg}\n`);
+          } catch { log(`  [dbg] ${line}\n`); }
+        }
+      });
+
+      proc.stdout!.on("data", (chunk: Buffer) => {
+        buf += chunk.toString();
+        const lines = buf.split("\n");
+        buf = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const msg = JSON.parse(line);
+            if (msg.type === "content_block_delta" && msg.delta?.type === "text_delta") {
+              fullOutput += msg.delta.text;
+              logStream.write(msg.delta.text);
+            }
+            if (msg.type === "result" && typeof msg.result === "string") {
+              fullOutput += msg.result;
+              logStream.write(msg.result);
+            }
+          } catch { logStream.write(line + "\n"); }
+        }
+      });
+
+      proc.stderr!.on("data", (chunk: Buffer) => {
+        for (const line of chunk.toString().split("\n")) {
+          if (line.trim() && !NOISE.test(line)) log(line + "\n");
+        }
+      });
+
+      proc.on("close", (code: number | null) => {
+        setTimeout(() => tail.kill(), 300);
+        if (buf.trim()) { fullOutput += buf; logStream.write(buf); }
+        log(`\n[${ts()}] done (exit ${code})\n`);
+
+        const match = fullOutput.match(/---APPLY---\s*([\s\S]*?)---END---/);
+        if (!match) {
+          log(`\n[${ts()}] no APPLY block found — nothing created\n`);
+          logStream.end(() => process.exit(code ?? 1));
+          return;
+        }
+
+        interface TaskSpec {
+          key: string;
+          title: string;
+          problem_description?: string;
+          implementation_plan?: string;
+          acceptance_criteria?: string;
+          priority?: string;
+          tags?: string[];
+          depends_on?: string[];
+        }
+
+        interface EpicSpec {
+          title: string;
+          problem_description?: string;
+          implementation_plan?: string;
+          acceptance_criteria?: string;
+          priority?: string;
+          tags?: string[];
+        }
+
+        interface PlanResult {
+          epic?: EpicSpec;
+          tasks?: TaskSpec[];
+        }
+
+        let plan: PlanResult;
+        try {
+          plan = JSON.parse(match[1].trim()) as PlanResult;
+        } catch (e) {
+          log(`\n[${ts()}] APPLY parse error: ${String(e)}\n`);
+          logStream.end(() => process.exit(1));
+          return;
+        }
+
+        if (!plan.epic) {
+          log(`\n[${ts()}] no epic in APPLY block\n`);
+          logStream.end(() => process.exit(1));
+          return;
+        }
+
+        const tasks: TaskSpec[] = Array.isArray(plan.tasks) ? plan.tasks : [];
+
+        // Dry-run: print what would be created
+        if (opts.dryRun) {
+          log(`\n[${ts()}] DRY RUN — cards that would be created:\n\n`);
+          log(`EPIC: ${plan.epic.title}\n`);
+          log(`  priority: ${plan.epic.priority ?? "high"}\n`);
+          log(`  tags: ${(plan.epic.tags ?? ["epic"]).join(", ")}\n`);
+          if (plan.epic.problem_description) log(`  problem: ${plan.epic.problem_description.slice(0, 80)}...\n`);
+          log(`\n`);
+          for (const task of tasks) {
+            log(`TASK [${task.key}]: ${task.title}\n`);
+            log(`  priority: ${task.priority ?? "medium"}\n`);
+            log(`  tags: ${(task.tags ?? []).join(", ")}\n`);
+            if (task.depends_on && task.depends_on.length > 0) log(`  depends_on: ${task.depends_on.join(", ")}\n`);
+          }
+          log(`\nTotal: 1 epic + ${tasks.length} tasks = ${1 + tasks.length} cards\n`);
+          logStream.end(() => process.exit(0));
+          return;
+        }
+
+        // Create epic card
+        const epicTags = Array.isArray(plan.epic.tags) ? plan.epic.tags : ["epic"];
+        if (!epicTags.includes("epic")) epicTags.unshift("epic");
+        const epicPriority = normalizePriority(plan.epic.priority ?? "high") ?? "high";
+
+        const epicCard = store.create({
+          title: plan.epic.title,
+          priority: epicPriority,
+          tags: epicTags,
+          project_id: opts.project,
+          problem_description: plan.epic.problem_description ?? "",
+          implementation_plan: plan.epic.implementation_plan ?? "",
+          acceptance_criteria: plan.epic.acceptance_criteria ?? "",
+        });
+        log(`[${ts()}] created epic: ${epicCard.id} — ${epicCard.title}\n`);
+
+        // Create sub-task cards — topological sort by depends_on keys
+        // Map key → card ID once created
+        const keyToId = new Map<string, string>();
+        const taskMap = new Map<string, TaskSpec>(tasks.map(t => [t.key, t]));
+
+        // Simple topological sort
+        const visited = new Set<string>();
+        const ordered: TaskSpec[] = [];
+
+        function visit(key: string): void {
+          if (visited.has(key)) return;
+          visited.add(key);
+          const task = taskMap.get(key);
+          if (!task) return;
+          for (const dep of task.depends_on ?? []) {
+            visit(dep);
+          }
+          ordered.push(task);
+        }
+
+        for (const task of tasks) {
+          visit(task.key);
+        }
+
+        for (const task of ordered) {
+          const taskPriority = normalizePriority(task.priority ?? "medium") ?? "medium";
+          const taskTags = Array.isArray(task.tags) ? task.tags : [];
+          const dependsOnIds = (task.depends_on ?? [])
+            .map(k => keyToId.get(k))
+            .filter((id): id is string => id !== undefined);
+
+          const card = store.create({
+            title: task.title,
+            priority: taskPriority,
+            tags: taskTags,
+            project_id: opts.project,
+            depends_on: dependsOnIds.length > 0 ? dependsOnIds : undefined,
+            problem_description: task.problem_description ?? "",
+            implementation_plan: task.implementation_plan ?? "",
+            acceptance_criteria: task.acceptance_criteria ?? "",
+          });
+          keyToId.set(task.key, card.id);
+          const depStr = dependsOnIds.length > 0 ? ` (depends on: ${task.depends_on?.join(", ")})` : "";
+          log(`[${ts()}] created task [${task.key}]: ${card.id} — ${card.title}${depStr}\n`);
+        }
+
+        log(`\n[${ts()}] plan complete: 1 epic + ${ordered.length} tasks created\n`);
+
+        // Print dependency graph summary
+        log(`\nDependency graph:\n`);
+        log(`  ${epicCard.id} (EPIC): ${epicCard.title}\n`);
+        for (const task of ordered) {
+          const cardId2 = keyToId.get(task.key) ?? "?";
+          const deps = (task.depends_on ?? []).map(k => keyToId.get(k) ?? k);
+          const depStr = deps.length > 0 ? ` ← blocked by [${deps.join(", ")}]` : "";
+          log(`  ${cardId2} [${task.key}]: ${task.title}${depStr}\n`);
+        }
+
+        logStream.end(() => process.exit(code ?? 0));
+      });
+
+      proc.on("error", (err: Error) => {
+        tail.kill();
+        log(`\n[${ts()}] error: ${err.message}\n`);
+        logStream.end(() => process.exit(1));
+      });
+    });
+
 }
 
 function normalizePriority(p: string): Priority | null {
