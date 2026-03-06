@@ -130,8 +130,11 @@ export async function POST(
       }
     });
 
-    const NOISE = /ENOENT|Broken symlink|detectFileEncoding|managed-settings|settings\.local/;
-    proc.stderr!.on("data", (chunk: Buffer) => { log(chunk.toString()); });
+    const NOISE = /ENOENT|Broken symlink|detectFileEncoding|managed-settings|settings\.local|\[DEBUG\]/;
+    proc.stderr!.on("data", (chunk: Buffer) => {
+      const msg = chunk.toString().trim();
+      if (msg && !NOISE.test(msg)) log(`  [stderr] ${msg}\n`);
+    });
 
     // Tail debug file
     const tail = spawn("tail", ["-f", debugFile]);

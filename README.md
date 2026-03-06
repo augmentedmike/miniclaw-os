@@ -597,6 +597,7 @@ await trust.verify(peerId, message, signature);
 - **Internet** — for setup and online tasks
 - **API keys** — you choose Claude, GPT-4, or other LLMs (they stay in your vault)
 - **~20GB disk** — for agent runtime and local models
+- **Git Butler** — for isolated per-card agent work (virtual branches); installed automatically by `install.sh`
 
 ---
 

@@ -102,6 +102,16 @@ else
   warn "check returned non-zero" "may be empty or key issue"
 fi
 
+# ── git butler ────────────────────────────────────────────────────────────────
+section "git butler"
+
+GITBUTLER_BIN="/Applications/GitButler.app/Contents/MacOS/gitbutler-tauri"
+if [[ -x "$GITBUTLER_BIN" ]]; then
+  pass "gitbutler-tauri present ($GITBUTLER_BIN)"
+else
+  fail "gitbutler-tauri not found" "brew install --cask gitbutler"
+fi
+
 # ── openclaw ──────────────────────────────────────────────────────────────────
 section "openclaw"
 

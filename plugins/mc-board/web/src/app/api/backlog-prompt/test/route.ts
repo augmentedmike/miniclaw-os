@@ -126,7 +126,7 @@ export async function POST(req: Request) {
 
   fs.writeFileSync(debugFile, "");
   const tail = spawn("tail", ["-f", debugFile]);
-  const NOISE = /ENOENT|Broken symlink|detectFileEncoding|managed-settings|settings\.local/;
+  const NOISE = /ENOENT|Broken symlink|detectFileEncoding|managed-settings|settings\.local|\[DEBUG\]/;
   tail.stdout.on("data", (chunk: Buffer) => {
     const lines = chunk.toString().split("\n").filter(l => l.trim());
     for (const line of lines) {
@@ -184,7 +184,9 @@ export async function POST(req: Request) {
   });
 
   proc.stderr.on("data", (chunk: Buffer) => {
-    log(chunk.toString());
+    for (const line of chunk.toString().split("\n")) {
+      if (line.trim() && !NOISE.test(line)) log(line + "\n");
+    }
   });
 
   proc.on("close", (code) => {

@@ -120,7 +120,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ col
 
   fs.writeFileSync(debugFile, "");
   const tail = spawn("tail", ["-f", debugFile]);
-  const NOISE = /ENOENT|Broken symlink|detectFileEncoding|managed-settings|settings\.local/;
+  const NOISE = /ENOENT|Broken symlink|detectFileEncoding|managed-settings|settings\.local|\[DEBUG\]/;
   tail.stdout.on("data", (chunk: Buffer) => {
     for (const line of chunk.toString().split("\n").filter(l => l.trim())) {
       if (NOISE.test(line)) continue;
@@ -163,7 +163,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ col
     }
   });
 
-  proc.stderr.on("data", (chunk: Buffer) => { log(chunk.toString()); });
+  proc.stderr.on("data", (chunk: Buffer) => {
+    for (const line of chunk.toString().split("\n")) {
+      if (line.trim() && !NOISE.test(line)) log(line + "\n");
+    }
+  });
 
   proc.on("close", (code) => {
     stopWatcher();

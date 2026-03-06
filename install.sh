@@ -113,6 +113,19 @@ brew_install python@3 python3
 brew_install jq
 brew_install age
 
+# Git Butler (required for isolated per-card virtual branches)
+GITBUTLER_BIN="/Applications/GitButler.app/Contents/MacOS/gitbutler-tauri"
+if [[ -x "$GITBUTLER_BIN" ]]; then
+  ok "Git Butler already installed"
+elif [[ "$CHECK_ONLY" == true ]]; then
+  fail "Git Butler not found ($GITBUTLER_BIN)"
+else
+  info "Installing Git Butler..."
+  brew install --cask gitbutler \
+    && ok "Git Butler installed" \
+    || warn "Git Butler install failed — download from https://gitbutler.com"
+fi
+
 # ── Step 3: Bun ───────────────────────────────────────────────────────────────
 step "Step 3: Bun"
 

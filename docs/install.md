@@ -29,6 +29,7 @@ present. Re-running is safe.
 | Internet | Required | Downloads Homebrew, Node, npm packages, QMD |
 | `sudo` access | Required | Needed by Homebrew installer |
 | Terminal | zsh or bash | Shell profile files updated automatically |
+| Git Butler | Latest | Required for isolated per-card virtual branches; installed automatically by `install.sh` via `brew install --cask gitbutler` |
 
 ---
 

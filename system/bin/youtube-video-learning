@@ -1,0 +1,563 @@
+#!/usr/bin/env bash
+# youtube-video-learning — extract key learning moments from a YouTube video
+# Usage: youtube-video-learning <youtube-url> [--output-dir DIR] [--max-points N]
+#
+# Workflow:
+#   1. Download subtitles only (fast)
+#   2. Parse VTT/SRT to get text + timestamps
+#   3. Ask Claude to identify 8-15 key learning moments (returns JSON)
+#   4. Download video (yt-dlp, best up to 1080p)
+#   5. Extract JPG frames at each key timestamp via ffmpeg
+#   6. Write summary.md
+
+set -euo pipefail
+
+# ── constants ─────────────────────────────────────────────────────────────────
+CLAUDE_BIN="/Users/augmentedmike/.local/bin/claude"
+YTDLP_BIN="$(which yt-dlp 2>/dev/null || true)"
+FFMPEG_BIN="$(which ffmpeg 2>/dev/null || true)"
+DEFAULT_OUTPUT_BASE="${HOME}/am/media/youtube-learning"
+DEFAULT_MAX_POINTS=12
+
+# ── helpers ───────────────────────────────────────────────────────────────────
+die() { echo "ERROR: $*" >&2; exit 1; }
+info() { echo "[youtube-video-learning] $*"; }
+
+usage() {
+  cat >&2 <<EOF
+Usage: youtube-video-learning <youtube-url> [options]
+
+Options:
+  --output-dir DIR    Base output directory (default: ~/am/media/youtube-learning/<video-id>/)
+  --max-points N      Maximum key points to extract (default: 12, min 8, max 15)
+  --help              Show this message
+
+EOF
+  exit 1
+}
+
+# ── dependency checks ─────────────────────────────────────────────────────────
+check_deps() {
+  if [[ -z "$YTDLP_BIN" ]]; then die "yt-dlp not found. Install with: brew install yt-dlp"; fi
+  if [[ -z "$FFMPEG_BIN" ]]; then die "ffmpeg not found. Install with: brew install ffmpeg"; fi
+  if [[ ! -x "$CLAUDE_BIN" ]]; then die "Claude CLI not found at $CLAUDE_BIN"; fi
+}
+
+# ── argument parsing ──────────────────────────────────────────────────────────
+parse_args() {
+  URL=""
+  OUTPUT_DIR=""
+  MAX_POINTS="$DEFAULT_MAX_POINTS"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --help|-h) usage ;;
+      --output-dir)
+        if [[ -z "${2:-}" ]]; then die "--output-dir requires a value"; fi
+        OUTPUT_DIR="$2"; shift 2 ;;
+      --max-points)
+        if [[ -z "${2:-}" ]]; then die "--max-points requires a value"; fi
+        MAX_POINTS="$2"; shift 2 ;;
+      http*://*)
+        if [[ -n "$URL" ]]; then die "Multiple URLs provided"; fi
+        URL="$1"; shift ;;
+      *)
+        die "Unknown argument: $1" ;;
+    esac
+  done
+
+  if [[ -z "$URL" ]]; then die "No YouTube URL provided. Run with --help for usage."; fi
+}
+
+# ── get video id ──────────────────────────────────────────────────────────────
+get_video_id() {
+  local url="$1"
+  # Extract ?v= or youtu.be/ style IDs
+  local vid
+  vid=$(echo "$url" | sed -E 's|.*[?&]v=([A-Za-z0-9_-]{11}).*|\1|; s|.*youtu\.be/([A-Za-z0-9_-]{11}).*|\1|')
+  if [[ ${#vid} -ne 11 ]]; then
+    # Fall back to yt-dlp for non-standard URLs
+    vid=$("$YTDLP_BIN" --get-id "$url" 2>/dev/null) || die "Cannot extract video ID from URL: $url"
+  fi
+  echo "$vid"
+}
+
+# ── download subtitles ────────────────────────────────────────────────────────
+download_subtitles() {
+  local url="$1" outdir="$2"
+
+  info "Downloading subtitles..." >&2
+
+  # Try manual subs first, then auto-generated, any language (prefer en)
+  # yt-dlp will write files like: <title>.<lang>.vtt or <title>.<lang>.srt
+  # Redirect all yt-dlp output to stderr so it doesn't pollute the return value
+  "$YTDLP_BIN" \
+    --skip-download \
+    --write-subs \
+    --write-auto-subs \
+    --sub-langs "en.*,en-US,en-GB,en" \
+    --sub-format "vtt/srt/best" \
+    --output "$outdir/subtitles/%(title)s.%(ext)s" \
+    "$url" 2>&1 | grep -v "^\[debug\]" >&2 || true
+
+  # Find downloaded subtitle file
+  local sub_file
+  sub_file=$(find "$outdir/subtitles" -type f \( -name "*.vtt" -o -name "*.srt" \) 2>/dev/null | head -1)
+
+  if [[ -z "$sub_file" ]]; then
+    # Try without language filter (any language)
+    info "No English subtitles found, trying any available language..." >&2
+    "$YTDLP_BIN" \
+      --skip-download \
+      --write-subs \
+      --write-auto-subs \
+      --sub-format "vtt/srt/best" \
+      --output "$outdir/subtitles/%(title)s.%(ext)s" \
+      "$url" 2>&1 | grep -v "^\[debug\]" >&2 || true
+
+    sub_file=$(find "$outdir/subtitles" -type f \( -name "*.vtt" -o -name "*.srt" \) 2>/dev/null | head -1)
+  fi
+
+  if [[ -z "$sub_file" ]]; then
+    die "No subtitles found for this video. Cannot proceed without transcript."
+  fi
+
+  info "Subtitles saved: $sub_file" >&2
+  echo "$sub_file"
+}
+
+# ── parse VTT ────────────────────────────────────────────────────────────────
+# Returns lines in format: HH:MM:SS TEXT
+parse_vtt() {
+  local file="$1"
+  python3 - "$file" <<'PYEOF'
+import sys, re
+
+path = sys.argv[1]
+with open(path, encoding='utf-8', errors='replace') as f:
+    content = f.read()
+
+# Remove WEBVTT header and NOTE blocks
+content = re.sub(r'WEBVTT.*?\n', '', content, count=1)
+content = re.sub(r'NOTE\s.*?\n\n', '', content, flags=re.DOTALL)
+
+# Split into cue blocks
+blocks = re.split(r'\n\n+', content.strip())
+
+seen_texts = set()
+results = []
+
+for block in blocks:
+    lines = [l.strip() for l in block.strip().splitlines() if l.strip()]
+    if not lines:
+        continue
+
+    # Find timestamp line: 00:00:00.000 --> 00:00:00.000
+    ts_line = None
+    ts_idx = -1
+    for i, l in enumerate(lines):
+        if re.match(r'[\d:\.]+\s+-->\s+[\d:\.]+', l):
+            ts_line = l
+            ts_idx = i
+            break
+
+    if ts_line is None:
+        continue
+
+    # Parse start time
+    m = re.match(r'([\d:\.]+)', ts_line)
+    if not m:
+        continue
+    raw_ts = m.group(1)  # e.g. 00:01:23.456 or 01:23.456
+
+    # Normalize to HH:MM:SS
+    parts = raw_ts.replace('.', ':').split(':')
+    parts = [p.zfill(2) for p in parts]
+    if len(parts) >= 4:
+        hh, mm, ss = parts[0], parts[1], parts[2]
+    elif len(parts) == 3:
+        hh, mm, ss = '00', parts[0], parts[1]
+    else:
+        hh, mm, ss = '00', '00', parts[0]
+
+    timestamp = f"{hh}:{mm}:{ss}"
+
+    # Collect text lines after timestamp
+    text_lines = lines[ts_idx+1:]
+    # Strip <c> timing tags and other HTML
+    text = ' '.join(text_lines)
+    text = re.sub(r'<[^>]+>', '', text)
+    text = re.sub(r'&amp;', '&', text)
+    text = re.sub(r'&lt;', '<', text)
+    text = re.sub(r'&gt;', '>', text)
+    text = re.sub(r'&nbsp;', ' ', text)
+    text = text.strip()
+
+    if not text:
+        continue
+
+    # Deduplicate: skip if exact same text was just seen
+    if text in seen_texts:
+        continue
+    seen_texts.add(text)
+    # Keep seen_texts small — only last 5 unique texts
+    if len(seen_texts) > 5:
+        seen_texts.pop()
+
+    results.append(f"{timestamp} {text}")
+
+for r in results:
+    print(r)
+PYEOF
+}
+
+# ── parse SRT ─────────────────────────────────────────────────────────────────
+parse_srt() {
+  local file="$1"
+  python3 - "$file" <<'PYEOF'
+import sys, re
+
+path = sys.argv[1]
+with open(path, encoding='utf-8', errors='replace') as f:
+    content = f.read()
+
+blocks = re.split(r'\n\n+', content.strip())
+seen_texts = set()
+
+for block in blocks:
+    lines = [l.strip() for l in block.strip().splitlines() if l.strip()]
+    if len(lines) < 2:
+        continue
+    # Find timestamp line
+    ts_line = None
+    for i, l in enumerate(lines):
+        if '-->' in l:
+            ts_line = (i, l)
+            break
+    if ts_line is None:
+        continue
+    ts_idx, ts_raw = ts_line
+    m = re.match(r'(\d+):(\d+):(\d+)', ts_raw)
+    if not m:
+        continue
+    timestamp = f"{m.group(1)}:{m.group(2)}:{m.group(3)}"
+
+    text_lines = lines[ts_idx+1:]
+    text = ' '.join(text_lines)
+    text = re.sub(r'<[^>]+>', '', text).strip()
+
+    if not text or text in seen_texts:
+        continue
+    seen_texts.add(text)
+    if len(seen_texts) > 5:
+        seen_texts.pop()
+
+    print(f"{timestamp} {text}")
+PYEOF
+}
+
+# ── parse subtitle file (auto-detect format) ──────────────────────────────────
+parse_subtitle_file() {
+  local file="$1"
+  if [[ "$file" == *.vtt ]]; then
+    parse_vtt "$file"
+  elif [[ "$file" == *.srt ]]; then
+    parse_srt "$file"
+  else
+    die "Unknown subtitle format: $file"
+  fi
+}
+
+# ── ts_to_seconds ─────────────────────────────────────────────────────────────
+ts_to_seconds() {
+  # Input: HH:MM:SS or MM:SS
+  python3 -c "
+ts = '$1'
+parts = ts.split(':')
+if len(parts) == 3:
+    print(int(parts[0])*3600 + int(parts[1])*60 + int(parts[2]))
+elif len(parts) == 2:
+    print(int(parts[0])*60 + int(parts[1]))
+else:
+    print(int(parts[0]))
+"
+}
+
+# ── ask claude to identify key moments ───────────────────────────────────────
+analyze_transcript() {
+  local transcript="$1"
+  local max_points="$2"
+
+  info "Sending transcript to Claude for analysis..." >&2
+
+  local prompt
+  prompt=$(cat <<PROMPT
+You are analyzing a YouTube video transcript to identify the most important learning moments.
+
+The transcript below contains lines in the format: HH:MM:SS Text content
+
+Your task: identify exactly ${max_points} key learning moments from this transcript — moments where an important concept is explained, demonstrated, summarized, or introduced. Aim for a spread across the full duration of the video. Prioritize moments with substantive educational value over transitions or filler.
+
+Return ONLY valid JSON (no markdown fences, no explanation, no extra text) — a JSON array like this:
+[
+  {"timestamp": "02:30", "seconds": 150, "title": "Neural networks intro", "why": "Core concept explained with visual demo"},
+  ...
+]
+
+Rules:
+- "timestamp" must be in MM:SS or HH:MM:SS format matching a real timestamp in the transcript
+- "seconds" must be the integer number of seconds corresponding to that timestamp
+- "title" must be a short descriptive label (3-8 words)
+- "why" must explain in one sentence why this moment is educationally significant
+- Return exactly ${max_points} items
+- Do not return fewer than 8 or more than 15 items
+
+TRANSCRIPT:
+${transcript}
+PROMPT
+)
+
+  # Run Claude and capture output
+  # Unset CLAUDECODE to allow running claude as a subprocess inside a Claude Code session
+  local raw_output
+  raw_output=$(CLAUDECODE="" "$CLAUDE_BIN" -p "$prompt" 2>&1)
+
+  # Strip markdown fences if present (```json ... ```)
+  local json_output
+  json_output=$(echo "$raw_output" | python3 -c "
+import sys, re
+content = sys.stdin.read()
+# Remove markdown fences
+content = re.sub(r'^\s*\`\`\`(?:json)?\s*', '', content, flags=re.MULTILINE)
+content = re.sub(r'^\s*\`\`\`\s*$', '', content, flags=re.MULTILINE)
+# Find first '[' and last ']'
+start = content.find('[')
+end = content.rfind(']')
+if start == -1 or end == -1:
+    sys.exit(1)
+print(content[start:end+1])
+")
+
+  if [[ -z "$json_output" ]]; then
+    echo "Raw Claude output:" >&2
+    echo "$raw_output" >&2
+    die "Claude did not return valid JSON. See above."
+  fi
+
+  # Validate it's parseable JSON
+  echo "$json_output" | python3 -c "import sys, json; data=json.load(sys.stdin); print(f'Parsed {len(data)} key points')" >&2 || \
+    die "Claude returned invalid JSON: $json_output"
+
+  echo "$json_output"
+}
+
+# ── download video ────────────────────────────────────────────────────────────
+download_video() {
+  local url="$1" outdir="$2"
+
+  info "Downloading video (best quality up to 1080p)..." >&2
+  local video_path="$outdir/video/video.%(ext)s"
+
+  # Redirect all yt-dlp output to stderr so it doesn't pollute the return value
+  "$YTDLP_BIN" \
+    -f "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]" \
+    --merge-output-format mp4 \
+    --output "$video_path" \
+    "$url" 2>&1 | grep -v "^\[debug\]" >&2
+
+  local downloaded
+  downloaded=$(find "$outdir/video" -type f \( -name "*.mp4" -o -name "*.mkv" -o -name "*.webm" \) 2>/dev/null | head -1)
+  if [[ -z "$downloaded" ]]; then die "Video download failed — no video file found in $outdir/video"; fi
+  info "Video saved: $downloaded" >&2
+  echo "$downloaded"
+}
+
+# ── extract frames ────────────────────────────────────────────────────────────
+extract_frames() {
+  local video_file="$1" json_points="$2" frames_dir="$3"
+
+  mkdir -p "$frames_dir"
+
+  info "Extracting frames..."
+
+  python3 - "$video_file" "$frames_dir" "$FFMPEG_BIN" <<PYEOF
+import sys, json, subprocess, re, os
+
+video_file = sys.argv[1]
+frames_dir = sys.argv[2]
+ffmpeg_bin = sys.argv[3]
+
+# Read JSON from environment
+import os
+points_json = os.environ.get('POINTS_JSON', '[]')
+points = json.loads(points_json)
+
+for i, pt in enumerate(points, 1):
+    seconds = pt.get('seconds', 0)
+    title = pt.get('title', 'untitled')
+    ts = pt.get('timestamp', '00:00')
+
+    # Make filename safe
+    safe_title = re.sub(r'[^A-Za-z0-9]+', '-', title).strip('-').lower()
+    safe_title = safe_title[:50]
+    # Format: 001_02m30s_title.jpg
+    mins, secs = divmod(int(seconds), 60)
+    ts_part = f"{mins:02d}m{secs:02d}s"
+    filename = f"{i:03d}_{ts_part}_{safe_title}.jpg"
+    output_path = os.path.join(frames_dir, filename)
+
+    cmd = [
+        ffmpeg_bin,
+        "-ss", str(seconds),
+        "-i", video_file,
+        "-vframes", "1",
+        "-q:v", "2",
+        "-vf", "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2",
+        "-y",
+        output_path
+    ]
+
+    print(f"  [{i:02d}] {filename}", flush=True)
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"       WARNING: ffmpeg failed for point {i}: {result.stderr[-200:]}", file=sys.stderr)
+    else:
+        size_kb = os.path.getsize(output_path) // 1024 if os.path.exists(output_path) else 0
+        print(f"       Saved ({size_kb} KB)", flush=True)
+PYEOF
+}
+
+# ── write summary.md ──────────────────────────────────────────────────────────
+write_summary() {
+  local outdir="$1" json_points="$2" url="$3" video_title="$4"
+
+  local summary_file="$outdir/summary.md"
+
+  python3 - "$summary_file" "$url" "$video_title" <<PYEOF
+import sys, json, os, datetime
+
+summary_file = sys.argv[1]
+url = sys.argv[2]
+video_title = sys.argv[3]
+points_json = os.environ.get('POINTS_JSON', '[]')
+points = json.loads(points_json)
+
+lines = []
+lines.append(f"# Learning Summary")
+lines.append(f"")
+lines.append(f"**Video:** [{video_title}]({url})")
+lines.append(f"**Generated:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}")
+lines.append(f"**Key Points:** {len(points)}")
+lines.append(f"")
+lines.append(f"---")
+lines.append(f"")
+lines.append(f"## Key Learning Moments")
+lines.append(f"")
+
+for i, pt in enumerate(points, 1):
+    ts = pt.get('timestamp', '??:??')
+    title = pt.get('title', 'Untitled')
+    why = pt.get('why', '')
+    seconds = pt.get('seconds', 0)
+    mins, secs = divmod(int(seconds), 60)
+    ts_part = f"{mins:02d}m{secs:02d}s"
+    screenshot = f"{i:03d}_{ts_part}_{__import__('re').sub(r'[^A-Za-z0-9]+', '-', title).strip('-').lower()[:50]}.jpg"
+
+    lines.append(f"### {i}. {title} `[{ts}]`")
+    lines.append(f"")
+    lines.append(f"{why}")
+    lines.append(f"")
+    lines.append(f"![{title}](screenshots/{screenshot})")
+    lines.append(f"")
+
+with open(summary_file, 'w') as f:
+    f.write('\n'.join(lines) + '\n')
+
+print(f"Summary written: {summary_file}")
+PYEOF
+}
+
+# ── get video title ───────────────────────────────────────────────────────────
+get_video_title() {
+  local url="$1"
+  "$YTDLP_BIN" --get-title "$url" 2>/dev/null | head -1 || echo "Unknown Title"
+}
+
+# ── main ──────────────────────────────────────────────────────────────────────
+main() {
+  check_deps
+  parse_args "$@"
+
+  # Get video ID
+  info "Fetching video ID..."
+  local video_id
+  video_id=$(get_video_id "$URL")
+  info "Video ID: $video_id"
+
+  # Set up output directory
+  local outdir
+  if [[ -n "$OUTPUT_DIR" ]]; then
+    outdir="$OUTPUT_DIR"
+  else
+    outdir="${DEFAULT_OUTPUT_BASE}/${video_id}"
+  fi
+
+  mkdir -p "$outdir/subtitles" "$outdir/video" "$outdir/screenshots"
+  info "Output directory: $outdir"
+
+  # Step 1: Download subtitles
+  local sub_file
+  sub_file=$(download_subtitles "$URL" "$outdir")
+
+  # Step 2: Parse subtitles
+  info "Parsing subtitle file: $sub_file"
+  local parsed_transcript
+  parsed_transcript=$(parse_subtitle_file "$sub_file")
+
+  local line_count
+  line_count=$(echo "$parsed_transcript" | wc -l | tr -d ' ')
+  info "Parsed $line_count transcript lines"
+
+  if [[ "$line_count" -lt 10 ]]; then
+    die "Transcript too short ($line_count lines) — cannot do meaningful analysis"
+  fi
+
+  # Truncate if very long (Claude context limit safety)
+  # ~10k lines is typically well under 200k tokens
+  local transcript_for_claude
+  transcript_for_claude=$(echo "$parsed_transcript" | head -10000)
+
+  # Save parsed transcript for reference
+  echo "$transcript_for_claude" > "$outdir/transcript.txt"
+  info "Transcript saved to $outdir/transcript.txt"
+
+  # Step 3: Claude analysis
+  local key_points_json
+  key_points_json=$(analyze_transcript "$transcript_for_claude" "$MAX_POINTS")
+  echo "$key_points_json" > "$outdir/key_points.json"
+  info "Key points JSON saved to $outdir/key_points.json"
+
+  # Step 4: Download video
+  local video_file
+  video_file=$(download_video "$URL" "$outdir")
+
+  # Step 5: Extract frames
+  export POINTS_JSON="$key_points_json"
+  extract_frames "$video_file" "$key_points_json" "$outdir/screenshots"
+
+  # Step 6: Write summary.md
+  local video_title
+  video_title=$(get_video_title "$URL")
+  write_summary "$outdir" "$key_points_json" "$URL" "$video_title"
+
+  # Done
+  info ""
+  info "Done! Output in: $outdir"
+  info "  summary.md        — key points with screenshots"
+  info "  transcript.txt    — full parsed transcript"
+  info "  key_points.json   — raw Claude JSON output"
+  info "  screenshots/      — $(ls "$outdir/screenshots" | wc -l | tr -d ' ') JPG frames"
+  info "  subtitles/        — downloaded subtitle file"
+}
+
+main "$@"

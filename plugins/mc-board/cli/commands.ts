@@ -674,15 +674,17 @@ Examples:
     .option("--description <desc>", "Short description of the project")
     .option("--work-dir <path>", "Local working directory (absolute path to git repo)")
     .option("--github-repo <repo>", "GitHub/remote repo (e.g. owner/repo or full URL)")
+    .option("--build-command <cmd>", "Shell command to run after shipping (e.g. 'npm run build && pm2 restart app')")
     .addHelpText("after", `
 Projects are containers for cards. Create a project, then link cards to it
 with 'brain create --project <id>' or 'brain update <id> --project <id>'.
 
 Examples:
   miniclaw brain project create --name "Telegram Overhaul"
-  miniclaw brain project create --name "v2 API" --description "REST redesign" --work-dir ~/projects/api --github-repo owner/api`)
-    .action((opts: { name: string; description?: string; workDir?: string; githubRepo?: string }) => {
-      const proj = projects.create({ name: opts.name, description: opts.description, work_dir: opts.workDir, github_repo: opts.githubRepo });
+  miniclaw brain project create --name "v2 API" --description "REST redesign" --work-dir ~/projects/api --github-repo owner/api
+  miniclaw brain project create --name "mc-board" --build-command 'cd ~/am/miniclaw/plugins/mc-board/web && npm run build'`)
+    .action((opts: { name: string; description?: string; workDir?: string; githubRepo?: string; buildCommand?: string }) => {
+      const proj = projects.create({ name: opts.name, description: opts.description, work_dir: opts.workDir, github_repo: opts.githubRepo, build_command: opts.buildCommand });
       console.log(`Created ${proj.id}: ${proj.name}`);
     });
 
@@ -749,16 +751,18 @@ archived projects.
     .option("--description <desc>", "New project description")
     .option("--work-dir <path>", "Local working directory (absolute path to git repo)")
     .option("--github-repo <repo>", "GitHub/remote repo (e.g. owner/repo or full URL)")
+    .option("--build-command <cmd>", "Shell command to run after shipping (e.g. 'npm run build && pm2 restart app')")
     .addHelpText("after", `
   miniclaw brain project update prj_a1b2c3d4 --name "New Name"
-  miniclaw brain project update prj_a1b2c3d4 --work-dir ~/projects/api --github-repo owner/api`)
-    .action((id: string, opts: { name?: string; description?: string; workDir?: string; githubRepo?: string }) => {
-      if (!opts.name && opts.description === undefined && !opts.workDir && !opts.githubRepo) {
-        console.error("No fields to update. Provide --name, --description, --work-dir, or --github-repo.");
+  miniclaw brain project update prj_a1b2c3d4 --work-dir ~/projects/api --github-repo owner/api
+  miniclaw brain project update prj_a1b2c3d4 --build-command 'cd ~/am/miniclaw/plugins/mc-board/web && npm run build'`)
+    .action((id: string, opts: { name?: string; description?: string; workDir?: string; githubRepo?: string; buildCommand?: string }) => {
+      if (!opts.name && opts.description === undefined && !opts.workDir && !opts.githubRepo && opts.buildCommand === undefined) {
+        console.error("No fields to update. Provide --name, --description, --work-dir, --github-repo, or --build-command.");
         process.exit(1);
       }
       try {
-        const proj = projects.update(id, { name: opts.name, description: opts.description, work_dir: opts.workDir, github_repo: opts.githubRepo });
+        const proj = projects.update(id, { name: opts.name, description: opts.description, work_dir: opts.workDir, github_repo: opts.githubRepo, build_command: opts.buildCommand });
         console.log(`Updated project ${proj.id}: ${proj.name}`);
       } catch (err) {
         console.error(String(err));
@@ -952,6 +956,7 @@ Card:
         project ? `Project: ${project.name}` : "",
         project?.work_dir ? `Work dir: ${project.work_dir}` : "",
         project?.github_repo ? `GitHub repo: ${project.github_repo}` : "",
+        project?.build_command ? `Build command: ${project.build_command}` : "",
         "",
         card.problem_description ? `## Problem\n${card.problem_description}` : "",
         card.implementation_plan ? `## Plan\n${card.implementation_plan}` : "",
@@ -1017,7 +1022,7 @@ Rules:
       let buf = "";
       let fullOutput = "";
 
-      const NOISE = /ENOENT|Broken symlink|detectFileEncoding|managed-settings|settings\.local/;
+      const NOISE = /ENOENT|Broken symlink|detectFileEncoding|managed-settings|settings\.local|\[DEBUG\]/;
       const tail = spawn("tail", ["-f", debugFile]);
       tail.stdout.on("data", (chunk: Buffer) => {
         for (const line of chunk.toString().split("\n").filter((l: string) => l.trim())) {
@@ -1050,7 +1055,11 @@ Rules:
         }
       });
 
-      proc.stderr!.on("data", (chunk: Buffer) => { log(chunk.toString()); });
+      proc.stderr!.on("data", (chunk: Buffer) => {
+        for (const line of chunk.toString().split("\n")) {
+          if (line.trim() && !NOISE.test(line)) log(line + "\n");
+        }
+      });
 
       proc.on("close", (code: number | null) => {
         setTimeout(() => tail.kill(), 300);
