@@ -76,12 +76,27 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
         <div className="flex items-stretch">
           <div className="brand">MiniClaw Brain</div>
           <div className="tab-bar">
-            {(["board", "memory", "rolodex"] as Tab[]).map(t => (
-              <button key={t} onClick={() => switchTab(t)}
-                className={`tab-btn${tab === t ? " active" : ""}`}>
-                {t === "board" ? "Board" : t === "memory" ? "Memory" : "Rolodex"}
-              </button>
-            ))}
+            {(["board", "memory", "rolodex"] as Tab[]).map(t => {
+              const activeCount = t === "board" && counts ? counts.inProgress + counts.inReview : 0;
+              return (
+                <button key={t} onClick={() => switchTab(t)}
+                  className={`tab-btn${tab === t ? " active" : ""}`}
+                  style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  {t === "board" ? "Board" : t === "memory" ? "Memory" : "Rolodex"}
+                  {activeCount > 0 && (
+                    <span style={{
+                      fontSize: 10,
+                      fontWeight: 600,
+                      background: "#52525b",
+                      color: "#fafafa",
+                      borderRadius: 10,
+                      padding: "1px 6px",
+                      lineHeight: "14px",
+                    }}>{activeCount}</span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
 
