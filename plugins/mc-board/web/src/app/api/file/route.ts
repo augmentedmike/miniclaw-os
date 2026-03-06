@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
+import { execSync } from "node:child_process";
 
 const IMAGE_EXTS = new Set([".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".ico"]);
 const IMAGE_MIME: Record<string, string> = {
@@ -25,18 +26,38 @@ const EXT_TO_LANG: Record<string, string> = {
   ".env": "bash", ".gitignore": "plaintext",
 };
 
+const AM_HOME = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), "am");
+
+function expandTilde(p: string): string {
+  return p.startsWith("~/") ? path.join(os.homedir(), p.slice(2)) : p;
+}
+
 function resolvePath(filePath: string, base?: string): string {
-  if (filePath.startsWith("~/")) {
-    return path.join(os.homedir(), filePath.slice(2));
+  const fp = expandTilde(filePath);
+  if (path.isAbsolute(fp)) return fp;
+  const expandedBase = base ? expandTilde(base) : undefined;
+  if (expandedBase) return path.resolve(expandedBase, fp);
+  return path.resolve(fp);
+}
+
+// Fallback: search for the file by path suffix, pruning node_modules/.next/.git
+function findInRoot(root: string, relativePath: string): string | null {
+  // Use -prune to avoid descending into heavy dirs — keeps find fast (<200ms)
+  const pluginsDir = path.join(AM_HOME, "miniclaw", "plugins");
+  const projectsDir = path.join(AM_HOME, "projects");
+  const searchRoots = [pluginsDir, projectsDir, root]
+    .filter((r, i, arr) => arr.indexOf(r) === i && fs.existsSync(r))
+    .map(r => `"${r}"`)
+    .join(" ");
+  try {
+    const out = execSync(
+      `find ${searchRoots} \\( -name node_modules -o -name .next -o -name .git -o -name dist \\) -prune -o -path "*/${relativePath}" -print 2>/dev/null | head -1`,
+      { encoding: "utf-8", timeout: 10000, shell: "/bin/zsh" }
+    ).trim();
+    return out || null;
+  } catch {
+    return null;
   }
-  if (path.isAbsolute(filePath)) {
-    return filePath;
-  }
-  // Relative — resolve against base if provided
-  if (base) {
-    return path.resolve(base, filePath);
-  }
-  return path.resolve(filePath);
 }
 
 export async function GET(req: NextRequest) {
@@ -47,7 +68,16 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "No path provided" }, { status: 400 });
   }
 
-  const resolved = resolvePath(filePath, base);
+  let resolved = resolvePath(filePath, base);
+  const isRelative = !filePath.startsWith("~/") && !path.isAbsolute(filePath);
+
+  // If not found and path is relative, search in base dir or ~/am
+  if (!fs.existsSync(resolved) && isRelative) {
+    const searchRoot = base ? expandTilde(base) : AM_HOME;
+    const found = findInRoot(searchRoot, filePath);
+    if (found) resolved = found;
+  }
+
   const ext = path.extname(resolved).toLowerCase();
 
   try {
