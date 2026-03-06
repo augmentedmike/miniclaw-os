@@ -164,13 +164,15 @@ Examples:
 ### Alpha / Transparency
 
 ```bash
-# Strip background from an image (outputs <file>.nobg.png)
+# Add alpha channel to an image (outputs <file>.nobg.png)
 mc designer alpha strip <file>
 
 Example:
   mc designer alpha strip ~/Desktop/product.png
   # creates: ~/Desktop/product.nobg.png
 ```
+
+> **Note:** `alpha strip` is a stub. It converts the image to PNG with an alpha channel (`ensureAlpha()`), but does **not** perform actual background removal or segmentation. The source comment describes this as a "naive approach" — a real implementation would require a segmentation API or model. Use this only to add transparency support to an image; remove backgrounds manually or with a dedicated service.
 
 ### Usage & Cost Tracking
 
@@ -327,6 +329,6 @@ mc designer composite mobile-hero --out ~/Desktop/mobile-hero-v2.png
 
 **Multi-panel layouts:** `mc designer composite` flattens one canvas at a time. For multi-panel pages, composite each panel individually, then assemble with Python PIL or a similar tool.
 
-**Text layers:** Gemini text in generated images gets distorted when scaled. For precise captions and labels, use `mc designer text` (renders at exact pixel position) rather than baking text into gen prompts.
+**Text layers:** Gemini text in generated images gets distorted when scaled. For precise captions and labels, bake text into gen prompts carefully, or composite text externally with a tool like Python PIL after generation. (`mc designer text` is not yet implemented.)
 
 **Character consistency:** Gemini has no memory between calls. For recurring characters, write a full physical description and include it verbatim in every panel prompt.
