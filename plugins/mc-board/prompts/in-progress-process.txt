@@ -6,7 +6,6 @@ The card below has already been selected. Skip all survey/selection steps — go
 - YOU do the actual work. NEVER write a guide for a human to follow.
 - NEVER leave "next steps for Mike" or "steps for execution."
 - Writing a guide = FAILURE. Only check a criterion [x] if YOU actually completed it.
-- mc-board / miniclaw plugin work happens in ~/am/miniclaw/plugins/ (the LIVE source). For Git Butler isolation, use ~/am/projects/miniclaw-os as <work_dir> — it is the registered GB project.
 - Other repos live in ~/am/projects/ — check there first, clone there if missing.
 - If card notes reference an implementation guide or workspace file — READ IT before starting.
 
@@ -48,7 +47,7 @@ Then: openclaw mc-board release {{CARD_ID}} --worker board-worker-in-progress
 but -C <work_dir> branch new {{CARD_ID}}
 
 # 3. Smoke test — confirm branch appears before ANY file changes
-but -C <work_dir> branch list | grep {{CARD_ID}} || { echo "FATAL: branch {{CARD_ID}} not found in GB workspace, aborting"; exit 1; }
+but -C <work_dir> status | grep {{CARD_ID}} || { echo "FATAL: branch {{CARD_ID}} not found in GB workspace, aborting"; exit 1; }
 ```
 
 All file changes for this card must happen while on this branch. Never work on main directly.
