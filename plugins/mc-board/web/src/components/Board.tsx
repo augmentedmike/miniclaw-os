@@ -154,6 +154,30 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
     return () => document.removeEventListener("mousedown", onDown);
   }, []);
 
+  const handleFocusToggle = useCallback((cardId: string, setFocused: boolean) => {
+    const card = data?.cards.find(c => c.id === cardId);
+    if (!card) return;
+    const newTags = setFocused
+      ? [...card.tags.filter(t => t !== "focus"), "focus"]
+      : card.tags.filter(t => t !== "focus");
+
+    // Optimistic update — flip the tag immediately in local SWR cache
+    mutate(current => {
+      if (!current) return current;
+      return {
+        ...current,
+        cards: current.cards.map(c => c.id === cardId ? { ...c, tags: newTags } : c),
+      };
+    }, { revalidate: false });
+
+    // Fire CLI in background with full tag set, then revalidate to sync
+    fetch("/api/board/action", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "update", cardId, tags: newTags }),
+    }).then(() => mutate()).catch(() => mutate());
+  }, [mutate, data]);
+
   const handleSearchSelect = (cardId: string) => {
     setSearchQuery("");
     setSearchOpen(false);
@@ -228,6 +252,7 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
             activeWorkers={data?.activeWorkers}
             onCardClick={openCard}
             onWatchClick={setWatchCardId}
+            onFocusToggle={handleFocusToggle}
             collapsed={col === "shipped" ? !shippedOpen : undefined}
             onToggleCollapse={col === "shipped" ? () => setShippedOpen(o => !o) : undefined}
           />

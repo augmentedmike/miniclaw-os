@@ -21,6 +21,7 @@ interface Props {
   activeWorkers?: Record<string, string>;
   onCardClick: (id: string) => void;
   onWatchClick?: (id: string) => void;
+  onFocusToggle?: (cardId: string, focused: boolean) => void;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
 }
@@ -83,22 +84,9 @@ function TriageColumnHeader({ column, topCards, onOpenTriage }: TriageHeaderProp
   );
 }
 
-export function Column({ column, cards, projects, activeIds, activeWorkers, onCardClick, onWatchClick, collapsed, onToggleCollapse }: Props) {
+export function Column({ column, cards, projects, activeIds, activeWorkers, onCardClick, onWatchClick, onFocusToggle, collapsed, onToggleCollapse }: Props) {
   const [showTriage, setShowTriage] = useState(false);
   const hasTriage = TRIAGE_COLUMNS.has(column);
-
-  const handleFocusToggle = useCallback((cardId: string, setFocused: boolean) => {
-    const card = cards.find(c => c.id === cardId);
-    if (!card) return;
-    const tags = setFocused
-      ? [...card.tags.filter(t => t !== "focus"), "focus"]
-      : card.tags.filter(t => t !== "focus");
-    fetch("/api/board/action", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "update", cardId, tags }),
-    }).catch(() => {});
-  }, [cards]);
 
   const projectMap = useMemo(
     () => Object.fromEntries(projects.map(p => [p.id, p.name])),
@@ -136,7 +124,7 @@ export function Column({ column, cards, projects, activeIds, activeWorkers, onCa
                 worker={activeWorkers?.[card.id]}
                 onClick={onCardClick}
                 onWatchClick={onWatchClick}
-                onFocusToggle={handleFocusToggle}
+                onFocusToggle={onFocusToggle}
               />
             ))
         }
