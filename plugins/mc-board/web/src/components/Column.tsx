@@ -78,7 +78,8 @@ function TriageColumnHeader({ column, topCards, onOpenTriage }: TriageHeaderProp
       maxConcurrent={maxConcurrent}
       onMaxConcurrentChange={handleMaxChange}
       onOpenTriage={onOpenTriage}
-      onOpenWork={workCards.length > 0 ? handleWork : undefined}
+      onOpenWork={handleWork}
+      hasWorkCards={workCards.length > 0}
       launching={launching}
     />
   );

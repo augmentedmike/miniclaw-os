@@ -5,6 +5,7 @@ import type { TriageColumnState } from "@/hooks/useTriageColumn";
 interface Props extends TriageColumnState {
   onOpenTriage: () => void;
   onOpenWork?: () => void;
+  hasWorkCards?: boolean;
   launching?: boolean;
   maxConcurrent: number;
   onMaxConcurrentChange: (n: number) => void;
@@ -13,7 +14,7 @@ interface Props extends TriageColumnState {
 export function TriageControls({
   cronEnabled, cronMinutes, cronLoaded,
   handleToggleCron, handleMinutesChange,
-  onOpenTriage, onOpenWork, launching,
+  onOpenTriage, onOpenWork, hasWorkCards, launching,
   maxConcurrent, onMaxConcurrentChange,
 }: Props) {
   if (!cronLoaded) return null;
@@ -86,15 +87,16 @@ export function TriageControls({
 
       {onOpenWork && (
         <button
-          onClick={e => { e.stopPropagation(); onOpenWork(); }}
-          disabled={launching}
-          title={`Work top ${maxConcurrent} card${maxConcurrent === 1 ? "" : "s"}`}
+          onClick={e => { e.stopPropagation(); if (hasWorkCards) onOpenWork(); }}
+          disabled={launching || !hasWorkCards}
+          title={hasWorkCards ? `Work top ${maxConcurrent} card${maxConcurrent === 1 ? "" : "s"}` : "No cards to work"}
           style={{
             fontSize: 10, padding: "3px 9px", borderRadius: 4,
             background: launching ? "#292524" : "#27272a",
-            border: `1px solid ${launching ? "#92400e" : "#78350f"}`,
-            color: launching ? "#92400e" : "#f59e0b",
-            cursor: launching ? "not-allowed" : "pointer", lineHeight: 1.6,
+            border: `1px solid ${launching ? "#92400e" : hasWorkCards ? "#78350f" : "#3f3f46"}`,
+            color: launching ? "#92400e" : hasWorkCards ? "#f59e0b" : "#3f3f46",
+            cursor: (launching || !hasWorkCards) ? "not-allowed" : "pointer",
+            lineHeight: 1.6, opacity: hasWorkCards ? 1 : 0.5,
           }}
         >
           {launching ? "…" : "▶ Work"}
