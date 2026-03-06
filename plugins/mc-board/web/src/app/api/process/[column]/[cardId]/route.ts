@@ -14,7 +14,7 @@ const OPENCLAW_BIN = process.env.OPENCLAW_BIN ?? "openclaw";
 const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".miniclaw");
 
 // Full-agent columns use claude directly with tool access
-const FULL_AGENT_COLUMNS = new Set(["in-progress", "in-review"]);
+const FULL_AGENT_COLUMNS = new Set(["backlog", "in-progress", "in-review"]);
 
 export async function POST(
   req: NextRequest,

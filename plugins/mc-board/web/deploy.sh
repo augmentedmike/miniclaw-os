@@ -4,8 +4,9 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$DIR"
 
 node node_modules/next/dist/bin/next build .
-cp -r .next/static .next/standalone/web/.next/static
-cp -r public .next/standalone/web/public
+mkdir -p .next/standalone/.next
+cp -r .next/static .next/standalone/.next/static
+cp -r public .next/standalone/public
 
 launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.miniclaw.board-web.plist 2>/dev/null || true
 sleep 1
