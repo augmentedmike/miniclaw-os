@@ -57,7 +57,7 @@ function watchPid(pid: number, t0: number, onEvent: (msg: string) => void) {
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ column: string }> }) {
   const { column } = await params;
-  const { prompt } = await req.json();
+  const { prompt, debug = false } = await req.json();
   if (typeof prompt !== "string" || !prompt.trim()) {
     return new Response("prompt required", { status: 400 });
   }
@@ -84,10 +84,36 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ col
   const t0 = Date.now();
   const ts = () => `+${((Date.now() - t0) / 1000).toFixed(2)}s`;
   let fullOutput = "";
+  // Track whether last write to each sink ended with \n (for merging-safe debug lines)
+  let streamAtLineStart = true;
+  let fileAtLineStart = true;
+
+  function writeStream(msg: string) {
+    if (!msg) return;
+    try { writer.write(enc.encode(msg)); } catch {}
+    if (msg.length > 0) streamAtLineStart = msg[msg.length - 1] === "\n";
+  }
+
+  function writeFile(msg: string) {
+    if (!msg) return;
+    logStream.write(msg);
+    if (msg.length > 0) fileAtLineStart = msg[msg.length - 1] === "\n";
+  }
 
   function log(msg: string) {
-    try { writer.write(enc.encode(msg)); } catch {}
-    logStream.write(msg);
+    writeStream(msg);
+    writeFile(msg);
+  }
+
+  function logDbg(msg: string) {
+    // Always write to file, ensuring it starts on a new line
+    const filePfx = fileAtLineStart ? "  [dbg] " : "\n  [dbg] ";
+    writeFile(`${filePfx}${msg}\n`);
+    // Only write to stream if debug mode is enabled
+    if (debug) {
+      const streamPfx = streamAtLineStart ? "  [dbg] " : "\n  [dbg] ";
+      writeStream(`${streamPfx}${msg}\n`);
+    }
   }
 
   const { CLAUDECODE: _cc, ...env } = process.env;
@@ -127,8 +153,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ col
       try {
         const entry = JSON.parse(line);
         const msg = entry.message ?? entry.msg ?? line;
-        if (!NOISE.test(msg)) log(`  [dbg] ${msg}\n`);
-      } catch { log(`  [dbg] ${line}\n`); }
+        if (!NOISE.test(msg)) logDbg(msg);
+      } catch { logDbg(line); }
     }
   });
 
