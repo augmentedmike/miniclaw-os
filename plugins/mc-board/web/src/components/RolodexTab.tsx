@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import type { KeyboardEvent as ReactKeyboardEvent, FormEvent } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, FormEvent, MouseEvent } from "react";
 
 interface Contact {
   id: string;
@@ -43,6 +43,29 @@ function initials(name: string) {
     .map(w => w[0] ?? "")
     .join("")
     .toUpperCase();
+}
+
+// ── CopyableValue ─────────────────────────────────────────────
+
+function CopyableValue({ value, stopProp }: { value: string; stopProp?: boolean }) {
+  const [copied, setCopied] = useState(false);
+
+  const copy = (e: MouseEvent) => {
+    if (stopProp) e.stopPropagation();
+    navigator.clipboard.writeText(value).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }).catch(() => {});
+  };
+
+  return (
+    <span className="copyable-value" onClick={copy} title={`Click to copy: ${value}`}>
+      <span className="copyable-text">{value}</span>
+      <span className={`copy-icon${copied ? " copy-icon--done" : ""}`} aria-label="copy">
+        {copied ? "✓" : "⎘"}
+      </span>
+    </span>
+  );
 }
 
 // ── ChipInput ────────────────────────────────────────────────
@@ -313,19 +336,19 @@ function ContactModal({
             {(contact.emails?.length ?? 0) > 0 && (
               <div className="modal-section">
                 <div className="modal-section-label">Email</div>
-                <ul className="modal-list">{contact.emails!.map(e => <li key={e}>{e}</li>)}</ul>
+                <ul className="modal-list">{contact.emails!.map(e => <li key={e}><CopyableValue value={e} /></li>)}</ul>
               </div>
             )}
             {(contact.phones?.length ?? 0) > 0 && (
               <div className="modal-section">
                 <div className="modal-section-label">Phone</div>
-                <ul className="modal-list">{contact.phones!.map(p => <li key={p}>{p}</li>)}</ul>
+                <ul className="modal-list">{contact.phones!.map(p => <li key={p}><CopyableValue value={p} /></li>)}</ul>
               </div>
             )}
             {(contact.domains?.length ?? 0) > 0 && (
               <div className="modal-section">
                 <div className="modal-section-label">Domains</div>
-                <ul className="modal-list">{contact.domains!.map(d => <li key={d}>{d}</li>)}</ul>
+                <ul className="modal-list">{contact.domains!.map(d => <li key={d}><CopyableValue value={d} /></li>)}</ul>
               </div>
             )}
             {contact.notes && (
@@ -375,6 +398,7 @@ export function RolodexTab() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Contact | null>(null);
   const [formMode, setFormMode] = useState<Contact | "new" | null>(null);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -447,7 +471,7 @@ export function RolodexTab() {
       {/* Main layout */}
       <div className="rolodex-main">
         {/* Filter sidebar */}
-        <div className="filter-panel">
+        <div className={`filter-panel${mobileFiltersOpen ? " mobile-open" : ""}`}>
           <div className="filter-panel-label">Trust</div>
           <button className={`filter-btn ${!activeTrust ? "active" : ""}`} onClick={() => setActiveTrust(null)}>All</button>
           {TRUST_LEVELS.map(level => (
@@ -481,6 +505,14 @@ export function RolodexTab() {
         {/* Contact list panel */}
         <div className="contact-list-panel">
           <div className="search-bar">
+            <button
+              className={`filter-toggle-btn${(activeTag || activeTrust) ? " filter-toggle-btn--active" : ""}`}
+              onClick={() => setMobileFiltersOpen(v => !v)}
+              aria-label="Toggle filters"
+            >
+              {mobileFiltersOpen ? "Hide" : "Filter"}
+              {(activeTag || activeTrust) && <span className="filter-active-pip" />}
+            </button>
             <input
               ref={searchRef}
               type="search"
@@ -520,7 +552,11 @@ export function RolodexTab() {
                   <div className="contact-avatar">{initials(c.name)}</div>
                   <div className="contact-info">
                     <div className="contact-name">{c.name}</div>
-                    <div className="contact-sub">{c.emails?.[0] ?? c.domains?.[0] ?? ""}</div>
+                    <div className="contact-sub">
+                      {(c.emails?.[0] ?? c.domains?.[0]) ? (
+                        <CopyableValue value={c.emails?.[0] ?? c.domains?.[0] ?? ""} stopProp />
+                      ) : ""}
+                    </div>
                   </div>
                   <div className="contact-right">
                     <span className={trustClass(c.trustStatus)}>{trustLabel(c.trustStatus)}</span>

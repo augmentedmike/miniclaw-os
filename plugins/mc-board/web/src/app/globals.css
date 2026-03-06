@@ -424,6 +424,19 @@ a { color: inherit; }
 .form-error { font-size: 12px; color: #f87171; background: rgba(248,113,113,.08); border: 1px solid rgba(248,113,113,.25); border-radius: 5px; padding: 6px 10px; margin-bottom: 10px; }
 .form-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
+/* Copyable values */
+.copyable-value { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; border-radius: 3px; transition: background .1s; padding: 1px 3px; margin: -1px -3px; }
+.copyable-value:hover { background: rgba(63,63,70,.4); }
+.copyable-text { color: #d4d4d8; }
+.contact-sub .copyable-text { color: #71717a; }
+.copy-icon { font-size: 11px; color: #52525b; opacity: 0; transition: opacity .1s, color .15s; flex-shrink: 0; }
+.copyable-value:hover .copy-icon { opacity: 1; }
+.copy-icon--done { color: #4ade80 !important; opacity: 1 !important; }
+
+/* Mobile filter toggle button - hidden on desktop */
+.filter-toggle-btn { display: none; }
+.filter-active-pip { width: 6px; height: 6px; border-radius: 50%; background: #3b82f6; flex-shrink: 0; }
+
 /* Chip input */
 .chip-wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; background: #18181b; border: 1px solid #3f3f46; border-radius: 6px; padding: 5px 8px; min-height: 36px; transition: border-color .15s; }
 .chip-wrap:focus-within { border-color: #52525b; }
@@ -431,3 +444,54 @@ a { color: inherit; }
 .chip-x { background: none; border: none; color: #52525b; cursor: pointer; font-size: 14px; line-height: 1; padding: 0 0 0 2px; }
 .chip-x:hover { color: #a1a1aa; }
 .chip-text-input { background: none; border: none; color: #e4e4e7; font-size: 12px; font-family: inherit; outline: none; flex: 1; min-width: 80px; padding: 1px 0; }
+
+/* ── Responsive: mobile layout (≤600px) ── */
+@media (max-width: 600px) {
+  .rolodex-main { flex-direction: column; }
+
+  /* Show filter toggle button */
+  .filter-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: #27272a;
+    border: 1px solid #3f3f46;
+    color: #a1a1aa;
+    font-size: 11px;
+    font-weight: 500;
+    font-family: inherit;
+    padding: 4px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: background .1s, color .1s;
+  }
+  .filter-toggle-btn:hover { background: #3f3f46; color: #e4e4e7; }
+  .filter-toggle-btn--active { border-color: #3b82f6; }
+
+  /* Collapse filter panel: hidden by default, shown as horizontal row when open */
+  .filter-panel {
+    width: auto;
+    border-right: none;
+    border-bottom: 1px solid #27272a;
+    flex-direction: row;
+    flex-wrap: wrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 8px 10px;
+    gap: 4px;
+    display: none;
+  }
+  .filter-panel.mobile-open { display: flex; }
+  .filter-panel-label { display: none; }
+  .filter-btn { width: auto; white-space: nowrap; flex-shrink: 0; }
+
+  /* Ensure search bar and contact row stay usable */
+  .search-bar { flex-wrap: nowrap; }
+  .search-count { display: none; }
+  .contact-row { padding: 8px 10px; }
+  .contact-right { display: none; }
+  .modal { max-width: 100%; border-radius: 8px; }
+  .backdrop { padding: 20px 8px 8px; }
+}

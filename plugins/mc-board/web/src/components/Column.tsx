@@ -72,17 +72,13 @@ function TriageColumnHeader({ column, topCards, onOpenTriage }: TriageHeaderProp
     }
   }, [column, workCards]);
 
-  // backlog: Triage button only. in-progress/in-review: Work button only.
-  const showTriage = column === "backlog";
-  const showWork   = column !== "backlog";
-
   return (
     <TriageControls
       {...triage}
       maxConcurrent={maxConcurrent}
       onMaxConcurrentChange={handleMaxChange}
-      onOpenTriage={showTriage ? onOpenTriage : undefined}
-      onOpenWork={showWork ? handleWork : undefined}
+      onOpenTriage={onOpenTriage}
+      onOpenWork={handleWork}
       hasWorkCards={workCards.length > 0}
       launching={launching}
     />

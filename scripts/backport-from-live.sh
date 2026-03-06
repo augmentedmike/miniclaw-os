@@ -9,6 +9,7 @@
 #   ./scripts/backport-from-live.sh              # sync + show git diff --stat
 #   ./scripts/backport-from-live.sh --check      # dry-run, show what would change
 #   ./scripts/backport-from-live.sh --commit      # sync + auto-create a git commit
+#   ./scripts/backport-from-live.sh --push        # sync + commit + push to origin (implies --commit)
 #   ./scripts/backport-from-live.sh --new-plugins # also allow syncing plugin dirs not yet in repo
 
 set -euo pipefail
@@ -18,10 +19,12 @@ MINICLAW_DIR="${OPENCLAW_STATE_DIR:-$HOME/am}/miniclaw"
 
 DRY_RUN=false
 DO_COMMIT=false
+DO_PUSH=false
 NEW_PLUGINS=false
 for arg in "$@"; do
   [[ "$arg" == "--check" ]]       && DRY_RUN=true
   [[ "$arg" == "--commit" ]]      && DO_COMMIT=true
+  [[ "$arg" == "--push" ]]        && DO_PUSH=true && DO_COMMIT=true
   [[ "$arg" == "--new-plugins" ]] && NEW_PLUGINS=true
 done
 
@@ -144,6 +147,14 @@ if [[ "$DO_COMMIT" == true && "$DRY_RUN" == false && "$CHANGED" == true ]]; then
   git add plugins/
   COMMIT_MSG="chore(backport): sync live plugins → repo ($(date '+%Y-%m-%d %H:%M'))"
   git commit -m "$COMMIT_MSG" && ok "Committed: $COMMIT_MSG" || warn "Nothing to commit"
+fi
+
+# ── Auto-push ─────────────────────────────────────────────────────────────────
+if [[ "$DO_PUSH" == true && "$DRY_RUN" == false ]]; then
+  echo ""
+  info "Pushing to origin..."
+  cd "$REPO_DIR"
+  git push origin main && ok "Pushed to origin/main" || err "Push failed"
 fi
 
 echo ""
