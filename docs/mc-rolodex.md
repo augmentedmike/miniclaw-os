@@ -49,7 +49,7 @@ interface Contact {
 | `tags` | No | Lowercase strings. Used for grouping/filtering. Tag search is exact-match against the stored values. |
 | `trustStatus` | No | Trust level for security-sensitive workflows. Displayed color-coded in both TUI and CLI output. |
 | `lastVerified` | No | ISO date string. Set manually — not updated automatically. |
-| `notes` | No | Freeform text visible in `show` output. |
+| `notes` | No | Freeform text. Stored on the contact but not printed by the `show` command. |
 
 ### Example Contact (JSON)
 
