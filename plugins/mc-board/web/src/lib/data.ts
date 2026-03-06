@@ -20,6 +20,8 @@ function resolveDbPath(): string {
   return path.join(stateDir, "user/augmentedmike_bot/brain/board.db");
 }
 
+export function getDbPath(): string { return resolveDbPath(); }
+
 // Lazy singleton connection — opened on first call, reused for the lifetime of the process.
 let _db: Database.Database | null = null;
 

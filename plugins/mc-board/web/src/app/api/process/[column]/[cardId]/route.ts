@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCard, getProject } from "@/lib/data";
-import { pickupCard, releaseCard, moveCard } from "@/lib/actions";
+import { getCard, getProject, getDbPath } from "@/lib/data";
+import { pickupCard, releaseCard } from "@/lib/actions";
 import { cardToMarkdown } from "@/lib/card-format";
 import { spawn } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
+import Database from "better-sqlite3";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +35,12 @@ export async function POST(
 
   // Backlog cards move to in-progress immediately before the agent starts
   if (column === "backlog") {
-    try { moveCard(cardId, "in-progress"); } catch {}
+    try {
+      const wdb = new Database(getDbPath());
+      wdb.prepare(`UPDATE cards SET col = 'in-progress', updated_at = ? WHERE id = ?`)
+        .run(new Date().toISOString(), cardId);
+      wdb.close();
+    } catch {}
   }
   const effectiveColumn = column === "backlog" ? "in-progress" : column;
 
