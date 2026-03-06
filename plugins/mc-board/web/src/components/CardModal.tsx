@@ -7,6 +7,7 @@ import { marked } from "marked";
 import { markedHighlight } from "marked-highlight";
 import hljs from "highlight.js";
 import { Modal } from "./Modal";
+import { FileViewModal } from "./FileViewModal";
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
 
@@ -36,9 +37,23 @@ if (marked.defaults.renderer) {
 
 function unescapeNewlines(s: string): string { return s.replace(/\\n/g, "\n"); }
 
+// Matches file paths in text content (not inside HTML tags)
+const FILE_PATH_RE = /(~\/[\w./@-]+(?:\/[\w./@-]+)*|\/[\w./@-]+(?:\/[\w./@-]+)+\.[\w]+|(?:[\w.-]+\/)+[\w.-]+\.(?:ts|tsx|js|jsx|mjs|cjs|json|md|txt|sh|py|png|jpg|jpeg|gif|svg|css|html|yaml|yml|toml|rs|go|sql|rb|java|kt|swift|c|cpp|h|hpp|lock|env))/g;
+
+function linkifyFilePaths(html: string): string {
+  // Only replace in text nodes — split on HTML tags, leave tags untouched
+  return html.replace(/(<[^>]+>)|([^<]+)/g, (match, tag, text) => {
+    if (tag) return tag;
+    if (!text) return "";
+    return text.replace(FILE_PATH_RE, (fp: string) =>
+      `<span data-fp="${fp}" style="color:#60a5fa;cursor:pointer;text-decoration:underline;text-decoration-style:dashed">${fp}</span>`
+    );
+  });
+}
+
 function renderMarkdown(text: string): string {
   if (!text) return "";
-  try { return marked(unescapeNewlines(text), { async: false }) as string; } catch { return text; }
+  try { return linkifyFilePaths(marked(unescapeNewlines(text), { async: false }) as string); } catch { return text; }
 }
 
 function fmtDate(iso: string): string {
@@ -116,13 +131,24 @@ export function CardModal({ cardId, projects, activeIds, onClose, onOpenLog, onT
     { refreshInterval: 5000 }
   );
 
+  const [fileModal, setFileModal] = useState<{ path: string; base?: string } | null>(null);
+
   const projectMap = Object.fromEntries(projects.map(p => [p.id, p.name]));
   const isActive = cardId ? (activeIds?.has(cardId) ?? false) : false;
+  const workDir = card?.project_id ? projects.find(p => p.id === card.project_id)?.work_dir : undefined;
 
+  function handleContentClick(e: React.MouseEvent) {
+    const el = (e.target as HTMLElement).closest("[data-fp]") as HTMLElement | null;
+    if (el) {
+      e.preventDefault();
+      setFileModal({ path: el.getAttribute("data-fp")!, base: workDir });
+    }
+  }
 
   if (!cardId) return null;
 
   return (
+    <>
     <Modal onClose={onClose}>
       {/* Header */}
       <div className="border-b border-zinc-800 px-6 py-4 flex items-start gap-3 flex-shrink-0">
@@ -217,6 +243,7 @@ export function CardModal({ cardId, projects, activeIds, onClose, onOpenLog, onT
                 <div
                   className="text-sm text-zinc-300 leading-relaxed space-y-1 font-mono"
                   dangerouslySetInnerHTML={{ __html: renderMarkdown(val) }}
+                  onClick={handleContentClick}
                 />
               </div>
             );
@@ -264,5 +291,14 @@ export function CardModal({ cardId, projects, activeIds, onClose, onOpenLog, onT
         </div>
       )}
     </Modal>
+
+    {fileModal && (
+      <FileViewModal
+        filePath={fileModal.path}
+        base={fileModal.base}
+        onClose={() => setFileModal(null)}
+      />
+    )}
+    </>
   );
 }
