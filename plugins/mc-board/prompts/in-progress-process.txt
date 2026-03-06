@@ -58,7 +58,7 @@ openclaw mc-board update {{CARD_ID}} --notes "work_dir: <work_dir> | branch: {{C
 1. Read the problem, plan, and acceptance criteria carefully.
 2. Create a Git Butler virtual branch named {{CARD_ID}} — see above.
 3. Do the work — run commands, write/edit code, make changes.
-4. Check off each criterion as YOU complete it (change \`- [ ]\` to \`- [x]\`).
+4. Check off each criterion as YOU complete it (change `- [ ]` to `- [x]`).
 5. Update the card when done:
      openclaw mc-board update {{CARD_ID}} --notes '<date>: <what was done>' --criteria '<updated checklist>'
 6. If ALL criteria are checked:
