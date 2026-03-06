@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCard, getProject, getDbPath } from "@/lib/data";
+import { getCard, getProject } from "@/lib/data";
 import { pickupCard, releaseCard } from "@/lib/actions";
 import { cardToMarkdown } from "@/lib/card-format";
 import { spawn } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
-import Database from "better-sqlite3";
 
 export const dynamic = "force-dynamic";
 
@@ -33,19 +32,8 @@ export async function POST(
     return new Response(`Card ${cardId} is in "${card.column}", not "${column}"`, { status: 409 });
   }
 
-  // Backlog cards move to in-progress immediately before the agent starts
-  if (column === "backlog") {
-    try {
-      const wdb = new Database(getDbPath());
-      wdb.prepare(`UPDATE cards SET col = 'in-progress', updated_at = ? WHERE id = ?`)
-        .run(new Date().toISOString(), cardId);
-      wdb.close();
-    } catch {}
-  }
-  const effectiveColumn = column === "backlog" ? "in-progress" : column;
-
   const project = card.project_id ? getProject(card.project_id) : null;
-  const fullAgent = FULL_AGENT_COLUMNS.has(effectiveColumn);
+  const fullAgent = FULL_AGENT_COLUMNS.has(column);
 
   const ts0 = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
   const { CLAUDECODE: _cc, ...env } = process.env;
@@ -58,7 +46,7 @@ export async function POST(
 
   if (fullAgent) {
     const cardMd = cardToMarkdown(card);
-    const logDir = path.join(STATE_DIR, "logs", `${effectiveColumn}-process`);
+    const logDir = path.join(STATE_DIR, "logs", `${column}-process`);
     fs.mkdirSync(logDir, { recursive: true });
     const logFile = path.join(logDir, `${ts0}-${cardId}.log`);
     const logStream = fs.createWriteStream(logFile, { flags: "a" });

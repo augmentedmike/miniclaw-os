@@ -30,9 +30,7 @@ Card:
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ column: string }> }) {
   const { column } = await params;
-  // Backlog Work button uses the in-progress agent (moves card forward + does work)
-  const promptColumn = column === "backlog" ? "in-progress" : column;
-  const p = promptPath(promptColumn);
+  const p = promptPath(column);
   try {
     const prompt = fs.existsSync(p) ? fs.readFileSync(p, "utf8") : DEFAULT_PROCESS_PROMPT;
     return NextResponse.json({ prompt, path: p });
