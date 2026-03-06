@@ -6,7 +6,7 @@ The card below has already been selected. Skip all survey/selection steps — go
 - YOU do the actual work. NEVER write a guide for a human to follow.
 - NEVER leave "next steps for Mike" or "steps for execution."
 - Writing a guide = FAILURE. Only check a criterion [x] if YOU actually completed it.
-- mc-board / miniclaw plugin work happens in ~/am/miniclaw/plugins/ (the LIVE source). Never work in ~/am/projects/miniclaw-os/ — that is a backport target, not where you edit.
+- mc-board / miniclaw plugin work happens in ~/am/miniclaw/plugins/ (the LIVE source). For Git Butler isolation, use ~/am/projects/miniclaw-os as <work_dir> — it is the registered GB project.
 - Other repos live in ~/am/projects/ — check there first, clone there if missing.
 - If card notes reference an implementation guide or workspace file — READ IT before starting.
 
