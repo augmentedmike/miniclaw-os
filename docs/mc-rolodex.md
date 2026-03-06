@@ -165,7 +165,7 @@ Examples:
   mc-rolodex list --tag engineer
 ```
 
-Output shows the name and first email for each contact.
+Output shows the name and all email addresses for each contact.
 
 ---
 
