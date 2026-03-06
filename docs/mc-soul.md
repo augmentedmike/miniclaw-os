@@ -268,14 +268,13 @@ $OPENCLAW_STATE_DIR/soul-backups/<name>/
 
 ## State Directory Resolution
 
-mc-soul resolves `$OPENCLAW_STATE_DIR` using the following priority order:
+mc-soul resolves the state directory via `resolveStateDir()` in `src/soul.ts` using the following priority order:
 
-1. **SDK runtime context** — when running inside the openclaw gateway, the runtime provides the authoritative stateDir via `ctx.stateDir` in `registerService.start()`
+1. **`stateDir` in plugin config** — explicit override in `openclaw.json` under the mc-soul plugin config (highest priority)
 2. **`OPENCLAW_STATE_DIR` env var** — set by LaunchAgent for the gateway process; used for CLI invocations outside the gateway
-3. **`stateDir` in plugin config** — explicit override in `openclaw.json` under the mc-soul plugin config
-4. **`~/.openclaw`** — hardcoded fallback (not used on this machine; `~/am/` is used instead)
+3. **`~/.openclaw`** — hardcoded fallback (not used on this machine; `~/am/` is used instead)
 
-On this machine: `OPENCLAW_STATE_DIR=$HOME/am` is set in the environment.
+On this machine: `OPENCLAW_STATE_DIR=$HOME/am` is set in the environment, so the env var path (#2) is active.
 
 ---
 
