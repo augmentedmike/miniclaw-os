@@ -48,7 +48,7 @@ Then: openclaw mc-board release {{CARD_ID}} --worker board-worker-in-progress
 but -C <work_dir> branch new {{CARD_ID}}
 
 # 3. Smoke test — confirm branch appears before ANY file changes
-but -C <work_dir> status | grep {{CARD_ID}} || { echo "FATAL: branch {{CARD_ID}} not found in GB workspace, aborting"; exit 1; }
+but -C <work_dir> branch list | grep {{CARD_ID}} || { echo "FATAL: branch {{CARD_ID}} not found in GB workspace, aborting"; exit 1; }
 ```
 
 All file changes for this card must happen while on this branch. Never work on main directly.
