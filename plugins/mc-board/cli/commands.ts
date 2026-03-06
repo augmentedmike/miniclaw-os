@@ -64,6 +64,7 @@ Examples:
     .option("--criteria <text>", "Acceptance criteria as markdown checklist (- [ ] ...)")
     .option("--notes <text>", "Notes / context")
     .option("--research <text>", "Research notes — pre-work context and findings")
+    .option("--verify-url <url>", "URL to verify the work is live (used by review agent)")
     .addHelpText("after", `
 New cards always start in backlog. Fill in problem, plan, and criteria
 before moving to in-progress.
@@ -73,7 +74,7 @@ Examples:
   miniclaw brain create --title "Add dark mode" --priority high --tags ui,miniclaw
   miniclaw brain create --title "API redesign" --project prj_a1b2c3d4 --problem "Need API v2"
   miniclaw brain create --title "VERIFY: Fix login bug" --work-type verify --linked-card-id crd_abc123`)
-    .action((opts: { title: string; priority: string; tags?: string; project?: string; workType?: string; linkedCardId?: string; problem?: string; plan?: string; criteria?: string; notes?: string; research?: string }) => {
+    .action((opts: { title: string; priority: string; tags?: string; project?: string; workType?: string; linkedCardId?: string; problem?: string; plan?: string; criteria?: string; notes?: string; research?: string; verifyUrl?: string }) => {
       const priority = normalizePriority(opts.priority);
       if (!priority) {
         console.error(`Invalid priority: ${opts.priority}. Use: critical, high, medium, low`);
@@ -128,6 +129,7 @@ Examples:
         acceptance_criteria: opts.criteria,
         notes: opts.notes,
         research: opts.research,
+        verify_url: opts.verifyUrl,
       });
       console.log(`Created ${card.id}: ${card.title}${opts.project ? ` [project: ${opts.project}]` : ""}${work_type ? ` [${work_type}${linked_card_id ? ` → ${linked_card_id}` : ''}]` : ""}`);
     });
