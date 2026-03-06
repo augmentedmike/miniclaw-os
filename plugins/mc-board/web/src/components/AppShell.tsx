@@ -18,6 +18,8 @@ function getNotifsEnabled(): boolean {
 
 function getInitialProject(): string {
   if (typeof window === "undefined") return "";
+  // Support legacy ?project= query param (will be redirected server-side on full load,
+  // but handle client-side in case of soft navigation)
   return new URLSearchParams(window.location.search).get("project") ?? "";
 }
 
@@ -48,13 +50,10 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
     });
   };
 
-  // Project filter with URL sync
+  // Project filter with URL sync — uses /board/project/:id clean route
   const setProject = useCallback((p: string) => {
     setSelectedProject(p);
-    const url = new URL(window.location.href);
-    if (p) url.searchParams.set("project", p);
-    else url.searchParams.delete("project");
-    history.pushState(null, "", url.toString());
+    history.pushState(null, "", p ? `/board/project/${encodeURIComponent(p)}` : "/board");
   }, []);
 
   const handleBoardData = useCallback((ps: Project[], c: Counts, cards: Card[]) => {
