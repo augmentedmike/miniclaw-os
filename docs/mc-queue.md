@@ -157,7 +157,8 @@ Ship events:
 
 Human-needed alerts:
 ```
-🚨 BLOCKED: crd_abc123 — Task Title — reason text (first line of notes)
+🚨 Human needed: crd_abc123 — Task Title
+reason text (first line of notes)
 ```
 
 Card links are included when `boardUrl` is configured (e.g. `https://mini.example.com`).
@@ -248,17 +249,19 @@ To add support for a new messaging platform (e.g. Matrix, Line, WeChat):
 ```
 plugins/mc-queue/
 ├── index.ts                          Main plugin — hooks, session classifier, config
+│                                      Contains inline sendTgLog() and formatBoardEvent()
+│                                      (no imports from lib/)
 ├── openclaw.plugin.json              Plugin manifest and config schema
 ├── package.json                      Package metadata
-└── lib/
-    ├── format-log-events.ts          HTML formatters for TG log messages
-    │                                  (BoardEvent, Signal, EscalationEvent, SessionSummary)
-    ├── telegram-log-client.ts        Reusable TelegramLogClient class
-    │                                  (send, sendWithButton, sendBatch, createLogClientFromEnv)
+└── lib/                              ⚠ Orphaned — NOT imported by index.ts
+    ├── format-log-events.ts          Alternative HTML formatters (unused by running code)
+    ├── telegram-log-client.ts        Alternative TelegramLogClient class (unused by running code)
     └── __tests__/
         ├── format-log-events.test.ts
         └── telegram-log-client.test.ts
 ```
+
+> **Note:** `lib/format-log-events.ts` and `lib/telegram-log-client.ts` are not imported by `index.ts`. The active log formatting and sending is handled by `sendTgLog()` (index.ts:90–113) and `formatBoardEvent()` (index.ts:135–148) — both defined inline. If you are debugging log output or message formatting, look in `index.ts`, not `lib/`.
 
 ---
 
