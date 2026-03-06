@@ -49,6 +49,7 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
   const [shippedOpen, setShippedOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchFocused, setSearchFocused] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   // Track which log keys we've already toasted (cardId:action:at)
   const seenLogKeys = useRef<Set<string>>(new Set());
@@ -205,12 +206,15 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
           placeholder="Search cards…"
           value={searchQuery}
           onChange={e => { setSearchQuery(e.target.value); setSearchOpen(true); }}
-          onFocus={() => setSearchOpen(true)}
+          onFocus={() => { setSearchOpen(true); setSearchFocused(true); }}
+          onBlur={() => setSearchFocused(false)}
           style={{
             width: "100%", maxWidth: 400,
-            background: "#18181b", border: "1px solid #3f3f46",
+            background: searchFocused ? "#18181b" : "transparent",
+            border: searchFocused ? "1px solid #16a34a" : "1px solid rgba(63,63,70,0.4)",
             borderRadius: 4, padding: "5px 8px", color: "#e4e4e7",
             fontSize: 13, outline: "none", boxSizing: "border-box",
+            transition: "background 0.15s ease, border-color 0.15s ease",
           }}
         />
         {searchOpen && searchResults.length > 0 && (
