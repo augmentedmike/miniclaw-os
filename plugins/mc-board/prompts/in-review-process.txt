@@ -52,17 +52,24 @@ git -C <work_dir> status
    **PASS** — all criteria met. Before moving to shipped, run the git ship sequence:
 
    ```
-   # 1. Commit any uncommitted work in the repo
+   # 1. Commit any uncommitted work on the current branch
    git -C <work_dir> add -A
    git -C <work_dir> status   # confirm what's staged
    git -C <work_dir> commit -m "feat(<plugin>): <summary of work done>" || echo "nothing to commit"
 
-   # 2. Rebase onto latest main
+   # 2. Get the current branch name (may be a card ID branch from Git Butler)
+   BRANCH=$(git -C <work_dir> rev-parse --abbrev-ref HEAD)
+
+   # 3. Rebase onto latest main to pick up any concurrent changes
    git -C <work_dir> fetch origin
    git -C <work_dir> rebase origin/main
    # If rebase fails → REJECT the card with the conflict details
 
-   # 3. Push to remote
+   # 4. If on a feature branch, merge into main then push
+   if [ "$BRANCH" != "main" ]; then
+     git -C <work_dir> checkout main
+     git -C <work_dir> merge "$BRANCH" --ff-only
+   fi
    git -C <work_dir> push origin main
    # If push fails → REJECT the card with the error
    ```
