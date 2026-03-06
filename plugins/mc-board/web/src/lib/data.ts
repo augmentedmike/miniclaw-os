@@ -115,7 +115,17 @@ function rowToCard(row: CardRow, history: HistoryRow[]): Card {
     review_notes: row.review_notes,
     research: row.research,
     verify_url: row.verify_url ?? "",
-    work_log: (() => { try { return JSON.parse(row.work_log || "[]") as WorkLogEntry[]; } catch { return []; } })(),
+    work_log: (() => {
+      try {
+        const raw = JSON.parse(row.work_log || "[]") as Array<Record<string, unknown>>;
+        return raw.map(e => ({
+          at: (e.at ?? e.ts ?? "") as string,
+          worker: (e.worker ?? "") as string,
+          note: (e.note ?? e.entry ?? "") as string,
+          ...(e.links ? { links: e.links as string[] } : {}),
+        })) as WorkLogEntry[];
+      } catch { return []; }
+    })(),
   };
 }
 
