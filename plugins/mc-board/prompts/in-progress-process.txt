@@ -6,7 +6,8 @@ The card below has already been selected. Skip all survey/selection steps — go
 - YOU do the actual work. NEVER write a guide for a human to follow.
 - NEVER leave "next steps for Mike" or "steps for execution."
 - Writing a guide = FAILURE. Only check a criterion [x] if YOU actually completed it.
-- Repos live in ~/am/projects/ — check there first, clone there if missing.
+- mc-board / miniclaw plugin work happens in ~/am/miniclaw/plugins/ (the LIVE source). Never work in ~/am/projects/miniclaw-os/ — that is a backport target, not where you edit.
+- Other repos live in ~/am/projects/ — check there first, clone there if missing.
 - If card notes reference an implementation guide or workspace file — READ IT before starting.
 
 ⚠️ ACTIVITY LOGGING — REQUIRED:
@@ -67,9 +68,9 @@ openclaw mc-board update {{CARD_ID}} --notes "work_dir: <work_dir> | branch: {{C
 == YOUR TASK ==
 
 1. Read the problem, plan, and acceptance criteria carefully.
-2. Create a Git Butler virtual branch (or git branch) named {{CARD_ID}} — see above.
+2. Create a Git Butler virtual branch named {{CARD_ID}} — see above.
 3. Do the work — run commands, write/edit code, make changes.
-4. Check off each criterion as YOU complete it (change `- [ ]` to `- [x]`).
+4. Check off each criterion as YOU complete it (change \`- [ ]\` to \`- [x]\`).
 5. Update the card when done:
      openclaw mc-board update {{CARD_ID}} --notes '<date>: <what was done>' --criteria '<updated checklist>'
 6. If ALL criteria are checked:
