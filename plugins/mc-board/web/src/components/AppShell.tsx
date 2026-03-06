@@ -101,33 +101,75 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
 
         {/* Center: project button (board only) */}
         <div className="flex flex-1 items-center justify-center px-4">
-          {tab === "board" && projects.length > 0 && (
-            <button
-              onClick={() => setProjectsOpen(true)}
-              style={{
-                background: selectedProject ? "#27272a" : "transparent",
-                border: "1px solid #3f3f46",
-                borderRadius: 6,
-                padding: "4px 12px",
-                color: selectedProject ? "#e4e4e7" : "#a1a1aa",
-                fontSize: 13,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-              }}
-            >
-              <span style={{ fontSize: 11, opacity: 0.6 }}>◈</span>
-              {selectedProject ? (projects.find(p => p.id === selectedProject)?.name ?? "Project") : "Projects"}
-              {selectedProject && (
-                <span
-                  onClick={e => { e.stopPropagation(); setProject(""); }}
-                  style={{ marginLeft: 2, opacity: 0.5, fontSize: 12, lineHeight: 1 }}
-                  title="Clear filter"
-                >✕</span>
-              )}
-            </button>
-          )}
+          {tab === "board" && projects.length > 0 && (() => {
+            const proj = selectedProject ? projects.find(p => p.id === selectedProject) : null;
+            const pCards = proj ? allCards.filter(c => c.project_id === proj.id) : [];
+            const colColors: Record<string, string> = { backlog: "#52525b", "in-progress": "#3b82f6", "in-review": "#a855f7", shipped: "#22c55e" };
+            const countPills = (["in-progress", "in-review", "backlog", "shipped"] as const)
+              .map(col => ({ col, n: pCards.filter(c => c.column === col).length }))
+              .filter(x => x.n > 0);
+            return (
+              <button
+                onClick={() => setProjectsOpen(true)}
+                style={{
+                  background: proj ? "#27272a" : "transparent",
+                  border: "1px solid #3f3f46",
+                  borderRadius: 6,
+                  padding: proj ? "6px 12px" : "4px 12px",
+                  color: proj ? "#e4e4e7" : "#a1a1aa",
+                  fontSize: 13,
+                  cursor: "pointer",
+                  display: "flex",
+                  flexDirection: proj ? "column" : "row",
+                  alignItems: proj ? "flex-start" : "center",
+                  gap: proj ? 4 : 6,
+                  maxWidth: 320,
+                  minWidth: 0,
+                }}
+              >
+                {/* Row 1: icon + name + clear */}
+                <div style={{ display: "flex", alignItems: "center", gap: 6, width: "100%" }}>
+                  <span style={{ fontSize: 11, opacity: 0.6, flexShrink: 0 }}>◈</span>
+                  <span style={{
+                    fontWeight: proj ? 600 : 400,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    flex: 1,
+                    minWidth: 0,
+                  }}>
+                    {proj ? proj.name : "Projects"}
+                  </span>
+                  {proj && (
+                    <span
+                      onClick={e => { e.stopPropagation(); setProject(""); }}
+                      style={{ marginLeft: 2, opacity: 0.5, fontSize: 12, lineHeight: 1, flexShrink: 0 }}
+                      title="Clear filter"
+                    >✕</span>
+                  )}
+                </div>
+                {/* Row 2: card count pills (only when project selected) */}
+                {proj && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, paddingLeft: 17 }}>
+                    {countPills.length === 0 ? (
+                      <span style={{ fontSize: 11, color: "#52525b" }}>0 cards</span>
+                    ) : countPills.map(({ col, n }) => (
+                      <span key={col} style={{
+                        fontSize: 11,
+                        color: colColors[col] ?? "#52525b",
+                        background: (colColors[col] ?? "#52525b") + "22",
+                        borderRadius: 4,
+                        padding: "1px 5px",
+                        fontWeight: 500,
+                      }}>
+                        {col} <b style={{ fontWeight: 700 }}>{n}</b>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </button>
+            );
+          })()}
         </div>
 
         {/* Right: stat pills */}
