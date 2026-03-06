@@ -282,6 +282,153 @@ Press `q` or `Escape` to close the modal and return to the list.
 
 ---
 
+## Web UI
+
+mc-rolodex ships a Next.js web application on **port 4221**. It provides a full browser-based interface for browsing, searching, filtering, and editing contacts — separate from the terminal TUI.
+
+### Starting the Web UI
+
+```bash
+# Development (hot reload)
+cd plugins/mc-rolodex/web
+npm run dev        # starts on http://localhost:4221
+
+# Production
+npm run build
+npm run start      # starts on http://localhost:4221
+```
+
+The web app is also deployed via `web/deploy.sh` as part of the plugin lifecycle.
+
+### Storage
+
+The web UI reads and writes the same `~/.miniclaw/rolodex/contacts.json` file as the CLI. The storage path can be overridden with the `ROLODEX_STORAGE_PATH` environment variable.
+
+### Layout
+
+The app has a three-region layout:
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  Top bar: "Rolodex" brand · stat pills · "+ New Contact"    │
+├───────────┬──────────────────────────────────────────────────┤
+│  Filter   │  Search bar                                      │
+│  sidebar  │  ────────────────────────────────────────────    │
+│           │  Contact list (scrollable)                       │
+│  Trust ▾  │    Avatar · Name · primary email/domain          │
+│  Tags ▾   │    Trust badge · tags (up to 2, then "+N")       │
+└───────────┴──────────────────────────────────────────────────┘
+│  Footer: "mc-rolodex · port 4221"                            │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### Search
+
+The search bar at the top of the contact list panel accepts free-text queries. Search is **debounced at 150 ms** — results update automatically as you type without requiring a form submit. The result count is shown to the right of the input.
+
+Search uses the same scoring logic as the CLI's `multi` mode, implemented in the web's `data.ts` layer:
+
+| Field | Match type | Score |
+|---|---|---|
+| Name exact | exact | 100 |
+| Phone digits | substring (≥3 digits) | 90 |
+| Email prefix | prefix | 85 |
+| Name prefix | prefix | 80 |
+| Tag contains | substring | 75 |
+| Email contains | substring | 70 |
+| Domain contains | substring | 65 |
+| Name contains | substring | 60 |
+
+Results are sorted descending by score. The stat pill in the top bar shows the total count of matched contacts.
+
+### Filter Sidebar
+
+The left panel filters the contact list. Filters are applied server-side (API query parameters) and combine with the search query.
+
+**Trust filter** — buttons for each level:
+
+| Button | Filters to |
+|---|---|
+| All | No trust filter (default) |
+| verified | `trustStatus === "verified"` |
+| pending | `trustStatus === "pending"` |
+| untrusted | `trustStatus === "untrusted"` |
+| unknown | `trustStatus === "unknown"` |
+
+Each trust button shows a count of matching contacts in the current result set. Clicking an active filter deactivates it (toggles).
+
+**Tags filter** — appears below Trust when tags exist in the dataset. One button per unique tag across all contacts. Clicking a tag filters to contacts that have that tag. Clicking the active tag deactivates it.
+
+Active filters are reflected as stat pills in the top bar (e.g. `tag: engineer`, `trust: verified`).
+
+### Contact List
+
+Each row shows:
+
+- **Initials avatar** — first letters of the first two name words, uppercased (e.g. "Alice Chen" → "AC")
+- **Name** — primary display label
+- **Subtitle** — first email address, or first domain if no emails
+- **Trust badge** — color-coded label (verified / pending / untrusted / unknown)
+- **Tags** — up to 2 tags shown inline; additional tags collapsed to `+N`
+
+Clicking a row opens the **detail modal**. Keyboard navigation is supported: `Tab` to focus a row, `Enter` or `Space` to open.
+
+### Detail Modal
+
+Clicking a contact opens a modal showing all stored fields:
+
+| Section | Contents |
+|---|---|
+| Header avatar | Initials (same as list row) |
+| Name | Contact's full name |
+| Trust badge | Colored trust status label |
+| Tags | All tags as chips |
+| Email | All email addresses (bulleted list) — omitted if empty |
+| Phone | All phone numbers (bulleted list) — omitted if empty |
+| Domains | All associated domains (bulleted list) — omitted if empty |
+| Notes | Freeform notes text — shown if non-empty |
+| Last Verified | Formatted date (e.g. "March 5, 2026") — shown if set |
+| Footer | Contact ID |
+
+The modal has two actions:
+
+- **Edit (✎ icon)** — opens the create/edit form modal pre-populated with the contact's data.
+- **Delete** — shows an inline confirmation prompt ("Delete this contact? / Yes, delete / Cancel"). Deletion is optimistic: the contact is removed from the list immediately, then confirmed via API.
+
+Close by clicking `×`, clicking the backdrop, or pressing `Escape`.
+
+### Create / Edit Form Modal
+
+The `+ New Contact` button in the top bar (or the edit icon in the detail modal) opens a form modal. Auto-focuses the Name field on open. Press `Escape` to cancel without saving.
+
+Fields:
+
+| Field | Input type | Notes |
+|---|---|---|
+| Name | Text input | Required — cannot submit without a value |
+| Emails | Chip input | Press `Enter` or `,` to add an entry; `Backspace` on empty input removes the last chip |
+| Phones | Chip input | Same chip controls |
+| Domains | Chip input | Same chip controls |
+| Tags | Chip input | Same chip controls |
+| Trust Status | `<select>` dropdown | Options: verified / pending / untrusted / unknown (default: unknown) |
+| Notes | Textarea (3 rows) | Optional freeform text |
+
+The submit button reads "Create Contact" for new contacts and "Save Changes" for edits. After a successful save the modal closes and the contact list refreshes.
+
+### REST API
+
+The web UI is backed by Next.js API routes that read/write `contacts.json` directly:
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/contacts` | List/search contacts. Query params: `q` (search text), `tag` (filter by tag), `trust` (filter by trust level). Returns `{ contacts, tags, total }`. |
+| `POST` | `/api/contacts` | Create a contact. Body: `{ name, emails?, phones?, domains?, tags?, trustStatus?, notes? }`. Returns the created contact (201). |
+| `GET` | `/api/contacts/:id` | Get a single contact by ID. Returns 404 if not found. |
+| `PATCH` | `/api/contacts/:id` | Update a contact (partial). Same fields as POST. Returns updated contact. |
+| `DELETE` | `/api/contacts/:id` | Delete a contact. Returns `{ ok: true }` on success, 404 if not found. |
+
+---
+
 ## Communication History
 
 mc-rolodex does not currently track per-contact communication history. The `notes` field on a contact is the only freeform text storage. Communication routing decisions (e.g. "send via Telegram vs email") are made by the caller based on the `emails`, `phones`, and `tags` fields — the rolodex provides the lookup, not the routing logic.
