@@ -67,12 +67,12 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
     setOpenCardId(id);
     const card = data?.cards.find(c => c.id === id);
     const projId = card?.project_id;
-    history.pushState(null, "", projId ? `/board/p/${projId}/c/${id}` : `/board/c/${id}`);
+    history.pushState(null, "", projId ? `/board/project/${projId}/c/${id}` : `/board/c/${id}`);
   }, [data]);
 
   const closeCard = useCallback(() => {
     setOpenCardId(null);
-    history.pushState(null, "", selectedProject ? `/board/p/${selectedProject}` : "/board");
+    history.pushState(null, "", selectedProject ? `/board/project/${selectedProject}` : "/board");
   }, [selectedProject]);
 
   // Pass board data up to AppShell
@@ -156,28 +156,32 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
   }, []);
 
   const handleFocusToggle = useCallback((cardId: string, setFocused: boolean) => {
-    const card = data?.cards.find(c => c.id === cardId);
-    if (!card) return;
-    const newTags = setFocused
-      ? [...card.tags.filter(t => t !== "focus"), "focus"]
-      : card.tags.filter(t => t !== "focus");
-
-    // Optimistic update — flip the tag immediately in local SWR cache
+    // Optimistic update — read from live cache to avoid stale-data races
     mutate(current => {
       if (!current) return current;
       return {
         ...current,
-        cards: current.cards.map(c => c.id === cardId ? { ...c, tags: newTags } : c),
+        cards: current.cards.map(c => {
+          if (c.id !== cardId) return c;
+          const newTags = setFocused
+            ? [...c.tags.filter(t => t !== "focus"), "focus"]
+            : c.tags.filter(t => t !== "focus");
+          return { ...c, tags: newTags };
+        }),
       };
     }, { revalidate: false });
 
-    // Fire CLI in background with full tag set, then revalidate to sync
+    // Use add-tags/remove-tags for atomic CLI operation (avoids full tag replacement from stale cache)
+    const updateBody = setFocused
+      ? { action: "update", cardId, "add-tags": "focus" }
+      : { action: "update", cardId, "remove-tags": "focus" };
+
     fetch("/api/board/action", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "update", cardId, tags: newTags }),
+      body: JSON.stringify(updateBody),
     }).then(() => mutate()).catch(() => mutate());
-  }, [mutate, data]);
+  }, [mutate]);
 
   const handleSearchSelect = (cardId: string) => {
     setSearchQuery("");
