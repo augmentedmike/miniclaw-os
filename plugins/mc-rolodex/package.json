@@ -3,24 +3,9 @@
   "version": "1.0.0",
   "description": "Interactive contact browser UI for MiniClaw — fast, searchable access to trusted contacts",
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "exports": {
-    ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
-    }
-  },
-  "files": [
-    "dist",
-    "src",
-    "openclaw.plugin.json"
-  ],
+  "main": "index.ts",
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
-    "test": "vitest",
-    "cli": "node dist/cli/index.js"
+    "test": "vitest"
   },
   "dependencies": {
     "blessed": "^0.1.81",
@@ -30,6 +15,7 @@
   "devDependencies": {
     "@types/blessed": "^0.1.24",
     "@types/node": "^22.0.0",
+    "openclaw": "*",
     "typescript": "^5.3.3",
     "vitest": "^2.0.0"
   }

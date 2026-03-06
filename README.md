@@ -257,21 +257,26 @@ Social cortex. Manages contacts, teams, and communication preferences.
 
 **What it does:**
 - Store contact info (email, phone, Telegram, Slack)
-- Track communication history
-- Remember preferences
-- Auto-route messages to preferred channels
+- Search by name, email, phone, domain, or tag
+- Track trust status (verified, pending, unknown)
+- Fuzzy matching — find contacts with partial information
 
 **Basic usage:**
 ```bash
 # Add a contact
-mc rolodex add --name "Sarah Chen" --email sarah@example.com \
-  --telegram 1234567890 --role "marketing"
+openclaw mc-rolodex add '{"name":"Sarah Chen","emails":["sarah@example.com"],"tags":["marketing"]}'
 
-# Find contacts by role
-mc rolodex search --role marketing
+# Search contacts
+openclaw mc-rolodex search "Sarah"
 
-# Get contact details
-mc rolodex show "Sarah Chen"
+# Search by domain
+openclaw mc-rolodex search "example.com" --type domain
+
+# List all contacts (or filter by tag)
+openclaw mc-rolodex list --tag marketing
+
+# View contact details
+openclaw mc-rolodex show contact_1234
 ```
 
 **[→ Full mc-rolodex documentation](./plugins/mc-rolodex/README.md)**

@@ -2,7 +2,7 @@
 
 **Interactive, searchable access to trusted contacts.**
 
-mc-rolodex is a plugin for MiniClaw that provides fast, terminal-based contact management. Search by name, email, phone, domain, or tag. View full contact details. Verify identity status.
+mc-rolodex is an OpenClaw plugin for MiniClaw that provides fast contact management. Search by name, email, phone, domain, or tag. View full contact details. Verify identity status.
 
 ## Features
 
@@ -15,83 +15,94 @@ mc-rolodex is a plugin for MiniClaw that provides fast, terminal-based contact m
 
 ## Installation
 
-```bash
-# Install dependencies
-npm install
+mc-rolodex is installed as an OpenClaw plugin. Ensure it is listed in your `openclaw.json` plugins section:
 
-# Build plugin
-npm run build
-
-# Install globally
-npm link
+```json
+{
+  "plugins": {
+    "allow": ["mc-rolodex"],
+    "load": {
+      "paths": ["~/am/miniclaw/plugins/mc-rolodex"]
+    },
+    "entries": {
+      "mc-rolodex": {
+        "enabled": true,
+        "config": {
+          "storagePath": "~/am/user/augmentedmike_bot/rolodex/contacts.json"
+        }
+      }
+    }
+  }
+}
 ```
 
 ## Usage
 
+All commands run as `openclaw mc-rolodex <subcommand>`.
+
 ### Search by name
 
 ```bash
-mc-rolodex search "Sarah"
+openclaw mc-rolodex search "Sarah"
 ```
 
 ### Search by email
 
 ```bash
-mc-rolodex search "sarah@example.com" --type email
+openclaw mc-rolodex search "sarah@example.com" --type email
 ```
 
 ### Search by phone
 
 ```bash
-mc-rolodex search "512" --type phone
+openclaw mc-rolodex search "512" --type phone
 ```
 
 ### Search by domain
 
 ```bash
-mc-rolodex search "example.com" --type domain
+openclaw mc-rolodex search "example.com" --type domain
 ```
-
-### Interactive browser
-
-```bash
-mc-rolodex browse
-```
-
-Navigate with arrow keys, press Enter to view details, press 'q' to quit.
 
 ### List all contacts
 
 ```bash
-mc-rolodex list
+openclaw mc-rolodex list
 ```
 
 Or filter by tag:
 
 ```bash
-mc-rolodex list --tag work
+openclaw mc-rolodex list --tag work
 ```
 
 ### View contact details
 
 ```bash
-mc-rolodex show contact_1234
+openclaw mc-rolodex show contact_1234
 ```
 
 ### Add a contact
 
 ```bash
 # Via JSON string
-mc-rolodex add '{"id":"contact_123","name":"Alice","emails":["alice@example.com"]}'
+openclaw mc-rolodex add '{"id":"contact_123","name":"Alice","emails":["alice@example.com"]}'
 
 # Via JSON file
-mc-rolodex add contacts.json
+openclaw mc-rolodex add contacts.json
 ```
 
 ### Delete a contact
 
 ```bash
-mc-rolodex delete contact_1234
+openclaw mc-rolodex delete contact_1234
+```
+
+### Get help
+
+```bash
+openclaw mc-rolodex --help
+openclaw mc-rolodex search --help
 ```
 
 ## Contact Format
@@ -119,7 +130,7 @@ All fields except `id` and `name` are optional.
 Contacts are stored in:
 
 ```
-~/.miniclaw/rolodex/contacts.json
+~/am/user/augmentedmike_bot/rolodex/contacts.json
 ```
 
 This is a standard JSON array of contacts. You can edit it directly or use the CLI commands.
@@ -135,58 +146,18 @@ mc-rolodex is designed to work with mc-trust, the identity verification system. 
 - **pending** — Awaiting verification handshake
 - **unknown** — No verification attempt yet
 
-### Future: Quick-Actions
-
-The interactive browser (mc-rolodex browse) will support quick-actions for verified contacts:
-
-```
-┌─ Sarah Chen ────────────────────────────────┐
-│ Email: sarah@example.com                    │
-│ Phone: +1 512 555 1234                      │
-│ Trust: ✓ verified                           │
-│                                              │
-│ [Call] [Email] [Message] [Mark Untrusted]  │
-│ [Copy Email] [Copy Phone] [Edit] [Delete]  │
-└──────────────────────────────────────────────┘
-```
-
-## Setup Guide
-
-### Quick Start
-
-1. **Initialize** the contact store:
-   ```bash
-   mkdir -p ~/.miniclaw/rolodex
-   echo '[]' > ~/.miniclaw/rolodex/contacts.json
-   ```
-
-2. **Import your contacts** from CSV or JSON:
-   ```bash
-   # Add a contact
-   mc-rolodex add '{"id":"1","name":"Michael","emails":["mike@example.com"]}'
-   ```
-
-3. **Search** for a contact:
-   ```bash
-   mc-rolodex search "michael"
-   ```
-
-4. **Browse** interactively:
-   ```bash
-   mc-rolodex browse
-   ```
-
 ## Architecture
 
-- **search/types.ts** — Type definitions for contacts and search
-- **search/engine.ts** — In-memory search with persistent JSON storage
-- **tui/browser.ts** — Terminal UI using blessed
-- **cli/index.ts** — CLI interface using commander
+- **src/search/types.ts** — Type definitions for contacts and search
+- **src/search/engine.ts** — In-memory search with persistent JSON storage
+- **src/tui/browser.ts** — Terminal UI using blessed
+- **src/cli/commands.ts** — CLI interface using commander
+- **index.ts** — Plugin entry point, registers CLI with OpenClaw
 
 ## Testing
 
 ```bash
-npm test
+bun test
 ```
 
 ## License

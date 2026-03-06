@@ -75,6 +75,18 @@
       }
     },
     {
+      "id": "mc-rolodex",
+      "label": "Rolodex",
+      "description": "Contact browser — fast, searchable access to trusted contacts. Search by name, email, phone, domain, or tag.",
+      "path": "plugins/mc-rolodex",
+      "entry": "index.ts",
+      "cli": true,
+      "tools": [],
+      "config": {
+        "storagePath": "~/.openclaw/user/augmentedmike_bot/rolodex/contacts.json"
+      }
+    },
+    {
       "id": "mc-queue",
       "label": "Message Queue",
       "description": "Haiku triage for all messaging sessions — IMMEDIATE/QUICK/TASK classification, soul context injection, tool call limit.",

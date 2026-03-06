@@ -1,16 +1,12 @@
 {
-  "name": "mc-rolodex",
-  "version": "1.0.0",
-  "description": "Interactive contact browser UI for MiniClaw",
-  "author": "AugmentedMike",
-  "license": "MIT",
-  "enabled": true,
-  "hooks": [],
-  "commands": [
-    {
-      "name": "mc-rolodex",
-      "description": "Interactive contact browser",
-      "hidden": false
+  "id": "mc-rolodex",
+  "name": "Miniclaw Rolodex",
+  "description": "Fast, searchable contact browser — search trusted contacts by name, email, phone, domain, or tag.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "storagePath": { "type": "string" }
     }
-  ]
+  }
 }
