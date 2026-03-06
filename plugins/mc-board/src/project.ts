@@ -7,6 +7,7 @@ export interface Project {
   description: string;
   work_dir: string;   // local working directory (absolute path)
   github_repo: string; // e.g. "owner/repo" or full URL
+  build_command: string; // shell command to run after shipping (e.g. "npm run build && pm2 restart app")
   status: "active" | "archived";
   created_at: string;
   updated_at: string;
