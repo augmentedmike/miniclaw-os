@@ -173,9 +173,6 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
         <RolodexTab />
       </div>
 
-      {/* Footer */}
-      <div className="footer">MiniClaw Brain · port 4220</div>
-
       {/* Toasts */}
       <div className="toast-container">
         {toasts.map(t => (

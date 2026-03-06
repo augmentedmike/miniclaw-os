@@ -319,9 +319,6 @@ a { color: inherit; }
 .cron-run-id { font-size: 11px; color: #52525b; font-family: monospace; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cron-run-time { font-size: 10px; color: #3f3f46; flex-shrink: 0; }
 
-/* ── Footer ── */
-.footer { padding: 8px 24px; border-top: 1px solid #27272a; font-size: 11px; color: #3f3f46; flex-shrink: 0; }
-
 /* ── Toasts ── */
 .toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 100; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
 .toast {
