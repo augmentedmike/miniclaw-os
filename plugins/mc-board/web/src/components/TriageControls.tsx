@@ -3,7 +3,7 @@
 import type { TriageColumnState } from "@/hooks/useTriageColumn";
 
 interface Props extends TriageColumnState {
-  onOpenTriage: () => void;
+  onOpenTriage?: () => void;
   onOpenWork?: () => void;
   hasWorkCards?: boolean;
   launching?: boolean;
