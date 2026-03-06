@@ -1,5 +1,5 @@
 import { AppShell } from "@/components/AppShell";
 
 export default function SchedulingPage() {
-  return <AppShell initialTab="scheduling" />;
+  return <AppShell initialTab="board" />;
 }

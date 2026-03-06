@@ -2,15 +2,15 @@
 import { useState, useCallback, useEffect } from "react";
 import { Board } from "./Board";
 import { MemoryTab } from "./MemoryTab";
-import { CronTab } from "./CronTab";
+import { RolodexTab } from "./RolodexTab";
 import { Modal } from "./Modal";
 import { Project, Card } from "@/lib/types";
 
-type Tab = "board" | "memory" | "scheduling";
+type Tab = "board" | "memory" | "rolodex";
 interface Toast { id: number; icon: string; title: string; sub?: string; exiting?: boolean; }
 interface Counts { backlog: number; inProgress: number; inReview: number; shipped: number; }
 
-const TAB_PATHS: Record<Tab, string> = { board: "/board", memory: "/memory", scheduling: "/scheduling" };
+const TAB_PATHS: Record<Tab, string> = { board: "/board", memory: "/memory", rolodex: "/rolodex" };
 
 function getNotifsEnabled(): boolean {
   try { return localStorage.getItem("brain-toasts") !== "false"; } catch { return true; }
@@ -76,10 +76,10 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
         <div className="flex items-stretch">
           <div className="brand">MiniClaw Brain</div>
           <div className="tab-bar">
-            {(["board", "memory", "scheduling"] as Tab[]).map(t => (
+            {(["board", "memory", "rolodex"] as Tab[]).map(t => (
               <button key={t} onClick={() => switchTab(t)}
                 className={`tab-btn${tab === t ? " active" : ""}`}>
-                {t === "board" ? "Board" : t === "memory" ? "Memory" : "Scheduling"}
+                {t === "board" ? "Board" : t === "memory" ? "Memory" : "Rolodex"}
               </button>
             ))}
           </div>
@@ -154,8 +154,8 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
       <div className={`tab-panel${tab === "memory" ? " active" : ""}`}>
         <MemoryTab />
       </div>
-      <div className={`tab-panel${tab === "scheduling" ? " active" : ""}`}>
-        <CronTab />
+      <div className={`tab-panel${tab === "rolodex" ? " active" : ""}`}>
+        <RolodexTab />
       </div>
 
       {/* Footer */}
