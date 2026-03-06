@@ -91,8 +91,8 @@ The `SearchEngine` class holds all contacts in a `Map<id, Contact>` for O(1) loo
 |---|---|
 | `name` | Fuzzy match against `contact.name` |
 | `email` | Substring match against any address in `contact.emails` |
-| `phone` | Digit-only substring match (strips non-digits from both query and stored values) |
-| `domain` | Matches if any email's domain equals or starts with the query string |
+| `phone` | Digit-only substring match (strips non-digits from both query and stored values). **Requires at least 3 digits** — queries with fewer than 3 digits return no results silently. |
+| `domain` | Matches if any email's domain exactly equals the query, or if the domain starts with `<query>.` (subdomain match). e.g. query `"example"` matches `"example.com"` and `"example.org"` but not `"examples.com"`. |
 | `tag` | Exact match against any value in `contact.tags` |
 | `multi` | Default. Tries fields in priority order: name → email → tag → domain → phone. Returns results from the first field that has any matches. |
 
@@ -101,8 +101,8 @@ The `SearchEngine` class holds all contacts in a `Map<id, Contact>` for O(1) loo
 | Match type | Score |
 |---|---|
 | Exact match | 100 |
-| Prefix match | 80 (email) / 80 (name) |
-| Substring / contains | 60–70 |
+| Prefix match | 85 (email) / 80 (name) |
+| Substring / contains | 60–70 (email non-prefix: 70) |
 | Fuzzy character sequence | 40+ |
 | No match | 0 (excluded from results) |
 
@@ -180,7 +180,7 @@ Example:
   mc-rolodex show contact_1712345678
 ```
 
-Output includes all fields: name, ID, emails, phones, tags, trust status.
+Output includes: name, ID, emails, phones, tags, and trust status. The `notes`, `lastVerified`, and `domains` fields are stored on the contact but are not printed by this command.
 
 ---
 
