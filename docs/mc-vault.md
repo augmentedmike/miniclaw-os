@@ -8,7 +8,7 @@ The vault also supports encrypted private memos: longer freeform notes (plans, c
 
 ## Encryption Scheme
 
-mc-vault uses **age** symmetric encryption with a locally generated X25519 key pair.
+mc-vault uses **age** asymmetric encryption with a locally generated X25519 key pair.
 
 ### How it works
 
