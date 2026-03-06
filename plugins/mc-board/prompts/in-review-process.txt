@@ -81,6 +81,27 @@ git -C <work_dir> status
    openclaw mc-board move {{CARD_ID}} shipped
    ```
 
+   After shipping, check if the card's project has a `build_command` set and run it:
+   ```
+   # Get the project's build_command
+   PROJECT_ID=$(openclaw mc-board show {{CARD_ID}} 2>/dev/null | grep "^project_id:" | awk '{print $2}')
+   BUILD_CMD=$(openclaw mc-board project show "$PROJECT_ID" 2>/dev/null | grep "^\*\*Build command:\*\*" | sed 's/^\*\*Build command:\*\* `//;s/`$//')
+
+   if [ -n "$BUILD_CMD" ] && [ -n "$PROJECT_ID" ]; then
+     echo "Running build command for project $PROJECT_ID: $BUILD_CMD"
+     LOG_FILE=~/am/logs/cards/{{CARD_ID}}.log
+     echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) [build] Running build_command: $BUILD_CMD" >> "$LOG_FILE"
+     if eval "$BUILD_CMD" >> "$LOG_FILE" 2>&1; then
+       echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) [build] Build succeeded" >> "$LOG_FILE"
+       openclaw mc-board update {{CARD_ID}} --log "Build succeeded: $BUILD_CMD" --worker board-worker-review
+     else
+       echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) [build] Build FAILED — rejecting card back to in-progress" >> "$LOG_FILE"
+       openclaw mc-board update {{CARD_ID}} --review "Build FAILED after ship: $BUILD_CMD — see ~/am/logs/cards/{{CARD_ID}}.log for details" --worker board-worker-review
+       openclaw mc-board move {{CARD_ID}} in-progress --force
+     fi
+   fi
+   ```
+
    **REJECT** — criteria not met, work broken, or git ship failed:
    ```
    openclaw mc-board update {{CARD_ID}} --review "REJECTED: <reason>" --criteria "<criteria with failed items as [ ]>"

@@ -135,6 +135,7 @@ export function renderCardDetail(card: Card): string {
     `**Tags:** ${card.tags.length > 0 ? card.tags.join(", ") : "(none)"}`,
     `**Created:** ${card.created_at}`,
     `**Updated:** ${card.updated_at}`,
+    `project_id: ${card.project_id ?? ""}`,
     ``,
     `## Problem Description`,
     card.problem_description || "(empty)",
@@ -168,6 +169,9 @@ export function renderProjectBoard(project: Project, cards: Card[]): string {
     `# Project: ${project.name}`,
     project.description ? `*${project.description}*` : "",
     `**Status:** ${project.status}  |  **ID:** ${project.id}`,
+    project.work_dir ? `**Work dir:** ${project.work_dir}` : "",
+    project.github_repo ? `**GitHub:** ${project.github_repo}` : "",
+    project.build_command ? `**Build command:** \`${project.build_command}\`` : "",
     "",
   ].filter(l => l !== "");
   lines.push("");

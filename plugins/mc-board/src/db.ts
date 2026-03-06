@@ -89,5 +89,6 @@ export function openDb(stateDir: string): Database {
   try { db.exec(`ALTER TABLE cards ADD COLUMN verify_url TEXT NOT NULL DEFAULT ''`); } catch { /* already exists */ }
   try { db.exec(`ALTER TABLE projects ADD COLUMN work_dir TEXT NOT NULL DEFAULT ''`); } catch { /* already exists */ }
   try { db.exec(`ALTER TABLE projects ADD COLUMN github_repo TEXT NOT NULL DEFAULT ''`); } catch { /* already exists */ }
+  try { db.exec(`ALTER TABLE projects ADD COLUMN build_command TEXT NOT NULL DEFAULT ''`); } catch { /* already exists */ }
   return db;
 }
