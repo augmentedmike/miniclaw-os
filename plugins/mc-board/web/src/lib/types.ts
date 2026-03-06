@@ -24,12 +24,23 @@ export interface Card {
   notes: string;
   review_notes: string;
   research: string;
+  verify_url: string;
+  work_log: WorkLogEntry[];
+}
+
+export interface WorkLogEntry {
+  at: string;
+  worker: string;
+  note: string;
+  links?: string[];
 }
 
 export interface Project {
   id: string;
   name: string;
   description?: string;
+  work_dir?: string;
+  github_repo?: string;
 }
 
 export interface ActiveEntry {

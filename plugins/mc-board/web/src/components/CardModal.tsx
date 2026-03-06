@@ -34,9 +34,11 @@ if (marked.defaults.renderer) {
   };
 }
 
+function unescapeNewlines(s: string): string { return s.replace(/\\n/g, "\n"); }
+
 function renderMarkdown(text: string): string {
   if (!text) return "";
-  try { return marked(text, { async: false }) as string; } catch { return text; }
+  try { return marked(unescapeNewlines(text), { async: false }) as string; } catch { return text; }
 }
 
 function fmtDate(iso: string): string {
@@ -45,11 +47,11 @@ function fmtDate(iso: string): string {
 }
 
 const SECTIONS = [
-  { label: "Research", field: "research"              },
   { label: "Work Description", field: "problem_description" },
   { label: "Plan",     field: "implementation_plan"  },
   { label: "Criteria", field: "acceptance_criteria"  },
   { label: "Notes",    field: "notes"                },
+  { label: "Research", field: "research"              },
   { label: "Review",   field: "review_notes"         },
 ] as const;
 
@@ -58,6 +60,7 @@ interface Props {
   projects: Project[];
   activeIds?: Set<string>;
   onClose: () => void;
+  onOpenLog?: () => void;
   onToast?: (icon: string, title: string, sub?: string) => void;
   onMutate?: () => void;
 }
@@ -73,7 +76,7 @@ function WatchLive({ cardId }: { cardId: string }) {
       try {
         const msg = JSON.parse(e.data);
         if (msg.type === "connected") setConnected(true);
-        else if (msg.type === "log") setLines(prev => [...prev.slice(-200), msg.line]);
+        else if (msg.type === "log" && !msg.line.startsWith("  [dbg]")) setLines(prev => [...prev.slice(-200), msg.line]);
       } catch {}
     };
     es.onerror = () => setConnected(false);
@@ -106,18 +109,16 @@ function WatchLive({ cardId }: { cardId: string }) {
   );
 }
 
-export function CardModal({ cardId, projects, activeIds, onClose, onToast, onMutate }: Props) {
+export function CardModal({ cardId, projects, activeIds, onClose, onOpenLog, onToast, onMutate }: Props) {
   const { data: card } = useSWR<Card>(
     cardId ? `/api/card/${cardId}` : null,
     fetcher,
     { refreshInterval: 5000 }
   );
 
-  const [watching, setWatching] = useState(false);
   const projectMap = Object.fromEntries(projects.map(p => [p.id, p.name]));
   const isActive = cardId ? (activeIds?.has(cardId) ?? false) : false;
 
-  useEffect(() => { if (!isActive) setWatching(false); }, [isActive]);
 
   if (!cardId) return null;
 
@@ -156,17 +157,16 @@ export function CardModal({ cardId, projects, activeIds, onClose, onToast, onMut
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              {isActive && (
+              {onOpenLog && (
                 <button
-                  onClick={() => setWatching(w => !w)}
+                  onClick={onOpenLog}
                   style={{
                     fontSize: 11, padding: "3px 10px", borderRadius: 6,
-                    background: watching ? "#16a34a" : "#18181b",
-                    border: `1px solid ${watching ? "#16a34a" : "#3f3f46"}`,
-                    color: watching ? "#dcfce7" : "#71717a", cursor: "pointer",
+                    background: "#18181b", border: "1px solid #3f3f46",
+                    color: "#71717a", cursor: "pointer",
                   }}
                 >
-                  {watching ? "◼ Stop" : "▶ Watch Live"}
+                  {isActive ? "▶ Watch Live" : "▶ View Log"}
                 </button>
               )}
               <button onClick={onClose} className="text-zinc-500 hover:text-zinc-200 text-2xl leading-none">×</button>
@@ -222,7 +222,38 @@ export function CardModal({ cardId, projects, activeIds, onClose, onToast, onMut
             );
           })}
 
-          {watching && cardId && <WatchLive cardId={cardId} />}
+          {/* Verify URL */}
+          {card.verify_url && (
+            <div>
+              <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-2">Verify URL</h3>
+              <a href={card.verify_url} target="_blank" rel="noreferrer"
+                className="text-sm text-blue-400 hover:text-blue-300 underline font-mono break-all">
+                {card.verify_url}
+              </a>
+            </div>
+          )}
+
+          {/* Work Log */}
+          {card.work_log && card.work_log.length > 0 && (
+            <div>
+              <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-2">Work Log</h3>
+              <div className="space-y-2">
+                {card.work_log.map((entry, i) => (
+                  <div key={i} className="bg-zinc-800 rounded px-3 py-2 text-xs">
+                    <div className="flex items-center gap-2 text-zinc-500 mb-1">
+                      <span className="font-mono">{entry.at.slice(0, 16).replace("T", " ")}</span>
+                      <span>·</span>
+                      <span>{entry.worker}</span>
+                    </div>
+                    <div className="text-zinc-300 leading-relaxed">{entry.note}</div>
+                    {entry.links?.map(l => (
+                      <a key={l} href={l} target="_blank" rel="noreferrer" className="text-blue-400 hover:underline block mt-1 truncate">{l}</a>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

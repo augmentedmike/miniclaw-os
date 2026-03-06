@@ -5,12 +5,12 @@ import * as os from "node:os";
 
 export const dynamic = "force-dynamic";
 
-const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".miniclaw");
-const OPENCLAW_DIR = process.env.OPENCLAW_DIR ?? path.join(os.homedir(), ".openclaw");
+const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), "am");
+const BRAIN_DIR = path.join(STATE_DIR, "user", "augmentedmike_bot", "brain");
 
 const PROMPT_PATHS = [
   process.env.BOARD_BACKLOG_PROMPT,
-  path.join(STATE_DIR, "cron", "prompts", "board-worker-backlog.txt"),
+  path.join(BRAIN_DIR, "prompts", "backlog-triage.txt"),
 ].filter(Boolean) as string[];
 
 function readPrompt(): string {
@@ -27,10 +27,10 @@ function writePrompt(text: string): void {
       fs.writeFileSync(p, text, "utf-8");
     } catch { /* skip unwritable */ }
   }
-  // Also sync to source repo if it exists
-  const srcPath = path.join(OPENCLAW_DIR, "miniclaw", "plugins", "mc-board", "prompts", "backlog-processor.txt");
-  if (fs.existsSync(require("path").dirname(srcPath))) {
-    try { fs.writeFileSync(srcPath, text, "utf-8"); } catch { /* skip */ }
+  // Also sync to repo if it exists
+  const repoPath = path.join(STATE_DIR, "projects", "miniclaw-os", "plugins", "mc-board", "prompts", "backlog-processor.txt");
+  if (fs.existsSync(path.dirname(repoPath))) {
+    try { fs.writeFileSync(repoPath, text, "utf-8"); } catch { /* skip */ }
   }
 }
 

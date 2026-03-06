@@ -17,6 +17,14 @@ export function moveCard(id: string, target: string, force = false): string {
   return runBoard(args);
 }
 
+export function pickupCard(id: string, worker: string): string {
+  return runBoard(["pickup", id, "--worker", worker]);
+}
+
+export function releaseCard(id: string, worker: string): string {
+  return runBoard(["release", id, "--worker", worker]);
+}
+
 export function updateCard(id: string, updates: Record<string, string>): string {
   const args = ["update", id];
   for (const [k, v] of Object.entries(updates)) {

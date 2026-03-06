@@ -6,6 +6,8 @@ interface ProjectRow {
   name: string;
   slug: string;
   description: string;
+  work_dir: string;
+  github_repo: string;
   status: string;
   created_at: string;
   updated_at: string;
@@ -17,6 +19,8 @@ function rowToProject(row: ProjectRow): Project {
     name: row.name,
     slug: row.slug,
     description: row.description,
+    work_dir: row.work_dir ?? "",
+    github_repo: row.github_repo ?? "",
     status: row.status as "active" | "archived",
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -30,14 +34,14 @@ export class ProjectStore {
     this.db = db;
   }
 
-  create(opts: { name: string; description?: string }): Project {
+  create(opts: { name: string; description?: string; work_dir?: string; github_repo?: string }): Project {
     const now = new Date().toISOString();
     const id = generateProjectId();
     const slug = slugify(opts.name);
     this.db.prepare(
-      `INSERT INTO projects (id, name, slug, description, status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 'active', ?, ?)`,
-    ).run(id, opts.name, slug, opts.description ?? "", now, now);
+      `INSERT INTO projects (id, name, slug, description, work_dir, github_repo, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?)`,
+    ).run(id, opts.name, slug, opts.description ?? "", opts.work_dir ?? "", opts.github_repo ?? "", now, now);
     return this.findById(id);
   }
 
@@ -55,15 +59,17 @@ export class ProjectStore {
     return rows.map(rowToProject);
   }
 
-  update(id: string, updates: Partial<Pick<Project, "name" | "description">>): Project {
+  update(id: string, updates: Partial<Pick<Project, "name" | "description" | "work_dir" | "github_repo">>): Project {
     const project = this.findById(id);
     const now = new Date().toISOString();
     const name = updates.name ?? project.name;
     const slug = updates.name ? slugify(updates.name) : project.slug;
     const description = updates.description !== undefined ? updates.description : project.description;
+    const work_dir = updates.work_dir !== undefined ? updates.work_dir : project.work_dir;
+    const github_repo = updates.github_repo !== undefined ? updates.github_repo : project.github_repo;
     this.db.prepare(
-      `UPDATE projects SET name=?, slug=?, description=?, updated_at=? WHERE id=?`,
-    ).run(name, slug, description, now, id);
+      `UPDATE projects SET name=?, slug=?, description=?, work_dir=?, github_repo=?, updated_at=? WHERE id=?`,
+    ).run(name, slug, description, work_dir, github_repo, now, id);
     return this.findById(id);
   }
 

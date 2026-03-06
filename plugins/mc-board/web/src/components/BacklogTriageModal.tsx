@@ -7,7 +7,7 @@ interface Props {
   onClose: () => void;
 }
 
-export function BacklogSchedulerModal({ onClose }: Props) {
+export function BacklogTriageModal({ onClose }: Props) {
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
@@ -87,10 +87,10 @@ export function BacklogSchedulerModal({ onClose }: Props) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-zinc-700 text-zinc-400">backlog</span>
-            <span className="text-xs text-zinc-500">every 5 min · Haiku</span>
+            <span className="text-xs text-zinc-500">Haiku</span>
             {saved && <span className="text-xs text-emerald-500">saved</span>}
           </div>
-          <h2 className="text-lg font-semibold text-zinc-100">Backlog Processor Prompt</h2>
+          <h2 className="text-lg font-semibold text-zinc-100">Backlog Triage Prompt</h2>
         </div>
         <button onClick={onClose} className="text-zinc-500 hover:text-zinc-200 text-2xl leading-none shrink-0">×</button>
       </div>
@@ -149,7 +149,7 @@ export function BacklogSchedulerModal({ onClose }: Props) {
       {/* Footer */}
       <div className="border-t border-zinc-800 px-6 py-4 flex items-center gap-3 flex-shrink-0">
         <span className="text-xs text-zinc-600 flex-1">
-          <code className="text-zinc-500">~/am/miniclaw/cron/prompts/board-worker-backlog.txt</code>
+          <code className="text-zinc-500">~/am/user/augmentedmike_bot/brain/prompts/backlog-triage.txt</code>
         </span>
         <button
           onClick={handleTest}

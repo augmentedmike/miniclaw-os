@@ -5,62 +5,111 @@ import os from "os";
 
 export const dynamic = "force-dynamic";
 
-function resolvePath(p: string) {
-  return p.startsWith("~") ? p.replace("~", os.homedir()) : p;
+const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".miniclaw");
+
+const LOG_DIRS = [
+  "backlog-triage", "in-progress-triage", "in-review-triage",
+  "backlog-process", "in-progress-process", "in-review-process",
+];
+
+/** Find the most recently modified log file that contains cardId in its name. */
+function findActiveLog(cardId: string): string | null {
+  let best: { file: string; mtime: number } | null = null;
+  for (const dir of LOG_DIRS) {
+    const dirPath = path.join(STATE_DIR, "logs", dir);
+    if (!fs.existsSync(dirPath)) continue;
+    try {
+      const files = fs.readdirSync(dirPath).filter(f => f.includes(cardId) && f.endsWith(".log"));
+      for (const f of files) {
+        const full = path.join(dirPath, f);
+        const { mtimeMs } = fs.statSync(full);
+        if (!best || mtimeMs > best.mtime) best = { file: full, mtime: mtimeMs };
+      }
+    } catch {}
+  }
+  return best?.file ?? null;
+}
+
+/** Cards log written directly by the full agent: ~/am/logs/cards/<cardId>.log */
+function cardsLogPath(cardId: string): string {
+  return path.join(STATE_DIR, "logs", "cards", `${cardId}.log`);
+}
+
+/** Tail a file from a given offset, return new content + new offset. */
+function readNewBytes(file: string, lastSize: number): { text: string; size: number } {
+  try {
+    const stat = fs.statSync(file);
+    if (stat.size <= lastSize) return { text: "", size: lastSize };
+    const fd = fs.openSync(file, "r");
+    const newBytes = stat.size - lastSize;
+    const buf = Buffer.alloc(newBytes);
+    fs.readSync(fd, buf, 0, newBytes, lastSize);
+    fs.closeSync(fd);
+    return { text: buf.toString("utf8"), size: stat.size };
+  } catch {
+    return { text: "", size: lastSize };
+  }
 }
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ cardId: string }> }
+  { params }: { params: Promise<{ cardId: string }> },
 ) {
   const { cardId } = await params;
-  const logFile = resolvePath(`~/am/logs/cards/${cardId}.log`);
-
   const encoder = new TextEncoder();
-  let lastSize = 0;
+  let lastProcessSize = 0;
+  let lastCardsSize = 0;
   let closed = false;
+  let logFile = findActiveLog(cardId);
+  const cardsLog = cardsLogPath(cardId);
 
-  // If file exists, start from beginning; otherwise wait for it
-  if (fs.existsSync(logFile)) {
-    lastSize = 0;
-  }
+  // Start cards log offset at current end so we only show new lines
+  try { lastCardsSize = fs.statSync(cardsLog).size; } catch {}
 
   const stream = new ReadableStream({
     start(controller) {
-      // Send initial ping
-      controller.enqueue(encoder.encode(`data: {"type":"connected","cardId":"${cardId}"}\n\n`));
+      const send = (obj: object) => {
+        try { controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`)); } catch {}
+      };
+
+      send({ type: "connected", cardId });
+      if (logFile) send({ type: "log", line: `[watch] tailing ${path.basename(logFile)}` });
+      else send({ type: "log", line: `[watch] waiting for log file…` });
 
       const interval = setInterval(() => {
-        if (closed) {
-          clearInterval(interval);
-          return;
+        if (closed) { clearInterval(interval); return; }
+
+        // Primary: process log (process route writes here)
+        if (!logFile) {
+          logFile = findActiveLog(cardId);
+          if (logFile) send({ type: "log", line: `[watch] found ${path.basename(logFile)}` });
         }
-        try {
-          if (!fs.existsSync(logFile)) return;
-          const stat = fs.statSync(logFile);
-          if (stat.size <= lastSize) return;
-
-          const fd = fs.openSync(logFile, "r");
-          const newBytes = stat.size - lastSize;
-          const buf = Buffer.alloc(newBytes);
-          fs.readSync(fd, buf, 0, newBytes, lastSize);
-          fs.closeSync(fd);
-          lastSize = stat.size;
-
-          const lines = buf.toString("utf8").split("\n").filter(l => l.trim());
-          for (const line of lines) {
-            const payload = JSON.stringify({ type: "log", line, ts: Date.now() });
-            controller.enqueue(encoder.encode(`data: ${payload}\n\n`));
+        if (logFile && fs.existsSync(logFile)) {
+          const { text, size } = readNewBytes(logFile, lastProcessSize);
+          if (text) {
+            lastProcessSize = size;
+            for (const line of text.split("\n")) {
+              if (line.trim()) send({ type: "log", line });
+            }
           }
-        } catch {
-          // file not ready yet
         }
-      }, 500);
+
+        // Secondary: cards log (full agent writes here directly)
+        if (fs.existsSync(cardsLog)) {
+          const { text, size } = readNewBytes(cardsLog, lastCardsSize);
+          if (text) {
+            lastCardsSize = size;
+            for (const line of text.split("\n")) {
+              if (line.trim()) send({ type: "log", line: `[agent] ${line}` });
+            }
+          }
+        }
+      }, 200);
 
       req.signal.addEventListener("abort", () => {
         closed = true;
         clearInterval(interval);
-        controller.close();
+        try { controller.close(); } catch {}
       });
     },
   });

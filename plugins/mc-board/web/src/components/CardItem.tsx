@@ -1,17 +1,37 @@
 "use client";
 
 import { Card, Priority } from "@/lib/types";
-import { memo } from "react";
+import { memo, useState } from "react";
 
-const PRIO_COLOR: Record<Priority, string> = {
-  critical: "#dc2626",
-  high: "#ef4444",
-  medium: "#f97316",
-  low: "#71717a",
+function FocusBadge({ focused, onToggle }: { focused: boolean; onToggle?: (e: React.MouseEvent) => void }) {
+  const [hovered, setHovered] = useState(false);
+  const style: React.CSSProperties = {
+    fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
+    padding: "2px 6px", borderRadius: 3, cursor: onToggle ? "pointer" : "default",
+    transition: "background 0.1s, color 0.1s",
+    background: focused ? "#f59e0b" : hovered ? "#713f12" : "#27272a",
+    color: focused ? "#451a03" : hovered ? "#fbbf24" : "#52525b",
+  };
+  return (
+    <span
+      style={style}
+      onClick={onToggle}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      title={focused ? "Remove focus" : "Set focus"}
+    >focus</span>
+  );
+}
+
+const PRIO_STYLE: Record<Priority, { bg: string; color: string }> = {
+  critical: { bg: "#450a0a", color: "#f87171" },
+  high:     { bg: "#3b0a0a", color: "#fca5a5" },
+  medium:   { bg: "#431407", color: "#fdba74" },
+  low:      { bg: "#27272a", color: "#a1a1aa" },
 };
 
 function criteriaProgress(criteria: string): { checked: number; total: number } {
-  const lines = criteria.split("\n").filter(l => /^\s*-\s*\[/.test(l));
+  const lines = criteria.replace(/\\n/g, "\n").split("\n").filter(l => /^\s*-\s*\[/.test(l));
   const checked = lines.filter(l => /^\s*-\s*\[x\]/i.test(l)).length;
   return { checked, total: lines.length };
 }
@@ -31,11 +51,14 @@ interface Props {
   isActive: boolean;
   worker?: string;
   onClick: (id: string) => void;
+  onWatchClick?: (id: string) => void;
+  onFocusToggle?: (id: string, focused: boolean) => void;
 }
 
-export const CardItem = memo(function CardItem({ card, projectName, isActive, worker, onClick }: Props) {
+export const CardItem = memo(function CardItem({ card, projectName, isActive, worker, onClick, onWatchClick, onFocusToggle }: Props) {
   const { checked, total } = criteriaProgress(card.acceptance_criteria);
   const pct = total > 0 ? Math.round((checked / total) * 100) : -1;
+  const focused = card.tags.includes("focus");
 
   return (
     <div
@@ -43,22 +66,40 @@ export const CardItem = memo(function CardItem({ card, projectName, isActive, wo
       onClick={() => onClick(card.id)}
       className={`card${isActive ? " card--active" : ""}`}
     >
-      {/* Worker strip (active only) */}
-      <div className="card-worker">
+      {/* Worker strip — click opens live log */}
+      <div
+        className="card-worker"
+        onClick={isActive && onWatchClick ? (e) => { e.stopPropagation(); onWatchClick(card.id); } : undefined}
+        style={isActive && onWatchClick ? { cursor: "pointer" } : undefined}
+        title={isActive ? "View live log" : undefined}
+      >
         <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", flexShrink: 0, display: "inline-block" }} />
         {worker ?? "agent working"}
       </div>
 
-      {/* Header: id + priority dot */}
+      {/* Header: id + focus badge + priority badge */}
       <div className="card-header">
         <span className="card-id">{card.id}</span>
-        <span className="priority-dot" style={{ background: PRIO_COLOR[card.priority] }} title={card.priority} />
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <FocusBadge focused={focused} onToggle={onFocusToggle ? (e) => { e.stopPropagation(); onFocusToggle(card.id, !focused); } : undefined} />
+          <span style={{
+            fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em",
+            padding: "2px 6px", borderRadius: 3,
+            background: PRIO_STYLE[card.priority].bg,
+            color: PRIO_STYLE[card.priority].color,
+          }}>{card.priority}</span>
+        </div>
       </div>
 
-      {/* Title + active dot */}
+      {/* Title + active dot (clickable to open watch modal) */}
       <div className="card-title-row">
         <div className="card-title">{card.title}</div>
-        <span className="card-active-dot" />
+        <span
+          className="card-active-dot"
+          onClick={isActive && onWatchClick ? (e) => { e.stopPropagation(); onWatchClick(card.id); } : undefined}
+          style={isActive && onWatchClick ? { cursor: "pointer" } : undefined}
+          title={isActive ? "View live log" : undefined}
+        />
       </div>
 
       {/* Type badge */}

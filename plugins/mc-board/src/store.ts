@@ -1,6 +1,6 @@
 import type { Database } from "./db.js";
-import type { Card, Column, Priority } from "./card.js";
-import { generateId } from "./card.js";
+import type { Card, Column, Priority, WorkLogEntry } from "./card.js";
+import { generateId, sortCards } from "./card.js";
 import { type TitleConflict, findTitleConflict } from "./dedup.js";
 
 type WorkType = "work" | "verify";
@@ -22,6 +22,8 @@ interface CardRow {
   notes: string;
   review_notes: string;
   research: string;
+  verify_url: string;
+  work_log: string;
 }
 
 interface HistoryRow {
@@ -49,6 +51,8 @@ function rowToCard(row: CardRow, history: HistoryRow[]): Card {
     notes: row.notes,
     review_notes: row.review_notes,
     research: row.research,
+    verify_url: row.verify_url ?? "",
+    work_log: (() => { try { return JSON.parse(row.work_log || "[]"); } catch { return []; } })(),
   };
 }
 
@@ -70,6 +74,13 @@ export class CardStore {
     project_id?: string;
     work_type?: WorkType;
     linked_card_id?: string;
+    problem_description?: string;
+    implementation_plan?: string;
+    acceptance_criteria?: string;
+    notes?: string;
+    research?: string;
+    verify_url?: string;
+    work_log?: WorkLogEntry[];
   }): Card {
     const now = new Date().toISOString();
     const id = generateId();
@@ -77,8 +88,8 @@ export class CardStore {
       `INSERT INTO cards
          (id, title, col, priority, tags, project_id, work_type, linked_card_id,
           created_at, updated_at,
-          problem_description, implementation_plan, acceptance_criteria, notes, review_notes, research)
-       VALUES (?, ?, 'backlog', ?, ?, ?, ?, ?, ?, ?, '', '', '', '', '', '')`,
+          problem_description, implementation_plan, acceptance_criteria, notes, review_notes, research, verify_url, work_log)
+       VALUES (?, ?, 'backlog', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?)`,
     ).run(
       id,
       opts.title,
@@ -89,6 +100,13 @@ export class CardStore {
       opts.linked_card_id ?? null,
       now,
       now,
+      opts.problem_description ?? "",
+      opts.implementation_plan ?? "",
+      opts.acceptance_criteria ?? "",
+      opts.notes ?? "",
+      opts.research ?? "",
+      opts.verify_url ?? "",
+      JSON.stringify(opts.work_log ?? []),
     );
     this.db.prepare(
       `INSERT INTO card_history (card_id, col, moved_at) VALUES (?, 'backlog', ?)`,
@@ -106,7 +124,7 @@ export class CardStore {
     const rows = column
       ? (this.db.prepare(`SELECT * FROM cards WHERE col = ?`).all(column) as CardRow[])
       : (this.db.prepare(`SELECT * FROM cards`).all() as CardRow[]);
-    return rows.map(r => this._withHistory(r));
+    return sortCards(rows.map(r => this._withHistory(r)));
   }
 
   listByProject(projectId: string): Card[] {
@@ -119,7 +137,7 @@ export class CardStore {
     updates: Partial<Pick<Card,
       | "title" | "priority" | "tags" | "project_id" | "work_type" | "linked_card_id"
       | "problem_description" | "implementation_plan" | "acceptance_criteria"
-      | "notes" | "review_notes" | "research"
+      | "notes" | "review_notes" | "research" | "verify_url" | "work_log"
     >>,
   ): Card {
     const card = this.findById(id);
@@ -129,8 +147,8 @@ export class CardStore {
       `UPDATE cards
        SET title=?, priority=?, tags=?, project_id=?, work_type=?, linked_card_id=?,
            problem_description=?, implementation_plan=?, acceptance_criteria=?,
-           notes=?, review_notes=?, research=?, updated_at=?
-       WHERE id=?,
+           notes=?, review_notes=?, research=?, verify_url=?, work_log=?, updated_at=?
+       WHERE id=?`,
     ).run(
       m.title,
       m.priority,
@@ -144,9 +162,19 @@ export class CardStore {
       m.notes,
       m.review_notes,
       m.research,
+      m.verify_url ?? "",
+      JSON.stringify(m.work_log ?? []),
       now,
       id,
     );
+    return this.findById(id);
+  }
+
+  appendWorkLog(id: string, entry: Omit<WorkLogEntry, "at"> & { at?: string }): Card {
+    const card = this.findById(id);
+    const log = [...(card.work_log ?? []), { at: new Date().toISOString(), ...entry }];
+    const now = new Date().toISOString();
+    this.db.prepare(`UPDATE cards SET work_log=?, updated_at=? WHERE id=?`).run(JSON.stringify(log), now, id);
     return this.findById(id);
   }
 

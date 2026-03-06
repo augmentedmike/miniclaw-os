@@ -75,7 +75,7 @@ a { color: inherit; }
   color: #d4d4d8;
   font-size: 11px;
   padding: 3px 8px;
-  border-radius: 6px;
+  border-radius: 4px;
   font-family: inherit;
   cursor: pointer;
 }
@@ -203,7 +203,7 @@ a { color: inherit; }
 .card {
   background: rgba(24,24,27,.7);
   border: 1px solid rgba(63,63,70,.4);
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 12px;
   transition: border-color .15s, box-shadow .15s;
   cursor: pointer;
@@ -232,7 +232,7 @@ a { color: inherit; }
 .card-active-dot::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: #22c55e; animation: dot-ping 1.3s cubic-bezier(0,0,.2,1) infinite; }
 .card--active .card-active-dot { display: inline-block; }
 .card-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
-.tag { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: rgba(63,63,70,.6); color: #a1a1aa; border: 1px solid rgba(63,63,70,.4); }
+.tag { font-size: 10px; padding: 1px 6px; border-radius: 3px; background: rgba(63,63,70,.6); color: #a1a1aa; border: 1px solid rgba(63,63,70,.4); }
 .criteria-bar { height: 4px; background: #27272a; border-radius: 2px; overflow: hidden; margin-bottom: 4px; width: 100%; }
 .criteria-fill { height: 100%; border-radius: 2px; transition: width .3s ease; }
 .criteria-label { font-size: 10px; color: #71717a; }

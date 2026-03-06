@@ -5,6 +5,8 @@ export interface Project {
   name: string;
   slug: string;       // url-safe lowercase, used in filename
   description: string;
+  work_dir: string;   // local working directory (absolute path)
+  github_repo: string; // e.g. "owner/repo" or full URL
   status: "active" | "archived";
   created_at: string;
   updated_at: string;

@@ -1,30 +1,17 @@
 "use client";
 
-import { Card, Column as ColumnType, Priority, Project } from "@/lib/types";
+import { useMemo, useState, useCallback } from "react";
+import type { Card, Column as ColumnType, Project } from "@/lib/types";
+import { ColumnShell } from "./ColumnShell";
+import { TriageControls } from "./TriageControls";
 import { CardItem } from "./CardItem";
-import { useMemo, useState } from "react";
-import { BacklogSchedulerModal } from "./BacklogSchedulerModal";
+import { TriageModal } from "./TriageModal";
+import { WorkModal } from "./WorkModal";
+import { useTriageColumn } from "@/hooks/useTriageColumn";
 
-const PRIORITY_RANK: Record<Priority, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+const TRIAGE_COLUMNS = new Set<ColumnType>(["backlog", "in-progress", "in-review"]);
 
-type ColStyle = { badge: string; label: string };
-const COL_STYLES: Record<ColumnType, ColStyle> = {
-  backlog:      { badge: "bg-zinc-600 text-zinc-100",     label: "BACKLOG" },
-  "in-progress":{ badge: "bg-blue-600 text-blue-50",      label: "IN PROGRESS" },
-  "in-review":  { badge: "bg-amber-500 text-amber-950",   label: "IN REVIEW" },
-  shipped:      { badge: "bg-green-600 text-green-50",    label: "SHIPPED" },
-};
-
-function sortCards(cards: Card[], activeIds: Set<string>): Card[] {
-  return [...cards].sort((a, b) => {
-    const aA = activeIds.has(a.id) ? 0 : 1;
-    const bA = activeIds.has(b.id) ? 0 : 1;
-    if (aA !== bA) return aA - bA;
-    const pd = PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
-    if (pd !== 0) return pd;
-    return a.created_at < b.created_at ? -1 : 1;
-  });
-}
+function lsMaxKey(column: ColumnType) { return `mc-board:${column}-triage:maxConcurrent`; }
 
 interface Props {
   column: ColumnType;
@@ -33,62 +20,111 @@ interface Props {
   activeIds: Set<string>;
   activeWorkers?: Record<string, string>;
   onCardClick: (id: string) => void;
-  /** shipped-only: collapsed state */
+  onWatchClick?: (id: string) => void;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
 }
 
-export function Column({ column, cards, projects, activeIds, activeWorkers, onCardClick, collapsed, onToggleCollapse }: Props) {
-  const [showScheduler, setShowScheduler] = useState(false);
+interface TriageHeaderProps {
+  column: ColumnType;
+  topCards: Card[];
+  onOpenTriage: () => void;
+}
+
+function TriageColumnHeader({ column, topCards, onOpenTriage }: TriageHeaderProps) {
+  const triage = useTriageColumn(column);
+  const [launching, setLaunching] = useState(false);
+
+  const [maxConcurrent, setMaxConcurrent] = useState<number>(() => {
+    if (typeof window === "undefined") return 3;
+    return parseInt(localStorage.getItem(lsMaxKey(column)) ?? "3", 10);
+  });
+
+  const handleMaxChange = useCallback((n: number) => {
+    setMaxConcurrent(n);
+    localStorage.setItem(lsMaxKey(column), String(n));
+    fetch("/api/cron", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: `board-${column}-triage`, maxConcurrent: n }),
+    }).catch(() => {});
+  }, [column]);
+
+  const workCards = topCards.slice(0, maxConcurrent);
+
+  const handleWork = useCallback(async () => {
+    if (workCards.length === 0) return;
+    // All triage columns: fire-and-forget, no modal
+    setLaunching(true);
+    try {
+      const promptRes = await fetch(`/api/process/${column}`);
+      const { prompt } = await promptRes.json() as { prompt: string };
+      await Promise.all(workCards.map(card =>
+        fetch(`/api/process/${column}/${card.id}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt }),
+        }).catch(() => {})
+      ));
+    } finally {
+      setLaunching(false);
+    }
+  }, [column, workCards]);
+
+  return (
+    <TriageControls
+      {...triage}
+      maxConcurrent={maxConcurrent}
+      onMaxConcurrentChange={handleMaxChange}
+      onOpenTriage={onOpenTriage}
+      onOpenWork={workCards.length > 0 ? handleWork : undefined}
+      launching={launching}
+    />
+  );
+}
+
+export function Column({ column, cards, projects, activeIds, activeWorkers, onCardClick, onWatchClick, collapsed, onToggleCollapse }: Props) {
+  const [showTriage, setShowTriage] = useState(false);
+  const hasTriage = TRIAGE_COLUMNS.has(column);
+
+  const handleFocusToggle = useCallback((cardId: string, setFocused: boolean) => {
+    const card = cards.find(c => c.id === cardId);
+    if (!card) return;
+    const tags = setFocused
+      ? [...card.tags.filter(t => t !== "focus"), "focus"]
+      : card.tags.filter(t => t !== "focus");
+    fetch("/api/board/action", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "update", cardId, tags }),
+    }).catch(() => {});
+  }, [cards]);
 
   const projectMap = useMemo(
     () => Object.fromEntries(projects.map(p => [p.id, p.name])),
-    [projects]
+    [projects],
   );
 
   const colCards = useMemo(
-    () => sortCards(cards.filter(c => c.column === column), activeIds),
-    [cards, column, activeIds]
+    () => cards.filter(c => c.column === column),
+    [cards, column],
   );
 
-  const s = COL_STYLES[column];
-  const isShipped = column === "shipped";
-
-  if (isShipped && collapsed) {
-    return (
-      <div
-        className="shipped-col"
-        onClick={onToggleCollapse}
-        title={`Show shipped (${colCards.length})`}
-      >
-        <span className="shipped-label">Shipped&nbsp;({colCards.length})</span>
-      </div>
-    );
-  }
-
   return (
-    <div className={`column${isShipped ? " shipped-col open" : ""}`}>
-      <div
-        className="column-header"
-        onClick={isShipped ? onToggleCollapse : undefined}
-        style={{ cursor: isShipped ? "pointer" : undefined, justifyContent: "flex-start", gap: 8 }}
+    <>
+      <ColumnShell
+        column={column}
+        count={colCards.length}
+        collapsed={collapsed}
+        onToggleCollapse={onToggleCollapse}
+        headerActions={hasTriage ? (
+          <TriageColumnHeader
+            column={column}
+            topCards={colCards}
+            onOpenTriage={() => setShowTriage(true)}
+          />
+        ) : undefined}
       >
-        <span className={`column-badge ${s.badge}`}>{s.label}</span>
-        <span className="column-count">{colCards.length}</span>
-        {column === "backlog" && (
-          <button
-            onClick={e => { e.stopPropagation(); setShowScheduler(true); }}
-            style={{
-              marginLeft: "auto", fontSize: 10, padding: "3px 9px", borderRadius: 5,
-              background: "#27272a", border: "1px solid #52525b",
-              color: "#a1a1aa", cursor: "pointer", lineHeight: 1.6, flexShrink: 0,
-            }}
-          >
-            ⚙ Scheduler
-          </button>
-        )}
-      </div>
-      <div className="column-cards">
         {colCards.length === 0
           ? <div className="column-empty">empty</div>
           : colCards.map(card => (
@@ -99,11 +135,16 @@ export function Column({ column, cards, projects, activeIds, activeWorkers, onCa
                 isActive={activeIds.has(card.id)}
                 worker={activeWorkers?.[card.id]}
                 onClick={onCardClick}
+                onWatchClick={onWatchClick}
+                onFocusToggle={handleFocusToggle}
               />
             ))
         }
-      </div>
-      {showScheduler && <BacklogSchedulerModal onClose={() => setShowScheduler(false)} />}
-    </div>
+      </ColumnShell>
+
+      {showTriage && (
+        <TriageModal column={column} onClose={() => setShowTriage(false)} />
+      )}
+    </>
   );
 }

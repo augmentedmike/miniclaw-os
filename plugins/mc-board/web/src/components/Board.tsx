@@ -4,6 +4,7 @@ import useSWR from "swr";
 import { BoardData, Project } from "@/lib/types";
 import { Column } from "./Column";
 import { CardModal } from "./CardModal";
+import { WatchModal } from "./WatchModal";
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
@@ -22,9 +23,10 @@ interface Counts { backlog: number; inProgress: number; inReview: number; shippe
 
 interface Props {
   selectedProject: string;
+  initialCardId?: string;
   onToast?: (icon: string, title: string, sub?: string) => void;
   notifsEnabled?: boolean;
-  onBoardData?: (projects: Project[], counts: Counts) => void;
+  onBoardData?: (projects: Project[], counts: Counts, allCards: import("@/lib/types").Card[]) => void;
 }
 
 function fuzzyMatch(query: string, card: { id: string; title: string; tags: string[] }): boolean {
@@ -40,8 +42,10 @@ const COL_LABEL: Record<string, string> = {
   shipped: "Shipped",
 };
 
-export function Board({ selectedProject, onToast, notifsEnabled, onBoardData }: Props) {
-  const [openCardId, setOpenCardId] = useState<string | null>(null);
+export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, onBoardData }: Props) {
+  const [openCardId, setOpenCardId] = useState<string | null>(initialCardId ?? null);
+  const [watchCardId, setWatchCardId] = useState<string | null>(null);
+  const [logOpen, setLogOpen] = useState(false);
   const [shippedOpen, setShippedOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -62,20 +66,18 @@ export function Board({ selectedProject, onToast, notifsEnabled, onBoardData }: 
     setOpenCardId(id);
     const card = data?.cards.find(c => c.id === id);
     const projId = card?.project_id;
-    history.pushState(null, "", projId ? `/board/${projId}/${id}` : `/board/${id}`);
+    history.pushState(null, "", projId ? `/board/p/${projId}/c/${id}` : `/board/c/${id}`);
   }, [data]);
 
   const closeCard = useCallback(() => {
     setOpenCardId(null);
-    history.pushState(null, "", selectedProject
-      ? `/board?project=${encodeURIComponent(selectedProject)}`
-      : "/board");
+    history.pushState(null, "", selectedProject ? `/board/p/${selectedProject}` : "/board");
   }, [selectedProject]);
 
   // Pass board data up to AppShell
   useEffect(() => {
     if (!data) return;
-    onBoardData?.(data.projects, data.counts);
+    onBoardData?.(data.projects, data.counts, data.cards);
   }, [data, onBoardData]);
 
   // Log-based toast firing — same logic as original standalone.mjs
@@ -173,7 +175,7 @@ export function Board({ selectedProject, onToast, notifsEnabled, onBoardData }: 
   return (
     <div className="board-tab">
       {/* Search bar */}
-      <div ref={searchRef} className="relative" style={{ padding: "8px 16px 0" }}>
+      <div ref={searchRef} className="relative" style={{ padding: "0 0 10px" }}>
         <input
           type="text"
           placeholder="Search cards…"
@@ -183,13 +185,13 @@ export function Board({ selectedProject, onToast, notifsEnabled, onBoardData }: 
           style={{
             width: "100%", maxWidth: 400,
             background: "#18181b", border: "1px solid #3f3f46",
-            borderRadius: 8, padding: "6px 12px", color: "#e4e4e7",
+            borderRadius: 4, padding: "5px 8px", color: "#e4e4e7",
             fontSize: 13, outline: "none", boxSizing: "border-box",
           }}
         />
         {searchOpen && searchResults.length > 0 && (
           <div style={{
-            position: "absolute", top: "100%", left: 16, zIndex: 100,
+            position: "absolute", top: "100%", left: 0, zIndex: 100,
             width: "min(420px, calc(100vw - 32px))",
             background: "#1c1c1e", border: "1px solid #3f3f46",
             borderRadius: 10, boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
@@ -225,6 +227,7 @@ export function Board({ selectedProject, onToast, notifsEnabled, onBoardData }: 
             activeIds={activeIds}
             activeWorkers={data?.activeWorkers}
             onCardClick={openCard}
+            onWatchClick={setWatchCardId}
             collapsed={col === "shipped" ? !shippedOpen : undefined}
             onToggleCollapse={col === "shipped" ? () => setShippedOpen(o => !o) : undefined}
           />
@@ -236,9 +239,21 @@ export function Board({ selectedProject, onToast, notifsEnabled, onBoardData }: 
         projects={projects}
         activeIds={activeIds}
         onClose={closeCard}
+        onOpenLog={openCardId ? () => { setWatchCardId(openCardId); setLogOpen(true); } : undefined}
         onToast={onToast}
         onMutate={() => mutate()}
       />
+      {logOpen && watchCardId && (() => {
+        const card = data?.cards.find(c => c.id === watchCardId);
+        return (
+          <WatchModal
+            cardId={watchCardId}
+            cardTitle={card?.title ?? watchCardId}
+            worker={data?.activeWorkers?.[watchCardId]}
+            onClose={() => setLogOpen(false)}
+          />
+        );
+      })()}
     </div>
   );
 }

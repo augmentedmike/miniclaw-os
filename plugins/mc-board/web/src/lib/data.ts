@@ -10,7 +10,7 @@
 import Database from "better-sqlite3";
 import * as path from "node:path";
 import * as fs from "node:fs";
-import type { Card, Column, Priority, Project, ActiveEntry, HistoryEntry, LogEntry } from "./types";
+import type { Card, Column, Priority, Project, ActiveEntry, HistoryEntry, LogEntry, WorkLogEntry } from "./types";
 
 // ---- DB path resolution ----
 
@@ -54,6 +54,8 @@ interface CardRow {
   notes: string;
   review_notes: string;
   research: string;
+  verify_url: string;
+  work_log: string;
 }
 
 interface HistoryRow {
@@ -66,6 +68,8 @@ interface ProjectRow {
   id: string;
   name: string;
   description: string;
+  work_dir: string;
+  github_repo: string;
 }
 
 interface ActiveRow {
@@ -108,6 +112,8 @@ function rowToCard(row: CardRow, history: HistoryRow[]): Card {
     notes: row.notes,
     review_notes: row.review_notes,
     research: row.research,
+    verify_url: row.verify_url ?? "",
+    work_log: (() => { try { return JSON.parse(row.work_log || "[]") as WorkLogEntry[]; } catch { return []; } })(),
   };
 }
 
@@ -159,10 +165,22 @@ export function listProjects(): Project[] {
   if (!db) return [];
   try {
     const rows = db.prepare(
-      `SELECT id, name, description FROM projects WHERE status = 'active' ORDER BY created_at ASC`,
+      `SELECT id, name, description, work_dir, github_repo FROM projects WHERE status = 'active' ORDER BY created_at ASC`,
     ).all() as ProjectRow[];
-    return rows.map(r => ({ id: r.id, name: r.name, description: r.description }));
+    return rows.map(r => ({ id: r.id, name: r.name, description: r.description, work_dir: r.work_dir || undefined, github_repo: r.github_repo || undefined }));
   } catch { return []; }
+}
+
+export function getProject(id: string): Project | null {
+  const db = getDb();
+  if (!db) return null;
+  try {
+    const row = db.prepare(
+      `SELECT id, name, description, work_dir, github_repo FROM projects WHERE id = ?`,
+    ).get(id) as ProjectRow | undefined;
+    if (!row) return null;
+    return { id: row.id, name: row.name, description: row.description, work_dir: row.work_dir || undefined, github_repo: row.github_repo || undefined };
+  } catch { return null; }
 }
 
 export function getActiveWork(): { active: ActiveEntry[]; log: LogEntry[] } {

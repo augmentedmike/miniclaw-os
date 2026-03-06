@@ -42,6 +42,39 @@ export function listCronJobs(): CronJob[] {
   } catch { return []; }
 }
 
+export function updateCronJob(id: string, patch: Partial<Pick<CronJob, "schedule" | "enabled">>): CronJob | null {
+  const raw: Record<string, unknown> = fs.existsSync(JOBS_FILE)
+    ? JSON.parse(fs.readFileSync(JOBS_FILE, "utf-8"))
+    : {};
+  if (!raw[id]) return null;
+  const job = raw[id] as Record<string, unknown>;
+  if (patch.schedule !== undefined) job.schedule = patch.schedule;
+  if (patch.enabled !== undefined) job.enabled = patch.enabled;
+  fs.mkdirSync(require("node:path").dirname(JOBS_FILE), { recursive: true });
+  fs.writeFileSync(JOBS_FILE, JSON.stringify(raw, null, 2), "utf-8");
+  return {
+    id,
+    name: String(job.name ?? id),
+    schedule: String(job.schedule ?? ""),
+    enabled: job.enabled !== false,
+    payload: (job.payload as CronJob["payload"]) ?? {},
+  };
+}
+
+export function upsertCronJob(job: CronJob): void {
+  const raw: Record<string, unknown> = fs.existsSync(JOBS_FILE)
+    ? JSON.parse(fs.readFileSync(JOBS_FILE, "utf-8"))
+    : {};
+  raw[job.id] = {
+    name: job.name,
+    schedule: job.schedule,
+    enabled: job.enabled,
+    ...(job.payload ? { payload: job.payload } : {}),
+  };
+  fs.mkdirSync(require("node:path").dirname(JOBS_FILE), { recursive: true });
+  fs.writeFileSync(JOBS_FILE, JSON.stringify(raw, null, 2), "utf-8");
+}
+
 export function listCronRuns(limit = 20): CronRun[] {
   if (!fs.existsSync(RUNS_DIR)) return [];
   try {

@@ -4,7 +4,7 @@ import type { ProjectStore } from "../src/project-store.js";
 import { formatConflictError } from "../src/dedup.js";
 import { ActiveWorkStore } from "../src/active-work.js";
 import { ArchiveStore } from "../src/archive.js";
-import { COLUMNS, canTransition, checkGate, formatGateError } from "../src/state.js";
+import { COLUMNS, canTransition, canTransitionSystem, checkGate, formatGateError } from "../src/state.js";
 import {
   renderCardDetail,
   renderColumnContext,
@@ -15,6 +15,10 @@ import {
   validateCardTags,
 } from "../src/board.js";
 import type { Column, Priority } from "../src/card.js";
+import { spawn } from "node:child_process";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import * as os from "node:os";
 
 export interface CliContext {
   program: Command;
@@ -55,6 +59,11 @@ Examples:
     .option("--project <id>", "Link to a project by ID (prj_<hex>)")
     .option("--work-type <type>", "Card type: 'work' or 'verify' (optional)")
     .option("--linked-card-id <id>", "For verify cards, the source work card ID (optional)")
+    .option("--problem <text>", "Problem description — why this work is needed")
+    .option("--plan <text>", "Implementation plan — how to solve it")
+    .option("--criteria <text>", "Acceptance criteria as markdown checklist (- [ ] ...)")
+    .option("--notes <text>", "Notes / context")
+    .option("--research <text>", "Research notes — pre-work context and findings")
     .addHelpText("after", `
 New cards always start in backlog. Fill in problem, plan, and criteria
 before moving to in-progress.
@@ -62,9 +71,9 @@ before moving to in-progress.
 Examples:
   miniclaw brain create --title "Fix login bug"
   miniclaw brain create --title "Add dark mode" --priority high --tags ui,miniclaw
-  miniclaw brain create --title "API redesign" --project prj_a1b2c3d4
+  miniclaw brain create --title "API redesign" --project prj_a1b2c3d4 --problem "Need API v2"
   miniclaw brain create --title "VERIFY: Fix login bug" --work-type verify --linked-card-id crd_abc123`)
-    .action((opts: { title: string; priority: string; tags?: string; project?: string; workType?: string; linkedCardId?: string }) => {
+    .action((opts: { title: string; priority: string; tags?: string; project?: string; workType?: string; linkedCardId?: string; problem?: string; plan?: string; criteria?: string; notes?: string; research?: string }) => {
       const priority = normalizePriority(opts.priority);
       if (!priority) {
         console.error(`Invalid priority: ${opts.priority}. Use: critical, high, medium, low`);
@@ -112,7 +121,14 @@ Examples:
         console.error(formatConflictError(opts.title, conflict));
         process.exit(1);
       }
-      const card = store.create({ title: opts.title, priority, tags, project_id: opts.project, work_type, linked_card_id });
+      const card = store.create({
+        title: opts.title, priority, tags, project_id: opts.project, work_type, linked_card_id,
+        problem_description: opts.problem,
+        implementation_plan: opts.plan,
+        acceptance_criteria: opts.criteria,
+        notes: opts.notes,
+        research: opts.research,
+      });
       console.log(`Created ${card.id}: ${card.title}${opts.project ? ` [project: ${opts.project}]` : ""}${work_type ? ` [${work_type}${linked_card_id ? ` → ${linked_card_id}` : ''}]` : ""}`);
     });
 
@@ -212,13 +228,19 @@ criteria, notes, review notes, and full column history with timestamps.
     .description("Update one or more fields on a card")
     .option("--title <title>", "Card title")
     .option("--priority <priority>", "Priority: critical, high, medium, low")
-    .option("--tags <tags>", "Comma-separated tags, e.g. miniclaw,build")
+    .option("--tags <tags>", "Comma-separated tags — REPLACES all existing tags")
+    .option("--add-tags <tags>", "Comma-separated tags to ADD to existing tags")
+    .option("--remove-tags <tags>", "Comma-separated tags to REMOVE from existing tags")
     .option("--problem <text>", "Problem description — why this work is needed")
     .option("--plan <text>", "Implementation plan — how to solve it")
     .option("--criteria <text>", "Acceptance criteria as markdown checklist (- [ ] / - [x])")
     .option("--notes <text>", "Notes / outcome — observations, decisions, results")
     .option("--review <text>", "Review notes — filled after critic/audit pass, required to ship")
     .option("--research <text>", "Research notes — pre-work context, findings, and links")
+    .option("--verify-url <url>", "URL to check when reviewing this card (e.g. http://localhost:4220/memory)")
+    .option("--log <note>", "Append a work log entry (timestamped, never overwrites)")
+    .option("--link <url>", "Add a repo link (PR/commit/branch URL) to the latest log entry or create one")
+    .option("--worker <id>", "Worker/agent ID for the log entry (default: $OPENCLAW_AGENT_ID or 'agent')")
     .option("--project <id>", "Link card to a project by ID (prj_<hex>), or 'none' to unlink")
     .option("--work-type <type>", "Card type: 'work' or 'verify', or 'none' to clear")
     .option("--linked-card-id <id>", "For verify cards, the source work card ID, or 'none' to clear")
@@ -247,13 +269,23 @@ Examples:
         }
         if (opts.tags !== undefined) {
           const tags = opts.tags.split(",").map((t: string) => t.trim()).filter(Boolean);
-          // Validate tags
           const tagValidation = validateCardTags(tags);
           if (!tagValidation.valid) {
             console.warn(`⚠️  Warning: Invalid tags found:`);
-            for (const err of tagValidation.errors) {
-              console.warn(`  ${err}`);
-            }
+            for (const err of tagValidation.errors) console.warn(`  ${err}`);
+          }
+          updates.tags = tags;
+        }
+        if (opts.addTags !== undefined || opts.removeTags !== undefined) {
+          const card = store.findById(id);
+          let tags = [...card.tags];
+          if (opts.addTags) {
+            const toAdd = opts.addTags.split(",").map((t: string) => t.trim()).filter(Boolean);
+            for (const t of toAdd) if (!tags.includes(t)) tags.push(t);
+          }
+          if (opts.removeTags) {
+            const toRemove = new Set(opts.removeTags.split(",").map((t: string) => t.trim()).filter(Boolean));
+            tags = tags.filter(t => !toRemove.has(t));
           }
           updates.tags = tags;
         }
@@ -263,6 +295,36 @@ Examples:
         if (opts.notes !== undefined) updates.notes = opts.notes;
         if (opts.review !== undefined) updates.review_notes = opts.review;
         if (opts.research !== undefined) updates.research = opts.research;
+        if (opts.verifyUrl !== undefined) updates.verify_url = opts.verifyUrl;
+
+        // Work log — append-only, handled separately from bulk update
+        if (opts.log !== undefined || opts.link !== undefined) {
+          const worker = opts.worker ?? process.env.OPENCLAW_AGENT_ID ?? "agent";
+          if (opts.log !== undefined) {
+            store.appendWorkLog(id, {
+              worker,
+              note: opts.log,
+              ...(opts.link ? { links: [opts.link] } : {}),
+            });
+          } else if (opts.link !== undefined) {
+            // Link only — attach to most recent entry or create a bare entry
+            const card = store.findById(id);
+            const log = card.work_log ?? [];
+            if (log.length > 0) {
+              const last = log[log.length - 1];
+              const updated = [...log.slice(0, -1), { ...last, links: [...(last.links ?? []), opts.link] }];
+              store.update(id, { work_log: updated } as Parameters<typeof store.update>[1]);
+            } else {
+              store.appendWorkLog(id, { worker, note: "", links: [opts.link] });
+            }
+          }
+          if (Object.keys(updates).length === 0) {
+            const card = store.findById(id);
+            console.log(`Updated ${card.id}: ${card.title}`);
+            process.exit(0);
+          }
+        }
+
         if (opts.project !== undefined) {
           if (opts.project === "none") {
             updates.project_id = undefined;
@@ -395,8 +457,11 @@ Examples:
                 .map(line => line.replace(/^- \[x\]/, '- [ ]'))
                 .join('\n');
               
-              // Update work card with reset criteria and move back to in-progress
+              // Update work card with reset criteria and resurface via system transition
               store.update(workCard.id, { acceptance_criteria: resetCriteria });
+              if (!canTransitionSystem(workCard.column, 'in-progress')) {
+                throw new Error(`System transition ${workCard.column} → in-progress not defined in state machine`);
+              }
               store.move(workCard, 'in-progress');
               
               console.log(`Auto-archive: Failed verify ${card.id} archived.`);
@@ -605,15 +670,17 @@ Examples:
     .description("Create a new project")
     .requiredOption("--name <name>", "Project name (required)")
     .option("--description <desc>", "Short description of the project")
+    .option("--work-dir <path>", "Local working directory (absolute path to git repo)")
+    .option("--github-repo <repo>", "GitHub/remote repo (e.g. owner/repo or full URL)")
     .addHelpText("after", `
 Projects are containers for cards. Create a project, then link cards to it
 with 'brain create --project <id>' or 'brain update <id> --project <id>'.
 
 Examples:
   miniclaw brain project create --name "Telegram Overhaul"
-  miniclaw brain project create --name "v2 API" --description "REST redesign initiative"`)
-    .action((opts: { name: string; description?: string }) => {
-      const proj = projects.create({ name: opts.name, description: opts.description });
+  miniclaw brain project create --name "v2 API" --description "REST redesign" --work-dir ~/projects/api --github-repo owner/api`)
+    .action((opts: { name: string; description?: string; workDir?: string; githubRepo?: string }) => {
+      const proj = projects.create({ name: opts.name, description: opts.description, work_dir: opts.workDir, github_repo: opts.githubRepo });
       console.log(`Created ${proj.id}: ${proj.name}`);
     });
 
@@ -675,18 +742,21 @@ archived projects.
   // brain project update
   project
     .command("update <id>")
-    .description("Update a project's name or description")
+    .description("Update a project's name, description, work dir, or repo")
     .option("--name <name>", "New project name")
     .option("--description <desc>", "New project description")
+    .option("--work-dir <path>", "Local working directory (absolute path to git repo)")
+    .option("--github-repo <repo>", "GitHub/remote repo (e.g. owner/repo or full URL)")
     .addHelpText("after", `
-  miniclaw brain project update prj_a1b2c3d4 --name "New Name"`)
-    .action((id: string, opts: { name?: string; description?: string }) => {
-      if (!opts.name && opts.description === undefined) {
-        console.error("No fields to update. Provide --name or --description.");
+  miniclaw brain project update prj_a1b2c3d4 --name "New Name"
+  miniclaw brain project update prj_a1b2c3d4 --work-dir ~/projects/api --github-repo owner/api`)
+    .action((id: string, opts: { name?: string; description?: string; workDir?: string; githubRepo?: string }) => {
+      if (!opts.name && opts.description === undefined && !opts.workDir && !opts.githubRepo) {
+        console.error("No fields to update. Provide --name, --description, --work-dir, or --github-repo.");
         process.exit(1);
       }
       try {
-        const proj = projects.update(id, { name: opts.name, description: opts.description });
+        const proj = projects.update(id, { name: opts.name, description: opts.description, work_dir: opts.workDir, github_repo: opts.githubRepo });
         console.log(`Updated project ${proj.id}: ${proj.name}`);
       } catch (err) {
         console.error(String(err));
@@ -805,6 +875,248 @@ Useful for auditing which agent processed which ticket and when.
     .option("--fix", "No-op with SQLite storage (kept for script compatibility)")
     .action(() => {
       console.log("SQLite store: duplicate IDs are structurally impossible. Board integrity OK.");
+    });
+
+  // ---- brain triage ----
+  brain
+    .command("triage <cardId>")
+    .description("Run Haiku triage on a backlog card: enrich it and move to in-progress if ready")
+    .option("--prompt <path>", "Path to triage prompt file (uses default if not found)")
+    .option("--worker <name>", "Worker name for pickup/release/work_log", "board-worker-triage")
+    .option("--log <path>", "Path to write log file (auto-generated if not specified)")
+    .option("--no-move", "Skip auto-move even if Haiku says card is ready")
+    .addHelpText("after", `
+Runs Haiku in sandboxed mode to enrich the card with research and notes.
+If Haiku determines the card is fully defined (problem + plan + criteria),
+it sets move_to=in-progress in the APPLY block and the card is moved.
+If the move fails (gate check fails), the error is written to card notes.
+
+Used by: web UI triage button, cron job backlog checker.
+
+  openclaw mc-board triage crd_abc123
+  openclaw mc-board triage crd_abc123 --worker cron-backlog --no-move
+  openclaw mc-board triage crd_abc123 --log ~/am/logs/triage.log`)
+    .action((cardId: string, opts: { prompt?: string; worker: string; log?: string; move: boolean }) => {
+      const card = store.findById(cardId);
+      if (!card) {
+        console.error(`Card not found: ${cardId}`);
+        process.exit(1);
+      }
+      if (card.column !== "backlog") {
+        console.error(`Card ${cardId} is in "${card.column}", not "backlog". Triage only applies to backlog.`);
+        process.exit(1);
+      }
+
+      const project = card.project_id ? projects.findById(card.project_id) : null;
+
+      // Resolve log path
+      const logDir = path.join(ctx.stateDir, "logs", "backlog-triage");
+      fs.mkdirSync(logDir, { recursive: true });
+      const ts0 = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      const logFile = opts.log ?? path.join(logDir, `${ts0}-${cardId}.log`);
+      const logStream = fs.createWriteStream(logFile, { flags: "a" });
+
+      const t0 = Date.now();
+      const ts = () => `+${((Date.now() - t0) / 1000).toFixed(2)}s`;
+      function log(msg: string) { logStream.write(msg); process.stdout.write(msg); }
+
+      // Resolve prompt
+      const BRAIN_DIR = path.join(ctx.stateDir, "user", "augmentedmike_bot", "brain");
+      const defaultPromptPath = path.join(BRAIN_DIR, "prompts", "backlog-process.txt");
+      const promptPath2 = opts.prompt ?? (fs.existsSync(defaultPromptPath) ? defaultPromptPath : null);
+      const DEFAULT_PROMPT = `You are a triage processor for the Brain board. This prompt runs both on-demand (web UI) and via the periodic cron job that checks the backlog column.
+
+You are given a single card in full detail. Your job:
+
+1. Review the existing problem description, plan, and acceptance criteria
+2. Fill in the research section with relevant technical context, known issues, related code patterns, or documentation links that would help an agent implement this card
+3. Identify gaps or ambiguities in the implementation plan and note them in the notes field
+4. Assess readiness: does this card have everything needed to be worked on? (clear problem, acceptance criteria, implementation plan, project context)
+5. Do NOT check off acceptance criteria — that is the agent's job after doing the work
+6. Append a concise work log note summarizing what you found in this triage pass
+
+Card:
+{{CARD}}
+`;
+      const promptTemplate = promptPath2 ? fs.readFileSync(promptPath2, "utf8") : DEFAULT_PROMPT;
+
+      // Build card markdown
+      const cardLines = [
+        `# ${card.title}`,
+        `ID: ${cardId}`,
+        `Column: ${card.column}`,
+        `Priority: ${card.priority}`,
+        card.tags.length > 0 ? `Tags: ${card.tags.join(", ")}` : "",
+        project ? `Project: ${project.name}` : "",
+        project?.work_dir ? `Work dir: ${project.work_dir}` : "",
+        project?.github_repo ? `GitHub repo: ${project.github_repo}` : "",
+        "",
+        card.problem_description ? `## Problem\n${card.problem_description}` : "",
+        card.implementation_plan ? `## Plan\n${card.implementation_plan}` : "",
+        card.acceptance_criteria ? `## Criteria\n${card.acceptance_criteria}` : "",
+        card.notes ? `## Notes\n${card.notes}` : "",
+        card.research ? `## Research\n${card.research}` : "",
+      ].filter(Boolean).join("\n");
+
+      const APPLY_INSTRUCTION = `
+
+After your analysis, output the result as JSON under exactly this header (no markdown fences):
+---APPLY---
+{"id":"${cardId}","research":"...","notes":"...","work_log":{"worker":"${opts.worker}","note":"..."},"move_to":"in-progress"}
+---END---
+
+Rules:
+- "id" must be exactly "${cardId}"
+- Only include fields you actually changed
+- "work_log" is a single entry object: {worker, note}
+- Do NOT check off acceptance criteria boxes
+- "research" replaces the existing research field — be comprehensive
+- "move_to": set to "in-progress" ONLY if the card has ALL of: (1) clear problem_description, (2) acceptance_criteria, (3) implementation_plan, AND the work appears well-scoped and actionable. If any are missing or vague, omit "move_to" entirely.`;
+
+      const fullPrompt = promptTemplate.replace("{{CARD}}", cardLines) + APPLY_INSTRUCTION;
+
+      // Setup run dir
+      const runDir = path.join(ctx.stateDir, "tmp", `${ts0}-${cardId}`);
+      fs.mkdirSync(runDir, { recursive: true });
+      fs.writeFileSync(path.join(runDir, "CLAUDE.md"), [
+        `# Triage: ${card.title}`,
+        "",
+        `Card: ${cardId} (backlog)`,
+        "This is a sandboxed non-interactive session. Do not use tools.",
+        "Respond only with your analysis and the APPLY block.",
+      ].join("\n"));
+
+      const CLAUDE_BIN = process.env.CLAUDE_BIN ?? "claude";
+      const debugFile = path.join(logDir, `${ts0}-${cardId}.debug.log`);
+      fs.writeFileSync(debugFile, "");
+
+      // Pickup
+      const activeWork = new ActiveWorkStore(ctx.stateDir);
+      activeWork.pickup({ cardId, worker: opts.worker, column: card.column, title: card.title, projectId: card.project_id ?? undefined });
+      log(`[${ts()}] triage: ${cardId} — ${card.title}\n`);
+      log(`[${ts()}] log: ${logFile}\n`);
+
+      const { CLAUDECODE: _cc, ...env } = process.env as Record<string, string | undefined>;
+      if (!env.TMPDIR) env.TMPDIR = os.tmpdir();
+
+      const proc = spawn(CLAUDE_BIN, [
+        "-p", fullPrompt,
+        "--model", "claude-haiku-4-5-20251001",
+        "--output-format", "stream-json",
+        "--include-partial-messages",
+        "--verbose",
+        "--debug-file", debugFile,
+        "--mcp-config", '{"mcpServers":{}}',
+        "--strict-mcp-config",
+      ], { env: env as NodeJS.ProcessEnv, cwd: runDir, stdio: ["ignore", "pipe", "pipe"] });
+
+      log(`[${ts()}] pid ${proc.pid}\n`);
+
+      let buf = "";
+      let fullOutput = "";
+
+      const NOISE = /ENOENT|Broken symlink|detectFileEncoding|managed-settings|settings\.local/;
+      const tail = spawn("tail", ["-f", debugFile]);
+      tail.stdout.on("data", (chunk: Buffer) => {
+        for (const line of chunk.toString().split("\n").filter((l: string) => l.trim())) {
+          if (NOISE.test(line)) continue;
+          try {
+            const entry = JSON.parse(line);
+            const msg = entry.message ?? entry.msg ?? line;
+            if (!NOISE.test(msg)) log(`  [dbg] ${msg}\n`);
+          } catch { log(`  [dbg] ${line}\n`); }
+        }
+      });
+
+      proc.stdout!.on("data", (chunk: Buffer) => {
+        buf += chunk.toString();
+        const lines = buf.split("\n");
+        buf = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const msg = JSON.parse(line);
+            if (msg.type === "content_block_delta" && msg.delta?.type === "text_delta") {
+              fullOutput += msg.delta.text;
+              logStream.write(msg.delta.text);
+            }
+            if (msg.type === "result" && typeof msg.result === "string") {
+              fullOutput += msg.result;
+              logStream.write(msg.result);
+            }
+          } catch { logStream.write(line + "\n"); }
+        }
+      });
+
+      proc.stderr!.on("data", (chunk: Buffer) => { log(chunk.toString()); });
+
+      proc.on("close", (code: number | null) => {
+        setTimeout(() => tail.kill(), 300);
+        if (buf.trim()) { fullOutput += buf; logStream.write(buf); }
+        log(`\n[${ts()}] done (exit ${code})\n`);
+
+        const match = fullOutput.match(/---APPLY---\s*([\s\S]*?)---END---/);
+        if (match) {
+          try {
+            const raw = JSON.parse(match[1].trim()) as Record<string, unknown>;
+            const id = String(raw.id ?? "");
+            if (id === cardId) {
+              const updates: Parameters<typeof store.update>[1] = {};
+              if (typeof raw.research === "string") updates.research = raw.research;
+              if (typeof raw.notes === "string") updates.notes = raw.notes;
+              if (typeof raw.priority === "string" && ["critical","high","medium","low"].includes(raw.priority)) {
+                updates.priority = raw.priority as Priority;
+              }
+              if (Array.isArray(raw.tags)) updates.tags = raw.tags as string[];
+              if (Object.keys(updates).length > 0) {
+                store.update(cardId, updates);
+                log(`\n[${ts()}] applied: ${Object.keys(updates).join(", ")}\n`);
+              }
+              if (raw.work_log && typeof raw.work_log === "object") {
+                const wl = raw.work_log as { worker?: string; note?: string };
+                if (wl.note) {
+                  store.appendWorkLog(cardId, { worker: wl.worker ?? opts.worker, note: wl.note });
+                  log(`[${ts()}] work_log appended\n`);
+                }
+              }
+              if (opts.move !== false && raw.move_to === "in-progress") {
+                log(`[${ts()}] triage: moving card to in-progress\n`);
+                try {
+                  const currentCard = store.findById(cardId);
+                  const gate = checkGate(currentCard, "in-progress");
+                  if (!gate.ok) {
+                    throw new Error(formatGateError("backlog", "in-progress", gate.failures));
+                  }
+                  store.move(currentCard, "in-progress");
+                  log(`[${ts()}] moved to in-progress\n`);
+                } catch (moveErr) {
+                  const errMsg = String(moveErr);
+                  log(`[${ts()}] move failed: ${errMsg}\n`);
+                  const currentCard = store.findById(cardId);
+                  const existing = currentCard?.notes ?? "";
+                  const errNote = `${existing ? existing + "\n\n" : ""}Triage move error (${new Date().toISOString().slice(0, 16)}):\n${errMsg}`;
+                  store.update(cardId, { notes: errNote });
+                }
+              }
+            } else {
+              log(`\n[${ts()}] APPLY id mismatch (got ${id}, expected ${cardId})\n`);
+            }
+          } catch (e) { log(`\n[${ts()}] APPLY parse error: ${String(e)}\n`); }
+        } else {
+          log(`\n[${ts()}] no APPLY block — nothing written\n`);
+        }
+
+        activeWork.release(cardId, opts.worker);
+        log(`[${ts()}] released\n`);
+        logStream.end(() => process.exit(code ?? 0));
+      });
+
+      proc.on("error", (err: Error) => {
+        tail.kill();
+        log(`\n[${ts()}] error: ${err.message}\n`);
+        activeWork.release(cardId, opts.worker);
+        logStream.end(() => process.exit(1));
+      });
     });
 
 }

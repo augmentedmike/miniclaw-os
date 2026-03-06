@@ -5,9 +5,10 @@ import { useEffect } from "react";
 interface Props {
   onClose: () => void;
   children: React.ReactNode;
+  zIndex?: number;
 }
 
-export function Modal({ onClose, children }: Props) {
+export function Modal({ onClose, children, zIndex = 50 }: Props) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", handler);
@@ -15,8 +16,8 @@ export function Modal({ onClose, children }: Props) {
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 bg-zinc-950 flex flex-col">
-      <div className="flex flex-col flex-1 min-h-0 w-full max-w-3xl mx-auto">
+    <div className="fixed inset-0 flex flex-col items-center justify-center bg-black" style={{ zIndex: zIndex * 10 }}>
+      <div className="flex flex-col w-full max-w-3xl mx-auto bg-zinc-900 border border-zinc-800 rounded-lg shadow-2xl" style={{ height: "90vh" }}>
         {children}
       </div>
     </div>

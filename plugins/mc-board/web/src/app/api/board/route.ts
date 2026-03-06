@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listCards, listProjects, getActiveWork } from "@/lib/data";
+import { sortCards } from "@/lib/sort";
 
 export const dynamic = "force-dynamic";
 
 export function GET(req: NextRequest) {
   const projectId = req.nextUrl.searchParams.get("project") ?? undefined;
-  const cards = listCards(projectId);
-  const projects = listProjects();
   const { active, log } = getActiveWork();
   const activeIds = active.map(e => e.cardId);
+  const activeIdSet = new Set(activeIds);
+  const cards = sortCards(listCards(projectId), activeIdSet);
+  const projects = listProjects();
   const activeWorkers: Record<string, string> = {};
   for (const e of active) {
     if (e.worker) activeWorkers[e.cardId] = e.worker.replace("board-worker-", "");
