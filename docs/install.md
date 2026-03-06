@@ -25,7 +25,7 @@ present. Re-running is safe.
 |-------------|---------|-------|
 | macOS | 13 (Ventura) | Checked at runtime; install aborts if older |
 | Architecture | Apple Silicon (arm64) or Intel (x86_64) | Auto-detected |
-| Disk space | ~2 GB free | Homebrew + Node.js + model cache |
+| Disk space | ~20 GB free | Homebrew + Node.js + plugins + local model cache |
 | Internet | Required | Downloads Homebrew, Node, npm packages, QMD |
 | `sudo` access | Required | Needed by Homebrew installer |
 | Terminal | zsh or bash | Shell profile files updated automatically |
@@ -164,6 +164,11 @@ then hands off to `install.sh`.
 - If already running inside a local clone: skips (uses in-place repo).
 - If the repo is already cloned at `$OPENCLAW_DIR/projects/miniclaw-os` at the
   right version tag: skips.
+- If the repo exists but is at a **different** version tag: runs
+  `rm -rf $OPENCLAW_DIR/projects/miniclaw-os` then re-clones at the requested
+  tag. **This deletes the entire directory.** Any local modifications to the
+  cloned repo will be lost. If you have local changes there, stash or back them
+  up before upgrading.
 - Otherwise: clones the repo at the requested version tag with `--depth 1`.
 - **Failure**: network error or tag not found. Fix: check the
   `MINICLAW_VERSION` variable and ensure the tag exists on GitHub.
@@ -216,13 +221,20 @@ For each plugin directory under `plugins/` in the repo:
 - Runs `bun install` in the plugin directory to install npm dependencies.
 - Prints `Installed` or `Updated` depending on whether the destination existed.
 
-**Currently registered plugins**: mc-board, mc-context, mc-designer, mc-kb,
-mc-queue, mc-soul, mc-trust.
+All 10 plugin directories in the repo are copied to disk:
+mc-board, mc-context, mc-designer, mc-docs, mc-jobs, mc-kb, mc-queue,
+mc-rolodex, mc-soul, mc-trust.
+
+> **Note**: copying a plugin to disk does not register or enable it.
+> Registration happens in Step 7 and only covers a subset of these plugins.
+> `mc-docs`, `mc-jobs`, and `mc-rolodex` are intentionally copied but left
+> unregistered — they have no entry in `plugin_defaults` and will not appear
+> in `openclaw.json` unless added manually.
 
 ### Step 7 — openclaw.json patch
 
 A Python script reads `$OPENCLAW_STATE_DIR/openclaw.json` and registers each
-installed plugin:
+plugin that has a default config entry:
 - Adds the plugin name to `plugins.allow`.
 - Adds the plugin path to `plugins.load.paths`.
 - Writes a default config block under `plugins.entries.<name>` (only if the
@@ -240,12 +252,19 @@ installed plugin:
 | mc-soul | (no config) |
 | mc-trust | `trustDir`, `vaultBin`, session TTL |
 
+**Registered plugins** (7 of 10): mc-board, mc-context, mc-designer, mc-kb,
+mc-queue, mc-soul, mc-trust.
+
+**Copied but not registered** (3): mc-docs, mc-jobs, mc-rolodex — present in
+`$OPENCLAW_DIR/miniclaw/plugins/` but absent from `openclaw.json`. They will
+not load unless you add them manually.
+
 ### Step 8 — CLI tools
 
 Copies every file from `system/bin/` in the repo to `$HOME/.local/bin/` and
 sets executable permissions. Warns if `~/.local/bin` is not in PATH.
 
-**Tools installed**: `mc-vault`, `mc-smoke` (and any others added to `system/bin/`).
+**Tools installed**: `mc` (primary CLI entrypoint), `mc-doctor`, `mc-prompts`, `mc-smoke`, `mc-vault`, `youtube-video-learning`.
 
 ### Step 9 — User directories
 
@@ -431,7 +450,9 @@ launchctl load ~/Library/LaunchAgents/com.miniclaw.board-web.plist
 ```
 Check the log for errors:
 ```bash
-tail -f ~/.openclaw/logs/miniclaw-board-web.log
+tail -f "$STATE_DIR/logs/miniclaw-board-web.log"
+# default: ~/.openclaw/logs/miniclaw-board-web.log
+# custom:  ~/am/logs/miniclaw-board-web.log (if OPENCLAW_STATE_DIR=$HOME/am)
 ```
 
 ### Plugin bun install fails
