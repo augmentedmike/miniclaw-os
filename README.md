@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/augmentedmike/miniclaw-os/releases"><img src="https://img.shields.io/badge/version-v0.1.0-blue?style=for-the-badge" alt="v0.0.1"></a>
+  <a href="https://github.com/augmentedmike/miniclaw-os/releases"><img src="https://img.shields.io/badge/version-v0.1.1-blue?style=for-the-badge" alt="v0.1.1"></a>
   <a href="https://github.com/augmentedmike/miniclaw-os/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=for-the-badge" alt="Apache 2.0 License"></a>
 </p>
 

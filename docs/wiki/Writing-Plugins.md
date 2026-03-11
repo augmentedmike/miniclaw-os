@@ -92,9 +92,41 @@ export function before_prompt_build(context) {
 
 This is how mc-board injects the current card, mc-kb injects relevant knowledge, and mc-soul injects personality.
 
+## SYSTEM vs USER Separation
+
+MiniClaw enforces a hard boundary between system code and user data.
+Both directory names are **CAPS** — they mark the system/user boundary.
+
+```
+$OPENCLAW_STATE_DIR/
+├── miniclaw/
+│   ├── SYSTEM/          # Shipped by MiniClaw — never overwritten by the user
+│   │   ├── bin/         # mc-vault, mc, mc-smoke, voice-analyze, etc.
+│   │   └── vault/       # Age-encrypted secret store
+│   └── plugins/         # Installed plugins
+├── USER/                # Owned by the user's agent
+│   └── <bot_id>/        # Per-bot data
+│       ├── brain/       # Board cards, archive
+│       ├── kb/          # Knowledge base (SQLite)
+│       ├── media/       # Generated images, screenshots (per-plugin subdirs)
+│       ├── memos/       # Per-card scratchpads
+│       ├── voice/       # Voice analysis DB
+│       ├── rolodex/     # Contact data
+│       ├── docs/        # Authored documents
+│       ├── seo/         # SEO tracking data
+│       └── bin/         # Agent-generated CLI commands (user's space)
+...
+```
+
+**Rules:**
+- System binaries: `$OPENCLAW_STATE_DIR/miniclaw/SYSTEM/bin/<tool>`
+- User data: `$OPENCLAW_STATE_DIR/USER/<bot_id>/<feature>/`
+- User media: `$OPENCLAW_STATE_DIR/USER/<bot_id>/media/<plugin>/`
+- Always use `SYSTEM` and `USER` (caps) in code — never lowercase
+
 ## State Storage
 
-Plugins store state in `~/am/user/<bot_name>/`:
+Plugins store state in `$OPENCLAW_STATE_DIR/USER/<bot_id>/`:
 
 - **SQLite** for structured data (mc-board, mc-kb)
 - **JSON files** for config and simple state (mc-rolodex, mc-jobs)

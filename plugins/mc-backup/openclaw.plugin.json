@@ -1,0 +1,33 @@
+{
+  "id": "mc-backup",
+  "name": "Miniclaw Backup",
+  "description": "Daily tgz backups of the openclaw state directory with tiered retention: recent dailies, monthly milestones, yearly archives.",
+  "version": "0.1.0",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "backupDir": {
+        "type": "string",
+        "description": "Directory to store backup archives (must be OUTSIDE the state dir to avoid recursive backup). Defaults to ~/.openclaw-backups/"
+      },
+      "recentQuotaBytes": {
+        "type": "number",
+        "description": "Keep all daily backups while total size is under this threshold (bytes). Default: 1073741824 (1 GB)"
+      },
+      "totalQuotaBytes": {
+        "type": "number",
+        "description": "Hard cap on total backup size. Beyond recentQuota, only 1st-of-month kept. Beyond totalQuota, only Jan 1st kept. Default: 2147483648 (2 GB)"
+      },
+      "excludeDirs": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Directories (relative to state dir) to exclude from backup. Default: ['projects', '.git', 'node_modules', 'backups', 'logs', 'tmp', 'browser', 'media']. Note: media under user/<bot>/media/ is excluded by the top-level 'media' entry — set includeUserMedia to keep it."
+      },
+      "includeUserMedia": {
+        "type": "boolean",
+        "description": "Include user/<bot>/media/ in backups (generated images, screenshots, etc). Default: false — keeps backups small. Set true if media isn't reproducible."
+      }
+    }
+  }
+}

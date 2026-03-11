@@ -5,14 +5,14 @@
 # Safe to re-run — skips anything already installed.
 #
 # Usage (stable release):
-#   curl -fsSL https://raw.githubusercontent.com/augmentedmike/miniclaw-os/v1.0.0/bootstrap.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/augmentedmike/miniclaw-os/v0.1.1/bootstrap.sh | bash
 #
 # Usage (latest main):
 #   curl -fsSL https://raw.githubusercontent.com/augmentedmike/miniclaw-os/main/bootstrap.sh | bash
 
 set -euo pipefail
 
-MINICLAW_VERSION="${MINICLAW_VERSION:-v0.0.1}"
+MINICLAW_VERSION="${MINICLAW_VERSION:-v0.1.1}"
 REPO_URL="https://github.com/augmentedmike/miniclaw-os.git"
 OPENCLAW_DIR="${OPENCLAW_DIR:-$HOME/.openclaw}"
 PROJECTS_DIR="$OPENCLAW_DIR/projects"
@@ -257,9 +257,9 @@ elif [[ -d "$MINICLAW_OS_DIR/.git" ]]; then
   if [[ "$CURRENT_VER" == "$MINICLAW_VERSION" ]]; then
     ok "miniclaw-os already @ $MINICLAW_VERSION"
   else
-    info "Updating miniclaw-os $CURRENT_VER → $MINICLAW_VERSION (re-cloning)..."
-    rm -rf "$MINICLAW_OS_DIR"
-    git clone --branch "$MINICLAW_VERSION" --depth 1 "$REPO_URL" "$MINICLAW_OS_DIR"
+    info "Updating miniclaw-os $CURRENT_VER → $MINICLAW_VERSION..."
+    git -C "$MINICLAW_OS_DIR" fetch origin --tags
+    git -C "$MINICLAW_OS_DIR" checkout "$MINICLAW_VERSION"
     ok "miniclaw-os $MINICLAW_VERSION → $MINICLAW_OS_DIR"
   fi
 else
