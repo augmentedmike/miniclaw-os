@@ -22,7 +22,8 @@ import { buildViewerHtml } from "./viewer-html.js";
 /** Read a secret from mc-vault (best-effort). */
 function readVaultSecret(key: string): string | null {
   try {
-    const vaultBin = `${process.env.HOME}/.local/bin/mc-vault`;
+    const stateDir = process.env.OPENCLAW_STATE_DIR ?? `${process.env.HOME}/.openclaw`;
+    const vaultBin = `${stateDir}/miniclaw/SYSTEM/bin/mc-vault`;
     const result = child_process.spawnSync(vaultBin, ["export", key], { encoding: "utf8", timeout: 3000 });
     if (result.status === 0 && result.stdout) return result.stdout.trim() || null;
   } catch { /* ignore */ }

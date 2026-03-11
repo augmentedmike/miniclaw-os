@@ -41,7 +41,7 @@ function resolvePath(p: string): string {
 
 function resolveConfig(api: OpenClawPluginApi): BlogConfig {
   const raw = (api.pluginConfig ?? {}) as Record<string, unknown>;
-  const stateDir = process.env.MINICLAW_STATE_DIR ?? process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
+  const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
   const blogBase = path.join(stateDir, "user/blog");
 
   return {

@@ -23,7 +23,7 @@
  *                        Set tgLogChatId + boardUrl in mc-queue config to enable.
  *
  * Session key format examples:
- *   TG DM:    agent:main:telegram:direct:REDACTED_TG_CHAT_ID
+ *   TG DM:    agent:main:telegram:direct:8755232806
  *   TG group: agent:main:telegram:group:-5144217613
  *   Cron:     agent:main:cron:71130727-...
  *   Main:     agent:main:main
@@ -34,9 +34,8 @@ import * as os from "node:os";
 import * as path from "node:path";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 
-// Resolve the active state directory from env var (set by LaunchAgent)
-// Prefers MINICLAW_STATE_DIR with OPENCLAW_STATE_DIR fallback
-const STATE_DIR = (process.env.MINICLAW_STATE_DIR ?? process.env.OPENCLAW_STATE_DIR ?? "").trim()
+// Resolve the active OpenClaw state directory from env var (set by LaunchAgent)
+const OPENCLAW_STATE_DIR = (process.env.OPENCLAW_STATE_DIR ?? "").trim()
   || path.join(os.homedir(), ".openclaw");
 
 // ---- Load workspace soul files at startup ----
@@ -44,7 +43,7 @@ const STATE_DIR = (process.env.MINICLAW_STATE_DIR ?? process.env.OPENCLAW_STATE_
 function readWorkspaceFile(filename: string): string {
   try {
     return fs.readFileSync(
-      path.join(STATE_DIR, "workspace", filename),
+      path.join(OPENCLAW_STATE_DIR, "workspace", filename),
       "utf8",
     ).trim();
   } catch {
@@ -122,7 +121,7 @@ type BoardEvent =
 /** Look up a card's project_id from the brain cards directory. Best-effort, returns "" if not found. */
 function lookupCardProjectId(cardId: string): string {
   try {
-    const cardsDir = path.join(STATE_DIR, "user", "augmentedmike_bot", "brain", "cards");
+    const cardsDir = path.join(OPENCLAW_STATE_DIR, "USER", "augmentedmike_bot", "brain", "cards");
     const files = fs.readdirSync(cardsDir).filter(f => f.startsWith(cardId) && f.endsWith(".md"));
     if (!files.length) return "";
     const content = fs.readFileSync(path.join(cardsDir, files[0]), "utf8");

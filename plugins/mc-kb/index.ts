@@ -38,7 +38,7 @@ function resolvePath(p: string): string {
 function resolveConfig(api: OpenClawPluginApi): KbConfig {
   const raw = (api.pluginConfig ?? {}) as Partial<KbConfig>;
   return {
-    dbDir: resolvePath(raw.dbDir ?? "~/.openclaw/user/augmentedmike_bot/kb"),
+    dbDir: resolvePath(raw.dbDir ?? "~/.openclaw/USER/augmentedmike_bot/kb"),
     modelPath: resolvePath(
       raw.modelPath ?? "~/.cache/qmd/models/hf_ggml-org_embeddinggemma-300M-Q8_0.gguf",
     ),

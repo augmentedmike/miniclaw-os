@@ -1,7 +1,7 @@
 /**
  * mc-voice — voice.db migration script
  *
- * Creates ~/am/user/augmentedmike_bot/voice/voice.db with:
+ * Creates ~/am/USER/augmentedmike_bot/voice/voice.db with:
  *   - human_voice: stores raw messages with embeddings
  *   - voice_settings: per-human opt-out and learning config
  *   - FTS5 virtual table for full-text search
@@ -32,7 +32,7 @@ function resolveDbPath(arg?: string): string {
   if (arg) return arg.startsWith("~/") ? path.join(os.homedir(), arg.slice(2)) : arg;
   return path.join(
     os.homedir(),
-    "am/user/augmentedmike_bot/voice/voice.db",
+    "am/USER/augmentedmike_bot/voice/voice.db",
   );
 }
 

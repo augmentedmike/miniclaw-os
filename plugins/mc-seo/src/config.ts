@@ -17,7 +17,7 @@ export type SeoConfig = {
 };
 
 export function resolveConfig(raw: Record<string, unknown>, botId = "augmentedmike_bot"): SeoConfig {
-  const defaultStateDir = path.join(os.homedir(), "am", "user", botId, "seo");
+  const defaultStateDir = path.join(os.homedir(), "am", "USER", botId, "seo");
 
   const domains: Record<string, DomainConfig> = {};
   const rawDomains = (raw["domains"] ?? {}) as Record<string, Record<string, unknown>>;

@@ -46,14 +46,14 @@ function resolvePath(p: string): string {
 
 function resolveConfig(api: OpenClawPluginApi): VoiceConfig {
   const raw = (api.pluginConfig ?? {}) as Partial<VoiceConfig>;
-  const stateDir = process.env.MINICLAW_STATE_DIR ?? process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
+  const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
   return {
     humanId: raw.humanId ?? "augmentedmike",
     dbPath: resolvePath(
-      raw.dbPath ?? path.join(stateDir, "user/augmentedmike_bot/voice/voice.db")
+      raw.dbPath ?? path.join(stateDir, "USER/augmentedmike_bot/voice/voice.db")
     ),
     ingestBin: resolvePath(
-      raw.ingestBin ?? path.join(stateDir, "miniclaw/system/bin/voice-ingest")
+      raw.ingestBin ?? path.join(stateDir, "miniclaw/SYSTEM/bin/voice-ingest")
     ),
   };
 }
@@ -156,7 +156,7 @@ function callIngest(
       env: {
         ...process.env,
         GOOGLE_API_KEY: googleApiKey,
-        OPENCLAW_STATE_DIR: process.env.MINICLAW_STATE_DIR ?? process.env.OPENCLAW_STATE_DIR ?? "",
+        OPENCLAW_STATE_DIR: process.env.OPENCLAW_STATE_DIR ?? "",
       },
       // Detach from event loop so we don't block on the Gemini API call
       detached: false,

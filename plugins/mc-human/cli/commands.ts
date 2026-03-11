@@ -15,8 +15,8 @@ import { startSession } from "../src/session-manager.js";
 import { sendTelegramMessage } from "../src/tg-notify.js";
 import { enableMacOsVnc } from "../src/macos-vnc.js";
 
-const SEND_ALERT_BIN = `${process.env.HOME}/am/miniclaw/system/bin/send-alert`;
-const DEFAULT_EMAIL_TO = "owner@example.com";
+const SEND_ALERT_BIN = `${process.env.HOME}/am/miniclaw/SYSTEM/bin/send-alert`;
+const DEFAULT_EMAIL_TO = "michael@claimhawk.app";
 
 async function sendEmail(to: string, reason: string, url: string, timeoutSec: number): Promise<void> {
   const subject = `AM needs your help: ${reason}`;

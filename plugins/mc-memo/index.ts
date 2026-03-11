@@ -5,7 +5,7 @@
  * Per-card scratchpad: append timestamped notes to flat markdown files.
  * Prevents agents from repeating failed approaches within a card run.
  *
- * Memo dir: ~/am/user/augmentedmike_bot/memos/<card_id>.md
+ * Memo dir: ~/am/USER/augmentedmike_bot/memos/<card_id>.md
  */
 
 import * as path from "node:path";
@@ -26,7 +26,7 @@ function resolvePath(p: string): string {
 function resolveConfig(api: OpenClawPluginApi): MemoConfig {
   const raw = (api.pluginConfig ?? {}) as Partial<MemoConfig>;
   return {
-    memoDir: resolvePath(raw.memoDir ?? "~/am/user/augmentedmike_bot/memos"),
+    memoDir: resolvePath(raw.memoDir ?? "~/am/USER/augmentedmike_bot/memos"),
   };
 }
 
