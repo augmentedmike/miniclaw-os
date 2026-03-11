@@ -191,24 +191,35 @@ mc kb add --type lesson --title "Always test migrations" \
 
 ---
 
-#### **mc-designer** — Visual Creation
-The **occipital lobe**. Generates images, designs, and visual content.
+#### **mc-designer** — CLI Compositing Studio
+The **occipital lobe**. Photoshop via CLI — layer-based image compositing powered by Gemini.
+
+This is not a wrapper around an image generator. It's a full compositing pipeline: canvases, layer stacks, adjustment layers, opacity, transparency, chroma keying, blend modes. The agent builds complex multi-layer images programmatically — the same way a graphic novel is assembled from panels, backgrounds, characters, and text overlays.
+
+Used to produce the graphic novel at [blog.helloam.bot](https://blog.helloam.bot).
 
 **What it does:**
-- Generate images with Gemini (API key in mc-vault, never transmitted externally)
-- Create social media graphics, blog headers, diagrams
-- Edit and composite images
-- Supports layers, templates, and batch generation
+- **Gemini-backed generation** — describe a scene, get pixels back (API key in mc-vault)
+- **Layer stacks** — base image, character overlays, text, adjustment layers
+- **Compositing** — opacity, blend modes (multiply, screen, overlay, etc.)
+- **Chroma keying** — remove green/blue/any color backgrounds for transparency
+- **Adjustment layers** — levels, color balance, blur, sharpen — same concepts as Photoshop
+- **Canvas management** — named canvases with persistent layer state
+- **Reference-based generation** — feed existing images as style/composition references
 
 **Basic usage:**
 ```bash
-# Generate a blog header
-mc designer generate --prompt "Tech conference stage, bold colors" \
-  --size 1200x628
+# Generate a base scene
+mc mc-designer gen --prompt "cyberpunk alley, neon rain, wide shot" --width 1024
 
-# Create social media set
-mc designer batch --template linkedin-banner,youtube-profile \
-  --theme "tech-noir"
+# Chroma-key a character onto transparent background
+mc mc-designer alpha chroma-key --input character.png --color green
+
+# Composite character onto scene with blend mode
+mc mc-designer composite --base alley.png --overlay character.png --blend multiply
+
+# Generate with a reference image for style consistency
+mc mc-designer gen-refs --prompt "same style, close-up" --refs panel-1.png
 ```
 
 **[→ Full mc-designer documentation](./docs/mc-designer.md)**
