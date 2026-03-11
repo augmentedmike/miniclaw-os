@@ -28,6 +28,7 @@ Everything your AI can do, plugin by plugin.
 - [mc-seo](#mc-seo--seo-automation--rank-tracking) — SEO Automation & Rank Tracking
 
 ### Utilities
+- [mc-contribute](#mc-contribute--contribution-workflow) — Scaffold Plugins, File Bugs & PRs from MiniClaw
 - [mc-jobs](#mc-jobs--role-specific-job-templates) — Role-Specific Job Templates
 - [mc-human](#mc-human--human-intervention-via-novnc) — Human Intervention via noVNC
 - [mc-memo](#mc-memo--short-term-working-memory) — Short-Term Working Memory
@@ -207,6 +208,34 @@ mc mc-seo board helloam.bot
 ---
 
 ## Utilities
+
+### mc-contribute — Contribution Workflow
+Use your own MiniClaw agent to contribute to miniclaw-os. Scaffolds new plugins, files bug reports with auto-collected diagnostics, submits feature requests and plugin ideas, creates PRs with security checks, and starts GitHub Discussions. Injects contribution guidelines into the agent's context so your bot always knows the rules.
+
+```bash
+# Read the contribution guidelines (your bot does this automatically)
+mc mc-contribute guidelines
+
+# Scaffold a new plugin
+mc mc-contribute scaffold weather --description "Fetch weather forecasts"
+
+# Create a contribution branch
+mc mc-contribute branch mc-weather
+
+# File a bug report (auto-collects mc-doctor output, versions, etc.)
+mc mc-contribute bug "mc-board crashes on empty backlog"
+
+# Submit a feature request or plugin idea
+mc mc-contribute feature "Add weather alerts to mc-weather"
+
+# Submit your PR (runs security check first)
+mc mc-contribute pr
+
+# Check your contribution status
+mc mc-contribute status
+```
+
+---
 
 ### mc-jobs — Role-Specific Job Templates
 Workflow templates and procedures for specific agent roles. Built-in Software Developer role with review gates and quality checks. Auto-initializes default job on startup.
