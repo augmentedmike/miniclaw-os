@@ -263,7 +263,7 @@ The **basal ganglia**. Non-blocking message processing.
 - Routes Telegram messages to agents (mc-trust verified)
 - Never blocks — all processing is async
 - Handles cron jobs and CLI triggers concurrently
-- Intelligent routing based on agent skill
+- Intelligent routing based on agent capability
 
 **[→ Full mc-queue documentation](./docs/mc-queue.md)**
 
@@ -724,7 +724,7 @@ mc plugin test my-plugin
 5. **Share it:**
 - Open a PR to add it to `plugins/`
 - Or publish to npm as `@miniclaw/my-plugin`
-- List it on [clawhub.com](https://clawhub.com)
+
 
 ### Plugin SDK
 
