@@ -9,7 +9,7 @@ import * as os from "node:os";
 export const dynamic = "force-dynamic";
 
 const CLAUDE_BIN = process.env.CLAUDE_BIN ?? "claude";
-const STATE_DIR = process.env.MINICLAW_STATE_DIR ?? process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".miniclaw");
+const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".miniclaw");
 const LOG_DIR = path.join(STATE_DIR, "logs", "backlog-tests");
 
 const APPLY_INSTRUCTION = `

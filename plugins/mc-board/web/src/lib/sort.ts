@@ -15,11 +15,6 @@ type Sortable = { id: string; tags: string[]; priority: Priority; created_at: st
 
 export function sortCards<T extends Sortable>(cards: T[], activeIds?: Set<string>): T[] {
   return [...cards].sort((a, b) => {
-    // hold sinks to bottom — checked first so focus can't override hold
-    const aH = a.tags.includes("hold") ? 1 : 0;
-    const bH = b.tags.includes("hold") ? 1 : 0;
-    if (aH !== bH) return aH - bH;
-
     const aF = a.tags.includes("focus") ? 0 : 1;
     const bF = b.tags.includes("focus") ? 0 : 1;
     if (aF !== bF) return aF - bF;

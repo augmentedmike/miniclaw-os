@@ -2,9 +2,9 @@ import Database from "better-sqlite3";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-const _STATE = process.env.MINICLAW_STATE_DIR ?? process.env.OPENCLAW_STATE_DIR ?? path.join(require("node:os").homedir(), ".miniclaw");
-const KB_DB = process.env.BOARD_KB_DB ?? path.join(_STATE, "user", "augmentedmike_bot", "kb", "kb.db");
-const QMD_DIR = process.env.BOARD_QMD_DIR ?? path.join(_STATE, "user", "augmentedmike_bot", "memory");
+const _STATE = process.env.OPENCLAW_STATE_DIR ?? path.join(require("node:os").homedir(), ".miniclaw");
+const KB_DB = process.env.BOARD_KB_DB ?? path.join(_STATE, "USER", "augmentedmike_bot", "kb", "kb.db");
+const QMD_DIR = process.env.BOARD_QMD_DIR ?? path.join(_STATE, "USER", "augmentedmike_bot", "memory");
 
 export interface KbEntry {
   id: string;

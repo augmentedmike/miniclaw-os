@@ -13,7 +13,7 @@ import * as os from "node:os";
 
 function resolveDbPath(): string {
   if (process.env.BOARD_DB_PATH) return process.env.BOARD_DB_PATH;
-  const stateDir = process.env.MINICLAW_STATE_DIR ?? process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".miniclaw");
+  const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".miniclaw");
   return path.join(stateDir, "user/augmentedmike_bot/brain/board.db");
 }
 
@@ -52,16 +52,25 @@ export interface QueueRow {
   pid: number | null;
 }
 
-/** Enqueue a work request. Returns the generated row id. */
+/** Enqueue a work request. Returns the generated row id.
+ *  If the card already has a pending or running entry, returns the existing id (no duplicate). */
 export function enqueue(cardId: string, col: string, prompt: string, worker = "board-worker-in-progress"): string {
   const db = getQueueDb();
-  const id = `${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}-${cardId}`;
-  db.prepare(
-    `INSERT INTO agent_queue (id, card_id, col, prompt, worker, status, created_at)
-     VALUES (?, ?, ?, ?, ?, 'pending', ?)`,
-  ).run(id, cardId, col, prompt, worker, new Date().toISOString());
-  db.close();
-  return id;
+  try {
+    const existing = db.prepare(
+      `SELECT id FROM agent_queue WHERE card_id = ? AND status IN ('pending', 'running') LIMIT 1`,
+    ).get(cardId) as { id: string } | undefined;
+    if (existing) return existing.id;
+
+    const id = `${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}-${cardId}`;
+    db.prepare(
+      `INSERT INTO agent_queue (id, card_id, col, prompt, worker, status, created_at)
+       VALUES (?, ?, ?, ?, ?, 'pending', ?)`,
+    ).run(id, cardId, col, prompt, worker, new Date().toISOString());
+    return id;
+  } finally {
+    db.close();
+  }
 }
 
 /** Claim up to `limit` pending rows atomically. Returns claimed rows. */

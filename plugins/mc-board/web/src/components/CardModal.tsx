@@ -1,13 +1,60 @@
 "use client";
 
-import { Card, CardTimeline, TimelineEvent, Project, Attachment } from "@/lib/types";
+import { Card, CardTimeline, TimelineEvent, Project, Attachment, AgentRun } from "@/lib/types";
 import { useEffect, useState, useRef } from "react";
 import useSWR from "swr";
+import { marked } from "marked";
+import { markedHighlight } from "marked-highlight";
+import hljs from "highlight.js";
 import { Modal } from "./Modal";
 import { FileViewModal } from "./FileViewModal";
-import { renderMarkdown, unescapeNewlines } from "@/lib/renderMarkdown";
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
+
+marked.use(
+  markedHighlight({
+    langPrefix: "hljs language-",
+    highlight(code, lang) {
+      const language = hljs.getLanguage(lang) ? lang : "plaintext";
+      try { return hljs.highlight(code, { language }).value; } catch { return code; }
+    },
+  }),
+  { breaks: true, gfm: true }
+);
+
+if (marked.defaults.renderer) {
+  marked.defaults.renderer.listitem = function(token) {
+    if (token.task) {
+      const checkbox = token.checked
+        ? '<span class="text-emerald-400">✓</span>'
+        : '<span class="text-zinc-600">☐</span>';
+      const textClass = token.checked ? "line-through text-zinc-500" : "";
+      return `<li class="flex gap-2">${checkbox}<span class="${textClass}">${token.text}</span></li>`;
+    }
+    return `<li>${token.text}</li>`;
+  };
+}
+
+function unescapeNewlines(s: string): string { return s.replace(/\\n/g, "\n"); }
+
+// Matches file paths in text content (not inside HTML tags)
+const FILE_PATH_RE = /(~\/[\w./@-]+(?:\/[\w./@-]+)*|\/[\w./@-]+(?:\/[\w./@-]+)+\.[\w]+|(?:[\w.-]+\/)+[\w.-]+\.(?:ts|tsx|js|jsx|mjs|cjs|json|md|txt|sh|py|png|jpg|jpeg|gif|svg|css|html|yaml|yml|toml|rs|go|sql|rb|java|kt|swift|c|cpp|h|hpp|lock|env))/g;
+
+function linkifyFilePaths(html: string): string {
+  // Only replace in text nodes — split on HTML tags, leave tags untouched
+  return html.replace(/(<[^>]+>)|([^<]+)/g, (match, tag, text) => {
+    if (tag) return tag;
+    if (!text) return "";
+    return text.replace(FILE_PATH_RE, (fp: string) =>
+      `<span data-fp="${fp}" style="color:#60a5fa;cursor:pointer;text-decoration:underline;text-decoration-style:dashed">${fp}</span>`
+    );
+  });
+}
+
+function renderMarkdown(text: string): string {
+  if (!text) return "";
+  try { return linkifyFilePaths(marked(unescapeNewlines(text), { async: false }) as string); } catch { return text; }
+}
 
 function fmtDate(iso: string): string {
   if (!iso) return "";
@@ -32,6 +79,7 @@ interface Props {
   onToast?: (icon: string, title: string, sub?: string) => void;
   onMutate?: () => void;
   onInjectContext?: (ctx: string) => void;
+  onHold?: (cardId: string) => void;
 }
 
 function WatchLive({ cardId }: { cardId: string }) {
@@ -82,6 +130,7 @@ const COLUMN_COLORS: Record<string, { bg: string; text: string }> = {
   backlog:     { bg: "#3b0764", text: "#c084fc" },
   "in-progress": { bg: "#1e3a5f", text: "#60a5fa" },
   "in-review": { bg: "#451a03", text: "#fb923c" },
+  "on-hold":   { bg: "#1c1917", text: "#a8a29e" },
   shipped:     { bg: "#052e16", text: "#4ade80" },
 };
 
@@ -207,7 +256,134 @@ function TimelineSection({ cardId }: { cardId: string }) {
   );
 }
 
-export function CardModal({ cardId, projects, activeIds, onClose, onOpenLog, onToast, onMutate, onInjectContext }: Props) {
+function fmtTokens(n: number): string {
+  return n.toLocaleString("en-US");
+}
+
+function fmtCost(n: number): string {
+  return `$${n.toFixed(2)}`;
+}
+
+function fmtDuration(ms: number): string {
+  if (ms < 60_000) return `${(ms / 1000).toFixed(0)}s`;
+  const m = Math.floor(ms / 60_000);
+  const s = Math.round((ms % 60_000) / 1000);
+  return `${m}m ${s}s`;
+}
+
+function AgentRunsSection({ cardId }: { cardId: string }) {
+  const { data: runs, isLoading } = useSWR<AgentRun[]>(
+    `/api/card/${cardId}/runs`,
+    fetcher,
+    { refreshInterval: 10000 }
+  );
+  const [open, setOpen] = useState(false);
+
+  const items = runs ?? [];
+  const totalRuns = items.length;
+  const totalTokens = items.reduce((s, r) => s + r.totalTokens, 0);
+  const totalCost = items.reduce((s, r) => s + r.costUsd, 0);
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display: "flex", alignItems: "center", gap: 6, background: "none", border: "none",
+          cursor: "pointer", padding: 0, marginBottom: open ? 10 : 0,
+        }}
+      >
+        <span style={{ fontSize: 11, fontWeight: 700, color: "#71717a", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+          Agent Runs
+        </span>
+        {!isLoading && (
+          <span style={{ fontSize: 10, color: "#52525b", background: "#27272a", borderRadius: 10, padding: "0 6px", lineHeight: "18px" }}>
+            {totalRuns}
+          </span>
+        )}
+        {!isLoading && totalCost > 0 && (
+          <span style={{ fontSize: 10, color: "#4ade80", background: "#052e16", borderRadius: 10, padding: "0 6px", lineHeight: "18px" }}>
+            {fmtCost(totalCost)}
+          </span>
+        )}
+        <span style={{ fontSize: 10, color: "#52525b", marginLeft: 2 }}>{open ? "▲" : "▼"}</span>
+      </button>
+
+      {open && (
+        <div>
+          {isLoading ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {[1, 2, 3].map(i => (
+                <div key={i} style={{ height: 48, background: "#27272a", borderRadius: 6, opacity: 0.5 }} />
+              ))}
+            </div>
+          ) : items.length === 0 ? (
+            <div style={{ color: "#52525b", fontSize: 12, padding: "8px 0", fontStyle: "italic" }}>
+              No agent runs recorded yet.
+            </div>
+          ) : (
+            <>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {items.map((run) => (
+                  <div key={run.id} style={{
+                    background: "#18181b", border: "1px solid #27272a", borderRadius: 6, padding: "8px 10px",
+                    fontSize: 11, fontFamily: "monospace",
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <span style={{
+                        padding: "1px 6px", borderRadius: 4, fontSize: 10, fontWeight: 600,
+                        background: COLUMN_COLORS[run.column]?.bg ?? "#27272a",
+                        color: COLUMN_COLORS[run.column]?.text ?? "#a1a1aa",
+                      }}>
+                        {run.column}
+                      </span>
+                      <span style={{ color: "#a1a1aa" }}>{fmtDuration(run.durationMs)}</span>
+                      <span style={{
+                        color: run.exitCode === 0 ? "#4ade80" : run.exitCode === null ? "#71717a" : "#f87171",
+                        fontWeight: 600,
+                      }}>
+                        exit {run.exitCode ?? "?"}
+                      </span>
+                      <span style={{ color: "#71717a", marginLeft: "auto" }}>
+                        {run.endedAt.slice(0, 16).replace("T", " ")}
+                      </span>
+                    </div>
+                    {(run.totalTokens > 0 || run.costUsd > 0) && (
+                      <div style={{ display: "flex", gap: 12, marginTop: 4, color: "#52525b", fontSize: 10 }}>
+                        <span>in: {fmtTokens(run.inputTokens)}</span>
+                        <span>out: {fmtTokens(run.outputTokens)}</span>
+                        <span>cache-r: {fmtTokens(run.cacheReadTokens)}</span>
+                        <span>cache-w: {fmtTokens(run.cacheWriteTokens)}</span>
+                        <span style={{ color: "#a1a1aa" }}>total: {fmtTokens(run.totalTokens)}</span>
+                        {run.costUsd > 0 && (
+                          <span style={{ color: "#4ade80" }}>{fmtCost(run.costUsd)}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {/* Totals bar */}
+              {totalRuns > 1 && (
+                <div style={{
+                  marginTop: 8, padding: "6px 10px", background: "#09090b", border: "1px solid #27272a",
+                  borderRadius: 6, fontSize: 11, fontFamily: "monospace", color: "#a1a1aa",
+                  display: "flex", gap: 16, alignItems: "center",
+                }}>
+                  <span>{totalRuns} runs</span>
+                  {totalTokens > 0 && <span>{fmtTokens(totalTokens)} tokens</span>}
+                  {totalCost > 0 && <span style={{ color: "#4ade80" }}>{fmtCost(totalCost)} total</span>}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function CardModal({ cardId, projects, activeIds, onClose, onOpenLog, onToast, onMutate, onInjectContext, onHold }: Props) {
   const { data: card } = useSWR<Card>(
     cardId ? `/api/card/${cardId}` : null,
     fetcher,
@@ -266,6 +442,22 @@ export function CardModal({ cardId, projects, activeIds, onClose, onOpenLog, onT
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              {card && card.column !== "shipped" && onHold && (() => {
+                const held = card.tags.includes("hold");
+                return (
+                  <button
+                    onClick={() => onHold(card.id)}
+                    title={held ? "Remove hold" : "Put on hold"}
+                    style={{
+                      fontSize: 11, padding: "3px 10px", borderRadius: 6,
+                      background: "#1c1917", border: `1px solid ${held ? "#d97706" : "#78716c"}`,
+                      color: held ? "#fbbf24" : "#a8a29e", cursor: "pointer",
+                    }}
+                  >
+                    {held ? "↩ Unhold" : "⏸ Hold"}
+                  </button>
+                );
+              })()}
               {onOpenLog && (
                 <button
                   onClick={onOpenLog}
@@ -338,15 +530,29 @@ export function CardModal({ cardId, projects, activeIds, onClose, onOpenLog, onT
           })}
 
           {/* Verify URL */}
-          {card.verify_url && (
-            <div>
-              <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-2">Verify URL</h3>
-              <a href={card.verify_url} target="_blank" rel="noreferrer"
-                className="text-sm text-blue-400 hover:text-blue-300 underline font-mono break-all">
-                {card.verify_url}
-              </a>
-            </div>
-          )}
+          {card.verify_url && (() => {
+            const url = card.verify_url;
+            const isFilePath = url.startsWith("/") || url.startsWith("~/") || url.startsWith("file://");
+            const displayPath = url.startsWith("file://") ? url.slice(7) : url;
+            return (
+              <div>
+                <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-2">Verify URL</h3>
+                {isFilePath ? (
+                  <span
+                    onClick={() => setFileModal({ path: displayPath })}
+                    className="text-sm text-blue-400 hover:text-blue-300 underline font-mono break-all cursor-pointer"
+                  >
+                    {url}
+                  </span>
+                ) : (
+                  <a href={url} target="_blank" rel="noreferrer"
+                    className="text-sm text-blue-400 hover:text-blue-300 underline font-mono break-all">
+                    {url}
+                  </a>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Work Log */}
           {card.work_log && card.work_log.length > 0 && (
@@ -404,6 +610,9 @@ export function CardModal({ cardId, projects, activeIds, onClose, onOpenLog, onT
               </div>
             </div>
           )}
+
+          {/* Agent Runs */}
+          <AgentRunsSection cardId={card.id} />
 
           {/* Timeline */}
           <TimelineSection cardId={card.id} />

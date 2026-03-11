@@ -64,6 +64,30 @@
 - [x] Cloned upstream OpenClaw → projects/openclaw-upstream/
 - [x] Found cron architecture: JSON store at `~/cron/jobs.json` (CronStoreFile format, version + jobs array)
 
+### MINICLAW_STATE_DIR Migration
+- [x] Introduced `MINICLAW_STATE_DIR` as primary env var (58 files updated)
+- [x] All plugins, scripts, docs, installer now prefer `MINICLAW_STATE_DIR`, fall back to `OPENCLAW_STATE_DIR`
+- [x] Installer sets both in shell profile + LaunchAgent plist
+- [x] OpenClaw compat preserved via `OPENCLAW_STATE_DIR=$MINICLAW_STATE_DIR`
+
+### mc-backup Plugin
+- [x] Registered mc-backup in openclaw.json (live)
+- [x] Fixed backupDir default: uses `$MINICLAW_STATE_DIR/backups/` (no hardcoded paths)
+- [x] Added mc-backup to README, FEATURES, MANIFEST, install.sh, docs/install.md
+- [x] Tested backup + restore round-trip (520 MB, verified with diff)
+
+### mc-board Token Tracking (v0.1.2)
+- [x] DB schema: added input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, total_tokens, cost_usd to agent_runs
+- [x] Agent runner: accumulates real token usage from JSONL stream (input, output, cache, cost)
+- [x] New API route: `/api/card/[id]/runs`
+- [x] CardModal: new "Agent Runs" section showing per-run tokens + cost, with totals
+- [x] Stats endpoint: uses real total_tokens instead of peak_tokens, includes cost
+- [x] Backported live mc-board to repo, build verified clean
+
+### Release Process
+- [x] Documented release process: tagged versions are candidates until human-tested
+- [x] No version is stable until human team signs off
+
 ## In Progress
 
 ### Cron Backup for Migration (install.sh)

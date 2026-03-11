@@ -72,7 +72,7 @@ export function TriageControls({
           appearance: "none", WebkitAppearance: "none",
         }}
       >
-        {[1, 2, 3, 4, 5].map(n => (
+        {[1, 3, 5, 10].map(n => (
           <option key={n} value={n}>{n}×</option>
         ))}
       </select>

@@ -26,7 +26,7 @@ const EXT_TO_LANG: Record<string, string> = {
   ".env": "bash", ".gitignore": "plaintext",
 };
 
-const AM_HOME = process.env.MINICLAW_STATE_DIR ?? process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), "am");
+const AM_HOME = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), "am");
 
 function expandTilde(p: string): string {
   return p.startsWith("~/") ? path.join(os.homedir(), p.slice(2)) : p;

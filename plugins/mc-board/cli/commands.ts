@@ -527,7 +527,7 @@ the active board and written into a gzip-compressed JSONL archive. Nothing
 is deleted — all archived cards remain searchable.
 
 Archives rotate at 5MB: brain-archive-001.jsonl.gz, 002, etc.
-Location: ~/.openclaw/user/augmentedmike_bot/brain/archive/
+Location: ~/.openclaw/USER/augmentedmike_bot/brain/archive/
 
 Examples:
   miniclaw brain archive crd_abc123`)
@@ -927,7 +927,7 @@ Used by: web UI triage button, cron job backlog checker.
       function log(msg: string) { logStream.write(msg); process.stdout.write(msg); }
 
       // Resolve prompt
-      const BRAIN_DIR = path.join(ctx.stateDir, "user", "augmentedmike_bot", "brain");
+      const BRAIN_DIR = path.join(ctx.stateDir, "USER", "augmentedmike_bot", "brain");
       const defaultPromptPath = path.join(BRAIN_DIR, "prompts", "backlog-process.txt");
       const promptPath2 = opts.prompt ?? (fs.existsSync(defaultPromptPath) ? defaultPromptPath : null);
       const DEFAULT_PROMPT = `You are a triage processor for the Brain board. This prompt runs both on-demand (web UI) and via the periodic cron job that checks the backlog column.

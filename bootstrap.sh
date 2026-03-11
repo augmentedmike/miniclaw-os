@@ -5,14 +5,14 @@
 # Safe to re-run — skips anything already installed.
 #
 # Usage (stable release):
-#   curl -fsSL https://raw.githubusercontent.com/augmentedmike/miniclaw-os/v0.1.1/bootstrap.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/augmentedmike/miniclaw-os/v0.1.2/bootstrap.sh | bash
 #
 # Usage (latest main):
 #   curl -fsSL https://raw.githubusercontent.com/augmentedmike/miniclaw-os/main/bootstrap.sh | bash
 
 set -euo pipefail
 
-MINICLAW_VERSION="${MINICLAW_VERSION:-v0.1.1}"
+MINICLAW_VERSION="${MINICLAW_VERSION:-v0.1.2}"
 REPO_URL="https://github.com/augmentedmike/miniclaw-os.git"
 OPENCLAW_DIR="${OPENCLAW_DIR:-$HOME/.openclaw}"
 PROJECTS_DIR="$OPENCLAW_DIR/projects"

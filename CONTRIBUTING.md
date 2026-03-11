@@ -117,6 +117,20 @@ Never commit secrets, API keys, tokens, or personal information. The pre-commit 
 - One plugin, one job
 - Test your changes
 
+## Release Process
+
+Tagged versions (e.g. `v0.1.2`) are **prerelease candidates**, not stable.
+The process:
+
+1. Development work is completed and committed.
+2. A version tag is created (`git tag -a vX.Y.Z`).
+3. The tagged version is a candidate — the `stable` tag does **not** move yet.
+4. The human team tests the release manually.
+5. Only after human sign-off does the `stable` tag move to that version.
+6. The bootstrap installer defaults to `stable`, so most users only get human-tested releases.
+
+See [docs/RELEASING.md](./docs/RELEASING.md) for the full checklist.
+
 ## License
 
 By contributing, you agree that your contributions will be licensed under the Apache 2.0 License.

@@ -3,6 +3,24 @@
 import { BoardCard, Priority } from "@/lib/types";
 import { memo, useState } from "react";
 
+function HoldBadge({ held, onToggle }: { held: boolean; onToggle?: (e: React.MouseEvent) => void }) {
+  const [hovered, setHovered] = useState(false);
+  const style: React.CSSProperties = {
+    fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
+    padding: "2px 6px", borderRadius: 3, cursor: onToggle ? "pointer" : "default",
+    transition: "background 0.1s, color 0.1s",
+    background: held ? "#1c1917" : hovered ? "#1c1917" : "#27272a",
+    color: held ? "#fbbf24" : hovered ? "#a8a29e" : "#52525b",
+    border: held ? "1px solid #d97706" : hovered ? "1px solid #78716c" : "1px solid transparent",
+  };
+  return (
+    <span style={style} onClick={onToggle}
+      onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
+      title={held ? "Unhold" : "Hold"}
+    >{held ? "↩" : "⏸"}</span>
+  );
+}
+
 function FocusBadge({ focused, onToggle }: { focused: boolean; onToggle?: (e: React.MouseEvent) => void }) {
   const [hovered, setHovered] = useState(false);
   const style: React.CSSProperties = {
@@ -39,26 +57,6 @@ function fmtDate(iso: string): string {
 const PROG_COLOR = (pct: number) =>
   pct >= 100 ? "#22c55e" : pct >= 50 ? "#3b82f6" : "#f97316";
 
-function HoldBadge({ held, onToggle }: { held: boolean; onToggle?: (e: React.MouseEvent) => void }) {
-  const [hovered, setHovered] = useState(false);
-  const style: React.CSSProperties = {
-    fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
-    padding: "2px 6px", borderRadius: 3, cursor: onToggle ? "pointer" : "default",
-    transition: "background 0.1s, color 0.1s",
-    background: held ? "#dc2626" : hovered ? "#7f1d1d" : "#27272a",
-    color: held ? "#fff1f2" : hovered ? "#fca5a5" : "#52525b",
-  };
-  return (
-    <span
-      style={style}
-      onClick={onToggle}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      title={held ? "Remove hold" : "Put on hold"}
-    >hold</span>
-  );
-}
-
 interface Props {
   card: BoardCard;
   projectName?: string;
@@ -68,7 +66,7 @@ interface Props {
   onClick: (id: string) => void;
   onWatchClick?: (id: string) => void;
   onFocusToggle?: (id: string, focused: boolean) => void;
-  onHoldToggle?: (id: string, held: boolean) => void;
+  onHoldToggle?: (id: string) => void;
   onInjectContext?: (ctx: string) => void;
 }
 
@@ -115,7 +113,7 @@ export const CardItem = memo(function CardItem({ card, projectName, isActive, wo
       <div className="card-header">
         <span className="card-id">{card.id}</span>
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <HoldBadge held={held} onToggle={onHoldToggle ? (e) => { e.stopPropagation(); onHoldToggle(card.id, !held); } : undefined} />
+          <HoldBadge held={held} onToggle={onHoldToggle ? (e) => { e.stopPropagation(); onHoldToggle(card.id); } : undefined} />
           <FocusBadge focused={focused} onToggle={onFocusToggle ? (e) => { e.stopPropagation(); onFocusToggle(card.id, !focused); } : undefined} />
           <span style={{
             fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em",

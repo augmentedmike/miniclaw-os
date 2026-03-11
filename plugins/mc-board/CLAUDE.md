@@ -1,0 +1,25 @@
+# mc-board Plugin — Agent Rules
+
+## ⚠️ CRITICAL: Never switch git branches here
+
+This directory is inside the `~/am` git repo AND is the live source for the running brain board web server (`bun dev` serves directly from `web/src/`).
+
+**NEVER run any of these in this directory or any parent:**
+- `git checkout <branch>`
+- `git switch <branch>`
+- `git reset --hard`
+- `git restore .`
+- `git stash` (unless you immediately `git stash pop`)
+
+Doing so will revert the live web UI and break the running board for everyone.
+
+**How to do your work:**
+- Stay on whatever branch is currently checked out
+- Make your changes, commit them: `git add <files> && git commit`
+- Do NOT checkout your card branch — commit directly or push to origin
+
+## Web server
+
+The board web UI runs live from `web/src/`. It auto-reloads on file changes.
+Never run `npm run build` or restart the LaunchAgent unless specifically asked.
+The LaunchAgent plist: `~/Library/LaunchAgents/com.miniclaw.board-web.plist`

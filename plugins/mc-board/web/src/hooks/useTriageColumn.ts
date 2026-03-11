@@ -10,6 +10,7 @@ function jobName(column: Column) {
     backlog: "Backlog Triage",
     "in-progress": "In Progress Triage",
     "in-review": "In Review Triage",
+    "on-hold": "On Hold",
     shipped: "Shipped",
   };
   return labels[column];

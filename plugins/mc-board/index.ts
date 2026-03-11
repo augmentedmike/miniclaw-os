@@ -31,7 +31,7 @@ function resolveConfig(api: OpenClawPluginApi): BrainConfig {
   const raw = (api.pluginConfig ?? {}) as Partial<{ cardsDir: string; qmdBin: string; qmdCollection: string }>;
 
   // stateDir = parent of cardsDir (the brain/ directory)
-  const cardsDir = resolvePath(raw.cardsDir ?? "~/.openclaw/user/augmentedmike_bot/brain/cards");
+  const cardsDir = resolvePath(raw.cardsDir ?? "~/.openclaw/USER/augmentedmike_bot/brain/cards");
   const stateDir = path.dirname(cardsDir);
 
   const qmdBin = resolvePath(raw.qmdBin ?? "~/.bun/bin/qmd");

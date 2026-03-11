@@ -91,6 +91,13 @@ export function openDb(stateDir: string): Database {
   try { db.exec(`ALTER TABLE projects ADD COLUMN github_repo TEXT NOT NULL DEFAULT ''`); } catch { /* already exists */ }
   try { db.exec(`ALTER TABLE projects ADD COLUMN build_command TEXT NOT NULL DEFAULT ''`); } catch { /* already exists */ }
   try { db.exec(`ALTER TABLE cards ADD COLUMN depends_on TEXT NOT NULL DEFAULT '[]'`); } catch { /* already exists */ }
+  // Agent run token usage columns
+  try { db.exec(`ALTER TABLE agent_runs ADD COLUMN input_tokens INTEGER DEFAULT 0`); } catch { /* already exists */ }
+  try { db.exec(`ALTER TABLE agent_runs ADD COLUMN output_tokens INTEGER DEFAULT 0`); } catch { /* already exists */ }
+  try { db.exec(`ALTER TABLE agent_runs ADD COLUMN cache_read_tokens INTEGER DEFAULT 0`); } catch { /* already exists */ }
+  try { db.exec(`ALTER TABLE agent_runs ADD COLUMN cache_write_tokens INTEGER DEFAULT 0`); } catch { /* already exists */ }
+  try { db.exec(`ALTER TABLE agent_runs ADD COLUMN total_tokens INTEGER DEFAULT 0`); } catch { /* already exists */ }
+  try { db.exec(`ALTER TABLE agent_runs ADD COLUMN cost_usd REAL DEFAULT 0`); } catch { /* already exists */ }
   try {
     db.exec(`
       CREATE TABLE IF NOT EXISTS agent_runs (

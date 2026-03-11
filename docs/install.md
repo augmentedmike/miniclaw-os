@@ -38,7 +38,7 @@ present. Re-running is safe.
 ### One-liner (stable release)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/augmentedmike/miniclaw-os/v0.1.1/bootstrap.sh | bash
+curl -fsSL https://raw.githubusercontent.com/augmentedmike/miniclaw-os/v0.1.2/bootstrap.sh | bash
 ```
 
 ### One-liner (latest main)
@@ -64,7 +64,7 @@ cd miniclaw-os
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `MINICLAW_VERSION` | `v0.1.1` | Tag to clone when installing miniclaw-os repo |
+| `MINICLAW_VERSION` | `v0.1.2` | Tag to clone when installing miniclaw-os repo |
 | `MINICLAW_STATE_DIR` | `$HOME/.openclaw` | MiniClaw state dir (cards, logs, workspace, config). Set to `$HOME/am` on AugmentedMike's machine. |
 | `OPENCLAW_DIR` | `$MINICLAW_STATE_DIR` | OpenClaw home (config, state root). Set automatically from `MINICLAW_STATE_DIR`. |
 | `OPENCLAW_STATE_DIR` | `$MINICLAW_STATE_DIR` | Legacy alias. Set automatically from `MINICLAW_STATE_DIR` for vanilla OpenClaw compatibility. |

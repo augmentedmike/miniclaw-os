@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listBoardCards, getShippedIds, listProjects, getActiveWork } from "@/lib/data";
+import { listBoardCards, getShippedIds, listProjects, getActiveWork, getRecentAgentRuns, getRecentWorkLog, getRunningByCol } from "@/lib/data";
 import { sortCards } from "@/lib/sort";
 
 export const dynamic = "force-dynamic";
@@ -23,5 +23,8 @@ export function GET(req: NextRequest) {
   };
   const globalShippedIds = getShippedIds();
   const recentLog = log.slice(-100);
-  return NextResponse.json({ cards, projects, activeIds, activeWorkers, log: recentLog, counts, globalShippedIds });
+  const agentRuns = getRecentAgentRuns();
+  const workLog = getRecentWorkLog();
+  const runningByCol = getRunningByCol();
+  return NextResponse.json({ cards, projects, activeIds, activeWorkers, log: recentLog, counts, globalShippedIds, agentRuns, workLog, runningByCol });
 }

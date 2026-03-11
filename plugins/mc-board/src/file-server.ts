@@ -8,7 +8,7 @@ import * as os from "node:os";
  */
 
 export interface FileServeOptions {
-  stateDir: string; // MINICLAW_STATE_DIR (with OPENCLAW_STATE_DIR fallback)
+  stateDir: string; // OPENCLAW_STATE_DIR
 }
 
 export interface ServedFile {
@@ -44,7 +44,7 @@ export class FileServer {
     // Normalize to prevent traversal
     resolved = path.resolve(resolved);
 
-    // Whitelist check: must be within state dir or home directory
+    // Whitelist check: must be within OPENCLAW_STATE_DIR or home directory
     // (allow reading from workspace, media, etc. under ~/am/)
     const home = os.homedir();
     if (!resolved.startsWith(home)) {
@@ -158,13 +158,12 @@ export class FileServer {
 
 /**
  * Extract file paths from text using common patterns.
- * Detects absolute home paths and ~/... paths.
+ * Detects /Users/... and ~/... paths.
  */
 export function extractFilePaths(text: string): string[] {
-  const homeEscaped = os.homedir().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const patterns = [
     /~\/[^\s\)\]\}\|`]*/g, // ~/path/to/file
-    new RegExp(`${homeEscaped}/[^\\s\\)\\]\\}\\|\`]*`, "g"), // absolute home-dir paths
+    /\/Users\/[^\s\)\]\}\|`]*/g, // /Users/...
   ];
 
   const paths: string[] = [];

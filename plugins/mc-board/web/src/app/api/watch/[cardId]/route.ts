@@ -5,7 +5,7 @@ import os from "os";
 
 export const dynamic = "force-dynamic";
 
-const STATE_DIR = process.env.MINICLAW_STATE_DIR ?? process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".miniclaw");
+const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".miniclaw");
 
 const LOG_DIRS = [
   "backlog-triage", "in-progress-triage", "in-review-triage",

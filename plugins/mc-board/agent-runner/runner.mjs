@@ -21,12 +21,36 @@ import { fileURLToPath } from "node:url";
 
 // ---- Config ----
 
-const STATE_DIR = process.env.MINICLAW_STATE_DIR ?? process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".miniclaw");
+const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".miniclaw");
 const DB_PATH   = process.env.BOARD_DB_PATH ?? path.join(STATE_DIR, "user/augmentedmike_bot/brain/board.db");
 const CLAUDE_BIN    = process.env.CLAUDE_BIN ?? "claude";
 const OPENCLAW_BIN  = process.env.OPENCLAW_BIN ?? "openclaw";
 const POLL_MS       = parseInt(process.env.AGENT_RUNNER_POLL_MS ?? "5000", 10);
-const MAX_CONCURRENT = parseInt(process.env.AGENT_RUNNER_MAX_CONCURRENT ?? "3", 10);
+const JOBS_FILE     = process.env.BOARD_CRON_JOBS ?? path.join(STATE_DIR, "miniclaw", "cron", "jobs.json");
+
+// Read MAX_CONCURRENT dynamically from jobs.json (max across all board-*-triage jobs).
+// Falls back to AGENT_RUNNER_MAX_CONCURRENT env var, then 3.
+const COL_TO_JOB = {
+  "backlog":     "board-backlog-triage",
+  "in-progress": "board-in-progress-triage",
+  "in-review":   "board-in-review-triage",
+};
+
+/** Returns per-column max concurrent: { backlog: N, 'in-progress': N, 'in-review': N } */
+function getMaxConcurrentPerColumn() {
+  const fallback = parseInt(process.env.AGENT_RUNNER_MAX_CONCURRENT ?? "3", 10);
+  const result = { backlog: fallback, "in-progress": fallback, "in-review": fallback };
+  try {
+    const jobs = JSON.parse(fs.readFileSync(JOBS_FILE, "utf8"));
+    for (const [col, jobId] of Object.entries(COL_TO_JOB)) {
+      const job = jobs[jobId];
+      if (job && typeof job.maxConcurrent === "number" && job.maxConcurrent > 0) {
+        result[col] = job.maxConcurrent;
+      }
+    }
+  } catch {}
+  return result;
+}
 
 // Full-agent columns run claude directly. Other columns delegate to openclaw triage CLI.
 const FULL_AGENT_COLUMNS = new Set(["backlog", "in-progress", "in-review"]);
@@ -80,7 +104,13 @@ function ensureSchema(db) {
       tool_call_count  INTEGER NOT NULL DEFAULT 0,
       tool_calls       TEXT NOT NULL DEFAULT '[]',
       log_file         TEXT NOT NULL DEFAULT '',
-      debug_log_file   TEXT NOT NULL DEFAULT ''
+      debug_log_file   TEXT NOT NULL DEFAULT '',
+      input_tokens     INTEGER DEFAULT 0,
+      output_tokens    INTEGER DEFAULT 0,
+      cache_read_tokens INTEGER DEFAULT 0,
+      cache_write_tokens INTEGER DEFAULT 0,
+      total_tokens     INTEGER DEFAULT 0,
+      cost_usd         REAL DEFAULT 0
     );
     CREATE INDEX IF NOT EXISTS idx_agent_runs_card ON agent_runs(card_id);
 
@@ -88,6 +118,13 @@ function ensureSchema(db) {
       id TEXT PRIMARY KEY
     ) WITHOUT ROWID;
   `);
+  // Additive migrations for existing agent_runs tables
+  try { db.exec(`ALTER TABLE agent_runs ADD COLUMN input_tokens INTEGER DEFAULT 0`); } catch { /* already exists */ }
+  try { db.exec(`ALTER TABLE agent_runs ADD COLUMN output_tokens INTEGER DEFAULT 0`); } catch { /* already exists */ }
+  try { db.exec(`ALTER TABLE agent_runs ADD COLUMN cache_read_tokens INTEGER DEFAULT 0`); } catch { /* already exists */ }
+  try { db.exec(`ALTER TABLE agent_runs ADD COLUMN cache_write_tokens INTEGER DEFAULT 0`); } catch { /* already exists */ }
+  try { db.exec(`ALTER TABLE agent_runs ADD COLUMN total_tokens INTEGER DEFAULT 0`); } catch { /* already exists */ }
+  try { db.exec(`ALTER TABLE agent_runs ADD COLUMN cost_usd REAL DEFAULT 0`); } catch { /* already exists */ }
 }
 
 function getCard(db, cardId) {
@@ -104,17 +141,30 @@ function getProject(db, projectId) {
 }
 
 function claimPending(db) {
-  const rows = db.prepare(
-    `SELECT * FROM agent_queue WHERE status = 'pending' ORDER BY created_at ASC LIMIT ?`,
-  ).all(MAX_CONCURRENT - running.size);
+  const limits = getMaxConcurrentPerColumn();
+  const claimed = [];
 
-  for (const row of rows) {
-    const changed = db.prepare(
-      `UPDATE agent_queue SET status = 'running', started_at = ? WHERE id = ? AND status = 'pending'`,
-    ).run(new Date().toISOString(), row.id).changes;
-    if (changed === 0) rows.splice(rows.indexOf(row), 1); // race: someone else claimed it
+  for (const [col, max] of Object.entries(limits)) {
+    const slots = Math.max(0, max - runningCountForCol(col));
+    if (slots === 0) continue;
+
+    const rows = db.prepare(
+      `SELECT q.* FROM agent_queue q
+       LEFT JOIN cards c ON c.id = q.card_id
+       WHERE q.status = 'pending'
+         AND q.col = ?
+         AND (c.tags IS NULL OR c.tags NOT LIKE '%"hold"%')
+       ORDER BY q.created_at ASC LIMIT ?`,
+    ).all(col, slots);
+
+    for (const row of rows) {
+      const changed = db.prepare(
+        `UPDATE agent_queue SET status = 'running', started_at = ? WHERE id = ? AND status = 'pending'`,
+      ).run(new Date().toISOString(), row.id).changes;
+      if (changed > 0) claimed.push(row);
+    }
   }
-  return rows;
+  return claimed;
 }
 
 function markDone(db, id, exitCode, pid) {
@@ -131,9 +181,22 @@ function markFailed(db, id) {
 
 function resetStaleRunning() {
   const db = getDb();
-  const n = db.prepare(`UPDATE agent_queue SET status = 'pending', started_at = NULL WHERE status = 'running'`).run().changes;
+  // Only reset rows whose agent PID is no longer alive.
+  // Agents are spawned detached and survive runner restarts — don't re-queue them.
+  const rows = db.prepare(`SELECT id, pid FROM agent_queue WHERE status = 'running'`).all();
+  let reset = 0;
+  for (const row of rows) {
+    let alive = false;
+    if (row.pid) {
+      try { process.kill(row.pid, 0); alive = true; } catch { /* process gone */ }
+    }
+    if (!alive) {
+      db.prepare(`UPDATE agent_queue SET status = 'pending', started_at = NULL WHERE id = ?`).run(row.id);
+      reset++;
+    }
+  }
   db.close();
-  if (n > 0) log(`reset ${n} stale 'running' rows to 'pending'`);
+  if (rows.length > 0) log(`resetStaleRunning: ${rows.length} running rows checked, ${reset} reset to pending (${rows.length - reset} still alive)`);
 }
 
 // ---- openclaw CLI helpers ----
@@ -143,7 +206,7 @@ function runBoard(...args) {
     execFileSync(OPENCLAW_BIN, ["mc-board", ...args], {
       encoding: "utf-8",
       timeout: 30_000,
-      env: { ...process.env, OPENCLAW_STATE_DIR: process.env.MINICLAW_STATE_DIR ?? process.env.OPENCLAW_STATE_DIR ?? "" },
+      env: { ...process.env, OPENCLAW_STATE_DIR: STATE_DIR },
       stdio: ["ignore", "pipe", "pipe"],
     });
   } catch (err) {
@@ -153,7 +216,13 @@ function runBoard(...args) {
 
 // ---- Agent spawning ----
 
-const running = new Map(); // queueId -> { proc, cardId }
+const running = new Map(); // queueId -> { proc, cardId, col }
+
+function runningCountForCol(col) {
+  let n = 0;
+  for (const v of running.values()) { if (v.col === col) n++; }
+  return n;
+}
 
 function cardToMarkdown(card) {
   const lines = [];
@@ -215,12 +284,15 @@ function spawnFullAgent(row, card, project) {
     "All MiniClaw plugins live in ~/am/miniclaw/plugins/ — each is an openclaw plugin package.",
     "New features must be implemented as MiniClaw plugins in ~/am/miniclaw/plugins/, not standalone scripts.",
     "Plugin repo (public, backport target): ~/am/projects/miniclaw-os/",
-    "Live state dir: ~/am/ (MINICLAW_STATE_DIR=$HOME/am, with OPENCLAW_STATE_DIR fallback)",
+    "Live state dir: ~/am/ (OPENCLAW_STATE_DIR=$HOME/am)",
     "",
     "You are a full autonomous agent. Use tools freely to do the actual work.",
     "Update the card via: openclaw mc-board update / move / release",
     `Log progress to: ${path.join(STATE_DIR, "logs", "cards", row.card_id + ".log")}`,
   ].filter(Boolean).join("\n"));
+
+  // Pickup the card now — only mark active when runner actually starts the agent.
+  try { runBoard("pickup", row.card_id, "--worker", row.worker); } catch {}
 
   writeFile(`card:  ${row.card_id} — ${card?.title ?? "(unknown)"}\n`);
   writeFile(`log:   ${logFile}\n`);
@@ -258,10 +330,18 @@ function spawnFullAgent(row, card, project) {
   writeFile(`[${ts()}] pid ${proc.pid}\n`);
   log(`spawned full agent for ${row.card_id} pid=${proc.pid} log=${logFile}`);
 
+  // Store PID immediately so resetStaleRunning can check liveness on restart.
+  try {
+    const pidDb = getDb();
+    pidDb.prepare(`UPDATE agent_queue SET pid = ? WHERE id = ?`).run(proc.pid, row.id);
+    pidDb.close();
+  } catch { /* non-fatal */ }
+
   let buf = "";
   let currentTool = "";
   let currentToolInput = "";
   const toolCallsAccum = [];
+  const usageAccum = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, costUsd: 0 };
   const NOISE = /ENOENT|Broken symlink|detectFileEncoding|managed-settings|settings\.local|\[DEBUG\]/;
 
   // Tail debug file (unref so it doesn't block runner exit)
@@ -301,6 +381,16 @@ function spawnFullAgent(row, card, project) {
           currentTool = ""; currentToolInput = "";
         }
         if (msg.type === "result" && typeof msg.result === "string") writeFile(msg.result);
+        // Accumulate token usage from any message that carries it
+        const usage = msg.usage ?? ev.usage ?? null;
+        if (usage) {
+          usageAccum.input += usage.input ?? 0;
+          usageAccum.output += usage.output ?? 0;
+          usageAccum.cacheRead += usage.cacheRead ?? 0;
+          usageAccum.cacheWrite += usage.cacheWrite ?? 0;
+          usageAccum.totalTokens += usage.totalTokens ?? 0;
+          usageAccum.costUsd += usage.cost?.total ?? 0;
+        }
       } catch {}
     }
   });
@@ -312,6 +402,10 @@ function spawnFullAgent(row, card, project) {
     setTimeout(() => { tail.kill(); tailOut.kill(); }, 300);
     writeFile(`\n[${ts()}] done (exit ${code})\n`);
     log(`agent done for ${row.card_id} exit=${code}`);
+
+    // Clean up the ephemeral run dir (CLAUDE.md + any scratch files the agent wrote there).
+    // Logs are kept separately in logDir — only the tmp runDir is removed.
+    try { fs.rmSync(runDir, { recursive: true, force: true }); } catch { /* non-fatal */ }
 
     const endedAt = new Date().toISOString();
     const durationMs = Date.now() - t0;
@@ -326,14 +420,18 @@ function spawnFullAgent(row, card, project) {
       const wdb = getDb();
       wdb.prepare(
         `INSERT OR REPLACE INTO agent_runs
-          (id, card_id, column, started_at, ended_at, duration_ms, exit_code, peak_tokens, tool_call_count, tool_calls, log_file, debug_log_file)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          (id, card_id, column, started_at, ended_at, duration_ms, exit_code, peak_tokens,
+           tool_call_count, tool_calls, log_file, debug_log_file,
+           input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, total_tokens, cost_usd)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         `${ts0}-${row.card_id}`, row.card_id, row.col,
         new Date(t0).toISOString(), endedAt, durationMs,
         code, peakTokens,
         toolCallsAccum.length, JSON.stringify(toolCallsAccum),
         logFile, debugFile,
+        usageAccum.input, usageAccum.output, usageAccum.cacheRead, usageAccum.cacheWrite,
+        usageAccum.totalTokens, usageAccum.costUsd,
       );
       markDone(wdb, row.id, code, proc.pid);
       wdb.close();
@@ -357,7 +455,7 @@ function spawnFullAgent(row, card, project) {
     logStream.end();
   });
 
-  running.set(row.id, { proc, cardId: row.card_id });
+  running.set(row.id, { proc, cardId: row.card_id, col: row.col });
 }
 
 function spawnTriage(row) {
@@ -369,6 +467,8 @@ function spawnTriage(row) {
   const logFile = path.join(logDir, `${ts0}-${row.card_id}.log`);
 
   const { CLAUDECODE: _cc, ...env } = process.env;
+
+  try { runBoard("pickup", row.card_id, "--worker", row.worker); } catch {}
 
   const proc = spawn(OPENCLAW_BIN, [
     "mc-board", "triage", row.card_id,
@@ -395,13 +495,16 @@ function spawnTriage(row) {
     db.close();
   });
 
-  running.set(row.id, { proc, cardId: row.card_id });
+  running.set(row.id, { proc, cardId: row.card_id, col: row.col });
 }
 
 // ---- Poll loop ----
 
 async function poll() {
-  if (running.size >= MAX_CONCURRENT) return;
+  // Per-column check: skip poll only if every column is at its limit
+  const limits = getMaxConcurrentPerColumn();
+  const allFull = Object.entries(limits).every(([col, max]) => runningCountForCol(col) >= max);
+  if (allFull) return;
 
   let db;
   try {
@@ -410,17 +513,23 @@ async function poll() {
     const card_ids = rows.map(r => r.card_id);
     if (rows.length > 0) log(`claimed ${rows.length} pending row(s): ${card_ids.join(", ")}`);
 
-    for (const row of rows) {
+    // Pre-fetch all card/project data while DB is open, then spawn all at once
+    const work = rows.map(row => ({
+      row,
+      card: FULL_AGENT_COLUMNS.has(row.col) ? getCard(db, row.card_id) : null,
+      project: null,
+    }));
+    for (const w of work) {
+      if (w.card?.project_id) w.project = getProject(db, w.card.project_id);
+    }
+    db.close(); db = null;
+
+    for (const { row, card, project } of work) {
       if (FULL_AGENT_COLUMNS.has(row.col)) {
-        const card = getCard(db, row.card_id);
-        const project = card?.project_id ? getProject(db, card.project_id) : null;
-        db.close(); db = null;
         spawnFullAgent(row, card, project);
       } else {
-        db.close(); db = null;
         spawnTriage(row);
       }
-      if (db === null) break; // re-open needed if we loop again
     }
   } catch (err) {
     log(`poll error: ${err.message}`);
@@ -431,7 +540,8 @@ async function poll() {
 
 // ---- Startup ----
 
-log(`agent-runner starting — db=${DB_PATH} poll=${POLL_MS}ms max=${MAX_CONCURRENT}`);
+const startLimits = getMaxConcurrentPerColumn();
+log(`agent-runner starting — db=${DB_PATH} poll=${POLL_MS}ms limits=${JSON.stringify(startLimits)} (per-column, dynamic)`);
 resetStaleRunning();
 
 setInterval(poll, POLL_MS);

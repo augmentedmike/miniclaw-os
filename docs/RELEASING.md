@@ -16,10 +16,13 @@ MiniClaw has two release channels:
 ### How it works
 
 - Every release gets a **versioned tag** (e.g. `v0.1.1`, `v0.2.0`).
+- A versioned tag is a **prerelease/candidate** — not stable.
 - The **`stable` tag** is a moving pointer. It always points to whichever
   versioned tag we consider the most reliable right now.
 - `stable` may lag behind the latest version tag — that's intentional.
   New releases get field-tested before we move `stable` forward.
+- **No version is marked stable until the human team has tested it.**
+  The `stable` tag only moves after manual sign-off.
 
 ### Example timeline
 
@@ -58,17 +61,23 @@ git commit -m "release: vX.Y.Z — <one-line summary>"
 git tag -a vX.Y.Z -m "vX.Y.Z: <summary>"
 ```
 
-### 4. Optionally move `stable`
+### 4. Human team tests the candidate
 
-Only do this when you're confident the release is solid:
+The tagged version is a prerelease candidate. The human team tests it
+manually before it can become the stable release. Do not move `stable`
+until the team has signed off.
+
+### 5. Move `stable` (after human sign-off only)
+
+Only do this after the human team has tested and approved the release:
 
 ```bash
 git tag -f stable -m "stable release"
 ```
 
-If you're not sure yet, skip this step. Move `stable` later after testing.
+If testing is not complete, skip this step. Move `stable` later.
 
-### 5. Push
+### 6. Push
 
 ```bash
 git push origin main --tags --force
@@ -118,7 +127,8 @@ version — no destructive re-clone.
 [ ] Version bumped in MANIFEST.json, README.md, bootstrap.sh, docs/install.md
 [ ] Changes committed with "release: vX.Y.Z" message
 [ ] Version tag created: git tag -a vX.Y.Z
-[ ] (If ready) stable tag moved: git tag -f stable
+[ ] Human team has tested the candidate release
+[ ] (After sign-off) stable tag moved: git tag -f stable
 [ ] Pushed: git push origin main --tags --force
 [ ] Verified: bootstrap.sh from stable tag works on clean machine
 ```

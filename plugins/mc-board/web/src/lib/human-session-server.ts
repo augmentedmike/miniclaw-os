@@ -289,7 +289,7 @@ function buildViewerHtml(reason: string, token: string): string {
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>AM Human Session</title>
+<title>Am Human Session</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   body { background:#1a1a2e; color:#eee; font-family:sans-serif; display:flex; flex-direction:column; height:100vh; }
@@ -310,14 +310,14 @@ function buildViewerHtml(reason: string, token: string): string {
 </head>
 <body>
 <div id="header">
-  <h1>AM Human Session</h1>
+  <h1>Am Human Session</h1>
   <span id="reason">Reason: ${esc(reason)}</span>
   <span id="status">Connecting…</span>
 </div>
 <div id="screen">
   <div id="overlay"><div class="spinner"></div><p>Connecting to desktop…</p></div>
 </div>
-<button id="close-btn" onclick="closeSession()">Done — Resume AM</button>
+<button id="close-btn" onclick="closeSession()">Done — Resume Am</button>
 <script type="module">
 import RFB from 'https://cdn.jsdelivr.net/npm/@novnc/novnc@1.5.0/core/rfb.js';
 const status = document.getElementById('status');
@@ -347,7 +347,7 @@ try {
 window.closeSession = function() {
   if (rfb) rfb.disconnect();
   fetch('/session-done?token=${esc(token)}', { method: 'POST' }).finally(() => {
-    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#a0aec0;font-family:sans-serif">Session closed. AM is resuming. You can close this tab.</div>';
+    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#a0aec0;font-family:sans-serif">Session closed. Am is resuming. You can close this tab.</div>';
   });
 };
 window.addEventListener('beforeunload', () => navigator.sendBeacon('/session-done?token=${esc(token)}'));

@@ -4,7 +4,7 @@
  * Reads directly from the SQLite DB (better-sqlite3).
  * Mutations go through the CLI via actions.ts (to enforce gate logic).
  *
- * DB path: $BOARD_DB_PATH or $MINICLAW_STATE_DIR/user/augmentedmike_bot/brain/board.db (with OPENCLAW_STATE_DIR fallback)
+ * DB path: $BOARD_DB_PATH or $OPENCLAW_STATE_DIR/USER/augmentedmike_bot/brain/board.db
  */
 
 import Database from "better-sqlite3";
@@ -16,8 +16,8 @@ import type { Card, BoardCard, Column, Priority, Project, ActiveEntry, HistoryEn
 
 function resolveDbPath(): string {
   if (process.env.BOARD_DB_PATH) return process.env.BOARD_DB_PATH;
-  const stateDir = process.env.MINICLAW_STATE_DIR ?? process.env.OPENCLAW_STATE_DIR ?? path.join(require("node:os").homedir(), ".miniclaw");
-  return path.join(stateDir, "user/augmentedmike_bot/brain/board.db");
+  const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(require("node:os").homedir(), ".miniclaw");
+  return path.join(stateDir, "USER/augmentedmike_bot/brain/board.db");
 }
 
 export function getDbPath(): string { return resolveDbPath(); }
@@ -110,6 +110,12 @@ interface AgentRunRow {
   tool_calls: string;
   log_file: string;
   debug_log_file: string;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  cache_read_tokens: number | null;
+  cache_write_tokens: number | null;
+  total_tokens: number | null;
+  cost_usd: number | null;
 }
 
 // ---- Card helpers ----
@@ -296,7 +302,9 @@ export function getCardTimeline(id: string): CardTimeline {
     let agentRunRows: AgentRunRow[] = [];
     try {
       agentRunRows = db.prepare(
-        `SELECT id, card_id, column, started_at, ended_at, duration_ms, exit_code, peak_tokens, tool_call_count, tool_calls, log_file, debug_log_file
+        `SELECT id, card_id, column, started_at, ended_at, duration_ms, exit_code, peak_tokens,
+                tool_call_count, tool_calls, log_file, debug_log_file,
+                input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, total_tokens, cost_usd
          FROM agent_runs WHERE card_id = ? ORDER BY started_at ASC`,
       ).all(id) as AgentRunRow[];
     } catch { /* table may not exist yet on older DBs */ }
@@ -313,6 +321,8 @@ export function getCardTimeline(id: string): CardTimeline {
         exitCode: r.exit_code,
         peakTokens: r.peak_tokens,
         toolCallCount: r.tool_call_count,
+        totalTokens: r.total_tokens ?? 0,
+        costUsd: r.cost_usd ?? 0,
         at: r.ended_at,
       })),
     ].sort((a, b) => a.at.localeCompare(b.at));
@@ -326,7 +336,9 @@ export function getAgentRuns(cardId: string): AgentRun[] {
   if (!db) return [];
   try {
     const rows = db.prepare(
-      `SELECT id, card_id, column, started_at, ended_at, duration_ms, exit_code, peak_tokens, tool_call_count, tool_calls, log_file, debug_log_file
+      `SELECT id, card_id, column, started_at, ended_at, duration_ms, exit_code, peak_tokens,
+              tool_call_count, tool_calls, log_file, debug_log_file,
+              input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, total_tokens, cost_usd
        FROM agent_runs WHERE card_id = ? ORDER BY started_at DESC`,
     ).all(cardId) as AgentRunRow[];
     return rows.map(r => ({
@@ -342,8 +354,93 @@ export function getAgentRuns(cardId: string): AgentRun[] {
       toolCalls: (() => { try { return JSON.parse(r.tool_calls); } catch { return []; } })(),
       logFile: r.log_file,
       debugLogFile: r.debug_log_file,
+      inputTokens: r.input_tokens ?? 0,
+      outputTokens: r.output_tokens ?? 0,
+      cacheReadTokens: r.cache_read_tokens ?? 0,
+      cacheWriteTokens: r.cache_write_tokens ?? 0,
+      totalTokens: r.total_tokens ?? 0,
+      costUsd: r.cost_usd ?? 0,
     }));
   } catch { return []; }
+}
+
+export function getRecentWorkLog(sinceMs = 60 * 60 * 1000): Array<{ cardId: string; title: string; column: string; at: string; worker: string; note: string }> {
+  const db = getDb();
+  if (!db) return [];
+  try {
+    const since = new Date(Date.now() - sinceMs).toISOString();
+    const rows = db.prepare(
+      `SELECT id, title, col, work_log FROM cards WHERE length(work_log) > 5 ORDER BY updated_at DESC`,
+    ).all() as { id: string; title: string; col: string; work_log: string }[];
+
+    const entries: Array<{ cardId: string; title: string; column: string; at: string; worker: string; note: string }> = [];
+    for (const row of rows) {
+      let log: Array<{ at?: string; worker?: string; note?: string; entry?: string }> = [];
+      try { log = JSON.parse(row.work_log); } catch { continue; }
+      for (const e of log) {
+        const at = e.at ?? "";
+        if (at >= since) {
+          entries.push({ cardId: row.id, title: row.title, column: row.col, at, worker: e.worker ?? "", note: e.note ?? e.entry ?? "" });
+        }
+      }
+    }
+    return entries.sort((a, b) => b.at.localeCompare(a.at));
+  } catch { return []; }
+}
+
+export function getRecentAgentRuns(sinceMs = 60 * 60 * 1000): AgentRun[] {
+  const db = getDb();
+  if (!db) return [];
+  try {
+    const since = new Date(Date.now() - sinceMs).toISOString();
+    const rows = db.prepare(
+      `SELECT r.id, r.card_id, c.title, r.column, r.started_at, r.ended_at, r.duration_ms,
+              r.exit_code, r.peak_tokens, r.tool_call_count, r.tool_calls, r.log_file, r.debug_log_file,
+              r.input_tokens, r.output_tokens, r.cache_read_tokens, r.cache_write_tokens, r.total_tokens, r.cost_usd
+       FROM agent_runs r
+       LEFT JOIN cards c ON c.id = r.card_id
+       WHERE r.ended_at >= ?
+       ORDER BY r.ended_at DESC
+       LIMIT 200`,
+    ).all(since) as (AgentRunRow & { title: string | null })[];
+    return rows.map(r => ({
+      id: r.id,
+      cardId: r.card_id,
+      title: r.title ?? undefined,
+      column: r.column,
+      startedAt: r.started_at,
+      endedAt: r.ended_at,
+      durationMs: r.duration_ms,
+      exitCode: r.exit_code,
+      peakTokens: r.peak_tokens,
+      toolCallCount: r.tool_call_count,
+      toolCalls: (() => { try { return JSON.parse(r.tool_calls); } catch { return []; } })(),
+      logFile: r.log_file,
+      debugLogFile: r.debug_log_file,
+      inputTokens: r.input_tokens ?? 0,
+      outputTokens: r.output_tokens ?? 0,
+      cacheReadTokens: r.cache_read_tokens ?? 0,
+      cacheWriteTokens: r.cache_write_tokens ?? 0,
+      totalTokens: r.total_tokens ?? 0,
+      costUsd: r.cost_usd ?? 0,
+    }));
+  } catch { return []; }
+}
+
+export function getRunningByCol(): Record<string, string[]> {
+  const db = getDb();
+  if (!db) return {};
+  try {
+    const rows = db.prepare(
+      `SELECT q.card_id, q.col FROM agent_queue q WHERE q.status = 'running'`,
+    ).all() as { card_id: string; col: string }[];
+    const result: Record<string, string[]> = {};
+    for (const r of rows) {
+      if (!result[r.col]) result[r.col] = [];
+      result[r.col].push(r.card_id);
+    }
+    return result;
+  } catch { return {}; }
 }
 
 export function getActiveWork(): { active: ActiveEntry[]; log: LogEntry[] } {

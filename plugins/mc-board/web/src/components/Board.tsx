@@ -5,6 +5,7 @@ import { BoardData, BoardCard, Project } from "@/lib/types";
 import { Column } from "./Column";
 import { CardModal } from "./CardModal";
 import { WatchModal } from "./WatchModal";
+import { SummaryModal } from "./SummaryModal";
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
@@ -49,6 +50,8 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
   const [watchCardId, setWatchCardId] = useState<string | null>(null);
   const [logOpen, setLogOpen] = useState(false);
   const [shippedOpen, setShippedOpen] = useState(false);
+  const [showHeld, setShowHeld] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
@@ -187,31 +190,26 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
     }).then(() => mutate()).catch(() => mutate());
   }, [mutate]);
 
-  const handleHoldToggle = useCallback((cardId: string, setHeld: boolean) => {
+  const handleHoldToggle = useCallback((cardId: string) => {
+    const card = data?.cards.find(c => c.id === cardId);
+    const isHeld = card?.tags.includes("hold") ?? false;
     mutate(current => {
       if (!current) return current;
       return {
         ...current,
         cards: current.cards.map(c => {
           if (c.id !== cardId) return c;
-          const newTags = setHeld
-            ? [...c.tags.filter(t => t !== "hold"), "hold"]
-            : c.tags.filter(t => t !== "hold");
+          const newTags = isHeld ? c.tags.filter(t => t !== "hold") : [...c.tags.filter(t => t !== "hold"), "hold"];
           return { ...c, tags: newTags };
         }),
       };
     }, { revalidate: false });
-
-    const updateBody = setHeld
-      ? { action: "update", cardId, "add-tags": "hold" }
-      : { action: "update", cardId, "remove-tags": "hold" };
-
     fetch("/api/board/action", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(updateBody),
+      body: JSON.stringify({ action: "update", cardId, [isHeld ? "remove-tags" : "add-tags"]: "hold" }),
     }).then(() => mutate()).catch(() => mutate());
-  }, [mutate]);
+  }, [data, mutate]);
 
   const handleSearchSelect = (cardId: string) => {
     setSearchQuery("");
@@ -236,22 +234,47 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
     <div className="board-tab">
       {/* Search bar */}
       <div ref={searchRef} className="relative" style={{ padding: "0 0 10px" }}>
-        <input
-          type="text"
-          placeholder="Search cards…"
-          value={searchQuery}
-          onChange={e => { setSearchQuery(e.target.value); setSearchOpen(true); }}
-          onFocus={() => { setSearchOpen(true); setSearchFocused(true); }}
-          onBlur={() => setSearchFocused(false)}
-          style={{
-            width: "100%", maxWidth: 400,
-            background: searchFocused ? "#18181b" : "transparent",
-            border: searchFocused ? "1px solid #16a34a" : "1px solid rgba(63,63,70,0.4)",
-            borderRadius: 4, padding: "5px 8px", color: "#e4e4e7",
-            fontSize: 13, outline: "none", boxSizing: "border-box",
-            transition: "background 0.15s ease, border-color 0.15s ease",
-          }}
-        />
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <input
+            type="text"
+            placeholder="Search cards…"
+            value={searchQuery}
+            onChange={e => { setSearchQuery(e.target.value); setSearchOpen(true); }}
+            onFocus={() => { setSearchOpen(true); setSearchFocused(true); }}
+            onBlur={() => setSearchFocused(false)}
+            style={{
+              flex: "0 0 auto", width: 280,
+              background: searchFocused ? "#18181b" : "transparent",
+              border: searchFocused ? "1px solid #16a34a" : "1px solid rgba(63,63,70,0.4)",
+              borderRadius: 4, padding: "5px 8px", color: "#e4e4e7",
+              fontSize: 13, outline: "none", boxSizing: "border-box",
+              transition: "background 0.15s ease, border-color 0.15s ease",
+            }}
+          />
+          <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer", fontSize: 12, color: showHeld ? "#a8a29e" : "#52525b", userSelect: "none", whiteSpace: "nowrap" }}>
+            <input
+              type="checkbox"
+              checked={showHeld}
+              onChange={e => setShowHeld(e.target.checked)}
+              style={{ accentColor: "#d97706", cursor: "pointer" }}
+            />
+            show held
+          </label>
+          <button
+            onClick={() => setShowSummary(true)}
+            style={{
+              fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 6,
+              background: showSummary ? "#1a1a2e" : "transparent",
+              border: "1px solid #2a2a33",
+              color: "#6b6baf", cursor: "pointer", whiteSpace: "nowrap",
+              transition: "background 0.1s, border-color 0.1s, color 0.1s",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = "#1a1a2e"; e.currentTarget.style.borderColor = "#4a4a8f"; e.currentTarget.style.color = "#a5a5ff"; }}
+            onMouseLeave={e => { if (!showSummary) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = "#2a2a33"; e.currentTarget.style.color = "#6b6baf"; } }}
+          >
+            Last Hour Summary
+          </button>
+        </div>
         {searchOpen && searchResults.length > 0 && (
           <div style={{
             position: "absolute", top: "100%", left: 0, zIndex: 100,
@@ -292,6 +315,7 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
             activeWorkers={data?.activeWorkers}
             onCardClick={openCard}
             onWatchClick={setWatchCardId}
+            showHeld={showHeld}
             onFocusToggle={handleFocusToggle}
             onHoldToggle={handleHoldToggle}
             onInjectContext={onInjectContext}
@@ -310,7 +334,15 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
         onToast={onToast}
         onMutate={() => mutate()}
         onInjectContext={onInjectContext}
+        onHold={handleHoldToggle}
       />
+      {showSummary && (
+        <SummaryModal
+          workLog={data?.workLog ?? []}
+          onClose={() => setShowSummary(false)}
+        />
+      )}
+
       {logOpen && watchCardId && (() => {
         const card = data?.cards.find(c => c.id === watchCardId);
         return (

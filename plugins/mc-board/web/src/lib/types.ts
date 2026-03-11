@@ -1,4 +1,4 @@
-export type Column = "backlog" | "in-progress" | "in-review" | "shipped";
+export type Column = "backlog" | "in-progress" | "in-review" | "on-hold" | "shipped";
 export type Priority = "low" | "medium" | "high" | "critical";
 
 export interface HistoryEntry {
@@ -55,6 +55,7 @@ export interface PickupLogEntry {
 export interface AgentRun {
   id: string;
   cardId: string;
+  title?: string;
   column: string;
   startedAt: string;
   endedAt: string;
@@ -65,13 +66,19 @@ export interface AgentRun {
   toolCalls: Array<{ name: string; detail: string }>;
   logFile: string;
   debugLogFile: string;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  totalTokens: number;
+  costUsd: number;
 }
 
 export type TimelineEvent =
   | { kind: "column"; column: Column; at: string }
   | { kind: "pickup"; worker: string; action: "pickup" | "release"; col: string; at: string }
   | { kind: "worklog"; worker: string; note: string; at: string; links?: string[] }
-  | { kind: "agentrun"; runId: string; column: string; durationMs: number; exitCode: number | null; peakTokens: number | null; toolCallCount: number; at: string };
+  | { kind: "agentrun"; runId: string; column: string; durationMs: number; exitCode: number | null; peakTokens: number | null; toolCallCount: number; totalTokens: number; costUsd: number; at: string };
 
 export interface CardTimeline {
   events: TimelineEvent[];
@@ -123,12 +130,24 @@ export interface BoardCard {
   criteria_total: number;
 }
 
+export interface WorkLogEntry2 {
+  cardId: string;
+  title: string;
+  column: string;
+  at: string;
+  worker: string;
+  note: string;
+}
+
 export interface BoardData {
   cards: BoardCard[];
   projects: Project[];
   activeIds: string[];
   activeWorkers: Record<string, string>;
   log: LogEntry[];
+  agentRuns: AgentRun[];
+  workLog: WorkLogEntry2[];
+  runningByCol: Record<string, string[]>;
   counts: {
     backlog: number;
     inProgress: number;

@@ -2,6 +2,19 @@
 
 import { useEffect, useState } from "react";
 import hljs from "highlight.js";
+import { marked } from "marked";
+import { markedHighlight } from "marked-highlight";
+
+marked.use(
+  markedHighlight({
+    langPrefix: "hljs language-",
+    highlight(code, lang) {
+      const language = hljs.getLanguage(lang) ? lang : "plaintext";
+      try { return hljs.highlight(code, { language }).value; } catch { return code; }
+    },
+  }),
+  { breaks: true, gfm: true }
+);
 
 interface FileData {
   content: string;
@@ -24,6 +37,31 @@ function formatSize(bytes: number): string {
 }
 
 const IMAGE_EXTS = new Set([".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".ico"]);
+
+const PROSE_CSS = `
+.pm { color: #d4d4d8; font-size: 14px; line-height: 1.85; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+.pm h1,.pm h2,.pm h3,.pm h4,.pm h5,.pm h6 { color: #f4f4f5; font-weight: 700; line-height: 1.3; }
+.pm h1 { font-size: 2em; margin: 0 0 0.75em; border-bottom: 1px solid #27272a; padding-bottom: 0.4em; }
+.pm h2 { font-size: 1.4em; margin: 2em 0 0.6em; border-bottom: 1px solid #27272a; padding-bottom: 0.25em; }
+.pm h3 { font-size: 1.15em; margin: 1.8em 0 0.5em; color: #e4e4e7; }
+.pm h4 { font-size: 1em; margin: 1.5em 0 0.4em; color: #a1a1aa; }
+.pm p { margin: 0 0 1em; }
+.pm ul,.pm ol { margin: 0 0 1em 0; padding-left: 1.8em; }
+.pm li { margin-bottom: 0.35em; }
+.pm li > p { margin: 0.2em 0; }
+.pm code { font-family: 'Geist Mono', ui-monospace, monospace; font-size: 0.82em; background: #1e1e23; color: #c084fc; padding: 2px 6px; border-radius: 4px; }
+.pm pre { background: #111115; border: 1px solid #2a2a33; border-radius: 8px; padding: 18px 22px; overflow-x: auto; margin: 1.2em 0; }
+.pm pre code { background: none; padding: 0; color: #abb2bf; font-size: 0.875em; }
+.pm blockquote { border-left: 3px solid #4f4f5a; margin: 1em 0; padding: 4px 18px; color: #71717a; }
+.pm a { color: #60a5fa; text-decoration: underline; }
+.pm hr { border: none; border-top: 1px solid #27272a; margin: 2em 0; }
+.pm strong { color: #f4f4f5; font-weight: 600; }
+.pm em { color: #a1a1aa; }
+.pm table { border-collapse: collapse; width: 100%; margin: 1.2em 0; font-size: 0.9em; }
+.pm th,.pm td { border: 1px solid #2a2a33; padding: 8px 14px; text-align: left; }
+.pm th { background: #18181b; color: #a1a1aa; font-weight: 600; }
+.pm tr:nth-child(even) td { background: #0f0f12; }
+`;
 
 const FONT = "'Geist Mono', 'Fira Code', 'JetBrains Mono', ui-monospace, monospace";
 const FONT_SIZE = 12.5;
@@ -118,7 +156,7 @@ export function FileViewModal({ filePath, base, onClose }: Props) {
 
           {/* Controls */}
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-            {data && (
+            {data && data.ext !== ".md" && (
               <>
                 <span style={{ fontFamily: FONT, fontSize: 11, color: "#3f3f46" }}>{data.lang}</span>
                 <span style={{ color: "#27272a" }}>·</span>
@@ -181,7 +219,17 @@ export function FileViewModal({ filePath, base, onClose }: Props) {
             </div>
           )}
 
-          {data && (
+          {data && data.ext === ".md" ? (
+            <div style={{ flex: 1, overflowY: "auto" }}>
+              {/* eslint-disable-next-line react/no-danger */}
+              <style dangerouslySetInnerHTML={{ __html: PROSE_CSS }} />
+              <div
+                className="pm"
+                style={{ padding: "40px 52px", maxWidth: 800, margin: "0 auto" }}
+                dangerouslySetInnerHTML={{ __html: marked(data.content, { async: false }) as string }}
+              />
+            </div>
+          ) : data ? (
             <div style={{ display: "flex", flex: 1, minWidth: "max-content" }}>
               {/* Line numbers gutter */}
               <div style={{
@@ -216,7 +264,7 @@ export function FileViewModal({ filePath, base, onClose }: Props) {
                 dangerouslySetInnerHTML={{ __html: highlight(data.content, data.lang) }}
               />
             </div>
-          )}
+          ) : null}
         </div>
 
         {/* ── Footer ── */}

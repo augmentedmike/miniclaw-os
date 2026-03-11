@@ -23,10 +23,9 @@ export async function POST(
 
   // Write to agent_queue — the standalone runner daemon picks this up and spawns claude.
   // Web server never spawns agents directly; this returns 202 immediately.
+  // NOTE: pickup happens in the runner when the agent actually starts, not here.
+  // This prevents queued-but-not-yet-running cards from showing as active on the board.
   const queueId = enqueue(cardId, column, prompt, "board-worker-in-progress");
-
-  // Pickup the card so the green dot appears on the board right away.
-  try { pickupCard(cardId, "board-worker-in-progress"); } catch {}
 
   return NextResponse.json({ ok: true, queued: true, queueId, cardId }, { status: 202 });
 }

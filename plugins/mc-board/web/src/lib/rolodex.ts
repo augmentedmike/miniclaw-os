@@ -1,6 +1,6 @@
 /**
  * rolodex.ts — contact data layer for mc-board web UI.
- * Stores contacts in SQLite at $MINICLAW_STATE_DIR/user/<bot>/rolodex/contacts.db (with OPENCLAW_STATE_DIR fallback)
+ * Stores contacts in SQLite at $OPENCLAW_STATE_DIR/USER/<bot>/rolodex/contacts.db
  * Migrates from contacts.json on first open if DB is empty.
  */
 
@@ -36,15 +36,15 @@ interface ContactRow {
 
 function resolveDbPath(): string {
   if (process.env.ROLODEX_DB_PATH) return process.env.ROLODEX_DB_PATH;
-  const stateDir = process.env.MINICLAW_STATE_DIR ?? process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".miniclaw");
-  return path.join(stateDir, "user/augmentedmike_bot/rolodex/contacts.db");
+  const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".miniclaw");
+  return path.join(stateDir, "USER/augmentedmike_bot/rolodex/contacts.db");
 }
 
 function resolveJsonPath(): string {
   if (process.env.ROLODEX_STORAGE_PATH) return process.env.ROLODEX_STORAGE_PATH;
-  const stateDir = process.env.MINICLAW_STATE_DIR ?? process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".miniclaw");
+  const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".miniclaw");
   // Check new location first, then fall back to legacy
-  const newPath = path.join(stateDir, "user/augmentedmike_bot/rolodex/contacts.json");
+  const newPath = path.join(stateDir, "USER/augmentedmike_bot/rolodex/contacts.json");
   if (fs.existsSync(newPath)) return newPath;
   return path.join(os.homedir(), ".miniclaw", "rolodex", "contacts.json");
 }

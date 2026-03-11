@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { Modal } from "./Modal";
-import { renderMarkdown } from "@/lib/renderMarkdown";
 
 interface KbEntry { id: string; key: string; value: string; updated_at?: string; created_at?: string; }
 interface QmdEntry { filename: string; title: string; preview: string; modified: string; }
@@ -182,13 +181,9 @@ export function MemoryTab() {
             <button onClick={() => setModal(null)} className="text-zinc-500 hover:text-zinc-200 text-2xl leading-none shrink-0">×</button>
           </div>
           {/* Body */}
-          {getBody(modal)
-            ? <div
-                className="flex-1 overflow-y-auto min-h-0 px-6 py-5 prose prose-invert prose-sm max-w-none [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-zinc-700"
-                dangerouslySetInnerHTML={{ __html: renderMarkdown(getBody(modal)) }}
-              />
-            : <div className="flex-1 overflow-y-auto min-h-0 px-6 py-5 text-sm text-zinc-600 italic">No content</div>
-          }
+          <div className="flex-1 overflow-y-auto min-h-0 px-6 py-5 text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap break-words font-mono">
+            {getBody(modal) || <span className="text-zinc-600 italic">No content</span>}
+          </div>
         </Modal>
       )}
     </div>

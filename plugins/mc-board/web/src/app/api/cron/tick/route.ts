@@ -9,8 +9,8 @@ import { sortCards } from "@/lib/sort";
 
 export const dynamic = "force-dynamic";
 
-const STATE_DIR = process.env.MINICLAW_STATE_DIR ?? process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".miniclaw");
-const BRAIN_DIR = path.join(STATE_DIR, "user", "augmentedmike_bot", "brain");
+const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".miniclaw");
+const BRAIN_DIR = path.join(STATE_DIR, "USER", "augmentedmike_bot", "brain");
 
 // Parse a job ID into { column, projectId } — supports both:
 //   "board-{col}-triage"            (global)
@@ -93,12 +93,12 @@ function agentStillRunning(cardId: string, column: string): boolean {
   return false;
 }
 
-// How recently a card must have been triaged to be considered "already handled"
-const REACTIVE_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes
+// How recently a card must have been processed to be considered "already handled"
+const REACTIVE_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes
 
-/** True if a backlog-process agent ran for this card within the cooldown window. */
-function recentlyTriaged(cardId: string): boolean {
-  const entry = findLatestLogForColumn(cardId, "backlog");
+/** True if a process agent ran for this card+column within the cooldown window. */
+function recentlyProcessed(cardId: string, column: string): boolean {
+  const entry = findLatestLogForColumn(cardId, column);
   if (!entry) return false;
   return Date.now() - entry.mtime < REACTIVE_COOLDOWN_MS;
 }
@@ -136,7 +136,7 @@ export async function GET(req: Request) {
       c.depends_on.every(dep => shippedIds.has(dep)) &&
       !activeIds.has(c.id) &&
       !agentStillRunning(c.id, "backlog") &&
-      !recentlyTriaged(c.id)
+      !recentlyProcessed(c.id, "backlog")
     );
     for (const card of newlyUnblocked) {
       try {
@@ -176,8 +176,10 @@ export async function GET(req: Request) {
     const cards = sortCards(allCards.filter(c => {
         if (c.column !== column) return false;
         if (projectId && c.project_id !== projectId) return false;
+        if (c.tags.includes("hold")) return false;
         if (activeIds.has(c.id)) return false;
         if (agentStillRunning(c.id, column)) return false;
+        if (recentlyProcessed(c.id, column)) return false;
         // Block if any dependency is not yet shipped
         if (c.depends_on.some(dep => !shippedIds.has(dep))) return false;
         return true;
