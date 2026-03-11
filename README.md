@@ -92,6 +92,23 @@ mc board show
 
 ---
 
+## Architecture
+
+MiniClaw's mind is built like an actual brain. Each region does one thing well.
+
+![MiniClaw Cognitive Analog System](./assets/miniclaw-architecture.png)
+*The full cognitive architecture — input channels, async routing, agent instances, cognitive components, LLM inference, long-term memory, and local storage.*
+
+### How It Works
+
+**The Problem:** Traditional AI gateways handle Telegram messages *synchronously*. While the agent thinks, the connection blocks. Long tasks stall. Multiple channels compete.
+
+**The Solution:** MiniClaw routes everything through an **async queue** (`mc-queue`). Messages arrive, get queued, and agents process them independently. The gateway never blocks. Multiple channels (Telegram DMs, group channels, cron jobs, web) all run concurrently.
+
+**Token Efficiency:** Agents communicate using **Haiku** (Claude's fastest model) by default. Short, efficient responses save tokens for the reasoning that matters — not chat loop overhead. When a task needs depth, the agent escalates to a larger model automatically.
+
+---
+
 ## Features
 
 ![MiniClaw Brain Board](./assets/board-kanban.png)
@@ -542,23 +559,6 @@ mc-backup prune
 | `mc-doctor` | Full diagnosis & repair — finds and fixes broken installs |
 | `mc-smoke` | Quick health check — verifies everything is running |
 | `mc-prompts` | Prompt management — view and edit agent prompt library |
-
----
-
-## Architecture
-
-MiniClaw's mind is built like an actual brain. Each region does one thing well.
-
-![MiniClaw Cognitive Analog System](./assets/miniclaw-architecture.png)
-*The full cognitive architecture — input channels, async routing, agent instances, cognitive components, LLM inference, long-term memory, and local storage.*
-
-### How It Works
-
-**The Problem:** Traditional AI gateways handle Telegram messages *synchronously*. While the agent thinks, the connection blocks. Long tasks stall. Multiple channels compete.
-
-**The Solution:** MiniClaw routes everything through an **async queue** (`mc-queue`). Messages arrive, get queued, and agents process them independently. The gateway never blocks. Multiple channels (Telegram DMs, group channels, cron jobs, web) all run concurrently.
-
-**Token Efficiency:** Agents communicate using **Haiku** (Claude's fastest model) by default. Short, efficient responses save tokens for the reasoning that matters — not chat loop overhead. When a task needs depth, the agent escalates to a larger model automatically.
 
 ---
 
