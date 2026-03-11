@@ -15,7 +15,7 @@
 
 **MiniClaw** is a personal AI that lives on your Mac — not in someone else's cloud. It has a real personality, remembers your life, and can actually *do* things: draft emails, write code, manage projects, run tasks overnight. Everything you do stays on your machine. Everything.
 
-[Getting Started](#install) · [Plugins](#plugins) · [Docs](https://docs.openclaw.ai) · [GitHub](https://github.com/augmentedmike/miniclaw-os) · [miniclaw.bot](https://miniclaw.bot)
+[Getting Started](#install) · [Features](./FEATURES.md) · [Plugins](#plugins) · [Docs](https://docs.openclaw.ai) · [GitHub](https://github.com/augmentedmike/miniclaw-os) · [miniclaw.bot](https://miniclaw.bot)
 
 ---
 
@@ -327,6 +327,155 @@ mc jobs history --job 123
 ```
 
 **[→ Full mc-jobs documentation](./plugins/mc-jobs/PLUGIN.md)**
+
+---
+
+#### **mc-email** — Gmail Integration & Triage
+Autonomous inbox polling with Haiku-based email classification and reply automation.
+
+**What it does:**
+- IMAP inbox polling (Gmail app password auth)
+- Haiku-based email classification across 6 categories
+- Auto-reply, archive, and escalation workflows
+
+**Basic usage:**
+```bash
+# Set up Gmail authentication
+mc mc-email auth
+```
+
+**[→ Full mc-email documentation](./plugins/mc-email/PLUGIN.md)**
+
+---
+
+#### **mc-voice** — Style Mirroring & Voice Learning
+Learns your writing style from messages across all channels.
+
+**What it does:**
+- Captures human messages for semantic voice analysis
+- Gemini embeddings for style profiling
+- Transparency-first — sends disclosure on first capture
+- Opt-out with natural language
+
+**Basic usage:**
+```bash
+/voice-on       # Enable voice learning
+/voice-off      # Disable voice learning
+/voice-purge    # Delete all stored messages and reset profile
+```
+
+**[→ Full mc-voice documentation](./plugins/mc-voice/PLUGIN.md)**
+
+---
+
+#### **mc-blog** — Persona-Driven Blog Engine
+First-person journal entries written from the agent's own perspective.
+
+**What it does:**
+- Persona-driven prose (agent writes about itself)
+- Post seeds with metadata, arcs, and tags
+- Auto-generated grounding documents and self-analysis
+- Integrates with mc-soul, mc-kb, mc-memo, mc-voice
+
+**[→ Full mc-blog documentation](./plugins/mc-blog/PLUGIN.md)**
+
+---
+
+#### **mc-seo** — SEO Automation & Rank Tracking
+Site audits, keyword rank tracking, sitemap submission, and backlink management.
+
+**What it does:**
+- Site crawl and on-page audit with scoring
+- Keyword rank checking (single and bulk)
+- Sitemap submission (IndexNow, Google Search Console)
+- Outreach and backlink tracking database
+
+**Basic usage:**
+```bash
+# Crawl a site
+mc mc-seo crawl https://miniclaw.bot
+
+# Check keyword rank
+mc mc-seo rank helloam.bot "helloam"
+
+# Submit sitemap
+mc mc-seo ping https://helloam.bot/sitemap.xml
+
+# Create board cards from SEO audit
+mc mc-seo board helloam.bot
+```
+
+**[→ Full mc-seo documentation](./plugins/mc-seo/PLUGIN.md)**
+
+---
+
+#### **mc-substack** — Publishing Automation
+Substack post drafting, scheduling, and publication with bilingual support.
+
+**What it does:**
+- Draft and schedule Substack posts
+- Bilingual EN/ES workflow
+- Requires Substack auth cookie in vault
+
+**Basic usage:**
+```bash
+mc mc-substack auth
+```
+
+**[→ Full mc-substack documentation](./plugins/mc-substack/PLUGIN.md)**
+
+---
+
+#### **mc-human** — Human Intervention via noVNC
+Delivers an interactive browser session when the agent hits CAPTCHAs or UI it can't automate.
+
+**What it does:**
+- Interactive noVNC session delivered to the human
+- Telegram notification to request help
+- Configurable timeout (default 300s)
+
+**Basic usage:**
+```bash
+# Request human help
+openclaw mc-human ask "solve CAPTCHA on login page" --timeout 300
+
+# Check status
+openclaw mc-human status
+```
+
+**[→ Full mc-human documentation](./plugins/mc-human/PLUGIN.md)**
+
+---
+
+#### **mc-memo** — Short-Term Working Memory
+Per-card scratchpad to avoid repeating failed approaches within a run.
+
+**What it does:**
+- Flat markdown files per task card
+- Timestamped notes appended during work
+- Prevents re-trying failed approaches
+
+**[→ Full mc-memo documentation](./plugins/mc-memo/PLUGIN.md)**
+
+---
+
+#### **mc-docs** — Document Authoring & Versioning
+Create, edit, version, and track documents.
+
+**What it does:**
+- Document storage and retrieval
+- Version history tracking
+- Schema-based document structure
+
+**Basic usage:**
+```bash
+mc docs create
+mc docs list
+mc docs show <id>
+mc docs versions <id>
+```
+
+**[→ Full mc-docs documentation](./plugins/mc-docs/PLUGIN.md)**
 
 ---
 
