@@ -485,6 +485,34 @@ mc docs versions <id>
 
 ---
 
+#### **mc-backup** — State Directory Backup
+Daily tgz backups of the MiniClaw state directory with tiered retention (recent dailies, monthly, yearly).
+
+**What it does:**
+- Creates compressed tgz snapshots of your entire state directory
+- Tiered retention — keeps recent dailies, then monthly, then yearly
+- On-demand or scheduled backups
+- List, restore, and prune old backups
+
+**Basic usage:**
+```bash
+# Create a backup now
+mc-backup now
+
+# List available backups
+mc-backup list
+
+# Restore from a backup
+mc-backup restore
+
+# Prune old backups per retention policy
+mc-backup prune
+```
+
+**[→ Full mc-backup documentation](./plugins/mc-backup/PLUGIN.md)**
+
+---
+
 ### CLI Tools
 
 | Tool | Purpose |

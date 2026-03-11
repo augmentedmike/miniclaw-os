@@ -1,7 +1,7 @@
 import { defineConfig } from "vitest/config";
 import path from "node:path";
 
-const openclaw = path.resolve(process.env.OPENCLAW_STATE_DIR ?? require("node:os").homedir() + "/am", "projects/openclaw");
+const openclaw = path.resolve(process.env.MINICLAW_STATE_DIR ?? process.env.OPENCLAW_STATE_DIR ?? require("node:os").homedir() + "/am", "projects/openclaw");
 
 export default defineConfig({
   resolve: {

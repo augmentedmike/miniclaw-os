@@ -10,7 +10,7 @@
 
 set -euo pipefail
 
-JOBS_FILE="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}/cron/jobs.json"
+JOBS_FILE="${MINICLAW_STATE_DIR:-${OPENCLAW_STATE_DIR:-$HOME/.openclaw}}/cron/jobs.json"
 # Also check ~/am/cron/jobs.json as fallback
 [[ -f "$JOBS_FILE" ]] || JOBS_FILE="$HOME/am/cron/jobs.json"
 PROMPTS_DIR="$(dirname "$JOBS_FILE")/prompts"

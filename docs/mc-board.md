@@ -22,7 +22,7 @@ openclaw mc-board <command>           ← CLI entry point
        └── src/dedup.ts               ← Title conflict detection
 ```
 
-**Database:** Single SQLite file at `$OPENCLAW_STATE_DIR/board.db`. WAL mode is enabled for concurrent reads from the web UI while the CLI writes. `better-sqlite3` is used for synchronous access — no async complexity.
+**Database:** Single SQLite file at `$MINICLAW_STATE_DIR/board.db`. WAL mode is enabled for concurrent reads from the web UI while the CLI writes. `better-sqlite3` is used for synchronous access — no async complexity.
 
 ---
 
@@ -414,7 +414,7 @@ The pickup log is capped at 200 entries (oldest are trimmed automatically).
 
 Shipped cards can be archived to keep the active board clean. Archives are gzip-compressed JSONL files that rotate at 5 MB.
 
-Archive location: `$OPENCLAW_STATE_DIR/user/augmentedmike_bot/brain/archive/`
+Archive location: `$MINICLAW_STATE_DIR/user/augmentedmike_bot/brain/archive/`
 
 #### `archive <id>`
 Move a shipped card out of the board and into archive.
@@ -514,7 +514,7 @@ Example:
 5. The CLI applies the updates, appends the work log, and optionally moves the card to `in-progress` if Haiku sets `move_to: "in-progress"` and the gate passes
 6. If the gate fails on auto-move, the error is written to `card.notes` instead of crashing
 
-The default prompt path is `$OPENCLAW_STATE_DIR/user/augmentedmike_bot/brain/prompts/backlog-process.txt`. If not found, the built-in default is used.
+The default prompt path is `$MINICLAW_STATE_DIR/user/augmentedmike_bot/brain/prompts/backlog-process.txt`. If not found, the built-in default is used.
 
 The triage command calls `pickup` before running and `release` after — this makes the triage run visible in `mc-board active` while it is in-flight.
 

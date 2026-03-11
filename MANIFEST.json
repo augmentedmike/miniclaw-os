@@ -197,6 +197,16 @@
         "subdomain": "",
         "vaultBin": "~/.local/bin/mc-vault"
       }
+    },
+    {
+      "id": "mc-backup",
+      "label": "Backup",
+      "description": "Daily tgz backups of the MiniClaw state directory with tiered retention (recent dailies \u2192 monthly \u2192 yearly).",
+      "path": "plugins/mc-backup",
+      "entry": "index.ts",
+      "cli": true,
+      "tools": [],
+      "config": {}
     }
   ],
   "cli": [

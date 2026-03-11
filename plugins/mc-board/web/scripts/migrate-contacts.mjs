@@ -11,7 +11,7 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const Database = require("better-sqlite3");
 
-const STATE = process.env.OPENCLAW_STATE_DIR ?? join(homedir(), ".miniclaw");
+const STATE = process.env.MINICLAW_STATE_DIR ?? process.env.OPENCLAW_STATE_DIR ?? join(homedir(), ".miniclaw");
 const DB_PATH = join(STATE, "user/augmentedmike_bot/rolodex/contacts.db");
 
 // Source files to try (in priority order)

@@ -5,7 +5,7 @@ import Database from "better-sqlite3";
 
 export const dynamic = "force-dynamic";
 
-const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".miniclaw");
+const STATE_DIR = process.env.MINICLAW_STATE_DIR ?? process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".miniclaw");
 const DB_PATH = path.join(STATE_DIR, "user", "augmentedmike_bot", "brain", "board.db");
 
 function getDb() {

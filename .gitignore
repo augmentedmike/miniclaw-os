@@ -32,3 +32,4 @@ secrets/
 # OS noise
 .DS_Store
 Thumbs.db
+test-results/

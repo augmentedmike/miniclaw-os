@@ -21,7 +21,7 @@ import { fileURLToPath } from "node:url";
 
 // ---- Config ----
 
-const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".miniclaw");
+const STATE_DIR = process.env.MINICLAW_STATE_DIR ?? process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".miniclaw");
 const DB_PATH   = process.env.BOARD_DB_PATH ?? path.join(STATE_DIR, "user/augmentedmike_bot/brain/board.db");
 const CLAUDE_BIN    = process.env.CLAUDE_BIN ?? "claude";
 const OPENCLAW_BIN  = process.env.OPENCLAW_BIN ?? "openclaw";
@@ -143,7 +143,7 @@ function runBoard(...args) {
     execFileSync(OPENCLAW_BIN, ["mc-board", ...args], {
       encoding: "utf-8",
       timeout: 30_000,
-      env: { ...process.env, OPENCLAW_STATE_DIR: STATE_DIR },
+      env: { ...process.env, OPENCLAW_STATE_DIR: process.env.MINICLAW_STATE_DIR ?? process.env.OPENCLAW_STATE_DIR ?? "" },
       stdio: ["ignore", "pipe", "pipe"],
     });
   } catch (err) {
@@ -215,7 +215,7 @@ function spawnFullAgent(row, card, project) {
     "All MiniClaw plugins live in ~/am/miniclaw/plugins/ — each is an openclaw plugin package.",
     "New features must be implemented as MiniClaw plugins in ~/am/miniclaw/plugins/, not standalone scripts.",
     "Plugin repo (public, backport target): ~/am/projects/miniclaw-os/",
-    "Live state dir: ~/am/ (OPENCLAW_STATE_DIR=$HOME/am)",
+    "Live state dir: ~/am/ (MINICLAW_STATE_DIR=$HOME/am, with OPENCLAW_STATE_DIR fallback)",
     "",
     "You are a full autonomous agent. Use tools freely to do the actual work.",
     "Update the card via: openclaw mc-board update / move / release",

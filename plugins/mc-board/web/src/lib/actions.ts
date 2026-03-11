@@ -1,13 +1,13 @@
 import { execFileSync } from "node:child_process";
 
 const OPENCLAW = process.env.OPENCLAW_BIN ?? "openclaw";
-const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? require("node:path").join(require("node:os").homedir(), ".miniclaw");
+const STATE_DIR = process.env.MINICLAW_STATE_DIR ?? process.env.OPENCLAW_STATE_DIR ?? require("node:path").join(require("node:os").homedir(), ".miniclaw");
 
 function runBoard(args: string[]): string {
   return execFileSync(OPENCLAW, ["mc-board", ...args], {
     encoding: "utf-8",
     timeout: 30000,
-    env: { ...process.env, OPENCLAW_STATE_DIR: STATE_DIR },
+    env: { ...process.env, OPENCLAW_STATE_DIR: process.env.MINICLAW_STATE_DIR ?? process.env.OPENCLAW_STATE_DIR ?? "" },
   });
 }
 

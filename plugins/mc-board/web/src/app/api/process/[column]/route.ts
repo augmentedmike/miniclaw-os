@@ -5,7 +5,7 @@ import * as os from "node:os";
 
 export const dynamic = "force-dynamic";
 
-const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".miniclaw");
+const STATE_DIR = process.env.MINICLAW_STATE_DIR ?? process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".miniclaw");
 const BRAIN_DIR = path.join(STATE_DIR, "user", "augmentedmike_bot", "brain");
 
 function promptPath(column: string): string {

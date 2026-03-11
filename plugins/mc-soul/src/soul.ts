@@ -29,12 +29,13 @@ export interface SnapshotEntry {
  *
  * Priority:
  *   1. Plugin config stateDir (explicit override in openclaw.json)
- *   2. OPENCLAW_STATE_DIR env var (set by LaunchAgent for the gateway process)
+ *   2. MINICLAW_STATE_DIR env var (preferred, with OPENCLAW_STATE_DIR fallback)
  *   3. ~/.openclaw (fallback)
  */
 export function resolveStateDir(configured?: string): string {
   const raw =
     configured?.trim() ||
+    process.env.MINICLAW_STATE_DIR?.trim() ||
     process.env.OPENCLAW_STATE_DIR?.trim() ||
     path.join(os.homedir(), ".openclaw");
   return raw.startsWith("~/") ? path.join(os.homedir(), raw.slice(2)) : raw;

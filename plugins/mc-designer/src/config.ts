@@ -35,7 +35,7 @@ export function resolveConfig(raw: Record<string, unknown>): DesignerConfig {
   const r = raw as Partial<DesignerConfig>;
   const apiKey = r.apiKey ?? "";
   const model = r.model ?? "gemini-3.1-flash-image-preview";
-  const stateDir = process.env.OPENCLAW_STATE_DIR ?? resolvePath("~/.openclaw");
+  const stateDir = process.env.MINICLAW_STATE_DIR ?? process.env.OPENCLAW_STATE_DIR ?? resolvePath("~/.openclaw");
   const mediaDir = resolvePath(r.mediaDir ?? defaultMediaDir(stateDir, "designer"));
 
   return {

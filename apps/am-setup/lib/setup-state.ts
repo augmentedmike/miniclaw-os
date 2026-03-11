@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-const STATE_DIR = process.env.OPENCLAW_STATE_DIR || path.join(process.env.HOME || "", "am");
+const STATE_DIR = process.env.MINICLAW_STATE_DIR ?? process.env.OPENCLAW_STATE_DIR ?? path.join(process.env.HOME || "", "am");
 const STATE_FILE = path.join(STATE_DIR, "user", "setup-state.json");
 
 export interface SetupState {

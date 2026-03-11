@@ -24,7 +24,7 @@ This means:
 ### File layout
 
 ```
-$OPENCLAW_STATE_DIR/miniclaw/system/vault/
+$MINICLAW_STATE_DIR/miniclaw/system/vault/
   key.txt          # age private key (mode 600) — the master key
   secrets/
     <name>.age     # one encrypted file per secret
@@ -352,7 +352,7 @@ mc-vault get <any-key>
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `OPENCLAW_VAULT_ROOT` | `~/.openclaw/miniclaw/system/vault` | Override vault directory (set to `~/am/miniclaw/system/vault` on this machine via `OPENCLAW_STATE_DIR`) |
+| `OPENCLAW_VAULT_ROOT` | `~/.openclaw/miniclaw/system/vault` | Override vault directory (set to `~/am/miniclaw/system/vault` on this machine via `MINICLAW_STATE_DIR`) |
 | `OPENCLAW_AGE_BIN` | `/opt/homebrew/bin/age` | Path to age binary |
 | `OPENCLAW_AGE_KEYGEN_BIN` | `/opt/homebrew/bin/age-keygen` | Path to age-keygen binary |
 

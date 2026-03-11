@@ -4,7 +4,7 @@
  * Reads directly from the SQLite DB (better-sqlite3).
  * Mutations go through the CLI via actions.ts (to enforce gate logic).
  *
- * DB path: $BOARD_DB_PATH or $OPENCLAW_STATE_DIR/user/augmentedmike_bot/brain/board.db
+ * DB path: $BOARD_DB_PATH or $MINICLAW_STATE_DIR/user/augmentedmike_bot/brain/board.db (with OPENCLAW_STATE_DIR fallback)
  */
 
 import Database from "better-sqlite3";
@@ -16,7 +16,7 @@ import type { Card, BoardCard, Column, Priority, Project, ActiveEntry, HistoryEn
 
 function resolveDbPath(): string {
   if (process.env.BOARD_DB_PATH) return process.env.BOARD_DB_PATH;
-  const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(require("node:os").homedir(), ".miniclaw");
+  const stateDir = process.env.MINICLAW_STATE_DIR ?? process.env.OPENCLAW_STATE_DIR ?? path.join(require("node:os").homedir(), ".miniclaw");
   return path.join(stateDir, "user/augmentedmike_bot/brain/board.db");
 }
 

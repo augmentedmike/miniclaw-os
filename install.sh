@@ -14,7 +14,7 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd 2>/dev/null)" || REPO
 OPENCLAW_DIR="${OPENCLAW_DIR:-$HOME/.openclaw}"
 # STATE_DIR is where runtime data lives (cards, logs, cron, workspace, etc.)
 # Defaults to OPENCLAW_DIR so a fresh install "just works".
-STATE_DIR="${OPENCLAW_STATE_DIR:-$OPENCLAW_DIR}"
+STATE_DIR="${MINICLAW_STATE_DIR:-${OPENCLAW_STATE_DIR:-$OPENCLAW_DIR}}"
 MINICLAW_DIR="$OPENCLAW_DIR/miniclaw"
 PROJECTS_DIR="$OPENCLAW_DIR/projects"
 LOCAL_BIN="${LOCAL_BIN:-$HOME/.local/bin}"
@@ -370,6 +370,10 @@ plugin_defaults = {
         "enabled": True,
         "config": { "agentId": "am", "trustDir": state_dir + "/trust", "vaultBin": mcl_dir + "/vault/cli", "sessionTtlMs": 3600000 },
     },
+    "mc-backup": {
+        "enabled": True,
+        "config": {},
+    },
 }
 
 registered = []
@@ -715,15 +719,16 @@ step "Step 13: Shell environment"
 for rcfile in "$HOME/.zshrc" "$HOME/.bashrc"; do
   [[ -f "$rcfile" ]] || continue
 
-  if grep -q "OPENCLAW_STATE_DIR" "$rcfile"; then
-    ok "OPENCLAW_STATE_DIR already in $rcfile"
+  if grep -q "MINICLAW_STATE_DIR" "$rcfile"; then
+    ok "MINICLAW_STATE_DIR already in $rcfile"
   else
     {
       echo ""
       echo "# Am / OpenClaw / MiniClaw"
-      echo "export OPENCLAW_STATE_DIR=\"$STATE_DIR\""
+      echo "export MINICLAW_STATE_DIR=\"$STATE_DIR\""
+      echo "export OPENCLAW_STATE_DIR=\"\$MINICLAW_STATE_DIR\"  # OpenClaw compat"
     } >> "$rcfile"
-    ok "Added OPENCLAW_STATE_DIR=$STATE_DIR to $rcfile"
+    ok "Added MINICLAW_STATE_DIR=$STATE_DIR to $rcfile"
   fi
 
   if grep -q "MINICLAW_HOME" "$rcfile"; then
@@ -775,6 +780,8 @@ if [[ ! -f "$BOARD_PLIST" ]]; then
     <string>$HOME</string>
     <key>PATH</key>
     <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>MINICLAW_STATE_DIR</key>
+    <string>$STATE_DIR</string>
     <key>OPENCLAW_STATE_DIR</key>
     <string>$STATE_DIR</string>
   </dict>

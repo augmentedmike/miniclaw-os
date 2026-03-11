@@ -22,7 +22,7 @@ from pathlib import Path
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 
-STATE_DIR = Path(os.environ.get("OPENCLAW_STATE_DIR", Path.home() / ".openclaw"))
+STATE_DIR = Path(os.environ.get("MINICLAW_STATE_DIR", os.environ.get("OPENCLAW_STATE_DIR", Path.home() / ".openclaw")))
 BOT_DIR = STATE_DIR / "user" / "augmentedmike_bot"
 DB_PATH = BOT_DIR / "voice" / "voice.db"
 LOG_PATH = STATE_DIR / "logs" / "voice-ingest.log"

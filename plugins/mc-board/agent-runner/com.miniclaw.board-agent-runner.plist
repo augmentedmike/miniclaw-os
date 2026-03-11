@@ -17,6 +17,8 @@
     <string>/Users/augmentedmike</string>
     <key>PATH</key>
     <string>/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>MINICLAW_STATE_DIR</key>
+    <string>/Users/augmentedmike/am</string>
     <key>OPENCLAW_STATE_DIR</key>
     <string>/Users/augmentedmike/am</string>
     <key>OPENCLAW_BIN</key>

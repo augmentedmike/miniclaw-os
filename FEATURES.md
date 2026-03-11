@@ -27,6 +27,9 @@ Everything your AI can do, plugin by plugin.
 - [mc-rolodex](#mc-rolodex--contact-management) — Contact Management
 - [mc-seo](#mc-seo--seo-automation--rank-tracking) — SEO Automation & Rank Tracking
 
+### Infrastructure
+- [mc-backup](#mc-backup--state-directory-backup) — Daily tgz Backups with Tiered Retention
+
 ### Utilities
 - [mc-contribute](#mc-contribute--contribution-workflow) — Scaffold Plugins, File Bugs & PRs from MiniClaw
 - [mc-jobs](#mc-jobs--role-specific-job-templates) — Role-Specific Job Templates
@@ -203,6 +206,20 @@ mc mc-seo rank helloam.bot "helloam"
 mc mc-seo rank-all helloam.bot
 mc mc-seo ping https://helloam.bot/sitemap.xml
 mc mc-seo board helloam.bot
+```
+
+---
+
+## Infrastructure
+
+### mc-backup — State Directory Backup
+Daily tgz backups with tiered retention (recent dailies, monthly, yearly). Commands: now, list, restore, prune.
+
+```bash
+mc-backup now
+mc-backup list
+mc-backup restore
+mc-backup prune
 ```
 
 ---

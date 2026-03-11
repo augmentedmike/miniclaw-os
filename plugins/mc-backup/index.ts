@@ -23,7 +23,7 @@ function resolvePath(p: string): string {
 function resolveConfig(api: OpenClawPluginApi): BackupConfig {
   const raw = (api.pluginConfig ?? {}) as Partial<BackupConfig>;
   const stateDir = resolvePath(
-    process.env.OPENCLAW_STATE_DIR ?? "~/.openclaw",
+    process.env.MINICLAW_STATE_DIR ?? process.env.OPENCLAW_STATE_DIR ?? "~/.openclaw",
   );
   const includeUserMedia = (raw as any).includeUserMedia ?? false;
   const defaultExcludes = [
@@ -39,7 +39,7 @@ function resolveConfig(api: OpenClawPluginApi): BackupConfig {
   ];
   return {
     stateDir,
-    backupDir: resolvePath(raw.backupDir ?? "~/.openclaw-backups"),
+    backupDir: resolvePath(raw.backupDir ?? path.join(stateDir, "backups")),
     recentQuotaBytes: raw.recentQuotaBytes ?? ONE_GB,
     totalQuotaBytes: raw.totalQuotaBytes ?? TWO_GB,
     excludeDirs: (raw as any).excludeDirs ?? defaultExcludes,

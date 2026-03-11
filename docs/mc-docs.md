@@ -26,7 +26,7 @@ mc-docs and mc-kb both store text, but serve different purposes:
 
 ## Document Model
 
-Each document is stored as a single JSON file: `$OPENCLAW_STATE_DIR/user/augmentedmike_bot/docs/<doc_id>.json`
+Each document is stored as a single JSON file: `$MINICLAW_STATE_DIR/user/augmentedmike_bot/docs/<doc_id>.json`
 
 ### Schema
 
@@ -302,10 +302,10 @@ Ver  Author          Timestamp           Message
 Documents are stored as individual JSON files. The path resolves in priority order:
 
 1. **Explicit `basePath`** passed to `DocumentStore` constructor (programmatic use only)
-2. **`$OPENCLAW_STATE_DIR/user/augmentedmike_bot/docs/`** — if the environment variable is set
+2. **`$MINICLAW_STATE_DIR/user/augmentedmike_bot/docs/`** — if the environment variable is set
 3. **`~/am/user/augmentedmike_bot/docs/`** — hardcoded fallback for this machine
 
-On this machine `OPENCLAW_STATE_DIR=$HOME/am` is set in the environment, so the effective path is:
+On this machine `MINICLAW_STATE_DIR=$HOME/am` is set in the environment, so the effective path is:
 
 ```
 ~/am/user/augmentedmike_bot/docs/
@@ -316,7 +316,7 @@ On this machine `OPENCLAW_STATE_DIR=$HOME/am` is set in the environment, so the 
 
 Each document is one JSON file. No database.
 
-> **Note:** Prior to 2026-03-05, the code hardcoded `~/.openclaw/user/augmentedmike_bot/docs` and did not read `OPENCLAW_STATE_DIR`. On this machine `~/.openclaw/` does not exist (renamed to `~/am/`), which meant documents could not be stored. This was fixed in `json-store.ts` to respect `OPENCLAW_STATE_DIR`.
+> **Note:** Prior to 2026-03-05, the code hardcoded `~/.openclaw/user/augmentedmike_bot/docs` and did not read `MINICLAW_STATE_DIR` (or `OPENCLAW_STATE_DIR`). On this machine `~/.openclaw/` does not exist (renamed to `~/am/`), which meant documents could not be stored. This was fixed in `json-store.ts` to respect `MINICLAW_STATE_DIR`.
 
 ---
 

@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import * as path from "node:path";
 
-const STATE_DIR = process.env.OPENCLAW_STATE_DIR || path.join(process.env.HOME || "", "am");
+const STATE_DIR = process.env.MINICLAW_STATE_DIR ?? process.env.OPENCLAW_STATE_DIR ?? path.join(process.env.HOME || "", "am");
 const VAULT_BIN = path.join(STATE_DIR, "miniclaw", "system", "bin", "mc-vault");
 
 export function vaultSet(key: string, value: string): { ok: boolean; error?: string } {

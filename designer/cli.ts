@@ -25,7 +25,7 @@ const MINICLAW_HOME = process.env.MINICLAW_HOME
   ?? `${process.env.OPENCLAW_STATE_DIR ?? `${process.env.HOME}/.openclaw`}/miniclaw`;
 
 const cfg = resolveConfig({
-  mediaDir: `${process.env.OPENCLAW_STATE_DIR ?? `${process.env.HOME}/.openclaw`}/media/designer`,
+  mediaDir: `${process.env.MINICLAW_STATE_DIR ?? process.env.OPENCLAW_STATE_DIR ?? `${process.env.HOME}/.openclaw`}/media/designer`,
   vaultBin: `${MINICLAW_HOME}/vault/cli`,
 });
 

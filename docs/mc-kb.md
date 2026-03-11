@@ -20,7 +20,7 @@ openclaw mc-kb <command>              ← CLI entry point
        └── index.ts                   ← Plugin entry, context hook, tool registration
 ```
 
-**Database:** SQLite file at `$OPENCLAW_STATE_DIR/user/<bot>/kb/kb.db`. WAL mode is enabled. `better-sqlite3` provides synchronous access.
+**Database:** SQLite file at `$MINICLAW_STATE_DIR/user/<bot>/kb/kb.db`. WAL mode is enabled. `better-sqlite3` provides synchronous access.
 
 **Markdown mirror:** Every entry is also written as `<id>.md` in a `entries/` subdirectory alongside the database. These are the source files for QMD vector indexing.
 

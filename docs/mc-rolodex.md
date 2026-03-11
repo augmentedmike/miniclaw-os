@@ -77,7 +77,7 @@ Contacts are persisted to:
 
 The directory is created automatically on first write. The file contains a JSON array of `Contact` objects, pretty-printed with 2-space indentation. All mutations (add, update, delete) write the full array back to disk synchronously.
 
-> **Note:** The storage path uses `~/.miniclaw/` (not `$OPENCLAW_STATE_DIR`). This is the plugin's native path and is separate from the openclaw state directory.
+> **Note:** The storage path uses `~/.miniclaw/` (not `$MINICLAW_STATE_DIR`). This is the plugin's native path and is separate from the MiniClaw state directory.
 
 ---
 

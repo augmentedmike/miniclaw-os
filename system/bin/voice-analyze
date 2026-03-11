@@ -18,9 +18,9 @@
 set -euo pipefail
 
 CLAUDE_BIN="/Users/augmentedmike/.local/bin/claude"
-VOICE_DB="${OPENCLAW_STATE_DIR:-$HOME/am}/user/augmentedmike_bot/voice/voice.db"
-VOICE_DIR="${OPENCLAW_STATE_DIR:-$HOME/am}/user/augmentedmike_bot/voice"
-MEMORY_DIR="${OPENCLAW_STATE_DIR:-$HOME/am}/memory"
+VOICE_DB="${MINICLAW_STATE_DIR:-${OPENCLAW_STATE_DIR:-$HOME/am}}/user/augmentedmike_bot/voice/voice.db"
+VOICE_DIR="${MINICLAW_STATE_DIR:-${OPENCLAW_STATE_DIR:-$HOME/am}}/user/augmentedmike_bot/voice"
+MEMORY_DIR="${MINICLAW_STATE_DIR:-${OPENCLAW_STATE_DIR:-$HOME/am}}/memory"
 LOG_PREFIX="[voice-analyze]"
 
 # ── defaults ──────────────────────────────────────────────────────────────────

@@ -13,7 +13,7 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # ~/am IS openclaw's home (renamed from ~/.openclaw so AM can see it in Finder)
-MINICLAW_DIR="${OPENCLAW_STATE_DIR:-$HOME/am}/miniclaw"
+MINICLAW_DIR="${MINICLAW_STATE_DIR:-${OPENCLAW_STATE_DIR:-$HOME/am}}/miniclaw"
 LOCAL_BIN="${LOCAL_BIN:-$HOME/.local/bin}"
 
 DRY_RUN=false

@@ -9,7 +9,7 @@
     "properties": {
       "stateDir": {
         "type": "string",
-        "description": "OpenClaw state directory. Defaults to OPENCLAW_STATE_DIR env var or ~/.openclaw."
+        "description": "State directory. Defaults to MINICLAW_STATE_DIR env var (with OPENCLAW_STATE_DIR fallback) or ~/.openclaw."
       }
     }
   }

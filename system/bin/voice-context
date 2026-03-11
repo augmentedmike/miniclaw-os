@@ -24,7 +24,7 @@ import sqlite3
 import sys
 from pathlib import Path
 
-STATE_DIR = Path(os.environ.get("OPENCLAW_STATE_DIR", Path.home() / ".openclaw"))
+STATE_DIR = Path(os.environ.get("MINICLAW_STATE_DIR", os.environ.get("OPENCLAW_STATE_DIR", Path.home() / ".openclaw")))
 BOT_DIR = STATE_DIR / "user" / "augmentedmike_bot"
 DEFAULT_DB = BOT_DIR / "voice" / "voice.db"
 DEFAULT_PROFILE = BOT_DIR / "voice" / "style-profile.json"

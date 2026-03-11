@@ -8,7 +8,7 @@ import * as os from "node:os";
  */
 
 export interface FileServeOptions {
-  stateDir: string; // OPENCLAW_STATE_DIR
+  stateDir: string; // MINICLAW_STATE_DIR (with OPENCLAW_STATE_DIR fallback)
 }
 
 export interface ServedFile {
@@ -44,7 +44,7 @@ export class FileServer {
     // Normalize to prevent traversal
     resolved = path.resolve(resolved);
 
-    // Whitelist check: must be within OPENCLAW_STATE_DIR or home directory
+    // Whitelist check: must be within state dir or home directory
     // (allow reading from workspace, media, etc. under ~/am/)
     const home = os.homedir();
     if (!resolved.startsWith(home)) {
