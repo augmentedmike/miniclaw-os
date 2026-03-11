@@ -134,6 +134,55 @@ mc plugin enable my-plugin
 
 ---
 
+## Building plugins with MiniClaw
+
+MiniClaw is built with MiniClaw. If you have it installed, your agent can do most of the work for you.
+
+### Scaffold a plugin
+
+```bash
+# Ask your agent to create the full plugin structure
+openclaw agent "Create a new plugin called mc-weather that fetches weather forecasts. Follow the structure in plugins/mc-kb as a reference."
+```
+
+Your agent will create the directory, write `openclaw.plugin.json`, `index.ts`, tool definitions, CLI commands, and a README — all following the patterns from existing plugins.
+
+### Track the build on your board
+
+```bash
+mc board create "Build mc-weather plugin" --priority high --tags plugin
+```
+
+The board workers will triage the card, fill in an implementation plan and acceptance criteria, then work through it autonomously. You review and approve at the end.
+
+### Search for patterns in existing plugins
+
+```bash
+# Have your agent study how context injection works
+openclaw agent "Show me how mc-board implements before_prompt_build"
+
+# Search the KB for plugin development lessons
+mc kb search "plugin lifecycle hooks"
+```
+
+### Test and iterate
+
+```bash
+# Your agent can run tests and fix failures in a loop
+openclaw agent "Run mc plugin test mc-weather and fix any failures"
+```
+
+### Submit your contribution
+
+```bash
+# Your agent drafts the PR from your board card
+openclaw agent "Create a PR for mc-weather based on card crd_abc123"
+```
+
+The pre-commit hook ensures no secrets leak. Your agent respects it.
+
+---
+
 See also:
 - [Brain Regions](Brain-Regions) — existing plugins to reference
 - [Agent Workflow](Agent-Workflow) — where plugins fit in the lifecycle

@@ -11,7 +11,70 @@ Thanks for your interest in MiniClaw. Here's how to get involved.
 - **Improve docs** — wiki, README, plugin docs
 - **Join the discussion** — [GitHub Discussions](https://github.com/augmentedmike/miniclaw-os/discussions)
 
-## Development setup
+## Contributing with MiniClaw
+
+MiniClaw is built with MiniClaw. If you have it installed, your agent can help you contribute.
+
+### Create a task for your contribution
+
+```bash
+mc board create "Add fuzzy search to mc-rolodex" --priority medium --tags contribution
+```
+
+Your agent will fill in the implementation plan, acceptance criteria, and start working. You review and approve.
+
+### Research the codebase
+
+```bash
+# Ask your agent to understand a plugin before modifying it
+openclaw agent "Read the mc-board plugin and explain the state machine transitions"
+
+# Search the knowledge base for related work
+mc kb search "rolodex search"
+```
+
+### Build a new plugin
+
+```bash
+# Have your agent scaffold the plugin for you
+openclaw agent "Create a new plugin called mc-weather following the structure in plugins/mc-kb"
+
+# Or use the board to track the full build
+mc board create "Build mc-weather plugin" --priority high
+```
+
+Your agent will follow the [Writing Plugins](https://github.com/augmentedmike/miniclaw-os/wiki/Writing-Plugins) guide, create the files, and test them.
+
+### Generate a PR
+
+```bash
+# Your agent can draft the PR description from the card
+openclaw agent "Create a PR for the mc-weather plugin based on card crd_abc123"
+```
+
+### Run the security check
+
+```bash
+# Your agent should do this automatically, but you can also ask
+openclaw agent "Run the security check on the full repo and fix any issues"
+```
+
+The pre-commit hook runs `scripts/security-check.sh` on every commit automatically. Your agent respects it — commits with secrets will be blocked.
+
+### Use mc-kb to learn from past contributions
+
+Every time your agent ships a card, lessons are saved to mc-kb. Before starting a contribution, search for what's been learned:
+
+```bash
+mc kb search "plugin development"
+mc kb search "common mistakes"
+```
+
+---
+
+## Development setup (manual)
+
+If you're not using MiniClaw, the traditional setup works too:
 
 ```bash
 git clone https://github.com/augmentedmike/miniclaw-os.git
