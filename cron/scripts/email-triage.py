@@ -33,7 +33,7 @@ from typing import Optional
 VAULT_BIN        = os.path.expanduser("~/am/miniclaw/system/bin/mc-vault")
 SEND_ALERT       = os.path.expanduser("~/am/miniclaw/system/bin/send-alert")
 MC_BIN           = "/opt/homebrew/bin/openclaw"
-FROM_EMAIL       = "owner@example.com"
+FROM_EMAIL       = os.environ.get("AM_EMAIL", "owner@example.com")
 IMAP_HOST        = "imap.gmail.com"
 IMAP_PORT        = 993
 SMTP_HOST        = "smtp.gmail.com"
@@ -43,11 +43,30 @@ MODEL            = "haiku"  # openclaw model alias for haiku
 MAX_BODY_CHARS   = 2000
 # OpenClaw local gateway — exposes OpenAI-compatible endpoint
 OPENCLAW_BASE_URL   = "http://localhost:18789/v1"
-OPENCLAW_GATEWAY_TOKEN = "REDACTED_GATEWAY_TOKEN"
 
-# ── Telegram config ─────────────────────────────────────────────────────
-TG_BOT_TOKEN  = "REDACTED_TG_BOT_TOKEN"
-TG_CHAT_ID    = "REDACTED_TG_CHAT_ID"  # Michael ONeal
+
+def _vault_get(key: str) -> str:
+    """Read a secret from mc-vault."""
+    result = subprocess.run(
+        [VAULT_BIN, "get", key],
+        capture_output=True, text=True, check=True,
+    )
+    raw = result.stdout.strip()
+    if " = " in raw:
+        return raw.split(" = ", 1)[1].strip()
+    return raw
+
+
+def _get_openclaw_token() -> str:
+    return _vault_get("openclaw-gateway-token")
+
+
+def _get_tg_bot_token() -> str:
+    return _vault_get("tg-bot-token")
+
+
+def _get_tg_chat_id() -> str:
+    return _vault_get("tg-chat-id")
 
 # ── Event log ────────────────────────────────────────────────────────────
 EMAIL_EVENTS_FILE = os.path.expanduser(
@@ -169,7 +188,7 @@ Return ONLY the JSON object specified in the system prompt. No other text."""
         data=payload,
         headers={
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {OPENCLAW_GATEWAY_TOKEN}",
+            "Authorization": f"Bearer {_get_openclaw_token()}",
         },
         method="POST",
     )
@@ -238,14 +257,16 @@ def log_security_threat(title: str, content: str) -> None:
 # ── Telegram notifications ────────────────────────────────────────────────
 def send_telegram(text: str) -> bool:
     """Send a Telegram message to Michael. Returns True on success."""
+    tg_token = _get_tg_bot_token()
+    tg_chat = _get_tg_chat_id()
     payload = json.dumps({
-        "chat_id": TG_CHAT_ID,
+        "chat_id": tg_chat,
         "text": text,
         "parse_mode": "Markdown",
         "disable_web_page_preview": True,
     }).encode("utf-8")
     req = urllib.request.Request(
-        f"https://api.telegram.org/bot{TG_BOT_TOKEN}/sendMessage",
+        f"https://api.telegram.org/bot{tg_token}/sendMessage",
         data=payload,
         headers={"Content-Type": "application/json"},
         method="POST",

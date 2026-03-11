@@ -14,51 +14,30 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CONTACTS_DIR = path.join(process.env.HOME, '.miniclaw', 'rolodex');
 const CONTACTS_FILE = path.join(CONTACTS_DIR, 'contacts.json');
 
-// Sample contacts based on IDENTITY.md, TOOLS.md, USER.md
+// Sample contacts — replace with your own
+// Real contacts should be loaded from your local rolodex, not committed to git
 const sampleContacts = [
   {
-    id: 'michael-oneal',
-    name: 'Michael ONeal',
-    emails: ['owner@example.com'],
+    id: 'example-owner',
+    name: 'Jane Doe',
+    emails: ['jane@example.com'],
     phones: [],
-    domains: ['claimhawk.app'],
+    domains: ['example.com'],
     tags: ['founder', 'personal', 'primary'],
     trustStatus: 'verified',
     lastVerified: new Date().toISOString(),
-    notes: 'Co-founder of MiniClaw, 30-year engineer'
+    notes: 'Agent owner — replace with your info'
   },
   {
-    id: 'monserrat-martinez',
-    name: 'Redacted Contact',
-    emails: ['redacted@example.com'],
-    phones: [],
-    domains: ['gmail.com'],
-    tags: ['personal', 'spouse'],
-    trustStatus: 'verified',
-    lastVerified: new Date().toISOString(),
-    notes: 'Michaels wife'
-  },
-  {
-    id: 'augmented-ryan',
-    name: 'Augmented Ryan',
-    emails: ['augmentedryan@agentmail.to'],
+    id: 'example-collaborator',
+    name: 'Agent Collaborator',
+    emails: ['collab@agentmail.to'],
     phones: [],
     domains: ['agentmail.to'],
     tags: ['collaborator', 'digital-persona', 'work'],
     trustStatus: 'verified',
     lastVerified: new Date().toISOString(),
-    notes: 'Digital companion collaborating on MiniClaw'
-  },
-  {
-    id: 'ryan-person',
-    name: 'Ryan',
-    emails: [],
-    phones: [],
-    domains: [],
-    tags: ['collaborator', 'human'],
-    trustStatus: 'pending',
-    lastVerified: null,
-    notes: 'Human collaborator (augmented-ryan@agentmail.to)'
+    notes: 'Digital companion — replace with your agent peers'
   }
 ];
 
