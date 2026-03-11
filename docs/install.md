@@ -289,7 +289,7 @@ Non-fatal if QMD is not installed yet.
 
 ### Step 11 — Vault
 
-- Initialises the vault at `$OPENCLAW_DIR/miniclaw/system/vault/` if
+- Initialises the vault at `$OPENCLAW_DIR/miniclaw/SYSTEM/vault/` if
   `key.txt` does not exist (`mc-vault init`).
 - Prompts for secrets interactively (terminal required):
   - `gh-token` — GitHub personal access token
@@ -346,12 +346,17 @@ $HOME/
 │   │   │   ├── mc-queue/
 │   │   │   ├── mc-soul/
 │   │   │   └── mc-trust/
-│   │   └── system/
+│   │   └── SYSTEM/
+│   │       ├── bin/           # CLI tools (mc-vault, mc-smoke, …)
 │   │       └── vault/         # Encrypted secrets (age)
 │   ├── projects/
 │   │   └── miniclaw-os/       # Cloned repo (if installed via bootstrap one-liner)
-│   ├── user/
-│   │   └── memory/            # QMD-indexed memory files
+│   ├── USER/                   # Per-bot user data (agent-owned)
+│   │   └── <bot_id>/
+│   │       ├── brain/         # Board cards
+│   │       ├── kb/            # Knowledge base
+│   │       ├── media/         # Generated images (per-plugin subdirs)
+│   │       └── memory/        # QMD-indexed memory files
 │   └── soul-backups/          # Soul/identity backups
 ├── Library/LaunchAgents/
 │   └── com.miniclaw.board-web.plist  # Board web auto-start
