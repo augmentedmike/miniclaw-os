@@ -24,7 +24,6 @@ export default function StepInstalling({ state, onDone, accent }: Props) {
     { id: "email", label: "Verifying email access", status: "pending" },
     { id: "system", label: "Checking system health", status: "pending" },
     { id: "complete", label: "Finishing setup", status: "pending" },
-    { id: "relocate", label: `Moving home to ~/${(state.shortName || "am").toLowerCase()}`, status: "pending" },
   ]);
 
   const updateCheck = (id: string, patch: Partial<Check>) => {
@@ -76,50 +75,6 @@ export default function StepInstalling({ state, onDone, accent }: Props) {
         updateCheck("complete", { status: "ok", detail: "Setup complete!" });
       } catch {
         updateCheck("complete", { status: "error", detail: "Could not mark complete" });
-      }
-
-      // 5. Relocate home directory (~/.openclaw → ~/{shortName})
-      updateCheck("relocate", { status: "running" });
-      await delay(400);
-      try {
-        const res = await fetch("/api/setup/relocate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
-        });
-        const data = await res.json();
-
-        if (data.ok) {
-          if (data.skipped) {
-            updateCheck("relocate", { status: "ok", detail: "Already at custom path" });
-          } else {
-            const warnCount = data.warnings?.length || 0;
-            const suffix = warnCount > 0 ? ` (${warnCount} warning${warnCount > 1 ? "s" : ""} — check logs)` : "";
-            updateCheck("relocate", { status: "ok", detail: `Moved to ${data.newStateDir}${suffix}` });
-          }
-        } else if (data.conflict) {
-          // Existing dir found — back it up and retry with force
-          updateCheck("relocate", {
-            status: "running",
-            detail: `${data.conflictPath} exists — backing up and overwriting...`,
-          });
-          await delay(1000);
-          const retry = await fetch("/api/setup/relocate", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ force: true }),
-          });
-          const retryData = await retry.json();
-          if (retryData.ok) {
-            updateCheck("relocate", { status: "ok", detail: `Moved to ${retryData.newStateDir} (old dir backed up)` });
-          } else {
-            updateCheck("relocate", { status: "error", detail: retryData.error || "Relocate failed" });
-          }
-        } else {
-          updateCheck("relocate", { status: "error", detail: data.error || "Relocate failed" });
-        }
-      } catch {
-        updateCheck("relocate", { status: "error", detail: "Could not relocate home" });
       }
 
       await delay(1000);
