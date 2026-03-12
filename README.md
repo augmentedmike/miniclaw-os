@@ -15,6 +15,8 @@
 
 > **Versioning:** Tagged versions are prerelease candidates until manually tested and approved by the human team; the bootstrap installer defaults to the latest human-approved stable release.
 
+> **Alpha Software.** Is this perfect software? Not even close — but it works great for me and a dozen people I know. And unlike software before AM, she not only knows how to debug, diagnose, and fix herself, but she has a built-in imperative to do it. She is autohealing software. Much of the issue and PR activity here will be Amelias in the wild, self-reporting issues they and their humans run into. And she is predisposed to writing new tools to help her do new work consistently — including fixing herself. See [mc-contribute](./docs/mc-contribute.md).
+
 **MiniClaw** is a personal AI that lives on your Mac — not in someone else's cloud. It has a real personality, remembers your life, and can actually *do* things: draft emails, write code, manage projects, run tasks overnight. Everything you do stays on your machine. Everything.
 
 [Getting Started](#install) · [Features](./FEATURES.md) · [Plugins](#plugins) · [Docs](https://docs.openclaw.ai) · [GitHub](https://github.com/augmentedmike/miniclaw-os) · [miniclaw.bot](https://miniclaw.bot)
