@@ -202,7 +202,9 @@ if command -v openclaw &>/dev/null; then
   ok "OpenClaw $(openclaw --version 2>/dev/null | head -1) already installed"
 else
   info "Installing OpenClaw from MiniClaw fork..."
-  npm install -g "$OPENCLAW_FORK" || die "OpenClaw install failed"
+  npm install -g --ignore-scripts "$OPENCLAW_FORK" || die "OpenClaw install failed"
+  info "Building native dependencies..."
+  npm rebuild -g openclaw 2>&1 | tail -5 || warn "Native rebuild had warnings (non-fatal)"
   command -v openclaw &>/dev/null && ok "OpenClaw $(openclaw --version 2>/dev/null | head -1) installed" || die "openclaw not found in PATH after install"
 fi
 
