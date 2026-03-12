@@ -6,6 +6,6 @@
   "description": "Engineered context windows for miniclaw channel sessions",
   "dependencies": {},
   "devDependencies": {
-    "openclaw": "*"
+    "openclaw": "github:augmentedmike/openclaw"
   }
 }

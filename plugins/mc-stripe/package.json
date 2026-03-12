@@ -8,6 +8,6 @@
     "stripe": "^17.0.0"
   },
   "devDependencies": {
-    "openclaw": "*"
+    "openclaw": "github:augmentedmike/openclaw"
   }
 }

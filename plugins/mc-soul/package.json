@@ -5,6 +5,6 @@
   "main": "index.ts",
   "description": "Soul backup and restore — workspace snapshots",
   "devDependencies": {
-    "openclaw": "*"
+    "openclaw": "github:augmentedmike/openclaw"
   }
 }

@@ -5,6 +5,6 @@
   "main": "index.ts",
   "description": "TOTP 2FA code generation — Google Authenticator compatible",
   "devDependencies": {
-    "openclaw": "*"
+    "openclaw": "github:augmentedmike/openclaw"
   }
 }

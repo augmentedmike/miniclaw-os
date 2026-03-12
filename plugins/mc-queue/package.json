@@ -6,6 +6,6 @@
   "description": "Queue triage enforcement for miniclaw channel sessions",
   "dependencies": {},
   "devDependencies": {
-    "openclaw": "*"
+    "openclaw": "github:augmentedmike/openclaw"
   }
 }

@@ -9,6 +9,6 @@
     "hono": "^4.7.0"
   },
   "devDependencies": {
-    "openclaw": "*"
+    "openclaw": "github:augmentedmike/openclaw"
   }
 }

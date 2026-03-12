@@ -5,6 +5,6 @@
   "main": "index.ts",
   "description": "Persona-driven blog writing — journal, self-reflection, storytelling from the agent's perspective",
   "devDependencies": {
-    "openclaw": "*"
+    "openclaw": "github:augmentedmike/openclaw"
   }
 }
