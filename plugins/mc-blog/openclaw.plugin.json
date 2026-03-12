@@ -9,11 +9,11 @@
     "properties": {
       "postsDir": {
         "type": "string",
-        "description": "Directory for post JSON seeds and body markdown (default: ~/am/user/<botId>/blog/posts)"
+        "description": "Directory for post JSON seeds and body markdown (default: ~/.openclaw/user/<botId>/blog/posts)"
       },
       "addendumDir": {
         "type": "string",
-        "description": "Directory for post addendums / grounding metadata (default: ~/am/user/<botId>/blog/addendums)"
+        "description": "Directory for post addendums / grounding metadata (default: ~/.openclaw/user/<botId>/blog/addendums)"
       },
       "voiceRulesPath": {
         "type": "string",

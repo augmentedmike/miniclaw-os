@@ -9,7 +9,7 @@
     "properties": {
       "jobsDir": {
         "type": "string",
-        "description": "Directory for job templates. Defaults to ~/.miniclaw/jobs."
+        "description": "Directory for job templates. Defaults to ~/.openclaw/jobs."
       },
       "defaultJob": {
         "type": "string",

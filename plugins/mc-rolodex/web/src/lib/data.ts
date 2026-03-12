@@ -21,8 +21,8 @@ export interface Contact {
 
 function resolveStoragePath(): string {
   if (process.env.ROLODEX_STORAGE_PATH) return process.env.ROLODEX_STORAGE_PATH;
-  // Use ~/.miniclaw/rolodex/contacts.json (same as SearchEngine default)
-  return path.join(os.homedir(), ".miniclaw", "rolodex", "contacts.json");
+  // Use ~/.openclaw/rolodex/contacts.json (same as SearchEngine default)
+  return path.join(os.homedir(), ".openclaw", "rolodex", "contacts.json");
 }
 
 function loadContacts(): Contact[] {

@@ -10,17 +10,17 @@
 #   --min-messages N   Minimum messages required to run analysis (default: 10)
 #
 # Outputs:
-#   ~/am/user/augmentedmike_bot/voice/style-profile.json
-#   ~/am/memory/michael-voice-profile.md
+#   ~/.openclaw/user/augmentedmike_bot/voice/style-profile.json
+#   ~/.openclaw/memory/michael-voice-profile.md
 #
 # Cron: runs nightly, or triggered after 50 new messages
 
 set -euo pipefail
 
 CLAUDE_BIN="/Users/augmentedmike/.local/bin/claude"
-VOICE_DB="${MINICLAW_STATE_DIR:-${OPENCLAW_STATE_DIR:-$HOME/am}}/user/augmentedmike_bot/voice/voice.db"
-VOICE_DIR="${MINICLAW_STATE_DIR:-${OPENCLAW_STATE_DIR:-$HOME/am}}/user/augmentedmike_bot/voice"
-MEMORY_DIR="${MINICLAW_STATE_DIR:-${OPENCLAW_STATE_DIR:-$HOME/am}}/memory"
+VOICE_DB="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}/user/augmentedmike_bot/voice/voice.db"
+VOICE_DIR="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}/user/augmentedmike_bot/voice"
+MEMORY_DIR="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}/memory"
 LOG_PREFIX="[voice-analyze]"
 
 # ── defaults ──────────────────────────────────────────────────────────────────

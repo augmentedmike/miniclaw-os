@@ -40,6 +40,6 @@ mc trust revoke <id>           # remove trust for a peer
 | Key | Default | Description |
 |-----|---------|-------------|
 | `agentId` | `am` | This agent's identifier |
-| `trustDir` | `~/am/trust` | Where trust state and peer keys are stored |
-| `vaultBin` | `~/am/miniclaw/system/bin/mc-vault` | Path to mc-vault binary |
+| `trustDir` | `~/.openclaw/trust` | Where trust state and peer keys are stored |
+| `vaultBin` | `~/.openclaw/miniclaw/system/bin/mc-vault` | Path to mc-vault binary |
 | `sessionTtlMs` | `3600000` | How long a trust session is valid (ms) |

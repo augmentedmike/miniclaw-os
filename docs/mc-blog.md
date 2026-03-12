@@ -86,8 +86,8 @@ openclaw mc-blog arc-plan
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `postsDir` | string | `$MINICLAW_STATE_DIR/USER/blog/posts` | Directory for post seed JSON and body markdown files |
-| `addendumDir` | string | `$MINICLAW_STATE_DIR/USER/blog/addendums` | Directory for addendum JSON files |
+| `postsDir` | string | `$OPENCLAW_STATE_DIR/USER/blog/posts` | Directory for post seed JSON and body markdown files |
+| `addendumDir` | string | `$OPENCLAW_STATE_DIR/USER/blog/addendums` | Directory for addendum JSON files |
 | `voiceRulesPath` | string | `null` | Path to voice rules JSON file |
 | `arcPlanPath` | string | `null` | Path to arc plan JSON file |
 | `defaultAuthor` | string | `"Agent"` | Author name for post seeds |
@@ -99,7 +99,7 @@ openclaw mc-blog arc-plan
 ## State Storage
 
 ```
-$MINICLAW_STATE_DIR/USER/blog/
+$OPENCLAW_STATE_DIR/USER/blog/
   posts/
     <NNN>-<slug>.json          Post seed (metadata, arc, tags)
     <NNN>-<slug>-body.md       Prose body (primary language)

@@ -23,7 +23,7 @@ function resolvePath(p: string): string {
 function resolveConfig(api: OpenClawPluginApi): BackupConfig {
   const raw = (api.pluginConfig ?? {}) as Partial<BackupConfig>;
   const stateDir = resolvePath(
-    process.env.MINICLAW_STATE_DIR ?? process.env.OPENCLAW_STATE_DIR ?? "~/.openclaw",
+    process.env.OPENCLAW_STATE_DIR ?? "~/.openclaw",
   );
   const includeUserMedia = (raw as any).includeUserMedia ?? false;
   const defaultExcludes = [

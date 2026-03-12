@@ -24,7 +24,7 @@ This means:
 ### File layout
 
 ```
-$MINICLAW_STATE_DIR/miniclaw/system/vault/
+$OPENCLAW_STATE_DIR/miniclaw/system/vault/
   key.txt          # age private key (mode 600) — the master key
   secrets/
     <name>.age     # one encrypted file per secret
@@ -34,7 +34,7 @@ $MINICLAW_STATE_DIR/miniclaw/system/vault/
     <name>.age     # encrypted private notes (separate namespace from secrets)
 ```
 
-On this machine: `~/am/miniclaw/system/vault/`
+Default location: `~/.openclaw/miniclaw/system/vault/`
 
 The vault root can be overridden with `OPENCLAW_VAULT_ROOT`.
 
@@ -61,8 +61,8 @@ mc-vault init
 Generates a new age key pair, creates the vault directory structure, and writes `key.txt`. Fails if a key already exists — will not overwrite.
 
 ```
-openclaw-vault initialized at /Users/augmentedmike/am/miniclaw/system/vault
-Key: /Users/augmentedmike/am/miniclaw/system/vault/key.txt
+openclaw-vault initialized at ~/.openclaw/miniclaw/system/vault
+Key: ~/.openclaw/miniclaw/system/vault/key.txt
 ```
 
 Run this once per installation. `install.sh` runs it automatically if no key is found.
@@ -232,7 +232,7 @@ Plugins that need vault access declare a `vaultBin` field in their config schema
 ```json
 {
   "config": {
-    "vaultBin": "~/am/miniclaw/system/bin/mc-vault"
+    "vaultBin": "~/.openclaw/miniclaw/system/bin/mc-vault"
   }
 }
 ```
@@ -270,10 +270,10 @@ mc-vault list | while read key _rest; do
 done > /tmp/vault-export.txt
 
 # 2. Back up the old vault key (in case something goes wrong)
-cp ~/am/miniclaw/system/vault/key.txt ~/am/miniclaw/system/vault/key.txt.bak
+cp ~/.openclaw/miniclaw/system/vault/key.txt ~/.openclaw/miniclaw/system/vault/key.txt.bak
 
 # 3. Delete the old key and re-initialize
-rm ~/am/miniclaw/system/vault/key.txt
+rm ~/.openclaw/miniclaw/system/vault/key.txt
 mc-vault init
 
 # 4. Re-import all secrets
@@ -286,7 +286,7 @@ mc-vault list
 
 # 6. Clean up the plaintext export
 rm /tmp/vault-export.txt
-rm ~/am/miniclaw/system/vault/key.txt.bak
+rm ~/.openclaw/miniclaw/system/vault/key.txt.bak
 ```
 
 After rotating, any plugin that cached the old key material will need to re-read from vault. In practice, plugins call `export` on each use so there is nothing to flush.
@@ -315,19 +315,19 @@ The vault's encrypted files are safe to back up — they are useless without `ke
 
 | Path | Contains | Sensitivity |
 |------|----------|-------------|
-| `~/am/miniclaw/system/vault/key.txt` | Master decryption key | **Critical** — keep offline copy |
-| `~/am/miniclaw/system/vault/secrets/` | Encrypted secret files | Safe to store anywhere |
-| `~/am/miniclaw/system/vault/notes/` | Plaintext descriptions | Low sensitivity |
-| `~/am/miniclaw/system/vault/memos/` | Encrypted memos | Safe to store anywhere |
+| `~/.openclaw/miniclaw/system/vault/key.txt` | Master decryption key | **Critical** — keep offline copy |
+| `~/.openclaw/miniclaw/system/vault/secrets/` | Encrypted secret files | Safe to store anywhere |
+| `~/.openclaw/miniclaw/system/vault/notes/` | Plaintext descriptions | Low sensitivity |
+| `~/.openclaw/miniclaw/system/vault/memos/` | Encrypted memos | Safe to store anywhere |
 
 ### Backup key.txt
 
 ```bash
 # Copy to an encrypted USB drive or another secure location
-cp ~/am/miniclaw/system/vault/key.txt /Volumes/SecureDrive/mc-vault-key.txt.bak
+cp ~/.openclaw/miniclaw/system/vault/key.txt /Volumes/SecureDrive/mc-vault-key.txt.bak
 
 # Or encrypt it again with a passphrase for cloud storage
-age -p ~/am/miniclaw/system/vault/key.txt > ~/Desktop/mc-vault-key.age
+age -p ~/.openclaw/miniclaw/system/vault/key.txt > ~/Desktop/mc-vault-key.age
 # (age will prompt for a passphrase — store this passphrase separately)
 ```
 
@@ -335,11 +335,11 @@ age -p ~/am/miniclaw/system/vault/key.txt > ~/Desktop/mc-vault-key.age
 
 ```bash
 # Restore the key
-cp /path/to/backup/key.txt ~/am/miniclaw/system/vault/key.txt
-chmod 600 ~/am/miniclaw/system/vault/key.txt
+cp /path/to/backup/key.txt ~/.openclaw/miniclaw/system/vault/key.txt
+chmod 600 ~/.openclaw/miniclaw/system/vault/key.txt
 
 # Restore secret files (they're already encrypted — just copy them back)
-cp -r /path/to/backup/secrets/ ~/am/miniclaw/system/vault/secrets/
+cp -r /path/to/backup/secrets/ ~/.openclaw/miniclaw/system/vault/secrets/
 
 # Verify
 mc-vault list
@@ -352,7 +352,7 @@ mc-vault get <any-key>
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `OPENCLAW_VAULT_ROOT` | `~/.openclaw/miniclaw/system/vault` | Override vault directory (set to `~/am/miniclaw/system/vault` on this machine via `MINICLAW_STATE_DIR`) |
+| `OPENCLAW_VAULT_ROOT` | `~/.openclaw/miniclaw/system/vault` | Override vault directory |
 | `OPENCLAW_AGE_BIN` | `/opt/homebrew/bin/age` | Path to age binary |
 | `OPENCLAW_AGE_KEYGEN_BIN` | `/opt/homebrew/bin/age-keygen` | Path to age-keygen binary |
 
@@ -370,7 +370,7 @@ The key does not exist. Check `mc-vault list` for the correct name.
 The `key.txt` does not match the key used to encrypt this file. This can happen if you restored secrets from one vault with a key from another. Restore the correct `key.txt`.
 
 **mc-vault: command not found**
-The binary is not on PATH. Install it: `ln -sf ~/am/miniclaw/system/bin/mc-vault ~/.local/bin/mc-vault` or re-run `install.sh`.
+The binary is not on PATH. Install it: `ln -sf ~/.openclaw/miniclaw/system/bin/mc-vault ~/.local/bin/mc-vault` or re-run `install.sh`.
 
 **Plugin fails to load secret**
 Verify the `vaultBin` config points to a working binary: `mc-vault list`. Check the plugin config in `openclaw.json`.

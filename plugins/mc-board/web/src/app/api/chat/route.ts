@@ -12,7 +12,8 @@ function expandTilde(p: string): string {
 }
 
 function getAuthToken(): string {
-  const profilePath = path.join(os.homedir(), "am", "agents", "main", "agent", "auth-profiles.json");
+  const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
+  const profilePath = path.join(stateDir, "agents", "main", "agent", "auth-profiles.json");
   try {
     const data = JSON.parse(fs.readFileSync(profilePath, "utf-8")) as {
       profiles?: Record<string, { token?: string }>;
@@ -26,7 +27,8 @@ function getAuthToken(): string {
 }
 
 function getSystemPrompt(): string {
-  const personaPath = expandTilde("~/am/workspace/chat-persona.md");
+  const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
+  const personaPath = path.join(stateDir, "workspace", "chat-persona.md");
   try {
     return fs.readFileSync(personaPath, "utf-8");
   } catch {

@@ -22,6 +22,7 @@ import { pingSitemaps, fetchSitemap } from "../src/sitemap.js";
 import { formatPageAudit, formatSiteSummary } from "../src/reporter.js";
 import { SeoDb } from "../src/db.js";
 import * as path from "node:path";
+import * as os from "node:os";
 import * as child_process from "node:child_process";
 
 type Logger = { info(m: string): void; warn(m: string): void; error(m: string): void };
@@ -61,9 +62,10 @@ const TG_CHAT_ID = "8755232806";
 // Resolve TG bot token: env var > vault > error
 function getTgBotToken(): string {
   if (process.env.TG_BOT_TOKEN) return process.env.TG_BOT_TOKEN;
+  const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
   const vaultRoot = process.env.OPENCLAW_VAULT_ROOT
-    ?? `${process.env.HOME}/am/miniclaw/SYSTEM/vault`;
-  const vaultBin = `${process.env.HOME}/am/miniclaw/SYSTEM/bin/mc-vault`;
+    ?? path.join(stateDir, "miniclaw", "SYSTEM", "vault");
+  const vaultBin = path.join(stateDir, "miniclaw", "SYSTEM", "bin", "mc-vault");
   const result = child_process.spawnSync(
     vaultBin, ["export", "telegram-bot-token"],
     { encoding: "utf8", env: { ...process.env, OPENCLAW_VAULT_ROOT: vaultRoot } }

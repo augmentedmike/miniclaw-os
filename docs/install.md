@@ -65,15 +65,14 @@ cd miniclaw-os
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `MINICLAW_VERSION` | `v0.1.2` | Tag to clone when installing miniclaw-os repo |
-| `MINICLAW_STATE_DIR` | `$HOME/.openclaw` | MiniClaw state dir (cards, logs, workspace, config). Set to `$HOME/am` on AugmentedMike's machine. |
-| `OPENCLAW_DIR` | `$MINICLAW_STATE_DIR` | OpenClaw home (config, state root). Set automatically from `MINICLAW_STATE_DIR`. |
-| `OPENCLAW_STATE_DIR` | `$MINICLAW_STATE_DIR` | Legacy alias. Set automatically from `MINICLAW_STATE_DIR` for vanilla OpenClaw compatibility. |
+| `OPENCLAW_STATE_DIR` | `$HOME/.openclaw` | MiniClaw / OpenClaw state dir (cards, logs, workspace, config). Override to use a custom location. |
+| `OPENCLAW_DIR` | `$OPENCLAW_STATE_DIR` | OpenClaw home (config, state root). Set automatically from `OPENCLAW_STATE_DIR`. |
 | `LOCAL_BIN` | `$HOME/.local/bin` | Where CLI tools are copied |
 
 Set these before running if you want a non-default location:
 
 ```bash
-MINICLAW_STATE_DIR="$HOME/am" ./install.sh
+OPENCLAW_STATE_DIR="$HOME/my-openclaw" ./install.sh
 ```
 
 ---
@@ -151,7 +150,7 @@ then hands off to `install.sh`.
 - Checks if `openclaw` is on PATH.
 - If missing: installs from the MiniClaw fork via npm:
   `npm install -g github:augmentedmike/openclaw`
-- Creates `$MINICLAW_STATE_DIR/openclaw.json` with minimal defaults if it does not
+- Creates `$OPENCLAW_STATE_DIR/openclaw.json` with minimal defaults if it does not
   exist.
 - **Failure**: npm network error or GitHub auth issue. Fix: ensure npm can
   reach GitHub. If behind a proxy set `npm config set proxy …`.
@@ -164,10 +163,10 @@ then hands off to `install.sh`.
 ### Step 12 — Clone / update miniclaw-os
 
 - If already running inside a local clone: skips (uses in-place repo).
-- If the repo is already cloned at `$MINICLAW_STATE_DIR/projects/miniclaw-os` at the
+- If the repo is already cloned at `$OPENCLAW_STATE_DIR/projects/miniclaw-os` at the
   right version tag: skips.
 - If the repo exists but is at a **different** version tag: runs
-  `rm -rf $MINICLAW_STATE_DIR/projects/miniclaw-os` then re-clones at the requested
+  `rm -rf $OPENCLAW_STATE_DIR/projects/miniclaw-os` then re-clones at the requested
   tag. **This deletes the entire directory.** Any local modifications to the
   cloned repo will be lost. If you have local changes there, stash or back them
   up before upgrading.
@@ -216,18 +215,18 @@ Same as bootstrap Steps 8–9.
 ### Step 4 — OpenClaw
 
 Same as bootstrap Step 10. Also creates or confirms `openclaw.json` in
-`$MINICLAW_STATE_DIR`.
+`$OPENCLAW_STATE_DIR`.
 
 ### Step 5 — Directories
 
 Creates:
-- `$MINICLAW_STATE_DIR/miniclaw/plugins/`
-- `$MINICLAW_STATE_DIR/projects/`
+- `$OPENCLAW_STATE_DIR/miniclaw/plugins/`
+- `$OPENCLAW_STATE_DIR/projects/`
 
 ### Step 6 — Plugins
 
 For each plugin directory under `plugins/` in the repo:
-- Copies it to `$MINICLAW_STATE_DIR/miniclaw/plugins/<name>/` using `rsync`
+- Copies it to `$OPENCLAW_STATE_DIR/miniclaw/plugins/<name>/` using `rsync`
   (excludes `node_modules` and `.git`).
 - Runs `bun install` in the plugin directory to install npm dependencies.
 - Prints `Installed` or `Updated` depending on whether the destination existed.
@@ -244,7 +243,7 @@ mc-queue, mc-rolodex, mc-soul, mc-trust.
 
 ### Step 7 — openclaw.json patch
 
-A Python script reads `$MINICLAW_STATE_DIR/openclaw.json` and registers each
+A Python script reads `$OPENCLAW_STATE_DIR/openclaw.json` and registers each
 plugin that has a default config entry:
 - Adds the plugin name to `plugins.allow`.
 - Adds the plugin path to `plugins.load.paths`.
@@ -268,7 +267,7 @@ plugin that has a default config entry:
 mc-kb, mc-queue, mc-soul, mc-trust.
 
 **Copied but not registered** (3): mc-docs, mc-jobs, mc-rolodex — present in
-`$MINICLAW_STATE_DIR/miniclaw/plugins/` but absent from `openclaw.json`. They will
+`$OPENCLAW_STATE_DIR/miniclaw/plugins/` but absent from `openclaw.json`. They will
 not load unless you add them manually.
 
 ### Step 8 — CLI tools
@@ -281,17 +280,17 @@ sets executable permissions. Warns if `~/.local/bin` is not in PATH.
 ### Step 9 — User directories
 
 Creates:
-- `$MINICLAW_STATE_DIR/user/memory/`
-- `$MINICLAW_STATE_DIR/soul-backups/`
+- `$OPENCLAW_STATE_DIR/user/memory/`
+- `$OPENCLAW_STATE_DIR/soul-backups/`
 
 ### Step 10 — QMD collections
 
-Registers a `mc-memory` QMD collection pointing at `$MINICLAW_STATE_DIR/user/memory/`.
+Registers a `mc-memory` QMD collection pointing at `$OPENCLAW_STATE_DIR/user/memory/`.
 Non-fatal if QMD is not installed yet.
 
 ### Step 11 — Vault
 
-- Initialises the vault at `$MINICLAW_STATE_DIR/miniclaw/SYSTEM/vault/` if
+- Initialises the vault at `$OPENCLAW_STATE_DIR/miniclaw/SYSTEM/vault/` if
   `key.txt` does not exist (`mc-vault init`).
 - Prompts for secrets interactively (terminal required):
   - `gh-token` — GitHub personal access token
@@ -320,7 +319,7 @@ Run `./install.sh` again after starting OpenClaw to register the crons.
 
 ### Step 13 — Shell environment
 
-Adds `export MINICLAW_STATE_DIR=<path>` (and `OPENCLAW_STATE_DIR` for compatibility) to `~/.zshrc` and `~/.bashrc` if not
+Adds `export OPENCLAW_STATE_DIR=<path>` to `~/.zshrc` and `~/.bashrc` if not
 already present.
 
 ### Step 14 — Board web LaunchAgent
@@ -337,7 +336,7 @@ the mc-board web server on port 4220 at login. Loads it immediately with
 $HOME/
 ├── .bun/bin/                  # Bun runtime + qmd binary
 ├── .local/bin/                # MiniClaw CLI tools (mc-vault, mc-smoke, …)
-├── .openclaw/                 # OpenClaw home (default; may be $HOME/am on custom setups)
+├── .openclaw/                 # OpenClaw home (default; override with OPENCLAW_STATE_DIR)
 │   ├── openclaw.json          # Main config — agents, plugins, model defaults
 │   ├── miniclaw/
 │   │   ├── plugins/           # Installed plugin directories
@@ -470,7 +469,7 @@ Check the log for errors:
 ```bash
 tail -f "$STATE_DIR/logs/miniclaw-board-web.log"
 # default: ~/.openclaw/logs/miniclaw-board-web.log
-# custom:  ~/am/logs/miniclaw-board-web.log (if MINICLAW_STATE_DIR=$HOME/am)
+# custom:  ~/my-openclaw/logs/miniclaw-board-web.log (if OPENCLAW_STATE_DIR=$HOME/my-openclaw)
 ```
 
 ### Plugin bun install fails

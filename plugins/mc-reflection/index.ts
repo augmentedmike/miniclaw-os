@@ -12,7 +12,7 @@
  * - KB entries (lessons, postmortems, decisions)
  * - A reflection snapshot (stored in SQLite + markdown)
  *
- * Reflection dir: ~/am/USER/augmentedmike_bot/reflections
+ * Reflection dir: ~/.openclaw/USER/augmentedmike_bot/reflections
  */
 
 import * as path from "node:path";
@@ -38,10 +38,10 @@ function resolvePath(p: string): string {
 function resolveConfig(api: OpenClawPluginApi): ReflectionPluginConfig {
   const raw = (api.pluginConfig ?? {}) as Partial<ReflectionPluginConfig>;
   return {
-    reflectionDir: resolvePath(raw.reflectionDir ?? "~/am/USER/augmentedmike_bot/reflections"),
-    memoryDir: resolvePath(raw.memoryDir ?? "~/am/workspace/memory"),
-    boardDbPath: resolvePath(raw.boardDbPath ?? "~/am/USER/augmentedmike_bot/brain"),
-    kbDbPath: resolvePath(raw.kbDbPath ?? "~/am/USER/augmentedmike_bot/kb"),
+    reflectionDir: resolvePath(raw.reflectionDir ?? "~/.openclaw/USER/augmentedmike_bot/reflections"),
+    memoryDir: resolvePath(raw.memoryDir ?? "~/.openclaw/workspace/memory"),
+    boardDbPath: resolvePath(raw.boardDbPath ?? "~/.openclaw/USER/augmentedmike_bot/brain"),
+    kbDbPath: resolvePath(raw.kbDbPath ?? "~/.openclaw/USER/augmentedmike_bot/kb"),
     transcriptsDir: resolvePath(raw.transcriptsDir ?? "~/.claude/projects"),
   };
 }

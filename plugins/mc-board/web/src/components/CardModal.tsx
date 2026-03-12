@@ -109,7 +109,7 @@ function WatchLive({ cardId }: { cardId: string }) {
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
         <span style={{ width: 7, height: 7, borderRadius: "50%", background: connected ? "#22c55e" : "#71717a", display: "inline-block" }} />
         <span style={{ fontSize: 11, color: "#71717a", fontFamily: "monospace" }}>
-          {connected ? "live" : "connecting..."} — ~/am/logs/cards/{cardId}.log
+          {connected ? "live" : "connecting..."} — ~/.openclaw/logs/cards/{cardId}.log
         </span>
       </div>
       <div ref={logRef} style={{

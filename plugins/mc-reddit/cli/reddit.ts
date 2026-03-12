@@ -7,8 +7,12 @@
  */
 
 import { parseArgs } from "util";
+import * as path from "node:path";
+import * as os from "node:os";
 import { RedditClient } from "../src/reddit-api.ts";
 import { saveCookies, saveCookieFile } from "../src/vault.ts";
+
+const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -185,7 +189,7 @@ const COMMANDS: Record<string, (args: string[]) => Promise<void>> = {
       },
       allowPositionals: false,
     });
-    const VAULT_BIN = `${process.env.HOME}/am/miniclaw/SYSTEM/bin/miniclaw-vault`;
+    const VAULT_BIN = path.join(STATE_DIR, "miniclaw", "SYSTEM", "bin", "mc-vault");
     if (values.cookies) {
       saveCookies(values.cookies, VAULT_BIN);
       console.log("✓ Cookies saved to vault as social-reddit-cookies");

@@ -10,12 +10,15 @@
  */
 
 import type { Command } from "commander";
+import * as path from "node:path";
+import * as os from "node:os";
 import * as child_process from "node:child_process";
 import { startSession } from "../src/session-manager.js";
 import { sendTelegramMessage } from "../src/tg-notify.js";
 import { enableMacOsVnc } from "../src/macos-vnc.js";
 
-const SEND_ALERT_BIN = `${process.env.HOME}/am/miniclaw/SYSTEM/bin/send-alert`;
+const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
+const SEND_ALERT_BIN = path.join(STATE_DIR, "miniclaw", "SYSTEM", "bin", "send-alert");
 const DEFAULT_EMAIL_TO = "michael@claimhawk.app";
 
 async function sendEmail(to: string, reason: string, url: string, timeoutSec: number): Promise<void> {

@@ -16,7 +16,7 @@ set -euo pipefail
 CLAUDE_BIN="/Users/augmentedmike/.local/bin/claude"
 YTDLP_BIN="$(which yt-dlp 2>/dev/null || true)"
 FFMPEG_BIN="$(which ffmpeg 2>/dev/null || true)"
-DEFAULT_OUTPUT_BASE="${HOME}/am/media/youtube-learning"
+DEFAULT_OUTPUT_BASE="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}/media/youtube-learning"
 DEFAULT_MAX_POINTS=12
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -28,7 +28,7 @@ usage() {
 Usage: youtube-video-learning <youtube-url> [options]
 
 Options:
-  --output-dir DIR    Base output directory (default: ~/am/media/youtube-learning/<video-id>/)
+  --output-dir DIR    Base output directory (default: ~/.openclaw/media/youtube-learning/<video-id>/)
   --max-points N      Maximum key points to extract (default: 12, min 8, max 15)
   --help              Show this message
 

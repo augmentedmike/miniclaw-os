@@ -217,7 +217,7 @@ export function WorkModal({ column, cards, onClose }: Props) {
       {/* Footer */}
       <div className="border-t border-zinc-800 px-6 py-4 flex items-center gap-3 flex-shrink-0">
         <span className="text-xs text-zinc-600 flex-1">
-          <code className="text-zinc-500">~/am/.../prompts/{column}-process.txt</code>
+          <code className="text-zinc-500">~/.openclaw/.../prompts/{column}-process.txt</code>
         </span>
         <button
           onClick={handleStart}

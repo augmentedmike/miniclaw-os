@@ -17,7 +17,7 @@ openclaw mc soul <command>          <- CLI entry point
        +-- index.ts                 <- Plugin registration, stateDir resolution
 ```
 
-**Snapshot storage:** `$MINICLAW_STATE_DIR/soul-backups/<name>/`
+**Snapshot storage:** `$OPENCLAW_STATE_DIR/soul-backups/<name>/`
 
 ---
 
@@ -36,7 +36,7 @@ The following files are tracked by mc-soul. They are defined in `src/soul.ts` as
 | `workspace/BOND.md` | Bond declaration — who the agent is bound to |
 | `openclaw.json` | Runtime configuration — models, plugins, channel config |
 
-All paths are relative to `$MINICLAW_STATE_DIR` (default: `~/am/` on this machine).
+All paths are relative to `$OPENCLAW_STATE_DIR` (default: `~/.openclaw/`).
 
 ---
 
@@ -127,7 +127,7 @@ The `agents.defaults.workspace` key in `openclaw.json` points to the workspace d
 ```json
 "agents": {
   "defaults": {
-    "workspace": "/Users/augmentedmike/am/workspace"
+    "workspace": "~/.openclaw/workspace"
   }
 }
 ```
@@ -241,7 +241,7 @@ Permanently deletes a snapshot directory.
 Each snapshot is stored at:
 
 ```
-$MINICLAW_STATE_DIR/soul-backups/<name>/
+$OPENCLAW_STATE_DIR/soul-backups/<name>/
   meta.json
   workspace/
     SOUL.md
@@ -271,10 +271,8 @@ $MINICLAW_STATE_DIR/soul-backups/<name>/
 mc-soul resolves the state directory via `resolveStateDir()` in `src/soul.ts` using the following priority order:
 
 1. **`stateDir` in plugin config** — explicit override in `openclaw.json` under the mc-soul plugin config (highest priority)
-2. **`MINICLAW_STATE_DIR` env var** — set by LaunchAgent for the gateway process; used for CLI invocations outside the gateway (falls back to `OPENCLAW_STATE_DIR` for vanilla OpenClaw compatibility)
-3. **`~/.openclaw`** — hardcoded fallback (not used on this machine; `~/am/` is used instead)
-
-On this machine: `MINICLAW_STATE_DIR=$HOME/am` is set in the environment, so the env var path (#2) is active.
+2. **`OPENCLAW_STATE_DIR` env var** — set by LaunchAgent for the gateway process; used for CLI invocations outside the gateway
+3. **`~/.openclaw`** — hardcoded fallback
 
 ---
 
@@ -309,4 +307,4 @@ mc-soul accepts one optional config key in `openclaw.json`:
 }
 ```
 
-`stateDir` overrides the env var if set. In normal operation this is omitted and `MINICLAW_STATE_DIR` is used.
+`stateDir` overrides the env var if set. In normal operation this is omitted and `OPENCLAW_STATE_DIR` is used.

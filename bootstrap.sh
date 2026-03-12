@@ -202,7 +202,7 @@ if command -v openclaw &>/dev/null; then
   ok "OpenClaw $(openclaw --version 2>/dev/null | head -1) already installed"
 else
   info "Installing OpenClaw from MiniClaw fork..."
-  OPENCLAW_LOCAL="$HOME/am/projects/openclaw"
+  OPENCLAW_LOCAL="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}/projects/openclaw"
   if [[ -d "$OPENCLAW_LOCAL/openclaw.mjs" ]]; then
     info "Found local fork at $OPENCLAW_LOCAL"
   else

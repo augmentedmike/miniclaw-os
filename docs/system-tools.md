@@ -70,7 +70,7 @@ mc-doctor --auto     # auto-fix everything without prompting
 | **qmd** *(optional)* | `qmd` on PATH | `bun install -g qmd` |
 | **qmd collections** | `mc-memory` and `workspace` collections registered | `qmd collection add <col> <path>` |
 | **openclaw** | `openclaw` on PATH | `npm install -g openclaw@latest` |
-| **openclaw.json** | Config file present at `$MINICLAW_STATE_DIR/openclaw.json` | Creates minimal config with Python |
+| **openclaw.json** | Config file present at `$OPENCLAW_STATE_DIR/openclaw.json` | Creates minimal config with Python |
 | **vault** | `mc-vault` on PATH, key initialised, encrypt/decrypt works | `mc-vault init` |
 | **directories** | `soul-backups/`, `projects/`, `user/memory/` exist | `mkdir -p` |
 | **plugin deps** | `node_modules` present for each plugin | `bun install` per plugin |
@@ -160,13 +160,13 @@ mc-prompts diff              # show jobs whose jobs.json message differs from th
 
 **File layout:**
 ```
-$MINICLAW_STATE_DIR/cron/
+$OPENCLAW_STATE_DIR/cron/
   jobs.json          # cron job definitions
   prompts/
     <name>.md        # one file per prompt
 ```
 
-The tool resolves `jobs.json` from `$MINICLAW_STATE_DIR/cron/jobs.json`, falling back to `~/am/cron/jobs.json`.
+The tool resolves `jobs.json` from `$OPENCLAW_STATE_DIR/cron/jobs.json`, falling back to `~/.openclaw/cron/jobs.json`.
 
 **Subcommand details:**
 

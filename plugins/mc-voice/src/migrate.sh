@@ -13,7 +13,7 @@
 
 set -euo pipefail
 
-DB_PATH="${1:-$HOME/am/user/augmentedmike_bot/voice/voice.db}"
+DB_PATH="${1:-${OPENCLAW_STATE_DIR:-$HOME/.openclaw}/USER/augmentedmike_bot/voice/voice.db}"
 DB_DIR="$(dirname "$DB_PATH")"
 
 mkdir -p "$DB_DIR"

@@ -22,13 +22,13 @@ mc-rolodex is installed as an OpenClaw plugin. Ensure it is listed in your `open
   "plugins": {
     "allow": ["mc-rolodex"],
     "load": {
-      "paths": ["~/am/miniclaw/plugins/mc-rolodex"]
+      "paths": ["~/.openclaw/miniclaw/plugins/mc-rolodex"]
     },
     "entries": {
       "mc-rolodex": {
         "enabled": true,
         "config": {
-          "storagePath": "~/am/user/augmentedmike_bot/rolodex/contacts.json"
+          "storagePath": "~/.openclaw/user/augmentedmike_bot/rolodex/contacts.json"
         }
       }
     }
@@ -130,7 +130,7 @@ All fields except `id` and `name` are optional.
 Contacts are stored in:
 
 ```
-~/am/user/augmentedmike_bot/rolodex/contacts.json
+~/.openclaw/user/augmentedmike_bot/rolodex/contacts.json
 ```
 
 This is a standard JSON array of contacts. You can edit it directly or use the CLI commands.

@@ -6,13 +6,13 @@ The card below has already been selected. Skip all survey/selection steps — go
 - YOU do the actual work. NEVER write a guide for a human to follow.
 - NEVER leave "next steps for Mike" or "steps for execution."
 - Writing a guide = FAILURE. Only check a criterion [x] if YOU actually completed it.
-- Other repos live in ~/am/projects/ — check there first, clone there if missing.
+- Other repos live in ~/.openclaw/projects/ — check there first, clone there if missing.
 - If card notes reference an implementation guide or workspace file — READ IT before starting.
 
 ⚠️ ACTIVITY LOGGING — REQUIRED:
 For every action, append a log entry:
-  echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) [in-progress] <what you are doing>" >> ~/am/logs/cards/{{CARD_ID}}.log
-Create the directory if needed: mkdir -p ~/am/logs/cards/
+  echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) [in-progress] <what you are doing>" >> ~/.openclaw/logs/cards/{{CARD_ID}}.log
+Create the directory if needed: mkdir -p ~/.openclaw/logs/cards/
 
 ---
 
@@ -45,9 +45,9 @@ so agents don't collide on the same filesystem. Do this first, before any file c
 
 Git Butler CLI: `/Applications/GitButler.app/Contents/MacOS/gitbutler-tauri` (alias: `but`)
 
-**work_dir for mc-board plugin cards: `~/am/projects/miniclaw-os`**
-(This is the registered GB project. Plugin edits go here; the live dir `~/am/miniclaw/plugins/`
-is inside `~/am/` which is a separate git repo not managed by GB.)
+**work_dir for mc-board plugin cards: `~/.openclaw/projects/miniclaw-os`**
+(This is the registered GB project. Plugin edits go here; the live dir `~/.openclaw/miniclaw/plugins/`
+is inside `~/.openclaw/` which is a separate git repo not managed by GB.)
 
 ```
 # 1. Check if the repo has a Git Butler project set up

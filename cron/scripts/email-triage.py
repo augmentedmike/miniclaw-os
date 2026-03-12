@@ -30,15 +30,16 @@ from email.utils import parseaddr
 from typing import Optional
 
 # ── Config ─────────────────────────────────────────────────────────────
-VAULT_BIN        = os.path.expanduser("~/am/miniclaw/system/bin/mc-vault")
-SEND_ALERT       = os.path.expanduser("~/am/miniclaw/system/bin/send-alert")
+_STATE_DIR       = os.environ.get("OPENCLAW_STATE_DIR", os.path.expanduser("~/.openclaw"))
+VAULT_BIN        = os.path.join(_STATE_DIR, "miniclaw", "system", "bin", "mc-vault")
+SEND_ALERT       = os.path.join(_STATE_DIR, "miniclaw", "system", "bin", "send-alert")
 MC_BIN           = "/opt/homebrew/bin/openclaw"
 FROM_EMAIL       = os.environ.get("AM_EMAIL", "owner@example.com")
 IMAP_HOST        = "imap.gmail.com"
 IMAP_PORT        = 993
 SMTP_HOST        = "smtp.gmail.com"
 SMTP_PORT        = 465
-PROMPT_FILE      = os.path.expanduser("~/am/cron/prompts/email-triage.md")
+PROMPT_FILE      = os.path.join(_STATE_DIR, "cron", "prompts", "email-triage.md")
 MODEL            = "haiku"  # openclaw model alias for haiku
 MAX_BODY_CHARS   = 2000
 # OpenClaw local gateway — exposes OpenAI-compatible endpoint
@@ -69,8 +70,8 @@ def _get_tg_chat_id() -> str:
     return _vault_get("tg-chat-id")
 
 # ── Event log ────────────────────────────────────────────────────────────
-EMAIL_EVENTS_FILE = os.path.expanduser(
-    "~/am/user/augmentedmike_bot/email-events.json"
+EMAIL_EVENTS_FILE = os.path.join(
+    _STATE_DIR, "user", "augmentedmike_bot", "email-events.json"
 )
 
 # Interesting scores by category (routine/spam never enter digest)

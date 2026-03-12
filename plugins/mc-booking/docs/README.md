@@ -236,7 +236,7 @@ Tests cover:
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `vaultBin` | string | `~/am/miniclaw/SYSTEM/bin/miniclaw-vault` | Path to mc-vault |
+| `vaultBin` | string | `~/.openclaw/miniclaw/SYSTEM/bin/miniclaw-vault` | Path to mc-vault |
 | `paymentProvider` | `"stripe"` \| `"square"` \| `"none"` | `"stripe"` | Which payment plugin to use |
 | `port` | number | `4221` | HTTP server port |
 | `origins` | string[] | miniclaw.bot, augmentedmike.com | CORS allowed origins |

@@ -25,7 +25,7 @@ const EXT_TO_LANG: Record<string, string> = {
   ".env": "bash", ".gitignore": "plaintext",
 };
 
-const AM_HOME = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), "am");
+const AM_HOME = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
 
 /** Allowed root directories for file access. */
 const ALLOWED_ROOTS = [

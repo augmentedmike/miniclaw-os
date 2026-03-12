@@ -38,5 +38,5 @@ export interface DocumentListItem {
 }
 
 export interface StorageOptions {
-  basePath?: string; // Defaults to $OPENCLAW_STATE_DIR/USER/augmentedmike_bot/docs (or ~/am/... fallback)
+  basePath?: string; // Defaults to $OPENCLAW_STATE_DIR/USER/augmentedmike_bot/docs (or ~/.openclaw/... fallback)
 }

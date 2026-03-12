@@ -2,7 +2,7 @@
 // Phase 3: expose designer operations as agent-callable tools so agents on
 // UI/design cards can autonomously generate, edit, and composite images.
 //
-// Implementation guide: ~/am/workspace/mc-designer-agent-integration.md
+// Implementation guide: ~/.openclaw/workspace/mc-designer-agent-integration.md
 //
 // STUB — tool signatures defined, execute() bodies are placeholders.
 // Full implementation: use Pattern B (direct instance) from the design doc.

@@ -64,15 +64,14 @@
 - [x] Cloned upstream OpenClaw → projects/openclaw-upstream/
 - [x] Found cron architecture: JSON store at `~/cron/jobs.json` (CronStoreFile format, version + jobs array)
 
-### MINICLAW_STATE_DIR Migration
-- [x] Introduced `MINICLAW_STATE_DIR` as primary env var (58 files updated)
-- [x] All plugins, scripts, docs, installer now prefer `MINICLAW_STATE_DIR`, fall back to `OPENCLAW_STATE_DIR`
-- [x] Installer sets both in shell profile + LaunchAgent plist
-- [x] OpenClaw compat preserved via `OPENCLAW_STATE_DIR=$MINICLAW_STATE_DIR`
+### OPENCLAW_STATE_DIR Migration
+- [x] Introduced `OPENCLAW_STATE_DIR` as the single env var (MINICLAW_STATE_DIR removed)
+- [x] All plugins, scripts, docs, installer use `OPENCLAW_STATE_DIR`
+- [x] Installer sets `OPENCLAW_STATE_DIR` in shell profile + LaunchAgent plist
 
 ### mc-backup Plugin
 - [x] Registered mc-backup in openclaw.json (live)
-- [x] Fixed backupDir default: uses `$MINICLAW_STATE_DIR/backups/` (no hardcoded paths)
+- [x] Fixed backupDir default: uses `$OPENCLAW_STATE_DIR/backups/` (no hardcoded paths)
 - [x] Added mc-backup to README, FEATURES, MANIFEST, install.sh, docs/install.md
 - [x] Tested backup + restore round-trip (520 MB, verified with diff)
 

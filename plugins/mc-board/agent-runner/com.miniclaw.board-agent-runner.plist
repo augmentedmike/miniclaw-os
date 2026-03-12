@@ -8,7 +8,7 @@
   <key>ProgramArguments</key>
   <array>
     <string>/opt/homebrew/bin/node</string>
-    <string>/Users/augmentedmike/am/miniclaw/plugins/mc-board/agent-runner/runner.mjs</string>
+    <string>/Users/augmentedmike/.openclaw/miniclaw/plugins/mc-board/agent-runner/runner.mjs</string>
   </array>
 
   <key>EnvironmentVariables</key>
@@ -18,13 +18,13 @@
     <key>PATH</key>
     <string>/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     <key>OPENCLAW_STATE_DIR</key>
-    <string>/Users/augmentedmike/am</string>
+    <string>/Users/augmentedmike/.openclaw</string>
     <key>OPENCLAW_BIN</key>
     <string>/opt/homebrew/bin/openclaw</string>
     <key>CLAUDE_BIN</key>
     <string>/opt/homebrew/bin/claude</string>
     <key>BOARD_DB_PATH</key>
-    <string>/Users/augmentedmike/am/user/augmentedmike_bot/brain/board.db</string>
+    <string>/Users/augmentedmike/.openclaw/user/augmentedmike_bot/brain/board.db</string>
     <key>AGENT_RUNNER_POLL_MS</key>
     <string>5000</string>
     <key>AGENT_RUNNER_MAX_CONCURRENT</key>
@@ -38,12 +38,12 @@
   <true/>
 
   <key>StandardOutPath</key>
-  <string>/Users/augmentedmike/am/logs/agent-runner.stdout.log</string>
+  <string>/Users/augmentedmike/.openclaw/logs/agent-runner.stdout.log</string>
 
   <key>StandardErrorPath</key>
-  <string>/Users/augmentedmike/am/logs/agent-runner.stderr.log</string>
+  <string>/Users/augmentedmike/.openclaw/logs/agent-runner.stderr.log</string>
 
   <key>WorkingDirectory</key>
-  <string>/Users/augmentedmike/am/miniclaw/plugins/mc-board/agent-runner</string>
+  <string>/Users/augmentedmike/.openclaw/miniclaw/plugins/mc-board/agent-runner</string>
 </dict>
 </plist>

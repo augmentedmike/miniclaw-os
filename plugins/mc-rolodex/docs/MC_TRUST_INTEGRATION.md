@@ -136,7 +136,7 @@ input: { contactId: "alice" }
 
 ## Storage Locations
 
-- **mc-rolodex contacts:** `~/.miniclaw/rolodex/contacts.json`
+- **mc-rolodex contacts:** `~/.openclaw/rolodex/contacts.json`
 - **mc-trust registry:** `~/.openclaw/trust/peers/`
 - **Verified agents:** `~/.openclaw/trust/sessions/` (TTL-based)
 

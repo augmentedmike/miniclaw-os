@@ -5,7 +5,7 @@ import * as os from "node:os";
 
 export const dynamic = "force-dynamic";
 
-const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), "am");
+const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
 const BRAIN_DIR = path.join(STATE_DIR, "USER", "augmentedmike_bot", "brain");
 
 /** Allowed directory for prompt files — all paths validated against this. */

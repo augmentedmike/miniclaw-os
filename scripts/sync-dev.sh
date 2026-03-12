@@ -2,7 +2,7 @@
 # sync-dev.sh — sync miniclaw-os repo → live ~/.openclaw/miniclaw/
 #
 # Rsyncs plugins and system/bin from the project repo to the live install.
-# Run this after making changes in ~/am/projects/miniclaw-os/ to test them live.
+# Run this after making changes in ~/.openclaw/projects/miniclaw-os/ to test them live.
 #
 # Usage:
 #   ./scripts/sync-dev.sh            # sync plugins + system/bin
@@ -12,8 +12,8 @@
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# ~/am IS openclaw's home (renamed from ~/.openclaw so AM can see it in Finder)
-MINICLAW_DIR="${MINICLAW_STATE_DIR:-${OPENCLAW_STATE_DIR:-$HOME/am}}/miniclaw"
+# ~/.openclaw is openclaw's default home directory
+MINICLAW_DIR="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}/miniclaw"
 LOCAL_BIN="${LOCAL_BIN:-$HOME/.local/bin}"
 
 DRY_RUN=false

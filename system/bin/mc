@@ -5,7 +5,7 @@
 # Each plugin lives at $MINICLAW_HOME/<name>/ with its own CLI entry point.
 #
 # Call paths (per plugin):
-#   ~/am/miniclaw/<name>/cli[.ts]   Direct
+#   ~/.openclaw/miniclaw/<name>/cli[.ts]   Direct
 #   mc <name> <cmd>                 Via this wrapper
 #   oc mc-<name> <cmd>              Via openclaw plugin
 #

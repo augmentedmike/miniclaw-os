@@ -50,7 +50,7 @@ function resolveConfig(api: OpenClawPluginApi): HumanConfig {
   // Fall back to reading openclaw.json directly if SDK doesn't expose global TG config
   if (!tgBotToken) {
     try {
-      const ocPath = resolvePath("~/am/openclaw.json");
+      const ocPath = resolvePath("~/.openclaw/openclaw.json");
       const oc = JSON.parse(fs.readFileSync(ocPath, "utf-8")) as Record<string, unknown>;
       const tg = (oc?.["channels"] as Record<string, unknown>)?.["telegram"] as Record<string, unknown> | undefined;
       if (tg?.["botToken"]) tgBotToken = tg["botToken"] as string;

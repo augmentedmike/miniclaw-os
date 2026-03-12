@@ -131,7 +131,7 @@ mc-substack does not currently register agent tools. All operations are CLI-only
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `subdomain` | string | `augmentedmike` | Primary Substack subdomain |
-| `vaultBin` | string | `$HOME/am/miniclaw/system/bin/miniclaw-vault` | Path to the vault binary |
+| `vaultBin` | string | `$HOME/.openclaw/miniclaw/system/bin/miniclaw-vault` | Path to the vault binary |
 | `publications` | object | — | Named publications map (see below) |
 
 ### Multiple publications

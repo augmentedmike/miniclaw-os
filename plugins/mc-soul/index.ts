@@ -13,7 +13,7 @@
  *
  * State dir resolution (in priority order):
  *   1. SDK service context stateDir (authoritative — same source openclaw itself uses)
- *   2. MINICLAW_STATE_DIR env var (with OPENCLAW_STATE_DIR fallback)
+ *   2. OPENCLAW_STATE_DIR env var
  *   3. stateDir from plugin config
  *   4. ~/.openclaw (fallback)
  */
@@ -39,7 +39,7 @@ export default function register(api: OpenClawPluginApi): void {
     id: "mc-soul",
     start(ctx) {
       // ctx.stateDir is provided by the openclaw runtime — this is the same
-      // value openclaw itself uses, derived from MINICLAW_STATE_DIR/OPENCLAW_STATE_DIR or default.
+      // value openclaw itself uses, derived from OPENCLAW_STATE_DIR or default.
       stateDir = ctx.stateDir;
       api.logger.info(`mc-soul loaded (stateDir=${stateDir})`);
     },

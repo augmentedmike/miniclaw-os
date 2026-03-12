@@ -47,7 +47,7 @@ This directory does not yet exist on the Mac mini. It needs to be created.
 Skills in the miniclaw-os repo should be version-controlled at:
 
 ```
-/Users/augmentedmike/am/projects/miniclaw-os/skills/<skill-name>/SKILL.md
+~/.openclaw/projects/miniclaw-os/skills/<skill-name>/SKILL.md
 ```
 
 At install time (or via `bootstrap.sh`), skills are symlinked or copied into `~/.claude/skills/`. A new `mc-skills` plugin (described in Section 3) manages this lifecycle.
@@ -75,7 +75,7 @@ The `board-worker-in-progress` cron (runs every 5 minutes) picks up the card. It
 
 ### 2.3 How the mc-board Process / Work Workflow Includes "Create Skill"
 
-The existing `/api/process/[column]/[cardId]` route spawns Claude with a prompt loaded from `~/am/user/augmentedmike_bot/brain/prompts/in-progress-process.txt`.
+The existing `/api/process/[column]/[cardId]` route spawns Claude with a prompt loaded from `~/.openclaw/user/augmentedmike_bot/brain/prompts/in-progress-process.txt`.
 
 **Minimal change:** Add a conditional block to that prompt file:
 
@@ -84,7 +84,7 @@ If the card has tag "skill":
   1. Load the skill-creator skill: --skill ~/.claude/skills/skill-creator/
   2. The card's problem_description contains the skill spec.
   3. Run the full skill-creator workflow (draft → 3 evals → benchmark → improve once → optimize description).
-  4. Save the skill to ~/am/skills-workspace/<skill-name>/.
+  4. Save the skill to ~/.openclaw/skills-workspace/<skill-name>/.
   5. Output the APPLY block with:
      - research: summary of what was built and eval scores
      - notes: path to the new skill directory
@@ -96,7 +96,7 @@ The subprocess that handles `skill` cards needs:
 - The `claude` CLI accessible (already the case via `CLAUDE_BIN`)
 - The `--skill` flag passed when spawning the subprocess (Claude Code CLI supports `--skill <path>`)
 - Python 3 available for `aggregate_benchmark.py` and `generate_review.py` (use `uvx` or the system Python)
-- Write access to `~/am/skills-workspace/` for eval runs
+- Write access to `~/.openclaw/skills-workspace/` for eval runs
 
 **Route-level change:** In `/api/process/[column]/[cardId]/route.ts`, add a branch: if `card.tags.includes("skill")`, use a different prompt path and add `--skill ~/.claude/skills/skill-creator/` to the `spawn` args array.
 
@@ -106,11 +106,11 @@ The `WorkModal` and `ProcessModal` components need no changes — they stream ou
 
 After a skill passes its eval gate (defined in the card's acceptance criteria), the in-progress worker:
 
-1. Copies `~/am/skills-workspace/<skill-name>/` to `/Users/augmentedmike/am/projects/miniclaw-os/skills/<skill-name>/`
+1. Copies `~/.openclaw/skills-workspace/<skill-name>/` to `~/.openclaw/projects/miniclaw-os/skills/<skill-name>/`
 2. Symlinks (or copies) it into `~/.claude/skills/<skill-name>/`
 3. Runs:
    ```bash
-   cd /Users/augmentedmike/am/projects/miniclaw-os
+   cd ~/.openclaw/projects/miniclaw-os
    git add skills/<skill-name>/
    git commit -m "feat(skills): add <skill-name> skill (auto-created by OpenClaw)"
    ```
@@ -131,7 +131,7 @@ For git push to the public repo, the `gh` CLI is already authenticated as `augme
 
 **Files to create/touch:**
 - `~/.claude/skills/skill-creator/` (downloaded)
-- `/Users/augmentedmike/am/projects/miniclaw-os/skills/skill-creator/` (tracked copy)
+- `~/.openclaw/projects/miniclaw-os/skills/skill-creator/` (tracked copy)
 
 ### Step 2: Create the skills directory structure (30 min)
 - Add `skills/` at the miniclaw-os repo root
@@ -139,16 +139,16 @@ For git push to the public repo, the `gh` CLI is already authenticated as `augme
 - Update `MANIFEST.json` to add a `"skills"` key listing managed skills
 
 **Files to edit:**
-- `/Users/augmentedmike/am/projects/miniclaw-os/bootstrap.sh`
-- `/Users/augmentedmike/am/projects/miniclaw-os/MANIFEST.json`
+- `~/.openclaw/projects/miniclaw-os/bootstrap.sh`
+- `~/.openclaw/projects/miniclaw-os/MANIFEST.json`
 
 ### Step 3: Add skill-routing to the in-progress process prompt (2 hours)
-- Edit `~/am/user/augmentedmike_bot/brain/prompts/in-progress-process.txt` to detect the `skill` tag
+- Edit `~/.openclaw/user/augmentedmike_bot/brain/prompts/in-progress-process.txt` to detect the `skill` tag
 - Add the skill-creation workflow instructions (what to do, where to save outputs, what APPLY fields to return)
 - Test manually by creating a card with `tag: skill` and running Process on it via the UI
 
 **Files to edit:**
-- `~/am/user/augmentedmike_bot/brain/prompts/in-progress-process.txt`
+- `~/.openclaw/user/augmentedmike_bot/brain/prompts/in-progress-process.txt`
 
 ### Step 4: Update the process route to pass `--skill` flag (2 hours)
 - In `/api/process/[column]/[cardId]/route.ts`, detect `skill` tag on the card
@@ -156,7 +156,7 @@ For git push to the public repo, the `gh` CLI is already authenticated as `augme
 - Test with a dry run card
 
 **Files to edit:**
-- `/Users/augmentedmike/am/projects/miniclaw-os/plugins/mc-board/web/src/app/api/process/[column]/[cardId]/route.ts`
+- `~/.openclaw/projects/miniclaw-os/plugins/mc-board/web/src/app/api/process/[column]/[cardId]/route.ts`
 
 ### Step 5: Add git-commit step to the worker output handler (2 hours)
 - After a `skill`-tagged card's APPLY block is parsed and applied, run the git add/commit sequence
@@ -173,15 +173,15 @@ For git push to the public repo, the `gh` CLI is already authenticated as `augme
 - Called by `bootstrap.sh` on setup and by the board worker after committing a new skill
 
 **Files to create:**
-- `/Users/augmentedmike/am/projects/miniclaw-os/plugins/mc-skills/index.ts`
-- `/Users/augmentedmike/am/projects/miniclaw-os/plugins/mc-skills/cli.ts`
+- `~/.openclaw/projects/miniclaw-os/plugins/mc-skills/index.ts`
+- `~/.openclaw/projects/miniclaw-os/plugins/mc-skills/cli.ts`
 
 ### Step 7: Add `brain_create_skill_card` helper (optional, 1 hour)
 - Convenience tool definition in `tools/definitions.ts` that creates a pre-formatted skill card with the right tags, problem template, and acceptance criteria checklist
 - Makes it easy for OpenClaw to request a skill from any agent session
 
 **Files to edit:**
-- `/Users/augmentedmike/am/projects/miniclaw-os/plugins/mc-board/tools/definitions.ts`
+- `~/.openclaw/projects/miniclaw-os/plugins/mc-board/tools/definitions.ts`
 
 ### Step 8: End-to-end test (2 hours)
 - Create a card: "Skill: inbox-summarizer" tagged `skill`
@@ -207,7 +207,7 @@ For git push to the public repo, the `gh` CLI is already authenticated as `augme
 ### Headless eval viewer
 - The Mac mini runs the board web server headlessly (LaunchAgent, no display session)
 - `generate_review.py` must always be called with `--static <output_path>` in this environment
-- Static HTML output goes to `~/am/skills-workspace/<skill-name>/eval-review.html`
+- Static HTML output goes to `~/.openclaw/skills-workspace/<skill-name>/eval-review.html`
 - Michael can open it via the board UI or directly in a browser; the board can serve it as a static asset
 
 ### Context window during skill creation
@@ -237,13 +237,13 @@ For git push to the public repo, the `gh` CLI is already authenticated as `augme
 | Item | Path |
 |------|------|
 | Claude Code skills directory | `~/.claude/skills/` |
-| miniclaw-os skills (version-controlled) | `/Users/augmentedmike/am/projects/miniclaw-os/skills/` |
+| miniclaw-os skills (version-controlled) | `~/.openclaw/projects/miniclaw-os/skills/` |
 | skill-creator skill | `~/.claude/skills/skill-creator/SKILL.md` |
-| Skill eval workspace | `~/am/skills-workspace/<skill-name>/` |
-| in-progress process prompt | `~/am/user/augmentedmike_bot/brain/prompts/in-progress-process.txt` |
-| Process route (to add --skill flag) | `/Users/augmentedmike/am/projects/miniclaw-os/plugins/mc-board/web/src/app/api/process/[column]/[cardId]/route.ts` |
-| Board tool definitions | `/Users/augmentedmike/am/projects/miniclaw-os/plugins/mc-board/tools/definitions.ts` |
-| miniclaw-os manifest | `/Users/augmentedmike/am/projects/miniclaw-os/MANIFEST.json` |
+| Skill eval workspace | `~/.openclaw/skills-workspace/<skill-name>/` |
+| in-progress process prompt | `~/.openclaw/user/augmentedmike_bot/brain/prompts/in-progress-process.txt` |
+| Process route (to add --skill flag) | `~/.openclaw/projects/miniclaw-os/plugins/mc-board/web/src/app/api/process/[column]/[cardId]/route.ts` |
+| Board tool definitions | `~/.openclaw/projects/miniclaw-os/plugins/mc-board/tools/definitions.ts` |
+| miniclaw-os manifest | `~/.openclaw/projects/miniclaw-os/MANIFEST.json` |
 
 ---
 

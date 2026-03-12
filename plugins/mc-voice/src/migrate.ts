@@ -1,7 +1,7 @@
 /**
  * mc-voice — voice.db migration script
  *
- * Creates ~/am/USER/augmentedmike_bot/voice/voice.db with:
+ * Creates ~/.openclaw/USER/augmentedmike_bot/voice/voice.db with:
  *   - human_voice: stores raw messages with embeddings
  *   - voice_settings: per-human opt-out and learning config
  *   - FTS5 virtual table for full-text search
@@ -30,10 +30,8 @@ const EMBEDDING_DIM = 3072; // gemini-embedding-001
 
 function resolveDbPath(arg?: string): string {
   if (arg) return arg.startsWith("~/") ? path.join(os.homedir(), arg.slice(2)) : arg;
-  return path.join(
-    os.homedir(),
-    "am/USER/augmentedmike_bot/voice/voice.db",
-  );
+  const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
+  return path.join(stateDir, "USER", "augmentedmike_bot", "voice", "voice.db");
 }
 
 function loadVec(db: Database.Database): boolean {

@@ -1,8 +1,13 @@
 // src/config.ts
+import * as path from "node:path";
+import * as os from "node:os";
+
+const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
+
 function resolveConfig(raw) {
   return {
     subdomain: raw.subdomain || "augmentedmike",
-    vaultBin: raw.vaultBin || `${process.env.HOME}/am/miniclaw/system/bin/miniclaw-vault`,
+    vaultBin: raw.vaultBin || path.join(STATE_DIR, "miniclaw", "SYSTEM", "bin", "mc-vault"),
     publications: raw.publications || undefined
   };
 }

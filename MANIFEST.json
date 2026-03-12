@@ -180,7 +180,7 @@
       "cli": true,
       "tools": [],
       "config": {
-        "jobsDir": "~/.miniclaw/jobs",
+        "jobsDir": "~/.openclaw/jobs",
         "defaultJob": "software-developer"
       }
     },
@@ -422,7 +422,7 @@
       "port": 4210,
       "pm2": "am-setup",
       "entryUrl": "http://localhost:4210",
-      "setupState": "~/am/user/setup-state.json"
+      "setupState": "~/.openclaw/user/setup-state.json"
     }
   ]
 }

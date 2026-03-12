@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 const EMPTY = { total_runs: 0, total_tokens: 0, avg_tokens_per_card: 0, avg_duration_ms: 0, total_cost_usd: 0 };
 
 export async function GET() {
-  const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".miniclaw");
+  const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
   const dbPath = process.env.BOARD_DB_PATH ?? path.join(stateDir, "user/augmentedmike_bot/brain/board.db");
   if (!fs.existsSync(dbPath)) return NextResponse.json(EMPTY);
   try {

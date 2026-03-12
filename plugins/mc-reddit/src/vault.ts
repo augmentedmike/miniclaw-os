@@ -1,6 +1,9 @@
 import { execSync } from "node:child_process";
+import * as path from "node:path";
+import * as os from "node:os";
 
-const DEFAULT_VAULT_BIN = `${process.env.HOME}/am/miniclaw/SYSTEM/bin/miniclaw-vault`;
+const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
+const DEFAULT_VAULT_BIN = path.join(STATE_DIR, "miniclaw", "SYSTEM", "bin", "mc-vault");
 
 export function vaultGet(key: string, vaultBin = DEFAULT_VAULT_BIN): string | null {
   try {

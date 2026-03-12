@@ -93,7 +93,7 @@ Everything else is deleted. Pruning runs automatically after `mc-backup now` unl
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `backupDir` | string | `$MINICLAW_STATE_DIR/backups` | Directory for backup archives |
+| `backupDir` | string | `$OPENCLAW_STATE_DIR/backups` | Directory for backup archives |
 | `recentQuotaBytes` | number | `1073741824` (1 GB) | Cumulative size threshold for keeping all dailies |
 | `totalQuotaBytes` | number | `2147483648` (2 GB) | Cumulative size threshold for monthly-only retention |
 | `excludeDirs` | string[] | `["projects", ".git", "node_modules", "backups", "logs", "tmp", "browser", "media", "*/media"]` | Directories excluded from backup |
@@ -103,6 +103,6 @@ Everything else is deleted. Pruning runs automatically after `mc-backup now` unl
 
 ## State Storage
 
-Backup archives: `$MINICLAW_STATE_DIR/backups/`
+Backup archives: `$OPENCLAW_STATE_DIR/backups/`
 
 Filename convention: `YYYY-MM-DDTHH-MM-SS.tgz`

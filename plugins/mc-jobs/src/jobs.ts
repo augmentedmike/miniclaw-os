@@ -21,8 +21,8 @@ export interface Job {
   // Workspace paths
   workspace: {
     openclaw: string; // ~/.openclaw or similar
-    home: string;     // ~/am or similar
-    projects: string; // ~/am/projects or similar
+    home: string;     // ~/.openclaw or similar
+    projects: string; // ~/.openclaw/projects or similar
   };
   
   // Tool setup
@@ -47,7 +47,7 @@ export class JobsStore {
 
   constructor(jobsDir?: string) {
     this.jobsDir =
-      jobsDir || path.join(os.homedir(), ".miniclaw", "jobs");
+      jobsDir || path.join(os.homedir(), ".openclaw", "jobs");
   }
 
   /**
@@ -141,8 +141,8 @@ export function createSoftwareDeveloperJob(): Job {
 
     workspace: {
       openclaw: path.join(os.homedir(), ".openclaw"),
-      home: path.join(os.homedir(), "am"),
-      projects: path.join(os.homedir(), "am", "projects"),
+      home: path.join(os.homedir(), ".openclaw"),
+      projects: path.join(os.homedir(), ".openclaw", "projects"),
     },
 
     tools: [

@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# backport-from-live.sh — sync ~/am/miniclaw/plugins/ → miniclaw-os repo
+# backport-from-live.sh — sync ~/.openclaw/miniclaw/plugins/ → miniclaw-os repo
 #
-# ~/am/ is the live prototype workspace (MINICLAW_STATE_DIR / OPENCLAW_STATE_DIR).
+# ~/.openclaw/ is the live prototype workspace (OPENCLAW_STATE_DIR).
 # This script backports plugin changes from there into the clean repo.
-# ~/.openclaw/ is only used for install testing — never source from there.
 #
 # Usage:
 #   ./scripts/backport-from-live.sh              # sync + show git diff --stat
@@ -15,7 +14,7 @@
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-MINICLAW_DIR="${MINICLAW_STATE_DIR:-${OPENCLAW_STATE_DIR:-$HOME/am}}/miniclaw"
+MINICLAW_DIR="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}/miniclaw"
 
 DRY_RUN=false
 DO_COMMIT=false
@@ -42,7 +41,7 @@ err()  { echo -e "  ${RED}[✗]${NC} $1"; }
 
 echo ""
 echo -e "${BOLD}miniclaw backport-from-live${NC}"
-echo "  from: $MINICLAW_DIR/plugins/  (~/am live prototype)"
+echo "  from: $MINICLAW_DIR/plugins/  (live prototype)"
 echo "  to:   $REPO_DIR/plugins/"
 [[ "$DRY_RUN"    == true ]] && echo "  (dry-run — no changes)"
 [[ "$NEW_PLUGINS" == true ]] && echo "  (--new-plugins: will add new plugin dirs)"

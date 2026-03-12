@@ -88,4 +88,4 @@ Telegram config falls back to the global `channels.telegram` config in `openclaw
 
 - **macOS Screen Sharing** must be enabled: System Settings > General > Sharing > Screen Sharing
 - For Telegram delivery: a Telegram bot token and chat ID must be configured
-- For email delivery: the `send-alert` binary must be available at `$HOME/am/miniclaw/system/bin/send-alert`
+- For email delivery: the `send-alert` binary must be available at `$HOME/.openclaw/miniclaw/system/bin/send-alert`

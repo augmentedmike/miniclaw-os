@@ -98,7 +98,7 @@ MiniClaw enforces a hard boundary between system code and user data.
 Both directory names are **CAPS** — they mark the system/user boundary.
 
 ```
-$MINICLAW_STATE_DIR/
+$OPENCLAW_STATE_DIR/
 ├── miniclaw/
 │   ├── SYSTEM/          # Shipped by MiniClaw — never overwritten by the user
 │   │   ├── bin/         # mc-vault, mc, mc-smoke, voice-analyze, etc.
@@ -119,14 +119,14 @@ $MINICLAW_STATE_DIR/
 ```
 
 **Rules:**
-- System binaries: `$MINICLAW_STATE_DIR/miniclaw/SYSTEM/bin/<tool>`
-- User data: `$MINICLAW_STATE_DIR/USER/<bot_id>/<feature>/`
-- User media: `$MINICLAW_STATE_DIR/USER/<bot_id>/media/<plugin>/`
+- System binaries: `$OPENCLAW_STATE_DIR/miniclaw/SYSTEM/bin/<tool>`
+- User data: `$OPENCLAW_STATE_DIR/USER/<bot_id>/<feature>/`
+- User media: `$OPENCLAW_STATE_DIR/USER/<bot_id>/media/<plugin>/`
 - Always use `SYSTEM` and `USER` (caps) in code — never lowercase
 
 ## State Storage
 
-Plugins store state in `$MINICLAW_STATE_DIR/USER/<bot_id>/`:
+Plugins store state in `$OPENCLAW_STATE_DIR/USER/<bot_id>/`:
 
 - **SQLite** for structured data (mc-board, mc-kb)
 - **JSON files** for config and simple state (mc-rolodex, mc-jobs)

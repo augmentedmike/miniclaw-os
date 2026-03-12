@@ -20,7 +20,7 @@ openclaw mc-kb <command>              ← CLI entry point
        └── index.ts                   ← Plugin entry, context hook, tool registration
 ```
 
-**Database:** SQLite file at `$MINICLAW_STATE_DIR/user/<bot>/kb/kb.db`. WAL mode is enabled. `better-sqlite3` provides synchronous access.
+**Database:** SQLite file at `$OPENCLAW_STATE_DIR/user/<bot>/kb/kb.db`. WAL mode is enabled. `better-sqlite3` provides synchronous access.
 
 **Markdown mirror:** Every entry is also written as `<id>.md` in a `entries/` subdirectory alongside the database. These are the source files for QMD vector indexing.
 
@@ -78,7 +78,7 @@ tags: [ssl, macos, security]
 **workflow:**
 ```
 title: "Deploy mc-board update to production"
-content: "1. Build: cd ~/am/projects/openclaw && npm run build\n2. Restart: openclaw restart\n3. Verify: openclaw status"
+content: "1. Build: cd ~/.openclaw/projects/openclaw && npm run build\n2. Restart: openclaw restart\n3. Verify: openclaw status"
 tags: [deploy, mc-board, openclaw]
 ```
 
@@ -371,7 +371,7 @@ Without `--out`, writes JSON to stdout. With `--out`, writes to the specified fi
 openclaw mc-kb export | jq '.entries | length'
 
 # Export to the miniclaw-os repo for distribution
-openclaw mc-kb export --out ~/am/projects/miniclaw-os/shared/kb/knowledge.json
+openclaw mc-kb export --out ~/.openclaw/projects/miniclaw-os/shared/kb/knowledge.json
 ```
 
 ### `mc-kb import` (JSON bundle format)
@@ -520,7 +520,7 @@ Plugin config in `openclaw.plugin.json` or the openclaw config file:
 ```json
 {
   "mc-kb": {
-    "dbDir": "~/am/user/augmentedmike_bot/kb",
+    "dbDir": "~/.openclaw/user/augmentedmike_bot/kb",
     "modelPath": "~/.cache/qmd/models/hf_ggml-org_embeddinggemma-300M-Q8_0.gguf",
     "qmdBin": "~/.bun/bin/qmd",
     "qmdCollection": "kb",
@@ -595,7 +595,7 @@ MiniClaw ships with a **shared knowledge bundle** — a curated set of KB entrie
 
 2. Export shareable entries to the miniclaw-os repo:
    ```bash
-   openclaw mc-kb export --out ~/am/projects/miniclaw-os/shared/kb/knowledge.json
+   openclaw mc-kb export --out ~/.openclaw/projects/miniclaw-os/shared/kb/knowledge.json
    ```
 
 3. Commit and push to miniclaw-os.

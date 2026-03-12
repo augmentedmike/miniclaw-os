@@ -682,7 +682,7 @@ with 'brain create --project <id>' or 'brain update <id> --project <id>'.
 Examples:
   miniclaw brain project create --name "Telegram Overhaul"
   miniclaw brain project create --name "v2 API" --description "REST redesign" --work-dir ~/projects/api --github-repo owner/api
-  miniclaw brain project create --name "mc-board" --build-command 'cd ~/am/miniclaw/plugins/mc-board/web && npm run build'`)
+  miniclaw brain project create --name "mc-board" --build-command 'cd ~/.openclaw/miniclaw/plugins/mc-board/web && npm run build'`)
     .action((opts: { name: string; description?: string; workDir?: string; githubRepo?: string; buildCommand?: string }) => {
       const proj = projects.create({ name: opts.name, description: opts.description, work_dir: opts.workDir, github_repo: opts.githubRepo, build_command: opts.buildCommand });
       console.log(`Created ${proj.id}: ${proj.name}`);
@@ -755,7 +755,7 @@ archived projects.
     .addHelpText("after", `
   miniclaw brain project update prj_a1b2c3d4 --name "New Name"
   miniclaw brain project update prj_a1b2c3d4 --work-dir ~/projects/api --github-repo owner/api
-  miniclaw brain project update prj_a1b2c3d4 --build-command 'cd ~/am/miniclaw/plugins/mc-board/web && npm run build'`)
+  miniclaw brain project update prj_a1b2c3d4 --build-command 'cd ~/.openclaw/miniclaw/plugins/mc-board/web && npm run build'`)
     .action((id: string, opts: { name?: string; description?: string; workDir?: string; githubRepo?: string; buildCommand?: string }) => {
       if (!opts.name && opts.description === undefined && !opts.workDir && !opts.githubRepo && opts.buildCommand === undefined) {
         console.error("No fields to update. Provide --name, --description, --work-dir, --github-repo, or --build-command.");
@@ -901,7 +901,7 @@ Used by: web UI triage button, cron job backlog checker.
 
   openclaw mc-board triage crd_abc123
   openclaw mc-board triage crd_abc123 --worker cron-backlog --no-move
-  openclaw mc-board triage crd_abc123 --log ~/am/logs/triage.log`)
+  openclaw mc-board triage crd_abc123 --log ~/.openclaw/logs/triage.log`)
     .action((cardId: string, opts: { prompt?: string; worker: string; log?: string; move: boolean }) => {
       const card = store.findById(cardId);
       if (!card) {

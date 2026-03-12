@@ -116,5 +116,5 @@ Tests cover:
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `vaultBin` | string | `~/am/miniclaw/SYSTEM/bin/miniclaw-vault` | Path to mc-vault binary |
+| `vaultBin` | string | `~/.openclaw/miniclaw/SYSTEM/bin/miniclaw-vault` | Path to mc-vault binary |
 | `testMode` | boolean | `false` | When true, only accepts `sk_test_` keys during setup |

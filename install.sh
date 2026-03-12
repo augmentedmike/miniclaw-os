@@ -14,7 +14,7 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd 2>/dev/null)" || REPO
 OPENCLAW_DIR="${OPENCLAW_DIR:-$HOME/.openclaw}"
 # STATE_DIR is where runtime data lives (cards, logs, cron, workspace, etc.)
 # Defaults to OPENCLAW_DIR so a fresh install "just works".
-STATE_DIR="${MINICLAW_STATE_DIR:-${OPENCLAW_STATE_DIR:-$OPENCLAW_DIR}}"
+STATE_DIR="${OPENCLAW_STATE_DIR:-$OPENCLAW_DIR}"
 MINICLAW_DIR="$OPENCLAW_DIR/miniclaw"
 PROJECTS_DIR="$OPENCLAW_DIR/projects"
 LOCAL_BIN="${LOCAL_BIN:-$HOME/.local/bin}"
@@ -60,8 +60,9 @@ ARCHIVE_DIR="$HOME/.openclaw-backup-$(date +%Y%m%d-%H%M%S)"
 NEEDS_MIGRATION=false
 OLD_CONFIG="" OLD_PLUGINS_DIR="" OLD_USER_DIR="" OLD_WORKSPACE="" OLD_CRON="" OLD_MEMORY=""
 
-if [[ -d "$OPENCLAW_DIR" && ! -d "$OPENCLAW_DIR/miniclaw" ]]; then
-  # Existing vanilla OpenClaw install (no miniclaw directory = not ours)
+if [[ -d "$OPENCLAW_DIR" && ! -d "$OPENCLAW_DIR/miniclaw" && \
+      ( -f "$OPENCLAW_DIR/openclaw.json" || -d "$OPENCLAW_DIR/plugins" || -d "$OPENCLAW_DIR/user" ) ]]; then
+  # Existing vanilla OpenClaw install with real content (not just an empty dir or leftover)
   info "Found existing OpenClaw install at $OPENCLAW_DIR"
   info "This looks like an upstream OpenClaw install (no miniclaw/ directory)."
   echo ""
@@ -478,7 +479,6 @@ if [[ -n "$TTY_IN" ]]; then
 
   VAULT_SECRETS=(
     "gh-token:GitHub personal access token"
-    "gmail-app-password:Gmail app password"
   )
 
   for entry in "${VAULT_SECRETS[@]}"; do
@@ -493,24 +493,7 @@ if [[ -n "$TTY_IN" ]]; then
     fi
   done
 
-  # ── mc-designer (optional) ─────────────────────────────────────────────────
-  echo ""
-  printf "  Enable mc-designer (AI image generation)? [y/N] "
-  read -r enable_designer < "$TTY_IN"
-  if [[ "$enable_designer" == "y" || "$enable_designer" == "Y" ]]; then
-    echo ""
-    echo "  Get a free Gemini API key at: https://aistudio.google.com/app/apikey"
-    printf "  Gemini API key\n  > "
-    read -r -s gemini_key < "$TTY_IN"; echo ""
-    if [[ -n "$gemini_key" ]]; then
-      echo -n "$gemini_key" | OPENCLAW_VAULT_ROOT="$VAULT_ROOT" "$MC_VAULT" set gemini-api-key -
-      ok "Stored: gemini-api-key"
-    else
-      warn "Skipped: gemini-api-key (mc-designer will prompt when you first use it)"
-    fi
-  else
-    warn "Skipped: mc-designer setup (run install.sh again or use 'mc vault set gemini-api-key' to enable later)"
-  fi
+  # gmail-app-password and gemini-api-key are collected in am-setup onboarding (port 4210)
 fi # TTY_IN check
 
 
@@ -708,7 +691,7 @@ register_cron "board-worker-in-review" '{
   "payload": {
     "kind": "agentTurn",
     "timeoutSeconds": 600,
-    "message": "Board worker — IN-REVIEW triage.\n\nMAX_CONCURRENT_COLUMN_TASKS=3. Select best candidate per project.\n\n1. Check active workers: openclaw mc-board active\n2. Get full column context (excludes on-hold): openclaw mc-board context --column in-review --skip-hold\n3. Group by project. Per project pick 1 card — highest priority then oldest. Skip cards already active.\n   If 0 cards available: Stop here. Silent exit. Do NOT send any Telegram message.\n4. For each selected card:\n   a. Register pickup: openclaw mc-board pickup <id> --worker board-worker-in-review\n   b. Read full detail: openclaw mc-board show <id>\n   c. Audit: verify the work product exists and all criteria are genuinely met\n   d. If it holds up:\n      - openclaw mc-board update <id> --review \"Audited [date]: [what was checked, findings]\"\n      - openclaw mc-board move <id> shipped\n      - IMMEDIATELY create a VERIFY card in backlog using brain_create_card:\n          title: \"VERIFY: [original card title]\"\n          project_id: [same as shipped card]\n          priority: high\n          column: backlog\n          problem: \"Confirm [shipped card title] ([shipped card id]) is live and working in production.\"\n          plan: \"1. PRODUCTION CHECK: verify the shipped work is actually live and functional (hit the URL, run the CLI, check the page, confirm the deploy).\\n2. DOCUMENT SWEEP: scan card notes and any /tmp or workspace paths mentioned — find files/docs created during the work. For each: if a knowledge doc (md, txt, research) move to ~/am/workspace/docs/ or relevant subdir then kb_add it; if an artifact (image, PDF, video) move to ~/am/workspace/artifacts/ and note path in KB; if already in workspace just kb_add if not yet indexed.\\n3. END-TO-END TEST: exercise the main use case — not just that it exists but that it works.\\n4. PASS: move this card to shipped. FAIL: create a bug card linked to original, move this card to backlog.\"\n          criteria: \"- [ ] Production verified live\\n- [ ] Documents/artifacts moved to workspace (if any)\\n- [ ] Documents indexed in KB (if any)\\n- [ ] End-to-end test passed\"\n   e. If it fails:\n      - Uncheck failed criteria and add a note explaining what is wrong\n      - openclaw mc-board update <id> --notes \"Review failed: <reason>\"\n      - Leave in in-review for another pass\n   f. Release: openclaw mc-board release <id> --worker board-worker-in-review\n5. Done. Silent exit."
+    "message": "Board worker — IN-REVIEW triage.\n\nMAX_CONCURRENT_COLUMN_TASKS=3. Select best candidate per project.\n\n1. Check active workers: openclaw mc-board active\n2. Get full column context (excludes on-hold): openclaw mc-board context --column in-review --skip-hold\n3. Group by project. Per project pick 1 card — highest priority then oldest. Skip cards already active.\n   If 0 cards available: Stop here. Silent exit. Do NOT send any Telegram message.\n4. For each selected card:\n   a. Register pickup: openclaw mc-board pickup <id> --worker board-worker-in-review\n   b. Read full detail: openclaw mc-board show <id>\n   c. Audit: verify the work product exists and all criteria are genuinely met\n   d. If it holds up:\n      - openclaw mc-board update <id> --review \"Audited [date]: [what was checked, findings]\"\n      - openclaw mc-board move <id> shipped\n      - IMMEDIATELY create a VERIFY card in backlog using brain_create_card:\n          title: \"VERIFY: [original card title]\"\n          project_id: [same as shipped card]\n          priority: high\n          column: backlog\n          problem: \"Confirm [shipped card title] ([shipped card id]) is live and working in production.\"\n          plan: \"1. PRODUCTION CHECK: verify the shipped work is actually live and functional (hit the URL, run the CLI, check the page, confirm the deploy).\\n2. DOCUMENT SWEEP: scan card notes and any /tmp or workspace paths mentioned — find files/docs created during the work. For each: if a knowledge doc (md, txt, research) move to ~/.openclaw/workspace/docs/ or relevant subdir then kb_add it; if an artifact (image, PDF, video) move to ~/.openclaw/workspace/artifacts/ and note path in KB; if already in workspace just kb_add if not yet indexed.\\n3. END-TO-END TEST: exercise the main use case — not just that it exists but that it works.\\n4. PASS: move this card to shipped. FAIL: create a bug card linked to original, move this card to backlog.\"\n          criteria: \"- [ ] Production verified live\\n- [ ] Documents/artifacts moved to workspace (if any)\\n- [ ] Documents indexed in KB (if any)\\n- [ ] End-to-end test passed\"\n   e. If it fails:\n      - Uncheck failed criteria and add a note explaining what is wrong\n      - openclaw mc-board update <id> --notes \"Review failed: <reason>\"\n      - Leave in in-review for another pass\n   f. Release: openclaw mc-board release <id> --worker board-worker-in-review\n5. Done. Silent exit."
   },
   "delivery": {"mode": "none"}
 }'
@@ -719,16 +702,15 @@ step "Step 13: Shell environment"
 for rcfile in "$HOME/.zshrc" "$HOME/.bashrc"; do
   [[ -f "$rcfile" ]] || continue
 
-  if grep -q "MINICLAW_STATE_DIR" "$rcfile"; then
-    ok "MINICLAW_STATE_DIR already in $rcfile"
+  if grep -q "OPENCLAW_STATE_DIR" "$rcfile"; then
+    ok "OPENCLAW_STATE_DIR already in $rcfile"
   else
     {
       echo ""
-      echo "# Am / OpenClaw / MiniClaw"
-      echo "export MINICLAW_STATE_DIR=\"$STATE_DIR\""
-      echo "export OPENCLAW_STATE_DIR=\"\$MINICLAW_STATE_DIR\"  # OpenClaw compat"
+      echo "# OpenClaw / MiniClaw"
+      echo "export OPENCLAW_STATE_DIR=\"$STATE_DIR\""
     } >> "$rcfile"
-    ok "Added MINICLAW_STATE_DIR=$STATE_DIR to $rcfile"
+    ok "Added OPENCLAW_STATE_DIR=$STATE_DIR to $rcfile"
   fi
 
   if grep -q "MINICLAW_HOME" "$rcfile"; then
@@ -793,8 +775,6 @@ if [[ ! -f "$BOARD_PLIST" ]]; then
     <string>$HOME</string>
     <key>PATH</key>
     <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
-    <key>MINICLAW_STATE_DIR</key>
-    <string>$STATE_DIR</string>
     <key>OPENCLAW_STATE_DIR</key>
     <string>$STATE_DIR</string>
   </dict>
@@ -862,8 +842,6 @@ if [[ ! -f "$SETUP_PLIST" ]]; then
     <string>$HOME</string>
     <key>PATH</key>
     <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
-    <key>MINICLAW_STATE_DIR</key>
-    <string>$STATE_DIR</string>
     <key>OPENCLAW_STATE_DIR</key>
     <string>$STATE_DIR</string>
     <key>NODE_ENV</key>

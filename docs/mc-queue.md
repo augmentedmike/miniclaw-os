@@ -271,4 +271,4 @@ plugins/mc-queue/
 |--------|-------------|
 | `mc-board` | mc-queue creates cards via `brain_create_card`; monitors `brain_move_card` / `brain_update_card` tool calls in cron sessions to detect ship/block events |
 | `mc-jobs` | Cron workers managed by mc-jobs run in `:cron:` sessions — mc-queue's triage does not apply to them, but board events they emit are captured by the `after_tool_call` hook |
-| `mc-soul` | mc-queue reads `IDENTITY.md` and `SOUL.md` from `$MINICLAW_STATE_DIR/workspace/` at startup and prepends them to the triage system prompt so the agent maintains its persona in messaging sessions |
+| `mc-soul` | mc-queue reads `IDENTITY.md` and `SOUL.md` from `$OPENCLAW_STATE_DIR/workspace/` at startup and prepends them to the triage system prompt so the agent maintains its persona in messaging sessions |

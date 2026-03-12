@@ -5,7 +5,7 @@ import os from "os";
 
 export const dynamic = "force-dynamic";
 
-const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".miniclaw");
+const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
 
 const LOG_DIRS = [
   "backlog-triage", "in-progress-triage", "in-review-triage",
@@ -30,7 +30,7 @@ function findActiveLog(cardId: string): string | null {
   return best?.file ?? null;
 }
 
-/** Cards log written directly by the full agent: ~/am/logs/cards/<cardId>.log */
+/** Cards log written directly by the full agent: ~/.openclaw/logs/cards/<cardId>.log */
 function cardsLogPath(cardId: string): string {
   return path.join(STATE_DIR, "logs", "cards", `${cardId}.log`);
 }

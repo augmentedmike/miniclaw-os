@@ -120,7 +120,7 @@ Tests cover:
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `vaultBin` | string | `~/am/miniclaw/SYSTEM/bin/miniclaw-vault` | Path to mc-vault binary |
+| `vaultBin` | string | `~/.openclaw/miniclaw/SYSTEM/bin/miniclaw-vault` | Path to mc-vault binary |
 | `environment` | `"sandbox"` \| `"production"` | `"sandbox"` | Square API environment |
 | `locationId` | string | `""` | Square location ID for charges |
 | `currency` | string | `"USD"` | Default currency code |

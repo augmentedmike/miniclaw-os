@@ -56,11 +56,11 @@ Tag reflection-created cards with `reflection` so they're trackable.
 Tag KB entries with `reflection` and the date.
 
 ### MEMORY.md update
-Read `~/am/workspace/MEMORY.md`. Distill today's important signal into it:
+Read `~/.openclaw/workspace/MEMORY.md`. Distill today's important signal into it:
 - Update existing sections (don't just append)
 - Add new facts, remove stale ones
 - Keep it under 200 lines — dense and curated
-- Commit: `cd ~/am/workspace && git add -A && git commit -m 'reflection: memory distillation YYYY-MM-DD'`
+- Commit: `cd ~/.openclaw/workspace && git add -A && git commit -m 'reflection: memory distillation YYYY-MM-DD'`
 
 ## Step 4: Save
 

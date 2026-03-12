@@ -9,19 +9,19 @@
     "properties": {
       "reflectionDir": {
         "type": "string",
-        "description": "Directory for reflection snapshots (default: ~/am/USER/augmentedmike_bot/reflections)"
+        "description": "Directory for reflection snapshots (default: ~/.openclaw/USER/augmentedmike_bot/reflections)"
       },
       "memoryDir": {
         "type": "string",
-        "description": "Episodic memory directory (default: ~/am/workspace/memory)"
+        "description": "Episodic memory directory (default: ~/.openclaw/workspace/memory)"
       },
       "boardDbPath": {
         "type": "string",
-        "description": "Path to board.db (default: ~/am/USER/augmentedmike_bot/brain)"
+        "description": "Path to board.db (default: ~/.openclaw/USER/augmentedmike_bot/brain)"
       },
       "kbDbPath": {
         "type": "string",
-        "description": "Path to kb directory (default: ~/am/USER/augmentedmike_bot/kb)"
+        "description": "Path to kb directory (default: ~/.openclaw/USER/augmentedmike_bot/kb)"
       },
       "transcriptsDir": {
         "type": "string",

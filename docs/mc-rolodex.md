@@ -15,7 +15,7 @@ mc-rolodex <command>              ← CLI entry point (commander)
        └── src/tui/browser.ts     ← ContactBrowser — blessed-based terminal UI
 ```
 
-**Storage:** Single JSON file at `~/.miniclaw/rolodex/contacts.json`. The file is loaded into memory at startup and written back on every mutation. No database dependency.
+**Storage:** Single JSON file at `~/.openclaw/rolodex/contacts.json`. The file is loaded into memory at startup and written back on every mutation. No database dependency.
 
 ---
 
@@ -72,12 +72,12 @@ interface Contact {
 Contacts are persisted to:
 
 ```
-~/.miniclaw/rolodex/contacts.json
+~/.openclaw/rolodex/contacts.json
 ```
 
 The directory is created automatically on first write. The file contains a JSON array of `Contact` objects, pretty-printed with 2-space indentation. All mutations (add, update, delete) write the full array back to disk synchronously.
 
-> **Note:** The storage path uses `~/.miniclaw/` (not `$MINICLAW_STATE_DIR`). This is the plugin's native path and is separate from the MiniClaw state directory.
+> **Note:** The storage path uses `~/.openclaw/` (not `$OPENCLAW_STATE_DIR`). This is the plugin's native path and is separate from the MiniClaw state directory.
 
 ---
 
@@ -302,7 +302,7 @@ The web app is also deployed via `web/deploy.sh` as part of the plugin lifecycle
 
 ### Storage
 
-The web UI reads and writes the same `~/.miniclaw/rolodex/contacts.json` file as the CLI. The storage path can be overridden with the `ROLODEX_STORAGE_PATH` environment variable.
+The web UI reads and writes the same `~/.openclaw/rolodex/contacts.json` file as the CLI. The storage path can be overridden with the `ROLODEX_STORAGE_PATH` environment variable.
 
 ### Layout
 

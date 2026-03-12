@@ -5,11 +5,10 @@ import * as os from "node:os";
 
 export const dynamic = "force-dynamic";
 
-const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".miniclaw");
+const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
 
 const ALLOWED_ROOTS = [
   path.join(STATE_DIR, "media"),
-  path.join(os.homedir(), "am", "media"),
 ];
 
 const MIME: Record<string, string> = {

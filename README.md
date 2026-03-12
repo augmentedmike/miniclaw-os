@@ -276,8 +276,8 @@ Agent: Creating LinkedIn banner...
 [mc-designer] Generated: social-linkedin-banner.png (1584×396)
 [mc-designer] Generated: social-linkedin-thumbnail.png (400×400)
 
-# Outputs placed in $MINICLAW_STATE_DIR/USER/<bot_id>/media/designer/
-$ ls -la $MINICLAW_STATE_DIR/USER/<bot_id>/media/designer/
+# Outputs placed in $OPENCLAW_STATE_DIR/USER/<bot_id>/media/designer/
+$ ls -la $OPENCLAW_STATE_DIR/USER/<bot_id>/media/designer/
 social-linkedin-banner-20260305.png
 social-linkedin-thumbnail-20260305.png
 
@@ -332,7 +332,7 @@ It'll diagnose what's wrong and offer to fix it.
 | Issue | Fix |
 |-------|-----|
 | Agent won't start | Run `mc-doctor` |
-| Telegram not connected | Check `$MINICLAW_STATE_DIR/config/telegram.json` |
+| Telegram not connected | Check `$OPENCLAW_STATE_DIR/config/telegram.json` |
 | Out of memory | Restart: `brew services restart openclaw` |
 | Can't find mc-board | Reinstall plugins: `mc plugin install mc-board` |
 
@@ -394,7 +394,7 @@ const tasks = await board.list({ status: 'in-progress' });
 await board.move(cardId, 'shipped');
 
 // File I/O (sandboxed to state directory)
-const files = await fs.readdir('$MINICLAW_STATE_DIR/workspace/');
+const files = await fs.readdir('$OPENCLAW_STATE_DIR/workspace/');
 
 // LLM inference (with escalation)
 const response = await agent.invoke('gpt-4', prompt);

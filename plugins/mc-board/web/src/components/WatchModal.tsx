@@ -88,7 +88,7 @@ export function WatchModal({ cardId, cardTitle, worker, onClose }: Props) {
       {/* Footer */}
       <div className="border-t border-zinc-800 px-6 py-4 flex items-center gap-3 flex-shrink-0">
         <span className="text-xs text-zinc-600 flex-1">
-          <code className="text-zinc-500">~/am/logs/[column]-[type]/{cardId}.log</code>
+          <code className="text-zinc-500">~/.openclaw/logs/[column]-[type]/{cardId}.log</code>
         </span>
         <button
           onClick={onClose}

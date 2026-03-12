@@ -10,7 +10,7 @@ mc-reflection is the **introspection loop**. It runs nightly at 3am CT as a cron
 
 | Source | What it provides |
 |--------|-----------------|
-| Episodic memory (`~/am/workspace/memory/YYYY-MM-DD.md`) | Raw session notes, decisions, events |
+| Episodic memory (`~/.openclaw/workspace/memory/YYYY-MM-DD.md`) | Raw session notes, decisions, events |
 | Board (`board.db`) | Card state, what shipped, what's in progress, work logs |
 | KB (`kb.db`) | Lessons/errors/decisions logged during the day |
 | Session transcripts (`~/.claude/projects/**/*.jsonl`) | What was discussed with Mike |
@@ -54,23 +54,23 @@ The cron prompt instructs Am to:
 2. Analyze: what went well, what went wrong, patterns, recurring issues
 3. Create board cards for actionable follow-ups (todos, corrections, protection)
 4. Log significant lessons to KB via `kb_add`
-5. Update `~/am/workspace/MEMORY.md` (distill, don't append)
+5. Update `~/.openclaw/workspace/MEMORY.md` (distill, don't append)
 6. Call `reflection_save` to record the reflection
 7. Silent exit unless something urgent needs Mike's attention
 
 ## Storage
 
-- **SQLite DB:** `~/am/USER/augmentedmike_bot/reflections/reflections.db`
-- **Markdown snapshots:** `~/am/USER/augmentedmike_bot/reflections/entries/YYYY-MM-DD-refl_*.md`
+- **SQLite DB:** `~/.openclaw/USER/augmentedmike_bot/reflections/reflections.db`
+- **Markdown snapshots:** `~/.openclaw/USER/augmentedmike_bot/reflections/entries/YYYY-MM-DD-refl_*.md`
 
 ## Config
 
 ```json
 {
-  "reflectionDir": "~/am/USER/augmentedmike_bot/reflections",
-  "memoryDir": "~/am/workspace/memory",
-  "boardDbPath": "~/am/USER/augmentedmike_bot/brain",
-  "kbDbPath": "~/am/USER/augmentedmike_bot/kb",
+  "reflectionDir": "~/.openclaw/USER/augmentedmike_bot/reflections",
+  "memoryDir": "~/.openclaw/workspace/memory",
+  "boardDbPath": "~/.openclaw/USER/augmentedmike_bot/brain",
+  "kbDbPath": "~/.openclaw/USER/augmentedmike_bot/kb",
   "transcriptsDir": "~/.claude/projects"
 }
 ```

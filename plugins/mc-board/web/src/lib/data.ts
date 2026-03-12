@@ -16,7 +16,7 @@ import type { Card, BoardCard, Column, Priority, Project, ActiveEntry, HistoryEn
 
 function resolveDbPath(): string {
   if (process.env.BOARD_DB_PATH) return process.env.BOARD_DB_PATH;
-  const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(require("node:os").homedir(), ".miniclaw");
+  const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(require("node:os").homedir(), ".openclaw");
   return path.join(stateDir, "USER/augmentedmike_bot/brain/board.db");
 }
 

@@ -8,7 +8,7 @@
  * (independent of the Next.js web server), writes agent_runs on completion,
  * and releases cards.
  *
- * Usage: node ~/am/miniclaw/plugins/mc-board/agent-runner/runner.mjs
+ * Usage: node ~/.openclaw/miniclaw/plugins/mc-board/agent-runner/runner.mjs
  */
 
 import Database from "better-sqlite3";
@@ -21,7 +21,7 @@ import { fileURLToPath } from "node:url";
 
 // ---- Config ----
 
-const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".miniclaw");
+const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
 const DB_PATH   = process.env.BOARD_DB_PATH ?? path.join(STATE_DIR, "user/augmentedmike_bot/brain/board.db");
 const CLAUDE_BIN    = process.env.CLAUDE_BIN ?? "claude";
 const OPENCLAW_BIN  = process.env.OPENCLAW_BIN ?? "openclaw";
@@ -280,11 +280,11 @@ function spawnFullAgent(row, card, project) {
     "",
     "## Ecosystem",
     "You are building MiniClaw — a plugin ecosystem for an Agentic OS built on top of OpenClaw.",
-    "OpenClaw is the underlying agent runtime. Fork repo: ~/am/projects/openclaw/",
-    "All MiniClaw plugins live in ~/am/miniclaw/plugins/ — each is an openclaw plugin package.",
-    "New features must be implemented as MiniClaw plugins in ~/am/miniclaw/plugins/, not standalone scripts.",
-    "Plugin repo (public, backport target): ~/am/projects/miniclaw-os/",
-    "Live state dir: ~/am/ (OPENCLAW_STATE_DIR=$HOME/am)",
+    "OpenClaw is the underlying agent runtime. Fork repo: ~/.openclaw/projects/openclaw/",
+    "All MiniClaw plugins live in ~/.openclaw/miniclaw/plugins/ — each is an openclaw plugin package.",
+    "New features must be implemented as MiniClaw plugins in ~/.openclaw/miniclaw/plugins/, not standalone scripts.",
+    "Plugin repo (public, backport target): ~/.openclaw/projects/miniclaw-os/",
+    `Live state dir: ${STATE_DIR}`,
     "",
     "You are a full autonomous agent. Use tools freely to do the actual work.",
     "Update the card via: openclaw mc-board update / move / release",

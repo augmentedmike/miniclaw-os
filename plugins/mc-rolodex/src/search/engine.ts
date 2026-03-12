@@ -10,7 +10,7 @@ export class SearchEngine implements ContactStore {
   private contacts: Map<string, Contact> = new Map();
   private storagePath: string;
 
-  constructor(storagePath: string = `${process.env.HOME}/.miniclaw/rolodex/contacts.json`) {
+  constructor(storagePath: string = `${process.env.HOME}/.openclaw/rolodex/contacts.json`) {
     this.storagePath = storagePath;
     this.loadContacts();
   }

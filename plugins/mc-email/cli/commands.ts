@@ -143,7 +143,8 @@ export function registerEmailCommands(ctx: Ctx): void {
     .option("-n, --limit <n>", "Max unread messages to process", "20")
     .option("--test-set", "Run classification test suite only (no inbox access)")
     .action((opts: { dryRun?: boolean; limit: string; testSet?: boolean }) => {
-      const scriptPath = path.join(os.homedir(), "am/cron/scripts/email-triage.py");
+      const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
+      const scriptPath = path.join(stateDir, "cron/scripts/email-triage.py");
       const args = ["python3", scriptPath];
       if (opts.dryRun) args.push("--dry-run");
       if (opts.testSet) args.push("--test-set");

@@ -45,7 +45,7 @@ export class FileServer {
     resolved = path.resolve(resolved);
 
     // Whitelist check: must be within OPENCLAW_STATE_DIR or home directory
-    // (allow reading from workspace, media, etc. under ~/am/)
+    // (allow reading from workspace, media, etc. under ~/.openclaw/)
     const home = os.homedir();
     if (!resolved.startsWith(home)) {
       return null; // Outside home directory

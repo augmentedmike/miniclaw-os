@@ -2,7 +2,7 @@
 # mc vault — age-encrypted secret store
 #
 # Call paths:
-#   ~/am/miniclaw/vault/cli <cmd>     Direct
+#   ~/.openclaw/miniclaw/vault/cli <cmd>     Direct
 #   mc vault <cmd>                    Via miniclaw wrapper
 #   oc mc-vault <cmd>                 Via openclaw plugin
 #

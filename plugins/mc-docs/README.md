@@ -15,7 +15,7 @@ Lightweight document management system for MiniClaw with built-in versioning, me
 ## Installation
 
 ```bash
-cd ~/am/projects/miniclaw-os/plugins/mc-docs
+cd ~/.openclaw/projects/miniclaw-os/plugins/mc-docs
 npm install
 npm run build
 ```

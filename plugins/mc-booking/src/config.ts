@@ -1,3 +1,8 @@
+import * as path from "node:path";
+import * as os from "node:os";
+
+const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
+
 export interface BookingConfig {
   vaultBin: string;
   paymentProvider: "stripe" | "square" | "none";
@@ -13,7 +18,7 @@ export interface BookingConfig {
 
 export function resolveConfig(raw: Record<string, unknown>): BookingConfig {
   return {
-    vaultBin: (raw.vaultBin as string) || `${process.env.HOME}/am/miniclaw/SYSTEM/bin/miniclaw-vault`,
+    vaultBin: (raw.vaultBin as string) || path.join(STATE_DIR, "miniclaw", "SYSTEM", "bin", "mc-vault"),
     paymentProvider: (raw.paymentProvider as BookingConfig["paymentProvider"]) || "stripe",
     port: (raw.port as number) || 4221,
     origins: (raw.origins as string[]) || [

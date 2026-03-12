@@ -87,7 +87,7 @@ Options:
   --test-set       Run classification test suite only (no inbox access)
 ```
 
-Delegates to `~/am/cron/scripts/email-triage.py`.
+Delegates to `~/.openclaw/cron/scripts/email-triage.py`.
 
 ---
 
@@ -101,7 +101,7 @@ mc-email does not currently register agent tools. All operations are CLI-only.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `vaultBin` | string | `$HOME/am/miniclaw/system/bin/miniclaw-vault` | Path to the vault binary |
+| `vaultBin` | string | `$HOME/.openclaw/miniclaw/system/bin/miniclaw-vault` | Path to the vault binary |
 | `emailAddress` | string | `owner@example.com` | Gmail address for IMAP/SMTP auth |
 
 ---

@@ -333,7 +333,7 @@ Set in `openclaw.plugin.json` under `config`:
 | `vaultBin` | `~/.openclaw/miniclaw/system/bin/miniclaw-vault` | Path to vault CLI binary |
 | `sessionTtlMs` | `3600000` | Session TTL after successful handshake (ms; default 1 hour) |
 
-On this machine, `trustDir` resolves to `~/am/trust/` since `MINICLAW_STATE_DIR=$HOME/am`.
+The default `trustDir` resolves to `~/.openclaw/trust/`. Override via `OPENCLAW_STATE_DIR` if using a custom location.
 
 ---
 

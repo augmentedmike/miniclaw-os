@@ -72,8 +72,8 @@ mc-voice does not register CLI commands. All interaction is through slash comman
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `humanId` | string | `augmentedmike` | Human identifier for voice profile |
-| `dbPath` | string | `$MINICLAW_STATE_DIR/USER/<bot_id>/voice/voice.db` | Path to the SQLite voice database |
-| `ingestBin` | string | `$MINICLAW_STATE_DIR/miniclaw/system/bin/voice-ingest` | Path to the voice-ingest binary |
+| `dbPath` | string | `$OPENCLAW_STATE_DIR/USER/<bot_id>/voice/voice.db` | Path to the SQLite voice database |
+| `ingestBin` | string | `$OPENCLAW_STATE_DIR/miniclaw/system/bin/voice-ingest` | Path to the voice-ingest binary |
 
 The `GOOGLE_API_KEY` environment variable is passed to the ingest binary for Gemini embedding calls.
 
@@ -82,7 +82,7 @@ The `GOOGLE_API_KEY` environment variable is passed to the ingest binary for Gem
 ## State Storage
 
 ```
-$MINICLAW_STATE_DIR/USER/<bot_id>/voice/
+$OPENCLAW_STATE_DIR/USER/<bot_id>/voice/
   voice.db       SQLite database (WAL mode)
     human_voice        Captured messages with embeddings
     voice_settings     Per-human opt-out status, disclosure state, analysis metadata

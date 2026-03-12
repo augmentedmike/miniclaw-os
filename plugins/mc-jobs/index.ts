@@ -9,7 +9,7 @@
  *   mc jobs get <jobId>     — show job details
  *   mc jobs init            — initialize default job templates
  *
- * Jobs are stored in ~/.miniclaw/jobs/ as JSON files.
+ * Jobs are stored in ~/.openclaw/jobs/ as JSON files.
  */
 
 import path from "path";
@@ -26,13 +26,13 @@ interface JobsConfig {
 /**
  * Resolve jobs directory (in priority order):
  *   1. config.jobsDir
- *   2. ~/.miniclaw/jobs (default)
+ *   2. ~/.openclaw/jobs (default)
  */
 function resolveJobsDir(configJobsDir?: string): string {
   if (configJobsDir) {
     return configJobsDir;
   }
-  return path.join(os.homedir(), ".miniclaw", "jobs");
+  return path.join(os.homedir(), ".openclaw", "jobs");
 }
 
 export default function register(api: OpenClawPluginApi): void {
