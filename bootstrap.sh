@@ -202,7 +202,15 @@ if command -v openclaw &>/dev/null; then
   ok "OpenClaw $(openclaw --version 2>/dev/null | head -1) already installed"
 else
   info "Installing OpenClaw from MiniClaw fork..."
-  npm install -g "$OPENCLAW_FORK" || die "OpenClaw install failed"
+  OPENCLAW_LOCAL="$HOME/am/projects/openclaw"
+  if [[ -d "$OPENCLAW_LOCAL/openclaw.mjs" ]]; then
+    info "Found local fork at $OPENCLAW_LOCAL"
+  else
+    info "Cloning OpenClaw fork..."
+    mkdir -p "$(dirname "$OPENCLAW_LOCAL")"
+    git clone --depth 1 https://github.com/augmentedmike/openclaw.git "$OPENCLAW_LOCAL" || die "Failed to clone OpenClaw"
+  fi
+  npm install -g --ignore-scripts "$OPENCLAW_LOCAL" || die "OpenClaw install failed"
   command -v openclaw &>/dev/null && ok "OpenClaw $(openclaw --version 2>/dev/null | head -1) installed" || die "openclaw not found in PATH after install"
 fi
 
