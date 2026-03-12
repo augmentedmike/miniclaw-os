@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface Props {
   email: string;
@@ -13,26 +13,64 @@ interface Props {
 
 type Status = "idle" | "checking" | "ok" | "error";
 
+function isGmail(email: string): boolean {
+  const domain = email.split("@")[1]?.toLowerCase() || "";
+  return domain === "gmail.com" || domain === "googlemail.com";
+}
+
 export default function StepEmail({ email, appPassword, onChange, onNext, onBack, accent }: Props) {
   const [emailInput, setEmailInput] = useState(email);
   const [passwordInput, setPasswordInput] = useState(appPassword);
+  const [smtpHost, setSmtpHost] = useState("");
+  const [smtpPort, setSmtpPort] = useState("587");
   const [status, setStatus] = useState<Status>("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [showInstructions, setShowInstructions] = useState(false);
+
+  const gmail = isGmail(emailInput);
+  const hasEmail = emailInput.includes("@");
+
+  // Auto-detect common SMTP hosts
+  useEffect(() => {
+    if (!gmail && hasEmail) {
+      const domain = emailInput.split("@")[1]?.toLowerCase() || "";
+      if (domain === "outlook.com" || domain === "hotmail.com") {
+        setSmtpHost("smtp.office365.com");
+      } else if (domain === "yahoo.com") {
+        setSmtpHost("smtp.mail.yahoo.com");
+      } else if (domain === "icloud.com" || domain === "me.com") {
+        setSmtpHost("smtp.mail.me.com");
+      } else {
+        setSmtpHost(`smtp.${domain}`);
+      }
+    }
+  }, [emailInput, gmail, hasEmail]);
 
   const handleVerify = async () => {
     if (!emailInput.trim() || !passwordInput.trim()) {
       setErrorMsg("Both fields are required");
       return;
     }
+    if (!gmail && !smtpHost.trim()) {
+      setErrorMsg("SMTP host is required for non-Gmail accounts");
+      return;
+    }
     setStatus("checking");
     setErrorMsg("");
 
     try {
+      const body: Record<string, string> = {
+        email: emailInput.trim(),
+        appPassword: passwordInput.trim(),
+      };
+      if (!gmail) {
+        body.smtpHost = smtpHost.trim();
+        body.smtpPort = smtpPort.trim();
+      }
       const res = await fetch("/api/setup/email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: emailInput.trim(), appPassword: passwordInput.trim() }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (data.ok) {
@@ -54,50 +92,98 @@ export default function StepEmail({ email, appPassword, onChange, onNext, onBack
       <div>
         <h2 className="text-3xl font-bold text-white mb-2">Email setup</h2>
         <p className="text-[#888]">
-          Required. Your assistant reads and manages your Gmail inbox.
+          Your assistant reads and manages your inbox.
         </p>
       </div>
 
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-2">
-          <label className="text-sm text-[#aaa] font-medium">Gmail address</label>
+          <label className="text-sm text-[#aaa] font-medium">Email address</label>
           <input
             type="email"
             value={emailInput}
             onChange={(e) => setEmailInput(e.target.value)}
-            placeholder="you@gmail.com"
+            placeholder="you@example.com"
             className="w-full px-4 py-3 rounded-xl bg-[#1a1a1a] border border-[rgba(255,255,255,0.1)] text-white placeholder-[#444] focus:outline-none transition-all"
             style={{ borderColor: emailInput ? `${accent}66` : undefined }}
             disabled={status === "checking" || status === "ok"}
           />
         </div>
 
+        {/* Detected provider badge */}
+        {hasEmail && (
+          <div className="flex items-center gap-2">
+            <span
+              className="px-2 py-0.5 text-xs rounded-full font-medium"
+              style={{
+                background: `${accent}22`,
+                color: accent,
+              }}
+            >
+              {gmail ? "Gmail detected — using Google IMAP" : "SMTP"}
+            </span>
+          </div>
+        )}
+
         <div className="flex flex-col gap-2">
           <div className="flex justify-between items-center">
-            <label className="text-sm text-[#aaa] font-medium">App password</label>
-            <button
-              onClick={() => setShowInstructions(!showInstructions)}
-              className="text-xs transition-colors"
-              style={{ color: accent }}
-            >
-              {showInstructions ? "Hide instructions" : "How to create one?"}
-            </button>
+            <label className="text-sm text-[#aaa] font-medium">
+              {gmail ? "App password" : "Password"}
+            </label>
+            {gmail && (
+              <button
+                onClick={() => setShowInstructions(!showInstructions)}
+                className="text-xs transition-colors"
+                style={{ color: accent }}
+              >
+                {showInstructions ? "Hide instructions" : "How to create one?"}
+              </button>
+            )}
           </div>
           <input
             type="password"
             value={passwordInput}
             onChange={(e) => setPasswordInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleVerify()}
-            placeholder="xxxx xxxx xxxx xxxx"
+            placeholder={gmail ? "xxxx xxxx xxxx xxxx" : "Your email password"}
             className="w-full px-4 py-3 rounded-xl bg-[#1a1a1a] border border-[rgba(255,255,255,0.1)] text-white placeholder-[#444] focus:outline-none transition-all font-mono"
             style={{ borderColor: passwordInput ? `${accent}66` : undefined }}
             disabled={status === "checking" || status === "ok"}
           />
         </div>
+
+        {/* SMTP fields for non-Gmail */}
+        {!gmail && hasEmail && (
+          <div className="flex gap-3">
+            <div className="flex flex-col gap-2 flex-[3]">
+              <label className="text-sm text-[#aaa] font-medium">SMTP host</label>
+              <input
+                type="text"
+                value={smtpHost}
+                onChange={(e) => setSmtpHost(e.target.value)}
+                placeholder="smtp.example.com"
+                className="w-full px-4 py-3 rounded-xl bg-[#1a1a1a] border border-[rgba(255,255,255,0.1)] text-white text-sm placeholder-[#444] focus:outline-none transition-all"
+                style={{ borderColor: smtpHost ? `${accent}66` : undefined }}
+                disabled={status === "checking" || status === "ok"}
+              />
+            </div>
+            <div className="flex flex-col gap-2 flex-1">
+              <label className="text-sm text-[#aaa] font-medium">Port</label>
+              <input
+                type="text"
+                value={smtpPort}
+                onChange={(e) => setSmtpPort(e.target.value)}
+                placeholder="587"
+                className="w-full px-4 py-3 rounded-xl bg-[#1a1a1a] border border-[rgba(255,255,255,0.1)] text-white text-sm placeholder-[#444] focus:outline-none transition-all"
+                disabled={status === "checking" || status === "ok"}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Instructions panel */}
-      {showInstructions && (
+      {/* Gmail instructions panel */}
+      {showInstructions && gmail && (
         <div className="rounded-xl p-4 bg-[#1a1a1a] border border-[rgba(255,255,255,0.08)] text-sm text-[#aaa] flex flex-col gap-2">
           <p className="font-semibold text-white">Creating a Google App Password:</p>
           <ol className="list-decimal list-inside flex flex-col gap-1.5">
@@ -120,7 +206,7 @@ export default function StepEmail({ email, appPassword, onChange, onNext, onBack
         </div>
       )}
       {status === "ok" && (
-        <div className="rounded-xl px-4 py-3 bg-[#00E5CC22] border border-[#00E5CC44] text-sm" style={{ color: accent }}>
+        <div className="rounded-xl px-4 py-3 text-sm" style={{ background: `${accent}22`, border: `1px solid ${accent}44`, color: accent }}>
           ✓ Email verified — continuing...
         </div>
       )}
