@@ -2,11 +2,6 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 
-const STORAGE_KEY = "mc-board:welcome-done";
-
-function isDone(): boolean {
-  try { return localStorage.getItem(STORAGE_KEY) === "true"; } catch { return false; }
-}
 
 interface Step {
   title: string;
@@ -86,7 +81,7 @@ export function WelcomeWizard({ onDone }: { onDone: () => void }) {
   }, [measure]);
 
   const finish = () => {
-    try { localStorage.setItem(STORAGE_KEY, "true"); } catch {}
+    fetch("/api/welcome", { method: "POST" }).catch(() => {});
     onDone();
   };
 
@@ -202,6 +197,15 @@ export function WelcomeWizard({ onDone }: { onDone: () => void }) {
 }
 
 export function useWelcomeWizard() {
-  const [show, setShow] = useState(() => !isDone());
-  return { showWelcome: show, dismissWelcome: () => setShow(false) };
+  const [show, setShow] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/welcome")
+      .then(r => r.json())
+      .then(data => { setShow(!data.done); setLoaded(true); })
+      .catch(() => setLoaded(true));
+  }, []);
+
+  return { showWelcome: loaded && show, dismissWelcome: () => setShow(false) };
 }
