@@ -47,7 +47,7 @@ Open **Terminal** (Applications → Utilities → Terminal).
 Paste this and press Enter:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/augmentedmike/miniclaw-os/main/bootstrap.sh | bash
+curl -fsSL https://raw.githubusercontent.com/augmentedmike/miniclaw-os/stable/bootstrap.sh | bash
 ```
 
 The installer will:

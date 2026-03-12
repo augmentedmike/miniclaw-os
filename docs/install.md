@@ -38,7 +38,7 @@ present. Re-running is safe.
 ### One-liner (stable release)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/augmentedmike/miniclaw-os/v0.1.2/bootstrap.sh | bash
+curl -fsSL https://raw.githubusercontent.com/augmentedmike/miniclaw-os/stable/bootstrap.sh | bash
 ```
 
 ### One-liner (latest main)
