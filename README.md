@@ -154,451 +154,54 @@ MiniClaw is modular. Each plugin handles one job — and handles it well. You ca
 
 ### Core Plugins
 
-#### **mc-board** — Kanban & Work Planning
-The brain's **prefrontal cortex**. Manages tasks, projects, and autonomous work queues.
-
-**What it does:**
-- Creates and tracks tasks (backlog → in-progress → in-review → shipped)
-- Autonomous work queue — agent picks up the next task automatically
-- Project organization — group related tasks into initiatives
-- Priority management — high/medium/low, with gate rules
-
-**Basic usage:**
-```bash
-# Create a task
-mc board create "Write blog post" --priority high
-
-# Check what's next
-mc board next-task
-
-# Move a task forward
-mc board move crd_abc123 in-progress
-
-# See full kanban
-mc board show
-```
-
-![Card Detail](./assets/board-card-detail.png)
-
-**[→ Full mc-board documentation](./docs/mc-board.md)**
-
----
-
-#### **mc-kb** — Long-Term Memory
-The **hippocampus**. Stores and retrieves everything your AI learns.
-
-**What it does:**
-- Vector + keyword search across your entire knowledge base
-- Stores facts, errors, workflows, guides, lessons, postmortems
-- Automatic indexing — save once, find forever
-- Self-improvement — agents log what they learned
-- **Shared knowledge** — ships with curated entries that benefit every install
-
-**Basic usage:**
-```bash
-# Add a fact
-mc kb add --type fact --title "Austin weather" "March averages 65–75°F"
-
-# Search for it
-mc kb search "Austin weather"
-
-# Add a lesson from an error
-mc kb add --type lesson --title "Always test migrations" \
-  "Learned: run migrations in staging first"
-```
-
-**[→ Full mc-kb documentation](./docs/mc-kb.md)**
-
----
-
-#### **mc-designer** — CLI Compositing Studio
-The **occipital lobe**. Photoshop via CLI — layer-based image compositing powered by Gemini.
-
-This is not a wrapper around an image generator. It's a full compositing pipeline: canvases, layer stacks, adjustment layers, opacity, transparency, chroma keying, blend modes. The agent builds complex multi-layer images programmatically — the same way a graphic novel is assembled from panels, backgrounds, characters, and text overlays.
-
-Used to produce the graphic novel at [blog.helloam.bot](https://blog.helloam.bot).
-
-**What it does:**
-- **Gemini-backed generation** — describe a scene, get pixels back (API key in mc-vault)
-- **Layer stacks** — base image, character overlays, text, adjustment layers
-- **Compositing** — opacity, blend modes (multiply, screen, overlay, etc.)
-- **Chroma keying** — remove green/blue/any color backgrounds for transparency
-- **Adjustment layers** — levels, color balance, blur, sharpen — same concepts as Photoshop
-- **Canvas management** — named canvases with persistent layer state
-- **Reference-based generation** — feed existing images as style/composition references
-
-**Basic usage:**
-```bash
-# Generate a base scene
-mc mc-designer gen --prompt "cyberpunk alley, neon rain, wide shot" --width 1024
-
-# Chroma-key a character onto transparent background
-mc mc-designer alpha chroma-key --input character.png --color green
-
-# Composite character onto scene with blend mode
-mc mc-designer composite --base alley.png --overlay character.png --blend multiply
-
-# Generate with a reference image for style consistency
-mc mc-designer gen-refs --prompt "same style, close-up" --refs panel-1.png
-```
-
-**[→ Full mc-designer documentation](./docs/mc-designer.md)**
-
----
-
-#### **mc-context** — Working Memory
-Manages the conversation window. Keeps relevant history in view while pruning old context.
-
-**What it does:**
-- Sliding window context management
-- Summarizes older messages to preserve context
-- Prevents token waste on old chat history
-- Automatic pruning based on relevance
-
-**[→ Full mc-context documentation](./docs/mc-context.md)**
-
----
-
-#### **mc-queue** — Async Task Runner
-The **basal ganglia**. Non-blocking message processing.
-
-**What it does:**
-- Routes Telegram messages to agents (mc-trust verified)
-- Never blocks — all processing is async
-- Handles cron jobs and CLI triggers concurrently
-- Intelligent routing based on agent capability
-
-**[→ Full mc-queue documentation](./docs/mc-queue.md)**
-
----
-
-#### **mc-trust** — Agent Identity & Security
-The **immune system**. Verifies agents and secures inter-agent communication.
-
-**What it does:**
-- Cryptographic identity for each agent
-- Handshake verification between agents
-- Signed messages — prove who sent what
-- Prevents impersonation and injection
-
-**Basic usage:**
-```bash
-# Establish trust with another agent
-mc trust challenge --peer ar
-
-# Verify a message from a trusted agent
-mc trust verify --peer ar --message "..." --signature "..."
-```
-
-**[→ Full mc-trust documentation](./docs/mc-trust.md)**
-
----
-
-#### **mc-soul** — Personality & Identity
-Defines who your AI is.
-
-**What it does:**
-- Stores personality traits, values, voice
-- Loaded into every conversation
-- Can be versioned and updated
-- Makes your AI consistent and memorable
-
-**Basic usage:**
-```bash
-# Edit your agent's personality
-mc soul edit
-
-# Backup current personality version
-mc soul backup "before-rebranding"
-
-# View personality
-mc soul show
-```
-
-**[→ Full mc-soul documentation](./docs/mc-soul.md)**
-
----
-
-#### **mc-rolodex** — Contact Management
-Social cortex. Manages contacts, teams, and communication preferences.
-
-**What it does:**
-- Store contact info (email, phone, Telegram)
-- Search by name, email, phone, domain, or tag
-- Track trust status (verified, pending, unknown)
-- Fuzzy matching — find contacts with partial information
-
-**Basic usage:**
-```bash
-# Add a contact
-openclaw mc-rolodex add '{"name":"Sarah Chen","emails":["sarah@example.com"],"tags":["marketing"]}'
-
-# Search contacts
-openclaw mc-rolodex search "Sarah"
-
-# Search by domain
-openclaw mc-rolodex search "example.com" --type domain
-
-# List all contacts (or filter by tag)
-openclaw mc-rolodex list --tag marketing
-
-# View contact details
-openclaw mc-rolodex show contact_1234
-```
-
-**[→ Full mc-rolodex documentation](./docs/mc-rolodex.md)**
-
----
-
-#### **mc-jobs** — Cron & Scheduled Tasks
-Background job scheduler for automated work.
-
-**What it does:**
-- Run tasks on a schedule (hourly, daily, weekly, custom)
-- Autonomous agents execute scheduled jobs
-- Retry on failure with exponential backoff
-- Logging and history tracking
-
-**Basic usage:**
-```bash
-# Schedule a daily task
-mc jobs add --cron "0 9 * * *" --task "Summarize overnight emails" \
-  --agent news-brief
-
-# List scheduled jobs
-mc jobs list
-
-# View job history
-mc jobs history --job 123
-```
-
-**[→ Full mc-jobs documentation](./docs/mc-jobs.md)**
-
----
-
-#### **mc-email** — Gmail Integration & Triage
-Autonomous inbox polling with Haiku-based email classification and reply automation.
-
-**What it does:**
-- IMAP inbox polling (Gmail app password auth)
-- Haiku-based email classification across 6 categories
-- Auto-reply, archive, and escalation workflows
-
-**Basic usage:**
-```bash
-# Set up Gmail authentication
-mc mc-email auth
-```
-
-**[→ Full mc-email documentation](./docs/mc-email.md)**
-
----
-
-#### **mc-voice** — Style Mirroring & Voice Learning
-Learns your writing style from messages across all channels.
-
-**What it does:**
-- Captures human messages for semantic voice analysis
-- Gemini embeddings for style profiling
-- Transparency-first — sends disclosure on first capture
-- Opt-out with natural language
-
-**Basic usage:**
-```bash
-/voice-on       # Enable voice learning
-/voice-off      # Disable voice learning
-/voice-purge    # Delete all stored messages and reset profile
-```
-
-**[→ Full mc-voice documentation](./docs/mc-voice.md)**
-
----
-
-#### **mc-blog** — Persona-Driven Blog Engine
-First-person journal entries written from the agent's own perspective.
-
-**What it does:**
-- Persona-driven prose (agent writes about itself)
-- Post seeds with metadata, arcs, and tags
-- Auto-generated grounding documents and self-analysis
-- Integrates with mc-soul, mc-kb, mc-memo, mc-voice
-
-**[→ Full mc-blog documentation](./docs/mc-blog.md)**
-
----
-
-#### **mc-seo** — SEO Automation & Rank Tracking
-Site audits, keyword rank tracking, sitemap submission, and backlink management.
-
-**What it does:**
-- Site crawl and on-page audit with scoring
-- Keyword rank checking (single and bulk)
-- Sitemap submission (IndexNow, Google Search Console)
-- Outreach and backlink tracking database
-
-**Basic usage:**
-```bash
-# Crawl a site
-mc mc-seo crawl https://miniclaw.bot
-
-# Check keyword rank
-mc mc-seo rank helloam.bot "helloam"
-
-# Submit sitemap
-mc mc-seo ping https://helloam.bot/sitemap.xml
-
-# Create board cards from SEO audit
-mc mc-seo board helloam.bot
-```
-
-**[→ Full mc-seo documentation](./docs/mc-seo.md)**
-
----
-
-#### **mc-substack** — Publishing Automation
-Substack post drafting, scheduling, and publication with bilingual support.
-
-**What it does:**
-- Draft and schedule Substack posts
-- Bilingual EN/ES workflow
-- Requires Substack auth cookie in vault
-
-**Basic usage:**
-```bash
-mc mc-substack auth
-```
-
-**[→ Full mc-substack documentation](./docs/mc-substack.md)**
-
----
-
-#### **mc-human** — Human Intervention via noVNC
-Delivers an interactive browser session when the agent hits CAPTCHAs or UI it can't automate.
-
-**What it does:**
-- Interactive noVNC session delivered to the human
-- Telegram notification to request help
-- Configurable timeout (default 300s)
-
-**Basic usage:**
-```bash
-# Request human help
-openclaw mc-human ask "solve CAPTCHA on login page" --timeout 300
-
-# Check status
-openclaw mc-human status
-```
-
-**[→ Full mc-human documentation](./docs/mc-human.md)**
-
----
-
-#### **mc-memo** — Short-Term Working Memory
-Per-card scratchpad to avoid repeating failed approaches within a run.
-
-**What it does:**
-- Flat markdown files per task card
-- Timestamped notes appended during work
-- Prevents re-trying failed approaches
-
-**[→ Full mc-memo documentation](./docs/mc-memo.md)**
-
----
-
-#### **mc-docs** — Document Authoring & Versioning
-Create, edit, version, and track documents.
-
-**What it does:**
-- Document storage and retrieval
-- Version history tracking
-- Schema-based document structure
-
-**Basic usage:**
-```bash
-mc docs create
-mc docs list
-mc docs show <id>
-mc docs versions <id>
-```
-
-**[→ Full mc-docs documentation](./docs/mc-docs.md)**
-
----
-
-#### **mc-backup** — State Directory Backup
-Daily tgz backups of the MiniClaw state directory with tiered retention (recent dailies, monthly, yearly).
-
-**What it does:**
-- Creates compressed tgz snapshots of your entire state directory
-- Tiered retention — keeps recent dailies, then monthly, then yearly
-- On-demand or scheduled backups
-- List, restore, and prune old backups
-
-**Basic usage:**
-```bash
-# Create a backup now
-mc-backup now
-
-# List available backups
-mc-backup list
-
-# Restore from a backup
-mc-backup restore
-
-# Prune old backups per retention policy
-mc-backup prune
-```
-
-**[→ Full mc-backup documentation](./docs/mc-backup.md)**
-
----
-
-#### **mc-authenticator** — TOTP 2FA for Agents
-Autonomous two-factor authentication. Stores TOTP secrets in mc-vault and generates RFC 6238-compliant codes on demand — the same codes Google Authenticator would produce. When a login flow asks for a 2FA code, the agent generates it instead of waiting for a human to open an authenticator app.
-
-Zero npm dependencies. Pure `node:crypto`.
-
-**What it does:**
-- Stores TOTP secrets (base32 or `otpauth://` URIs from QR codes)
-- Generates 6-digit codes identical to Google Authenticator
-- Supports SHA1, SHA256, SHA512 — configurable digits (6/8) and period (30s/60s)
-- Clock drift tolerance (verifies current code ±1 window)
-
-**Basic usage:**
-```bash
-# Store a TOTP secret (from your 2FA setup page)
-mc mc-auth add github JBSWY3DPEHPK3PXP --issuer GitHub --account user@example.com
-
-# Store from an otpauth:// URI (preserves all metadata)
-mc mc-auth add-uri github "otpauth://totp/GitHub:user@example.com?secret=JBSWY3DPEHPK3PXP&issuer=GitHub"
-
-# Get the current code
-mc mc-auth code github
-# 482901 (expires in 14s)
-
-# Verify a code
-mc mc-auth verify github 482901
-# Valid ✓
-
-# List all stored services
-mc mc-auth list
-#   github       — GitHub (user@example.com)   SHA1/6/30s
-
-# Remove a service
-mc mc-auth remove github
-```
-
-**Agent tools:**
-
-| Tool | Description |
-|------|-------------|
-| `auth_code` | Get current TOTP code + seconds until expiry |
-| `auth_list` | List all stored 2FA services |
-| `auth_time_remaining` | Seconds until current code expires |
-
-**[→ Full mc-authenticator documentation](./plugins/mc-authenticator/docs/README.md)**
-
----
+| Plugin | Description |
+|--------|-------------|
+| **[mc-board](./docs/mc-board.md)** | Kanban & work planning — task lifecycle, autonomous work queue, project organization |
+| **[mc-kb](./docs/mc-kb.md)** | Long-term memory — vector + keyword search, facts, lessons, postmortems |
+| **[mc-reflection](./docs/mc-reflection.md)** | Nightly self-reflection — reviews the day's memories, board, KB, and transcripts to extract lessons and action items |
+| **[mc-memo](./docs/mc-memo.md)** | Short-term working memory — per-card scratchpad to avoid repeating failed approaches |
+| **[mc-soul](./docs/mc-soul.md)** | Personality & identity — stores traits, values, voice; loaded into every conversation |
+| **[mc-context](./docs/mc-context.md)** | Working memory — sliding window context management, automatic pruning |
+| **[mc-queue](./docs/mc-queue.md)** | Async task runner — non-blocking message routing for Telegram, cron, CLI |
+| **[mc-jobs](./docs/mc-jobs.md)** | Cron & scheduled tasks — background job scheduler with retry and history |
+
+### Communication & Social
+
+| Plugin | Description |
+|--------|-------------|
+| **[mc-email](./docs/mc-email.md)** | Gmail integration — IMAP polling, Haiku-based classification, auto-reply |
+| **[mc-voice](./docs/mc-voice.md)** | Style mirroring — learns your writing style from messages across all channels |
+| **[mc-rolodex](./docs/mc-rolodex.md)** | Contact management — search by name, email, domain, or tag with fuzzy matching |
+| **[mc-trust](./docs/mc-trust.md)** | Agent identity & security — cryptographic verification and signed messages |
+| **[mc-human](./docs/mc-human.md)** | Human intervention — delivers noVNC browser session for CAPTCHAs and UI the agent can't automate |
+| **[mc-reddit](./docs/mc-reddit.md)** | Reddit API client — posts, comments, voting, subreddit moderation |
+
+### Content & Publishing
+
+| Plugin | Description |
+|--------|-------------|
+| **[mc-designer](./docs/mc-designer.md)** | CLI compositing studio — Gemini-backed image generation, layer stacks, chroma keying, blend modes |
+| **[mc-blog](./docs/mc-blog.md)** | Persona-driven blog engine — first-person journal entries from the agent's perspective |
+| **[mc-substack](./docs/mc-substack.md)** | Substack publishing — draft, schedule, and publish posts with bilingual support |
+| **[mc-youtube](./docs/mc-youtube.md)** | Video analysis — keyframe extraction and Claude-powered video understanding |
+| **[mc-seo](./docs/mc-seo.md)** | SEO automation — site audits, keyword rank tracking, sitemap submission |
+| **[mc-docs](./docs/mc-docs.md)** | Document authoring — create, edit, version, and track documents |
+
+### Payments & Commerce
+
+| Plugin | Description |
+|--------|-------------|
+| **[mc-stripe](./docs/mc-stripe.md)** | Stripe payments — charges, refunds, customer management |
+| **[mc-square](./docs/mc-square.md)** | Square payments — charges, refunds, payment links (zero dependencies, raw fetch) |
+| **[mc-booking](./docs/mc-booking.md)** | Appointment scheduling — bookable slots, payment integration, embeddable widget |
+
+### Operations & Security
+
+| Plugin | Description |
+|--------|-------------|
+| **[mc-authenticator](./docs/mc-authenticator.md)** | TOTP 2FA — generates Google Authenticator-compatible codes for autonomous login |
+| **[mc-backup](./docs/mc-backup.md)** | State directory backup — daily tgz snapshots with tiered retention |
+| **[mc-contribute](./docs/mc-contribute.md)** | Contribution tooling — scaffold plugins, file bugs, submit PRs |
 
 ### CLI Tools
 
