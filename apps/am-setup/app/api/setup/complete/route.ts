@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { readSetupState, writeSetupState } from "@/lib/setup-state";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import * as os from "node:os";
 import { execSync } from "node:child_process";
 
 const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(process.env.HOME || "", ".openclaw");
@@ -31,8 +32,8 @@ function seedBoardDb() {
   const dbPath = path.join(dbDir, "board.db");
 
   // Use python3 sqlite3 (always available on macOS) since am-setup doesn't bundle better-sqlite3
-  const script = `
-import sqlite3, datetime
+  // Write to a temp file — passing multi-line python via -c + JSON.stringify mangles newlines
+  const script = `import sqlite3, datetime
 conn = sqlite3.connect("${dbPath}")
 conn.execute("""CREATE TABLE IF NOT EXISTS projects (
     id TEXT PRIMARY KEY, name TEXT NOT NULL, slug TEXT NOT NULL,
@@ -53,7 +54,13 @@ for sid, name, slug, desc in seeds:
 conn.commit()
 conn.close()
 `;
-  execSync(`python3 -c ${JSON.stringify(script)}`, { stdio: "pipe" });
+  const tmpScript = path.join(os.tmpdir(), `miniclaw-seed-${process.pid}.py`);
+  fs.writeFileSync(tmpScript, script, "utf-8");
+  try {
+    execSync(`python3 "${tmpScript}"`, { stdio: "pipe" });
+  } finally {
+    fs.unlinkSync(tmpScript);
+  }
 }
 
 export async function POST() {

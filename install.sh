@@ -770,11 +770,40 @@ mkdir -p "$STATE_DIR/logs"
 launchctl load "$BOARD_PLIST" 2>/dev/null && ok "Board web LaunchAgent loaded (port 4220)" \
   || warn "LaunchAgent created — run: launchctl load $BOARD_PLIST"
 
-# ── Step 14b: Default board projects (deferred to setup wizard) ──────────────
+# ── Step 14b: Default board projects ──────────────────────────────────────────
 step "Step 14b: Default board projects"
-info "Board DB and default projects will be seeded when the setup wizard completes"
-info "(The wizard sets the bot ID from your Telegram username)"
-ok "Deferred to setup wizard"
+
+BOARD_DB_DIR="$STATE_DIR/USER/brain"
+mkdir -p "$BOARD_DB_DIR"
+BOARD_DB="$BOARD_DB_DIR/board.db"
+
+python3 - "$BOARD_DB" << 'PYEOF'
+import sqlite3, datetime, sys
+db = sys.argv[1]
+conn = sqlite3.connect(db)
+conn.execute("""CREATE TABLE IF NOT EXISTS projects (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, slug TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'active',
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+    work_dir TEXT NOT NULL DEFAULT '', github_repo TEXT NOT NULL DEFAULT '',
+    build_command TEXT NOT NULL DEFAULT ''
+)""")
+now = datetime.datetime.utcnow().isoformat() + "Z"
+seeds = [
+    ("prj_uncategorized", "Uncategorized", "uncategorized", "Default project for unassigned cards"),
+    ("prj_miniclaw_enh", "MiniClaw Enhancements", "miniclaw-enhancements", "Improvements and new features for MiniClaw"),
+]
+added = 0
+for sid, name, slug, desc in seeds:
+    if not conn.execute("SELECT id FROM projects WHERE id = ?", (sid,)).fetchone():
+        conn.execute("INSERT INTO projects (id, name, slug, description, status, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+            (sid, name, slug, desc, "active", now, now))
+        added += 1
+conn.commit()
+conn.close()
+print(f"  Seeded {added} project(s)" if added else "  Projects already exist")
+PYEOF
+ok "Board DB seeded at $BOARD_DB"
 
 # ── Step 15b: AM Setup Wizard LaunchAgent ─────────────────────────────────
 step "Step 15b: AM Setup Wizard LaunchAgent"
