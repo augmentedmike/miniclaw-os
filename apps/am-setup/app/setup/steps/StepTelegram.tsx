@@ -94,7 +94,8 @@ export default function StepTelegram({
         </p>
         <div className="flex flex-col gap-2 text-[#ccc]">
           <p>
-            <span className="text-white font-medium">1.</span> Open Telegram, find{" "}
+            <span className="text-white font-medium">1.</span> Open Telegram on your{" "}
+            <span className="text-white">phone</span>, find{" "}
             <span className="text-white font-medium">@BotFather</span>
           </p>
           <p>
@@ -111,6 +112,11 @@ export default function StepTelegram({
           </p>
           <p>
             <span className="text-white font-medium">4.</span> Send a message to your new bot so it can reply to you
+          </p>
+          <p>
+            <span className="text-white font-medium">5.</span>{" "}
+            <span className="text-white">Email the bot token and user ID to yourself</span>{" "}
+            so you can copy them on this computer
           </p>
         </div>
       </div>
