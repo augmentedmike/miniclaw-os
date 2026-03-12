@@ -11,9 +11,7 @@
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd 2>/dev/null)" || REPO_DIR="$(pwd)"
-OPENCLAW_DIR="${OPENCLAW_DIR:-$HOME/.openclaw}"
-# STATE_DIR = OPENCLAW_DIR. install.sh always installs to ~/.openclaw.
-# Users who want a custom state dir set OPENCLAW_STATE_DIR in their shell AFTER install.
+OPENCLAW_DIR="${OPENCLAW_STATE_DIR:-${OPENCLAW_DIR:-$HOME/.openclaw}}"
 STATE_DIR="$OPENCLAW_DIR"
 MINICLAW_DIR="$OPENCLAW_DIR/miniclaw"
 PROJECTS_DIR="$OPENCLAW_DIR/projects"
