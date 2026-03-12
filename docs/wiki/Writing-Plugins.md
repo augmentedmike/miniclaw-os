@@ -120,13 +120,13 @@ $OPENCLAW_STATE_DIR/
 
 **Rules:**
 - System binaries: `$OPENCLAW_STATE_DIR/miniclaw/SYSTEM/bin/<tool>`
-- User data: `$OPENCLAW_STATE_DIR/USER/<bot_id>/<feature>/`
-- User media: `$OPENCLAW_STATE_DIR/USER/<bot_id>/media/<plugin>/`
+- User data: `$OPENCLAW_STATE_DIR/USER/<feature>/`
+- User media: `$OPENCLAW_STATE_DIR/USER/media/<plugin>/`
 - Always use `SYSTEM` and `USER` (caps) in code — never lowercase
 
 ## State Storage
 
-Plugins store state in `$OPENCLAW_STATE_DIR/USER/<bot_id>/`:
+Plugins store state in `$OPENCLAW_STATE_DIR/USER/`:
 
 - **SQLite** for structured data (mc-board, mc-kb)
 - **JSON files** for config and simple state (mc-rolodex, mc-jobs)

@@ -17,7 +17,7 @@
 
 > **Alpha Software.** Is this perfect software? Not even close — but it works great for me and a dozen people I know. And unlike software before AM, she not only knows how to debug, diagnose, and fix herself, but she has a built-in imperative to do it. She is autohealing software. Much of the issue and PR activity here will be Amelias in the wild, self-reporting issues they and their humans run into. And she is predisposed to writing new tools to help her do new work consistently — including fixing herself. See [mc-contribute](./docs/mc-contribute.md).
 
-**MiniClaw** is a personal AI that lives on your Mac — not in someone else's cloud. It has a real personality, remembers your life, and can actually *do* things: draft emails, write code, manage projects, run tasks overnight. Everything you do stays on your machine. Everything.
+**MiniClaw** is a personal AI that lives on your Mac — not in someone else's cloud. It has a real personality, remembers your life, and can actually *do* things: draft emails, write code, manage projects, run tasks overnight. Your data stays on your machine — LLM inference calls go out over SSL to your chosen provider, but nothing else leaves.
 
 [Getting Started](#install) · [Features](./FEATURES.md) · [Plugins](#plugins) · [Docs](https://docs.openclaw.ai) · [GitHub](https://github.com/augmentedmike/miniclaw-os) · [miniclaw.bot](https://miniclaw.bot)
 
@@ -36,7 +36,7 @@ Imagine having a brilliant friend who knows everything — and they're *always* 
 - **Ask it to do things.** "Draft a reply to that email from Sarah."
 - **It works in the background.** Checks your calendar, monitors your inbox, runs tasks overnight.
 - **It remembers you.** What you said yesterday, last week, last year.
-- **You can trust it completely.** Everything stays on your machine.
+- **Privacy-first.** Your data lives on your machine. LLM calls go out over SSL — nothing else does.
 
 ---
 
@@ -276,8 +276,8 @@ Agent: Creating LinkedIn banner...
 [mc-designer] Generated: social-linkedin-banner.png (1584×396)
 [mc-designer] Generated: social-linkedin-thumbnail.png (400×400)
 
-# Outputs placed in $OPENCLAW_STATE_DIR/USER/<bot_id>/media/designer/
-$ ls -la $OPENCLAW_STATE_DIR/USER/<bot_id>/media/designer/
+# Outputs placed in $OPENCLAW_STATE_DIR/USER/media/designer/
+$ ls -la $OPENCLAW_STATE_DIR/USER/media/designer/
 social-linkedin-banner-20260305.png
 social-linkedin-thumbnail-20260305.png
 
@@ -407,7 +407,7 @@ await trust.verify(peerId, message, signature);
 
 ## Safety & Privacy
 
-- **Your data stays yours.** Nothing leaves your Mac unless you explicitly ask it to.
+- **Your data stays yours.** All data lives locally. LLM calls go to your chosen provider over SSL — that's the only outbound traffic unless you explicitly configure otherwise.
 - **Open source.** Read the code at [github.com/augmentedmike/miniclaw-os](https://github.com/augmentedmike/miniclaw-os).
 - **No surveillance.** No telemetry, no tracking, no home-phoning.
 - **Standards-based.** Built on Homebrew, Node.js, OpenClaw — the tools millions of developers trust.

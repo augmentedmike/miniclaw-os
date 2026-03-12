@@ -4,16 +4,8 @@
 
 set -euo pipefail
 
-resolve_bot_id() {
-  if [[ -n "${OPENCLAW_BOT_ID:-}" ]]; then echo "$OPENCLAW_BOT_ID"; return; fi
-  local sd="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}"
-  local bid
-  bid=$(python3 -c "import json; print(json.load(open('$sd/openclaw.json'))['botId'])" 2>/dev/null) && [[ -n "$bid" ]] && { echo "$bid"; return; }
-  echo "ERROR: OPENCLAW_BOT_ID not set and botId not in openclaw.json" >&2; exit 1
-}
-
 MINUTES="${1:-10}"
-ACTIVE_FILE="$HOME/.openclaw/USER/$(resolve_bot_id)/brain/active-work.json"
+ACTIVE_FILE="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}/USER/brain/active-work.json"
 INTERVAL=15   # poll every 15s
 END_TIME=$(( $(date +%s) + MINUTES * 60 ))
 

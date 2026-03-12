@@ -20,16 +20,6 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
 
-function _resolveBotId(): string {
-  if (process.env.OPENCLAW_BOT_ID) return process.env.OPENCLAW_BOT_ID;
-  const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
-  try {
-    const cfg = JSON.parse(fs.readFileSync(path.join(stateDir, "openclaw.json"), "utf-8"));
-    if (cfg.botId) return cfg.botId as string;
-  } catch {}
-  throw new Error("OPENCLAW_BOT_ID not set and botId not found in openclaw.json — run the setup wizard");
-}
-
 export interface CliContext {
   program: Command;
   stateDir: string;
@@ -537,7 +527,7 @@ the active board and written into a gzip-compressed JSONL archive. Nothing
 is deleted — all archived cards remain searchable.
 
 Archives rotate at 5MB: brain-archive-001.jsonl.gz, 002, etc.
-Location: ~/.openclaw/USER/<bot_id>/brain/archive/
+Location: ~/.openclaw/USER/brain/archive/
 
 Examples:
   miniclaw brain archive crd_abc123`)
@@ -937,8 +927,7 @@ Used by: web UI triage button, cron job backlog checker.
       function log(msg: string) { logStream.write(msg); process.stdout.write(msg); }
 
       // Resolve prompt
-      const tBotId = _resolveBotId();
-      const BRAIN_DIR = path.join(ctx.stateDir, "USER", tBotId, "brain");
+      const BRAIN_DIR = path.join(ctx.stateDir, "USER", "brain");
       const defaultPromptPath = path.join(BRAIN_DIR, "prompts", "backlog-process.txt");
       const promptPath2 = opts.prompt ?? (fs.existsSync(defaultPromptPath) ? defaultPromptPath : null);
       const DEFAULT_PROMPT = `You are a triage processor for the Brain board. This prompt runs both on-demand (web UI) and via the periodic cron job that checks the backlog column.

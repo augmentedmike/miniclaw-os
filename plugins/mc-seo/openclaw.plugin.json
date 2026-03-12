@@ -7,7 +7,7 @@
     "type": "object",
     "additionalProperties": false,
     "properties": {
-      "stateDir": { "type": "string", "description": "Directory for seo.db (default: ~/.openclaw/user/<bot>/seo)" },
+      "stateDir": { "type": "string", "description": "Directory for seo.db (default: ~/.openclaw/USER/seo)" },
       "indexNowKey": { "type": "string", "description": "IndexNow API key for instant Bing/Yandex indexing pings" },
       "domains": {
         "type": "object",

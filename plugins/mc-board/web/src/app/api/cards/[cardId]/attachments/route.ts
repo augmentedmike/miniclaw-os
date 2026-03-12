@@ -7,18 +7,8 @@ export const dynamic = "force-dynamic";
 
 const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
 
-function resolveBotId(): string {
-  if (process.env.OPENCLAW_BOT_ID) return process.env.OPENCLAW_BOT_ID;
-  try {
-    const fs = require("node:fs");
-    const cfg = JSON.parse(fs.readFileSync(path.join(STATE_DIR, "openclaw.json"), "utf-8"));
-    if (cfg.botId) return cfg.botId;
-  } catch {}
-  throw new Error("OPENCLAW_BOT_ID not set and botId not found in openclaw.json");
-}
-
 function getDb() {
-  const dbPath = path.join(STATE_DIR, "USER", resolveBotId(), "brain", "board.db");
+  const dbPath = path.join(STATE_DIR, "USER", "brain", "board.db");
   return new Database(dbPath);
 }
 

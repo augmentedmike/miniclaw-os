@@ -26,20 +26,9 @@ from pathlib import Path
 
 STATE_DIR = Path(os.environ.get("OPENCLAW_STATE_DIR", Path.home() / ".openclaw"))
 
-def _resolve_bot_id():
-    bid = os.environ.get("OPENCLAW_BOT_ID")
-    if bid: return bid
-    try:
-        with open(STATE_DIR / "openclaw.json") as f:
-            bid = json.load(f).get("botId")
-            if bid: return bid
-    except Exception: pass
-    raise RuntimeError("OPENCLAW_BOT_ID not set and botId not in openclaw.json")
-
-BOT_ID = _resolve_bot_id()
-BOT_DIR = STATE_DIR / "USER" / BOT_ID
-DEFAULT_DB = BOT_DIR / "voice" / "voice.db"
-DEFAULT_PROFILE = BOT_DIR / "voice" / "style-profile.json"
+USER_DIR = STATE_DIR / "USER"
+DEFAULT_DB = USER_DIR / "voice" / "voice.db"
+DEFAULT_PROFILE = USER_DIR / "voice" / "style-profile.json"
 
 
 def is_opted_out(db_path: Path, human_id: str) -> bool:

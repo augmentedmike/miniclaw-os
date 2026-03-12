@@ -8,7 +8,7 @@ Lightweight document management system for MiniClaw with built-in versioning, me
 - **Versioning** — Immutable version history with SHA-256 content hashing
 - **Markdown Support** — Native markdown body storage and editing
 - **Card Integration** — Link documents to mc-board cards for traceability
-- **JSON Storage** — Simple filesystem-based storage at `~/.openclaw/user/<bot_id>/docs/`
+- **JSON Storage** — Simple filesystem-based storage at `~/.openclaw/USER/docs/`
 - **CLI Commands** — Full command-line interface for all operations
 - **Filtering** — List documents by tag or linked card ID
 
@@ -140,7 +140,7 @@ store.linkCard('doc_abc123', 'crd_99999');
 
 Documents are stored at:
 ```
-~/.openclaw/user/<bot_id>/docs/
+~/.openclaw/USER/docs/
 ```
 
 Each document is a single JSON file named `<doc_id>.json`.

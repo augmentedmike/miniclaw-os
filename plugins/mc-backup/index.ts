@@ -35,7 +35,7 @@ function resolveConfig(api: OpenClawPluginApi): BackupConfig {
     "tmp",            // temp scratch space
     "browser",        // browser automation cache
     "media",          // legacy top-level media dir (pre-migration)
-    ...(includeUserMedia ? [] : ["*/media"]), // user/<bot>/media/ — generated assets
+    ...(includeUserMedia ? [] : ["*/media"]), // USER/media/ — generated assets
   ];
   return {
     stateDir,

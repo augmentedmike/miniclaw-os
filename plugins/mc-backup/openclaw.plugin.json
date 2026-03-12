@@ -22,11 +22,11 @@
       "excludeDirs": {
         "type": "array",
         "items": { "type": "string" },
-        "description": "Directories (relative to state dir) to exclude from backup. Default: ['projects', '.git', 'node_modules', 'backups', 'logs', 'tmp', 'browser', 'media']. Note: media under user/<bot>/media/ is excluded by the top-level 'media' entry — set includeUserMedia to keep it."
+        "description": "Directories (relative to state dir) to exclude from backup. Default: ['projects', '.git', 'node_modules', 'backups', 'logs', 'tmp', 'browser', 'media']. Note: media under USER/media/ is excluded by the top-level 'media' entry — set includeUserMedia to keep it."
       },
       "includeUserMedia": {
         "type": "boolean",
-        "description": "Include user/<bot>/media/ in backups (generated images, screenshots, etc). Default: false — keeps backups small. Set true if media isn't reproducible."
+        "description": "Include USER/media/ in backups (generated images, screenshots, etc). Default: false — keeps backups small. Set true if media isn't reproducible."
       }
     }
   }

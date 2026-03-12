@@ -14,15 +14,6 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 
-function _resolveBotId(): string {
-  if (process.env.OPENCLAW_BOT_ID) return process.env.OPENCLAW_BOT_ID;
-  const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
-  try {
-    const cfg = JSON.parse(fs.readFileSync(path.join(stateDir, "openclaw.json"), "utf-8"));
-    if (cfg.botId) return cfg.botId as string;
-  } catch {}
-  throw new Error("OPENCLAW_BOT_ID not set and botId not found in openclaw.json — run the setup wizard");
-}
 import { KBStore } from "./src/store.js";
 import { getEmbedder } from "./src/embedder.js";
 import { hybridSearch } from "./src/search.js";
@@ -49,7 +40,7 @@ function resolvePath(p: string): string {
 function resolveConfig(api: OpenClawPluginApi): KbConfig {
   const raw = (api.pluginConfig ?? {}) as Partial<KbConfig>;
   return {
-    dbDir: resolvePath(raw.dbDir ?? `~/.openclaw/USER/${_resolveBotId()}/kb`),
+    dbDir: resolvePath(raw.dbDir ?? `~/.openclaw/USER/kb`),
     modelPath: resolvePath(
       raw.modelPath ?? "~/.cache/qmd/models/hf_ggml-org_embeddinggemma-300M-Q8_0.gguf",
     ),

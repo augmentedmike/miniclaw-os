@@ -116,7 +116,7 @@ openclaw mc-seo domains
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `stateDir` | string | `$OPENCLAW_STATE_DIR/USER/<bot_id>/seo` | Directory for the SQLite database |
+| `stateDir` | string | `$OPENCLAW_STATE_DIR/USER/seo` | Directory for the SQLite database |
 | `indexNowKey` | string | — | IndexNow API key for instant indexing |
 | `googleSearchApiKey` | string | — | Google Custom Search API key for rank checking |
 | `googleSearchCx` | string | — | Google Custom Search engine ID |
@@ -142,6 +142,6 @@ openclaw mc-seo domains
 ## State Storage
 
 ```
-$OPENCLAW_STATE_DIR/USER/<bot_id>/seo/
+$OPENCLAW_STATE_DIR/USER/seo/
   seo.db       SQLite database (audits, rank checks, submission tracking)
 ```

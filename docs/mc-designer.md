@@ -38,7 +38,7 @@ All config lives in `openclaw.json` under `plugins.entries.mc-designer.config`.
 |-----|---------|-------------|
 | `apiKey` | `""` | Gemini API key (required) |
 | `model` | `gemini-3.1-flash-image-preview` | Gemini model to use |
-| `mediaDir` | `$OPENCLAW_STATE_DIR/USER/<bot_id>/media/designer` | Root directory for all generated files |
+| `mediaDir` | `$OPENCLAW_STATE_DIR/USER/media/designer` | Root directory for all generated files |
 | `defaultWidth` | `1024` | Default canvas width in pixels |
 | `defaultHeight` | `1024` | Default canvas height in pixels |
 
@@ -46,7 +46,7 @@ All config lives in `openclaw.json` under `plugins.entries.mc-designer.config`.
 
 ## Output Path Conventions
 
-All files are written under `mediaDir` (default: `$OPENCLAW_STATE_DIR/USER/<bot_id>/media/designer`):
+All files are written under `mediaDir` (default: `$OPENCLAW_STATE_DIR/USER/media/designer`):
 
 | What | Path |
 |------|------|

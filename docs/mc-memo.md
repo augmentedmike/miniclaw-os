@@ -54,14 +54,14 @@ Returns `(no memos yet)` if no notes exist.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `memoDir` | string | `$OPENCLAW_STATE_DIR/USER/<bot_id>/memos` | Directory for memo files |
+| `memoDir` | string | `$OPENCLAW_STATE_DIR/USER/memos` | Directory for memo files |
 
 ---
 
 ## State Storage
 
 ```
-$OPENCLAW_STATE_DIR/USER/<bot_id>/memos/
+$OPENCLAW_STATE_DIR/USER/memos/
   <card_id>.md       One file per card, append-only timestamped notes
 ```
 

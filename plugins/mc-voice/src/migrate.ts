@@ -1,7 +1,7 @@
 /**
  * mc-voice — voice.db migration script
  *
- * Creates ~/.openclaw/USER/<bot_id>/voice/voice.db with:
+ * Creates ~/.openclaw/USER/voice/voice.db with:
  *   - human_voice: stores raw messages with embeddings
  *   - voice_settings: per-human opt-out and learning config
  *   - FTS5 virtual table for full-text search
@@ -28,21 +28,10 @@ const SQLITE_VEC_PATHS = [
 
 const EMBEDDING_DIM = 3072; // gemini-embedding-001
 
-function _resolveBotId(): string {
-  if (process.env.OPENCLAW_BOT_ID) return process.env.OPENCLAW_BOT_ID;
-  const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
-  try {
-    const cfg = JSON.parse(fs.readFileSync(path.join(stateDir, "openclaw.json"), "utf-8"));
-    if (cfg.botId) return cfg.botId as string;
-  } catch {}
-  throw new Error("OPENCLAW_BOT_ID not set and botId not found in openclaw.json — run the setup wizard");
-}
-
 function resolveDbPath(arg?: string): string {
   if (arg) return arg.startsWith("~/") ? path.join(os.homedir(), arg.slice(2)) : arg;
   const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
-  const botId = _resolveBotId();
-  return path.join(stateDir, "USER", botId, "voice", "voice.db");
+  return path.join(stateDir, "USER", "voice", "voice.db");
 }
 
 function loadVec(db: Database.Database): boolean {

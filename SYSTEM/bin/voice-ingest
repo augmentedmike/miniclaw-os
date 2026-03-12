@@ -24,19 +24,8 @@ from pathlib import Path
 
 STATE_DIR = Path(os.environ.get("OPENCLAW_STATE_DIR", Path.home() / ".openclaw"))
 
-def _resolve_bot_id():
-    bid = os.environ.get("OPENCLAW_BOT_ID")
-    if bid: return bid
-    try:
-        with open(STATE_DIR / "openclaw.json") as f:
-            bid = json.load(f).get("botId")
-            if bid: return bid
-    except Exception: pass
-    raise RuntimeError("OPENCLAW_BOT_ID not set and botId not in openclaw.json")
-
-BOT_ID = _resolve_bot_id()
-BOT_DIR = STATE_DIR / "USER" / BOT_ID
-DB_PATH = BOT_DIR / "voice" / "voice.db"
+USER_DIR = STATE_DIR / "USER"
+DB_PATH = USER_DIR / "voice" / "voice.db"
 LOG_PATH = STATE_DIR / "logs" / "voice-ingest.log"
 
 GEMINI_API_KEY = os.environ.get("GOOGLE_API_KEY", "")

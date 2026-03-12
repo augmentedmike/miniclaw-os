@@ -8,7 +8,7 @@
     "additionalProperties": false,
     "properties": {
       "humanId": { "type": "string", "description": "Human identifier (default: augmentedmike)" },
-      "dbPath": { "type": "string", "description": "Path to voice.db (default: ~/.openclaw/USER/<bot_id>/voice/voice.db)" },
+      "dbPath": { "type": "string", "description": "Path to voice.db (default: ~/.openclaw/USER/voice/voice.db)" },
       "ingestBin": { "type": "string", "description": "Path to voice-ingest script (default: ~/.openclaw/miniclaw/system/bin/voice-ingest)" }
     }
   }

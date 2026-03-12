@@ -20,7 +20,7 @@ openclaw mc-kb <command>              ← CLI entry point
        └── index.ts                   ← Plugin entry, context hook, tool registration
 ```
 
-**Database:** SQLite file at `$OPENCLAW_STATE_DIR/user/<bot>/kb/kb.db`. WAL mode is enabled. `better-sqlite3` provides synchronous access.
+**Database:** SQLite file at `$OPENCLAW_STATE_DIR/USER/kb/kb.db`. WAL mode is enabled. `better-sqlite3` provides synchronous access.
 
 **Markdown mirror:** Every entry is also written as `<id>.md` in a `entries/` subdirectory alongside the database. These are the source files for QMD vector indexing.
 
@@ -520,7 +520,7 @@ Plugin config in `openclaw.plugin.json` or the openclaw config file:
 ```json
 {
   "mc-kb": {
-    "dbDir": "~/.openclaw/user/<bot_id>/kb",
+    "dbDir": "~/.openclaw/USER/kb",
     "modelPath": "~/.cache/qmd/models/hf_ggml-org_embeddinggemma-300M-Q8_0.gguf",
     "qmdBin": "~/.bun/bin/qmd",
     "qmdCollection": "kb",
@@ -532,7 +532,7 @@ Plugin config in `openclaw.plugin.json` or the openclaw config file:
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `dbDir` | `~/.openclaw/user/<bot>/kb` | Directory for `kb.db` and `entries/` |
+| `dbDir` | `~/.openclaw/USER/kb` | Directory for `kb.db` and `entries/` |
 | `modelPath` | `~/.cache/qmd/models/hf_ggml-org_embeddinggemma-300M-Q8_0.gguf` | EmbeddingGemma model file |
 | `contextN` | `3` | Max KB entries injected per prompt |
 | `contextThreshold` | `0.75` | Max cosine distance for context injection (lower = stricter) |

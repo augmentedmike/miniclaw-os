@@ -9,25 +9,14 @@ import { join } from 'path';
 import { homedir } from 'os';
 import { Document, DocumentMetadata, DocumentVersion, DocumentListItem, StorageOptions } from '../schema/types.js';
 
-function _resolveBotId(): string {
-  if (process.env.OPENCLAW_BOT_ID) return process.env.OPENCLAW_BOT_ID;
-  const stateDir = process.env.OPENCLAW_STATE_DIR ?? join(homedir(), '.openclaw');
-  try {
-    const cfg = JSON.parse(readFileSync(join(stateDir, 'openclaw.json'), 'utf-8'));
-    if (cfg.botId) return cfg.botId as string;
-  } catch {}
-  throw new Error('OPENCLAW_BOT_ID not set and botId not found in openclaw.json — run the setup wizard');
-}
-
 export class DocumentStore {
   private basePath: string;
 
   constructor(options: StorageOptions = {}) {
-    const botId = _resolveBotId();
     this.basePath = options.basePath ||
       (process.env.OPENCLAW_STATE_DIR
-        ? join(process.env.OPENCLAW_STATE_DIR, 'USER', botId, 'docs')
-        : join(homedir(), '.openclaw', 'USER', botId, 'docs'));
+        ? join(process.env.OPENCLAW_STATE_DIR, 'USER', 'docs')
+        : join(homedir(), '.openclaw', 'USER', 'docs'));
 
     // Ensure directory exists
     if (!existsSync(this.basePath)) {

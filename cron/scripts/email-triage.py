@@ -70,21 +70,8 @@ def _get_tg_chat_id() -> str:
     return _vault_get("tg-chat-id")
 
 # ── Event log ────────────────────────────────────────────────────────────
-def _resolve_bot_id():
-    bid = os.environ.get("OPENCLAW_BOT_ID")
-    if bid: return bid
-    sd = os.environ.get("OPENCLAW_STATE_DIR", os.path.expanduser("~/.openclaw"))
-    try:
-        import json as _json
-        with open(os.path.join(sd, "openclaw.json")) as f:
-            bid = _json.load(f).get("botId")
-            if bid: return bid
-    except Exception: pass
-    raise RuntimeError("OPENCLAW_BOT_ID not set and botId not in openclaw.json")
-
-_BOT_ID = _resolve_bot_id()
 EMAIL_EVENTS_FILE = os.path.join(
-    _STATE_DIR, "USER", _BOT_ID, "email-events.json"
+    _STATE_DIR, "USER", "email-events.json"
 )
 
 # Interesting scores by category (routine/spam never enter digest)

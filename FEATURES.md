@@ -279,7 +279,7 @@ openclaw mc-human status
 Per-card scratchpad with timestamped notes. Prevents re-trying failed approaches within the same card run. One flat markdown file per task.
 
 ```bash
-# Memos auto-created at ~/.openclaw/user/<bot_id>/memos/<card_id>.md
+# Memos auto-created at ~/.openclaw/USER/memos/<card_id>.md
 ```
 
 ---

@@ -10,14 +10,7 @@ const EMPTY = { total_runs: 0, total_tokens: 0, avg_tokens_per_card: 0, avg_dura
 
 export async function GET() {
   const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
-  const botId = process.env.OPENCLAW_BOT_ID ?? (() => {
-    try {
-      const cfg = JSON.parse(fs.readFileSync(path.join(stateDir, "openclaw.json"), "utf-8"));
-      if (cfg.botId) return cfg.botId;
-    } catch {}
-    throw new Error("OPENCLAW_BOT_ID not set and botId not found in openclaw.json");
-  })();
-  const dbPath = process.env.BOARD_DB_PATH ?? path.join(stateDir, "USER", botId, "brain", "board.db");
+  const dbPath = process.env.BOARD_DB_PATH ?? path.join(stateDir, "USER", "brain", "board.db");
   if (!fs.existsSync(dbPath)) return NextResponse.json(EMPTY);
   try {
     const db = new Database(dbPath, { readonly: true });

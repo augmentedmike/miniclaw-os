@@ -3,9 +3,8 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 /**
- * Ensures no file in the board web calls resolveBotId() or similar
- * at module level. Module-level calls break `next build` because
- * there's no botId available at install/build time.
+ * Ensures no file in the board web references bot ID path patterns.
+ * The USER/ directory is flat — no bot ID subdirectory.
  */
 
 const SRC_DIR = path.join(import.meta.dir);
@@ -23,14 +22,14 @@ function walkTs(dir: string): string[] {
   return results;
 }
 
-// Patterns that indicate a module-level call to bot ID resolution.
-// These throw at build time when no botId exists.
-// Only matches lines with NO leading whitespace (true module-level).
-const FORBIDDEN_MODULE_LEVEL = [
-  /^const\s+\w+\s*=\s*.*resolveBotId\s*\(/,
-  /^const\s+\w+\s*=\s*.*_resolveBotId\s*\(/,
-  /^const\s+\w+\s*=\s*.*_BOT_ID/,
-  /^const\s+(?:DB_PATH|BRAIN_DIR|KB_DB|QMD_DIR)\s*=/,
+// Patterns that indicate a bot ID path construction.
+// USER/ is flat — there should be no bot ID subdirectory.
+const FORBIDDEN_PATTERNS = [
+  /resolveBotId\s*\(/,
+  /_resolveBotId\s*\(/,
+  /["']USER["'],\s*\w+Id/,
+  /["']USER["'],\s*botId/,
+  /USER\/\$\{.*[Bb]ot/,
 ];
 
 const files = walkTs(SRC_DIR);
@@ -38,17 +37,15 @@ const files = walkTs(SRC_DIR);
 for (const file of files) {
   const rel = path.relative(SRC_DIR, file);
 
-  test(`${rel}: no module-level resolveBotId() calls`, () => {
+  test(`${rel}: no bot ID path patterns`, () => {
     const content = fs.readFileSync(file, "utf-8");
     const lines = content.split("\n");
     const violations: string[] = [];
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-      // Skip indented lines — they're inside function bodies
-      if (/^\s/.test(line)) continue;
       const trimmed = line.trim();
-      for (const pattern of FORBIDDEN_MODULE_LEVEL) {
+      for (const pattern of FORBIDDEN_PATTERNS) {
         if (pattern.test(trimmed)) {
           violations.push(`  line ${i + 1}: ${trimmed}`);
         }

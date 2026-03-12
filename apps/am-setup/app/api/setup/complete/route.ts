@@ -25,8 +25,8 @@ function writeBotIdToConfig(botId: string) {
   fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2) + "\n", "utf-8");
 }
 
-function seedBoardDb(botId: string) {
-  const dbDir = path.join(STATE_DIR, "USER", botId, "brain");
+function seedBoardDb() {
+  const dbDir = path.join(STATE_DIR, "USER", "brain");
   fs.mkdirSync(dbDir, { recursive: true });
   const dbPath = path.join(dbDir, "board.db");
 
@@ -68,8 +68,8 @@ export async function POST() {
   // Write botId to openclaw.json so all runtime code can read it
   writeBotIdToConfig(botId);
 
-  // Create USER/<botId>/brain/ and seed the board DB with default projects
-  seedBoardDb(botId);
+  // Create USER/brain/ and seed the board DB with default projects
+  seedBoardDb();
 
   const state = writeSetupState({
     complete: true,

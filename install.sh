@@ -338,7 +338,6 @@ p.setdefault("load", {}).setdefault("paths", [])
 p.setdefault("entries", {})
 
 state_dir = sys.argv[3] if len(sys.argv) > 3 else os.path.expanduser("~/.openclaw")
-bot_id = cfg.get("botId") or os.environ.get("OPENCLAW_BOT_ID") or ""
 
 plugin_defaults = {
     "mc-board": {
@@ -359,7 +358,7 @@ plugin_defaults = {
     },
     "mc-queue": {
         "enabled": True,
-        "config": { "enabled": True, "haikuModel": "claude-haiku-4-5-20251001", "maxToolCallsPerTurn": 3, "applyToChannels": True, "applyToDMs": True, "tgLogChatId": "", "tgBotName": ("@" + bot_id) if bot_id else "", "boardUrl": "" },
+        "config": { "enabled": True, "haikuModel": "claude-haiku-4-5-20251001", "maxToolCallsPerTurn": 3, "applyToChannels": True, "applyToDMs": True, "tgLogChatId": "", "tgBotName": "", "boardUrl": "" },
     },
     "mc-soul": {
         "enabled": True,

@@ -13,15 +13,7 @@
 
 set -euo pipefail
 
-resolve_bot_id() {
-  if [[ -n "${OPENCLAW_BOT_ID:-}" ]]; then echo "$OPENCLAW_BOT_ID"; return; fi
-  local sd="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}"
-  local bid
-  bid=$(python3 -c "import json; print(json.load(open('$sd/openclaw.json'))['botId'])" 2>/dev/null) && [[ -n "$bid" ]] && { echo "$bid"; return; }
-  echo "ERROR: OPENCLAW_BOT_ID not set and botId not in openclaw.json" >&2; exit 1
-}
-
-DB_PATH="${1:-${OPENCLAW_STATE_DIR:-$HOME/.openclaw}/USER/$(resolve_bot_id)/voice/voice.db}"
+DB_PATH="${1:-${OPENCLAW_STATE_DIR:-$HOME/.openclaw}/USER/voice/voice.db}"
 DB_DIR="$(dirname "$DB_PATH")"
 
 mkdir -p "$DB_DIR"

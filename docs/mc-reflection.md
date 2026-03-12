@@ -60,17 +60,17 @@ The cron prompt instructs the agent to:
 
 ## Storage
 
-- **SQLite DB:** `~/.openclaw/USER/<bot>/reflections/reflections.db`
-- **Markdown snapshots:** `~/.openclaw/USER/<bot>/reflections/entries/YYYY-MM-DD-refl_*.md`
+- **SQLite DB:** `~/.openclaw/USER/reflections/reflections.db`
+- **Markdown snapshots:** `~/.openclaw/USER/reflections/entries/YYYY-MM-DD-refl_*.md`
 
 ## Config
 
 ```json
 {
-  "reflectionDir": "~/.openclaw/USER/<bot_id>/reflections",
+  "reflectionDir": "~/.openclaw/USER/reflections",
   "memoryDir": "~/.openclaw/workspace/memory",
-  "boardDbPath": "~/.openclaw/USER/<bot_id>/brain",
-  "kbDbPath": "~/.openclaw/USER/<bot_id>/kb",
+  "boardDbPath": "~/.openclaw/USER/brain",
+  "kbDbPath": "~/.openclaw/USER/kb",
   "transcriptsDir": "~/.claude/projects"
 }
 ```

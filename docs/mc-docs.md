@@ -26,7 +26,7 @@ mc-docs and mc-kb both store text, but serve different purposes:
 
 ## Document Model
 
-Each document is stored as a single JSON file: `$OPENCLAW_STATE_DIR/user/<bot_id>/docs/<doc_id>.json`
+Each document is stored as a single JSON file: `$OPENCLAW_STATE_DIR/USER/docs/<doc_id>.json`
 
 ### Schema
 
@@ -302,13 +302,13 @@ Ver  Author          Timestamp           Message
 Documents are stored as individual JSON files. The path resolves in priority order:
 
 1. **Explicit `basePath`** passed to `DocumentStore` constructor (programmatic use only)
-2. **`$OPENCLAW_STATE_DIR/user/<bot_id>/docs/`** — if the environment variable is set
-3. **`~/.openclaw/user/<bot_id>/docs/`** — hardcoded fallback
+2. **`$OPENCLAW_STATE_DIR/USER/docs/`** — if the environment variable is set
+3. **`~/.openclaw/USER/docs/`** — hardcoded fallback
 
 The effective path is:
 
 ```
-~/.openclaw/user/<bot_id>/docs/
+~/.openclaw/USER/docs/
   doc_k3x9ab1c2.json
   doc_m7p2wq4r1.json
   ...

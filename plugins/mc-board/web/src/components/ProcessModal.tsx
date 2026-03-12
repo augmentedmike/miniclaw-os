@@ -74,7 +74,7 @@ export function ProcessModal({ column, cardId, cardTitle, onClose }: Props) {
     }
   }
 
-  const promptPath = `~/.openclaw/USER/<bot>/brain/prompts/${column}-process.txt`;
+  const promptPath = `~/.openclaw/USER/brain/prompts/${column}-process.txt`;
 
   return (
     <Modal onClose={onClose}>

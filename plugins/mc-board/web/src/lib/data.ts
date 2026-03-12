@@ -4,7 +4,7 @@
  * Reads directly from the SQLite DB (better-sqlite3).
  * Mutations go through the CLI via actions.ts (to enforce gate logic).
  *
- * DB path: $BOARD_DB_PATH or $OPENCLAW_STATE_DIR/USER/<bot_id>/brain/board.db
+ * DB path: $BOARD_DB_PATH or $OPENCLAW_STATE_DIR/USER/brain/board.db
  */
 
 import Database from "better-sqlite3";
@@ -14,20 +14,10 @@ import type { Card, BoardCard, Column, Priority, Project, ActiveEntry, HistoryEn
 
 // ---- DB path resolution ----
 
-function resolveBotId(): string {
-  if (process.env.OPENCLAW_BOT_ID) return process.env.OPENCLAW_BOT_ID;
-  const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(require("node:os").homedir(), ".openclaw");
-  try {
-    const cfg = JSON.parse(fs.readFileSync(path.join(stateDir, "openclaw.json"), "utf-8"));
-    if (cfg.botId) return cfg.botId;
-  } catch {}
-  throw new Error("OPENCLAW_BOT_ID not set and botId not found in openclaw.json");
-}
-
 function resolveDbPath(): string {
   if (process.env.BOARD_DB_PATH) return process.env.BOARD_DB_PATH;
   const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(require("node:os").homedir(), ".openclaw");
-  return path.join(stateDir, "USER", resolveBotId(), "brain", "board.db");
+  return path.join(stateDir, "USER", "brain", "board.db");
 }
 
 export function getDbPath(): string { return resolveDbPath(); }

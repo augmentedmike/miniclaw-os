@@ -107,7 +107,7 @@
       "cli": true,
       "tools": [],
       "config": {
-        "storagePath": "~/.openclaw/USER/<bot_id>/rolodex/contacts.json"
+        "storagePath": "~/.openclaw/USER/rolodex/contacts.json"
       }
     },
     {
