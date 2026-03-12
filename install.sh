@@ -795,11 +795,107 @@ else
   ok "Board web LaunchAgent already exists"
 fi
 
+# ── Step 15b: AM Setup Wizard LaunchAgent ─────────────────────────────────
+step "Step 15b: AM Setup Wizard LaunchAgent"
+
+SETUP_APP_DIR="$MINICLAW_DIR/apps/am-setup"
+SETUP_PLIST="$HOME/Library/LaunchAgents/com.miniclaw.am-setup.plist"
+
+# Copy am-setup app into miniclaw dir
+if [[ -d "$REPO_DIR/apps/am-setup" ]]; then
+  mkdir -p "$MINICLAW_DIR/apps"
+  rsync -a --exclude='node_modules' --exclude='.next' --exclude='.git' "$REPO_DIR/apps/am-setup/" "$SETUP_APP_DIR/"
+  ok "am-setup app copied"
+  # Install dependencies and build
+  if [[ -f "$SETUP_APP_DIR/package.json" ]]; then
+    (cd "$SETUP_APP_DIR" && npm install --production=false 2>&1 | tail -3 && npm run build 2>&1 | tail -5) \
+      && ok "am-setup built" \
+      || warn "am-setup build failed — run: cd $SETUP_APP_DIR && npm install && npm run build"
+  fi
+fi
+
+if [[ ! -f "$SETUP_PLIST" ]]; then
+  mkdir -p "$HOME/Library/LaunchAgents"
+  cat > "$SETUP_PLIST" << PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.miniclaw.am-setup</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>$(which node || echo /opt/homebrew/bin/node)</string>
+    <string>$SETUP_APP_DIR/node_modules/.bin/next</string>
+    <string>start</string>
+    <string>-p</string>
+    <string>4210</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>$SETUP_APP_DIR</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>5</integer>
+  <key>StandardOutPath</key>
+  <string>$STATE_DIR/logs/am-setup.log</string>
+  <key>StandardErrorPath</key>
+  <string>$STATE_DIR/logs/am-setup.log</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>
+    <string>$HOME</string>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>MINICLAW_STATE_DIR</key>
+    <string>$STATE_DIR</string>
+    <key>OPENCLAW_STATE_DIR</key>
+    <string>$STATE_DIR</string>
+    <key>NODE_ENV</key>
+    <string>production</string>
+  </dict>
+</dict>
+</plist>
+PLIST
+  mkdir -p "$STATE_DIR/logs"
+  launchctl load "$SETUP_PLIST" 2>/dev/null && ok "AM Setup LaunchAgent loaded (port 4210)" \
+    || warn "LaunchAgent created — run: launchctl load $SETUP_PLIST"
+else
+  ok "AM Setup LaunchAgent already exists"
+fi
+
+# ── Step 16: Import shared KB ─────────────────────────────────────────────────
+step "Step 16: Shared knowledge base"
+
+KB_BUNDLE_URL="https://raw.githubusercontent.com/augmentedmike/miniclaw-os/main/shared/kb/knowledge.json"
+KB_TMP="/tmp/miniclaw-kb-import-$$.json"
+
+(
+  curl -sfL "$KB_BUNDLE_URL" -o "$KB_TMP" 2>/dev/null
+  if [[ -f "$KB_TMP" && -s "$KB_TMP" ]]; then
+    # Only import if there are entries
+    entry_count=$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(len(d.get('entries',[])))" "$KB_TMP" 2>/dev/null || echo "0")
+    if [[ "$entry_count" -gt 0 ]]; then
+      openclaw mc-kb import "$KB_TMP" 2>/dev/null
+    fi
+    rm -f "$KB_TMP"
+  fi
+) &
+ok "Shared KB import started in background"
+
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}${BOLD}miniclaw-os installed.${NC}"
 echo ""
+echo "  Setup:   http://localhost:4210"
 echo "  Board:   http://localhost:4220"
 echo "  Verify:  mc-smoke"
-echo "  Restart OpenClaw to load plugins."
 echo ""
+
+# Open the onboarding wizard in the default browser
+if command -v open &>/dev/null; then
+  sleep 2  # give LaunchAgents a moment to start
+  open "http://localhost:4210"
+fi

@@ -40,6 +40,7 @@ interface KBEntry {
   tags: string[];      // e.g. ["ssl", "macos", "network"]
   source?: string;     // "conversation", "cli", a URL, or file path
   severity?: Severity; // "low" | "medium" | "high" — for error/postmortem only
+  visibility: Visibility; // "private" | "shareable"
   created_at: string;  // ISO-8601
   updated_at: string;  // ISO-8601
 }
@@ -88,6 +89,17 @@ summary: "Spawning a subprocess to run mc-kb CLI from an agent tool caused 30s t
 content: "Use the in-process KBStore + Embedder instead. The plugin's tools/definitions.ts does this correctly."
 tags: [agent, mc-kb, performance]
 ```
+
+### Visibility
+
+Every entry has a `visibility` field:
+
+| Value | Meaning |
+|-------|---------|
+| `private` | Default. Only exists in your local KB. |
+| `shareable` | Included when you run `mc-kb export`. Ships with new MiniClaw installs. |
+
+Shareable entries are general-purpose knowledge that benefits every MiniClaw instance — platform quirks, tool gotchas, workflow patterns. Private entries are personal or environment-specific.
 
 ### Markdown file format
 
@@ -174,6 +186,7 @@ Options:
   --tags <tags>        Comma-separated tags (e.g. ssl,macos,network)
   --source <source>    Source: 'conversation', 'cli', URL, or file path
   --severity <level>   Severity for error/postmortem: low, medium, high
+  --visibility <vis>   Visibility: private (default), shareable
 ```
 
 **Examples:**
@@ -235,10 +248,11 @@ List entries, optionally filtered.
 openclaw mc-kb list [options]
 
 Options:
-  --type <type>    Filter by type
-  --tag <tag>      Filter by tag
-  --limit <n>      Max entries to show (default: 20)
-  --json           Output as JSON
+  --type <type>          Filter by type
+  --tag <tag>            Filter by tag
+  --visibility <vis>     Filter by visibility: private, shareable
+  --limit <n>            Max entries to show (default: 20)
+  --json                 Output as JSON
 ```
 
 **Examples:**
@@ -325,6 +339,49 @@ tags: [tag3]
 Second entry content...
 ```
 
+### `mc-kb share`
+
+Mark an entry as shareable (included in exports and shipped with new installs).
+
+```
+openclaw mc-kb share <id>
+```
+
+### `mc-kb unshare`
+
+Mark an entry as private (excluded from exports).
+
+```
+openclaw mc-kb unshare <id>
+```
+
+### `mc-kb export`
+
+Export all shareable entries as a JSON bundle.
+
+```
+openclaw mc-kb export [--out <path>]
+```
+
+Without `--out`, writes JSON to stdout. With `--out`, writes to the specified file.
+
+**Examples:**
+```bash
+# Preview what would be exported
+openclaw mc-kb export | jq '.entries | length'
+
+# Export to the miniclaw-os repo for distribution
+openclaw mc-kb export --out ~/am/projects/miniclaw-os/shared/kb/knowledge.json
+```
+
+### `mc-kb import` (JSON bundle format)
+
+In addition to the YAML frontmatter format, `mc-kb import` also accepts JSON bundles produced by `mc-kb export`. Entries that already exist (by ID) are skipped — safe to re-import.
+
+```bash
+openclaw mc-kb import shared/kb/knowledge.json
+```
+
 ### `mc-kb stats`
 
 Show entry counts by type and whether vector search is enabled.
@@ -405,6 +462,7 @@ Input:
   tags     (optional)  Comma-separated tags
   source   (optional)  "conversation", "cli", URL, or file path
   severity (optional)  low | medium | high (for error/postmortem)
+  visibility (optional)  private (default) | shareable
 ```
 
 **When to use:** After solving a problem, after completing a multi-step task, or when learning something that should persist across sessions.
@@ -494,6 +552,7 @@ CREATE TABLE entries (
   tags       TEXT NOT NULL DEFAULT '[]',  -- JSON array
   source     TEXT,
   severity   TEXT,
+  visibility TEXT NOT NULL DEFAULT 'private',  -- private | shareable
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -518,3 +577,78 @@ CREATE VIRTUAL TABLE entry_vectors USING vec0(
   embedding float[768]
 );
 ```
+
+---
+
+## Shared Knowledge
+
+MiniClaw ships with a **shared knowledge bundle** — a curated set of KB entries that every new install receives. These are general-purpose entries (platform quirks, tool gotchas, workflow patterns) that benefit any MiniClaw instance.
+
+### How it works
+
+1. Amelia (the flagship instance) learns something useful and marks it shareable:
+   ```bash
+   openclaw mc-kb add --type fact --title "..." --content "..." --visibility shareable
+   # or mark an existing entry:
+   openclaw mc-kb share kb_a1b2c3d4
+   ```
+
+2. Export shareable entries to the miniclaw-os repo:
+   ```bash
+   openclaw mc-kb export --out ~/am/projects/miniclaw-os/shared/kb/knowledge.json
+   ```
+
+3. Commit and push to miniclaw-os.
+
+4. New installs automatically download and import the bundle during `install.sh` (runs in the background so it doesn't block onboarding).
+
+### Bundle format
+
+`shared/kb/knowledge.json`:
+```json
+{
+  "version": 1,
+  "exported_at": "2026-03-11T00:00:00.000Z",
+  "entries": [
+    {
+      "id": "kb_a1b2c3d4",
+      "type": "fact",
+      "title": "...",
+      "content": "...",
+      "tags": ["..."],
+      "visibility": "shareable",
+      "created_at": "...",
+      "updated_at": "..."
+    }
+  ]
+}
+```
+
+### Updating the shared bundle
+
+Run the update script to re-export and regenerate the knowledge catalog:
+
+```bash
+./shared/kb/update-bundle.sh
+```
+
+This exports all shareable entries and regenerates `shared/kb/CATALOG.md` — a human-readable index of what's in the bundle. Commit both files.
+
+### What belongs in the shared bundle
+
+**Good candidates:**
+- Platform-specific gotchas (macOS, Homebrew, Node.js quirks)
+- Tool usage patterns (sqlite-vec, FTS5, node-llama-cpp, bun)
+- MiniClaw operational knowledge (plugin boundaries, vault usage, cron patterns)
+- Error resolutions that apply to any install
+
+**Not shared (keep private):**
+- Personal facts (IP addresses, credentials, names)
+- Environment-specific config (paths, ports, hostnames)
+- In-progress project context
+
+### Current shared knowledge
+
+<!-- KB_CATALOG_START -->
+*No entries yet. Run `shared/kb/update-bundle.sh` after marking entries as shareable.*
+<!-- KB_CATALOG_END -->

@@ -12,7 +12,7 @@
 
 set -euo pipefail
 
-MINICLAW_VERSION="${MINICLAW_VERSION:-v0.1.2}"
+MINICLAW_VERSION="${MINICLAW_VERSION:-main}"
 REPO_URL="https://github.com/augmentedmike/miniclaw-os.git"
 OPENCLAW_DIR="${OPENCLAW_DIR:-$HOME/.openclaw}"
 PROJECTS_DIR="$OPENCLAW_DIR/projects"
@@ -78,7 +78,7 @@ if ! sudo -n true 2>/dev/null; then
   info "sudo required for some installations:"
   sudo -v || die "sudo access required"
 fi
-( while true; do sudo -n true; sleep 50; kill -0 "$$" 2>/dev/null || exit; done ) &
+( while true; do sudo -n true 2>/dev/null; sleep 50; kill -0 "$$" 2>/dev/null || exit; done ) &
 SUDO_PID=$!
 trap "kill $SUDO_PID 2>/dev/null || true" EXIT
 ok "sudo confirmed"
@@ -284,4 +284,5 @@ fi
 # ── Step 13: Run miniclaw installer ──────────────────────────────────────────
 step "Step 13: miniclaw plugins + vault"
 
+kill $SUDO_PID 2>/dev/null || true
 exec bash "$MINICLAW_OS_DIR/install.sh"

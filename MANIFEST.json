@@ -419,9 +419,9 @@
       "label": "AM Setup Wizard",
       "description": "Consumer onboarding wizard and personal dashboard for first-time AM installation. No terminal required.",
       "path": "apps/am-setup",
-      "port": 3098,
+      "port": 4210,
       "pm2": "am-setup",
-      "entryUrl": "http://localhost:3098",
+      "entryUrl": "http://localhost:4210",
       "setupState": "~/am/user/setup-state.json"
     }
   ]
