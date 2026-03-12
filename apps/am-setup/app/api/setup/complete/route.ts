@@ -37,7 +37,9 @@ conn = sqlite3.connect("${dbPath}")
 conn.execute("""CREATE TABLE IF NOT EXISTS projects (
     id TEXT PRIMARY KEY, name TEXT NOT NULL, slug TEXT NOT NULL,
     description TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'active',
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+    work_dir TEXT NOT NULL DEFAULT '', github_repo TEXT NOT NULL DEFAULT '',
+    build_command TEXT NOT NULL DEFAULT ''
 )""")
 now = datetime.datetime.utcnow().isoformat() + "Z"
 seeds = [

@@ -149,7 +149,7 @@ export function BacklogTriageModal({ onClose }: Props) {
       {/* Footer */}
       <div className="border-t border-zinc-800 px-6 py-4 flex items-center gap-3 flex-shrink-0">
         <span className="text-xs text-zinc-600 flex-1">
-          <code className="text-zinc-500">~/.openclaw/USER/&lt;bot&gt;/brain/prompts/backlog-triage.txt</code>
+          <code className="text-zinc-500">~/.openclaw/USER/brain/prompts/backlog-triage.txt</code>
         </span>
         <button
           onClick={handleTest}

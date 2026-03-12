@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react";
 import StepMeetHer from "./steps/StepMeetHer";
 import StepTelegram from "./steps/StepTelegram";
-import StepColor from "./steps/StepColor";
+
 import StepEmail from "./steps/StepEmail";
 import StepGemini from "./steps/StepGemini";
 import StepInstalling from "./steps/StepInstalling";
@@ -13,7 +13,6 @@ export type WizardState = {
   assistantName: string;
   shortName: string;
   pronouns: string;
-  visualDescription: string;
   accentColor: string;
   personaBlurb: string;
   emailAddress: string;
@@ -27,7 +26,6 @@ export type WizardState = {
 const STEPS = [
   "meet",
   "telegram",
-  "color",
   "email",
   "gemini",
   "installing",
@@ -35,7 +33,7 @@ const STEPS = [
 ] as const;
 type Step = (typeof STEPS)[number];
 
-const NUMBERED_STEPS = ["meet", "telegram", "color", "email", "gemini"] as const;
+const NUMBERED_STEPS = ["meet", "telegram", "email", "gemini"] as const;
 
 export default function SetupWizard() {
   const [step, setStep] = useState<Step>("meet");
@@ -43,8 +41,6 @@ export default function SetupWizard() {
     assistantName: "Amelia",
     shortName: "Am",
     pronouns: "she/her",
-    visualDescription:
-      "Red-haired woman in her late 20s, warm brown eyes, light freckles, wavy copper hair past shoulders, confident and approachable. Usually in black sleeveless top, city background.",
     accentColor: "#00E5CC",
     personaBlurb: "",
     emailAddress: "",
@@ -109,10 +105,9 @@ export default function SetupWizard() {
             name={state.assistantName}
             shortName={state.shortName}
             pronouns={state.pronouns}
-            visualDescription={state.visualDescription}
+            accentColor={state.accentColor}
             onChange={(p) => update(p)}
             onNext={next}
-            accent={state.accentColor}
           />
         )}
         {step === "telegram" && (
@@ -125,15 +120,6 @@ export default function SetupWizard() {
             onNext={next}
             onBack={back}
             accent={state.accentColor}
-          />
-        )}
-        {step === "color" && (
-          <StepColor
-            value={state.accentColor}
-            name={state.shortName || state.assistantName}
-            onChange={(v) => update({ accentColor: v })}
-            onNext={next}
-            onBack={back}
           />
         )}
         {step === "email" && (

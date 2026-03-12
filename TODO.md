@@ -87,33 +87,26 @@
 - [x] Documented release process: tagged versions are candidates until human-tested
 - [x] No version is stable until human team signs off
 
-## In Progress
+### Setup Wizard — merge step 1 "look" + remove color step
+- [x] Merged StepMeetHer + StepColor into single step 1: photo, color, pronouns, name, nickname
+- [x] Removed visual description textarea
+- [x] Removed separate color step from wizard flow
+- [x] Pronoun options: she/her, he/him, they/them
 
-### Welcome wizard uses localStorage — must use file (URGENT)
-The board's WelcomeWizard checks `localStorage("mc-board:welcome-done")` which persists
-across reinstalls (same browser, same port, same localStorage). Must use a file at
-`~/.openclaw/USER/.welcome-done` so deleting `~/.openclaw` resets it.
+### Welcome wizard uses localStorage — must use file
+- [x] API route at `plugins/mc-board/web/src/app/api/welcome/route.ts` (GET/POST)
+- [x] WelcomeWizard.tsx + useWelcomeWizard() fetch from API, POST on dismiss
+- [x] Zero localStorage references remain
 
-**Status:** API route created at `plugins/mc-board/web/src/app/api/welcome/route.ts` (GET/POST).
-Still need to update `WelcomeWizard.tsx` and `useWelcomeWizard()` to fetch from API on mount
-and POST on dismiss — remove all localStorage usage.
-
-### Default projects missing after fresh install (URGENT)
-After the `USER/<botId>/` → `USER/` flatten, the setup wizard's `seedBoardDb()` may write
-to the wrong path, or the board web reads from a different path.
-
-**Check:**
-- `seedBoardDb()` in `apps/am-setup/app/api/setup/complete/route.ts` — must write to `USER/brain/board.db`
-- Board web `data.ts` — must read from `USER/brain/board.db`
-- Confirm both use the same `OPENCLAW_STATE_DIR` (should be `~/.openclaw`)
+### Default projects missing after fresh install
+- [x] `seedBoardDb()` and board web `data.ts` both use `USER/brain/board.db` (verified)
+- [x] Added `work_dir`, `github_repo`, `build_command` columns to seedBoardDb schema
+- [x] Fixed stale `USER/<bot>/` path in BacklogTriageModal.tsx
+- [x] Fixed stale `USER/BOT_ID_PLACEHOLDER/` path in agent-runner plist
 
 ### Cron Backup for Migration (install.sh)
-- [ ] Read upstream cron store module (`src/cron/store.ts`) for exact path resolution
-- [ ] Read cron types (`src/cron/types.ts`) for job schema
-- [ ] Determine if OpenClaw also registers system crontab entries (or internal scheduler only)
-- [ ] Add to install.sh Step 15: dump `crontab -l`, grep for openclaw entries, archive them
-- [ ] Add to install.sh Step 15: find and copy `cron/jobs.json` from archived install
-- [ ] Test migration with a mock openclaw cron store
+- [x] install.sh Step 15 already copies entire `cron/` directory via rsync
+- [x] OpenClaw uses internal JSON scheduler only (no system crontab) — crontab dump not needed
 
 ### Plugin Registration
 - [ ] Register missing plugins in MANIFEST.json: mc-blog, mc-contribute, mc-docs, mc-human, mc-memo, mc-seo, mc-voice

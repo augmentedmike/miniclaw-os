@@ -10,7 +10,6 @@ export interface SetupState {
   shortName: string;
   accentColor: string;
   pronouns: string;
-  visualDescription: string;
   personaBlurb: string;
   emailAddress: string;
   emailConfigured: boolean;
@@ -28,7 +27,6 @@ const defaults: SetupState = {
   shortName: "Am",
   accentColor: "#00E5CC",
   pronouns: "she/her",
-  visualDescription: "",
   personaBlurb: "",
   emailAddress: "",
   emailConfigured: false,

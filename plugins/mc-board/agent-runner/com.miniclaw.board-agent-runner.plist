@@ -23,9 +23,8 @@
     <string>/opt/homebrew/bin/openclaw</string>
     <key>CLAUDE_BIN</key>
     <string>/opt/homebrew/bin/claude</string>
-    <!-- BOARD_DB_PATH: must be set from OPENCLAW_BOT_ID during install -->
     <key>BOARD_DB_PATH</key>
-    <string>/Users/augmentedmike/.openclaw/USER/BOT_ID_PLACEHOLDER/brain/board.db</string>
+    <string>/Users/augmentedmike/.openclaw/USER/brain/board.db</string>
     <key>AGENT_RUNNER_POLL_MS</key>
     <string>5000</string>
     <key>AGENT_RUNNER_MAX_CONCURRENT</key>
