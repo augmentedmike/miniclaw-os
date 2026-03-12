@@ -1,4 +1,4 @@
-import { execSync, spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import * as readline from "node:readline";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -16,7 +16,7 @@ function resolveBin(bin: string): string {
 export function readApiKeyFromVault(vaultBin: string): string {
   try {
     const bin = resolveBin(vaultBin);
-    const result = execSync(`"${bin}" export ${VAULT_KEY}`, {
+    const result = execFileSync(bin, ["export", VAULT_KEY], {
       encoding: "utf8",
       stdio: ["pipe", "pipe", "pipe"],
     });

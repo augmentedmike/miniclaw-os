@@ -1,8 +1,8 @@
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 
 function vaultGet(vaultBin: string, key: string): string | null {
   try {
-    const out = execSync(`${vaultBin} get ${key}`, {
+    const out = execFileSync(vaultBin, ["get", key], {
       encoding: "utf8",
       stdio: ["pipe", "pipe", "pipe"],
     }).trim();
@@ -16,16 +16,16 @@ function vaultGet(vaultBin: string, key: string): string | null {
 }
 
 function vaultSet(vaultBin: string, key: string, value: string): void {
-  execSync(`${vaultBin} set ${key} ${JSON.stringify(value)}`, { stdio: "inherit" });
+  execFileSync(vaultBin, ["set", key, value], { stdio: "inherit" });
 }
 
 function vaultRm(vaultBin: string, key: string): void {
-  execSync(`${vaultBin} rm ${key}`, { stdio: "inherit" });
+  execFileSync(vaultBin, ["rm", key], { stdio: "inherit" });
 }
 
 function vaultList(vaultBin: string): string[] {
   try {
-    const out = execSync(`${vaultBin} list`, {
+    const out = execFileSync(vaultBin, ["list"], {
       encoding: "utf8",
       stdio: ["pipe", "pipe", "pipe"],
     }).trim();

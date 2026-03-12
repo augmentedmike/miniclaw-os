@@ -1,8 +1,8 @@
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 
 export function vaultGet(vaultBin: string, key: string): string | null {
   try {
-    const out = execSync(`${vaultBin} get ${key}`, {
+    const out = execFileSync(vaultBin, ["get", key], {
       encoding: "utf8",
       stdio: ["pipe", "pipe", "pipe"],
     }).trim();
@@ -16,7 +16,7 @@ export function vaultGet(vaultBin: string, key: string): string | null {
 }
 
 export function vaultSet(vaultBin: string, key: string, value: string): void {
-  execSync(`${vaultBin} set ${key} ${JSON.stringify(value)}`, { stdio: "inherit" });
+  execFileSync(vaultBin, ["set", key, value], { stdio: "inherit" });
 }
 
 export function getSquareAccessToken(vaultBin: string): string | null {

@@ -8,10 +8,22 @@ export const dynamic = "force-dynamic";
 const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), "am");
 const BRAIN_DIR = path.join(STATE_DIR, "USER", "augmentedmike_bot", "brain");
 
+/** Allowed directory for prompt files — all paths validated against this. */
+const PROMPTS_DIR = path.resolve(BRAIN_DIR, "prompts");
+
+/**
+ * Validate that a path is within the allowed prompts directory.
+ * Blocks path traversal via env var override or crafted paths.
+ */
+function validatePromptPath(p: string): boolean {
+  const resolved = path.resolve(p);
+  return resolved.startsWith(PROMPTS_DIR + path.sep) || resolved === PROMPTS_DIR;
+}
+
 const PROMPT_PATHS = [
   process.env.BOARD_BACKLOG_PROMPT,
   path.join(BRAIN_DIR, "prompts", "backlog-triage.txt"),
-].filter(Boolean) as string[];
+].filter((p): p is string => Boolean(p) && validatePromptPath(p!));
 
 function readPrompt(): string {
   for (const p of PROMPT_PATHS) {
@@ -22,8 +34,9 @@ function readPrompt(): string {
 
 function writePrompt(text: string): void {
   for (const p of PROMPT_PATHS) {
+    if (!validatePromptPath(p)) continue;
     try {
-      fs.mkdirSync(require("path").dirname(p), { recursive: true });
+      fs.mkdirSync(path.dirname(p), { recursive: true });
       fs.writeFileSync(p, text, "utf-8");
     } catch { /* skip unwritable */ }
   }

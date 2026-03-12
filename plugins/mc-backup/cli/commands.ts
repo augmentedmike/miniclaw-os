@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import type { Command } from "commander";
 import type { BackupConfig } from "../index.js";
 
@@ -126,20 +126,10 @@ export function registerBackupCommands(ctx: CliContext, cfg: BackupConfig): void
         }
 
         console.log(`Backing up ${cfg.stateDir} → ${dest}`);
-        execSync(
-          [
-            "tar",
-            "czf",
-            dest,
-            ...excludeArgs,
-            "-C",
-            parentDir,
-            baseName,
-          ]
-            .map((a) => `'${a.replace(/'/g, "'\\''")}'`)
-            .join(" "),
-          { stdio: "inherit", timeout: 300_000 },
-        );
+        execFileSync("tar", ["czf", dest, ...excludeArgs, "-C", parentDir, baseName], {
+          stdio: "inherit",
+          timeout: 300_000,
+        });
 
         const stat = fs.statSync(dest);
         const mb = (stat.size / 1_048_576).toFixed(1);
@@ -222,7 +212,7 @@ export function registerBackupCommands(ctx: CliContext, cfg: BackupConfig): void
         "WARNING: This will overwrite existing files. Ctrl-C to abort.",
       );
 
-      execSync(`tar xzf '${archivePath.replace(/'/g, "'\\''")}' -C '${parentDir.replace(/'/g, "'\\''")}'`, {
+      execFileSync("tar", ["xzf", archivePath, "-C", parentDir], {
         stdio: "inherit",
         timeout: 300_000,
       });

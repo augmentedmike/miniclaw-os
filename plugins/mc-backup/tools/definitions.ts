@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import type { AnyAgentTool } from "openclaw/plugin-sdk";
 import type { Logger } from "pino";
 import type { BackupConfig } from "../index.js";
@@ -56,20 +56,15 @@ export function createBackupTools(
           const parentDir = path.dirname(cfg.stateDir);
           const baseName = path.basename(cfg.stateDir);
 
-          const excludeParts = cfg.excludeDirs.map(
-            (d) => `--exclude='${d}'`,
-          );
+          const excludeArgs = cfg.excludeDirs.map((d) => `--exclude=${d}`);
           const relBackup = path.relative(cfg.stateDir, cfg.backupDir);
           if (!relBackup.startsWith("..")) {
-            excludeParts.push(`--exclude='${relBackup}'`);
+            excludeArgs.push(`--exclude=${relBackup}`);
           }
-          const excludeArgs =
-            excludeParts.length > 0 ? ` ${excludeParts.join(" ")}` : "";
 
-          execSync(
-            `tar czf '${dest}'${excludeArgs} -C '${parentDir}' '${baseName}'`,
-            { timeout: 300_000 },
-          );
+          execFileSync("tar", ["czf", dest, ...excludeArgs, "-C", parentDir, baseName], {
+            timeout: 300_000,
+          });
 
           const stat = fs.statSync(dest);
           const mb = (stat.size / 1_048_576).toFixed(1);

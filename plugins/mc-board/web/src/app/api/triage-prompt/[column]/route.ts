@@ -8,9 +8,24 @@ export const dynamic = "force-dynamic";
 const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), "am");
 const BRAIN_DIR = path.join(STATE_DIR, "USER", "augmentedmike_bot", "brain");
 
+/** Whitelist of valid column names to prevent path traversal via column parameter. */
+const VALID_COLUMNS = new Set([
+  "backlog", "in-progress", "in-review", "shipped", "held", "blocked",
+]);
+
+function validateColumn(column: string): string | null {
+  if (!VALID_COLUMNS.has(column)) return null;
+  return column;
+}
+
 function promptPath(column: string): string {
-  const envKey = `BOARD_${column.toUpperCase().replace(/-/g, "_")}_PROMPT`;
-  return process.env[envKey] ?? path.join(BRAIN_DIR, "prompts", `${column}-triage.txt`);
+  const promptsDir = path.join(BRAIN_DIR, "prompts");
+  const resolved = path.resolve(promptsDir, `${column}-triage.txt`);
+  // Ensure resolved path stays within the prompts directory
+  if (!resolved.startsWith(path.resolve(promptsDir) + path.sep)) {
+    throw new Error("Path traversal detected");
+  }
+  return resolved;
 }
 
 function readPrompt(column: string): string {
@@ -27,11 +42,17 @@ function writePrompt(column: string, text: string): void {
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ column: string }> }) {
   const { column } = await params;
+  if (!validateColumn(column)) {
+    return NextResponse.json({ error: "Invalid column" }, { status: 400 });
+  }
   return NextResponse.json({ prompt: readPrompt(column) });
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ column: string }> }) {
   const { column } = await params;
+  if (!validateColumn(column)) {
+    return NextResponse.json({ error: "Invalid column" }, { status: 400 });
+  }
   const { prompt } = await req.json();
   if (typeof prompt !== "string") return NextResponse.json({ error: "prompt required" }, { status: 400 });
   writePrompt(column, prompt);

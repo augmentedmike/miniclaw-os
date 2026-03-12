@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
-import { execSync } from "node:child_process";
 
 const IMAGE_EXTS = new Set([".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".ico"]);
 const IMAGE_MIME: Record<string, string> = {
@@ -28,8 +27,49 @@ const EXT_TO_LANG: Record<string, string> = {
 
 const AM_HOME = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), "am");
 
+/** Allowed root directories for file access. */
+const ALLOWED_ROOTS = [
+  path.join(AM_HOME, "miniclaw", "plugins"),
+  path.join(AM_HOME, "projects"),
+  AM_HOME,
+];
+
 function expandTilde(p: string): string {
   return p.startsWith("~/") ? path.join(os.homedir(), p.slice(2)) : p;
+}
+
+/**
+ * Validate that a resolved path is within allowed roots.
+ * Prevents path traversal attacks (../, absolute paths to sensitive dirs).
+ */
+function isPathAllowed(resolved: string): boolean {
+  try {
+    const real = fs.realpathSync(resolved);
+    return ALLOWED_ROOTS.some(root => {
+      try {
+        const realRoot = fs.realpathSync(root);
+        return real.startsWith(realRoot + path.sep) || real === realRoot;
+      } catch {
+        return false;
+      }
+    });
+  } catch {
+    // File doesn't exist yet — validate the directory
+    const dir = path.dirname(resolved);
+    try {
+      const realDir = fs.realpathSync(dir);
+      return ALLOWED_ROOTS.some(root => {
+        try {
+          const realRoot = fs.realpathSync(root);
+          return realDir.startsWith(realRoot + path.sep) || realDir === realRoot;
+        } catch {
+          return false;
+        }
+      });
+    } catch {
+      return false;
+    }
+  }
 }
 
 function resolvePath(filePath: string, base?: string): string {
@@ -40,24 +80,41 @@ function resolvePath(filePath: string, base?: string): string {
   return path.resolve(fp);
 }
 
-// Fallback: search for the file by path suffix, pruning node_modules/.next/.git
-function findInRoot(root: string, relativePath: string): string | null {
-  // Use -prune to avoid descending into heavy dirs — keeps find fast (<200ms)
-  const pluginsDir = path.join(AM_HOME, "miniclaw", "plugins");
-  const projectsDir = path.join(AM_HOME, "projects");
-  const searchRoots = [pluginsDir, projectsDir, root]
-    .filter((r, i, arr) => arr.indexOf(r) === i && fs.existsSync(r))
-    .map(r => `"${r}"`)
-    .join(" ");
-  try {
-    const out = execSync(
-      `find ${searchRoots} \\( -name node_modules -o -name .next -o -name .git -o -name dist \\) -prune -o -path "*/${relativePath}" -print 2>/dev/null | head -1`,
-      { encoding: "utf-8", timeout: 10000, shell: "/bin/zsh" }
-    ).trim();
-    return out || null;
-  } catch {
+/**
+ * Search for a file by relative path suffix using native Node.js recursion.
+ * No shell commands — immune to injection.
+ */
+function findInRoot(roots: string[], relativePath: string, maxDepth = 8): string | null {
+  const skipDirs = new Set(["node_modules", ".next", ".git", "dist"]);
+  const target = relativePath.replace(/^\/+/, "");
+
+  function search(dir: string, depth: number): string | null {
+    if (depth > maxDepth) return null;
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return null;
+    }
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (entry.isFile() && full.endsWith(target)) {
+        return full;
+      }
+      if (entry.isDirectory() && !skipDirs.has(entry.name)) {
+        const found = search(full, depth + 1);
+        if (found) return found;
+      }
+    }
     return null;
   }
+
+  for (const root of roots) {
+    if (!fs.existsSync(root)) continue;
+    const found = search(root, 0);
+    if (found) return found;
+  }
+  return null;
 }
 
 export async function GET(req: NextRequest) {
@@ -68,14 +125,24 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "No path provided" }, { status: 400 });
   }
 
+  // Block obvious path traversal attempts
+  if (filePath.includes("..")) {
+    return NextResponse.json({ error: "Path traversal not allowed" }, { status: 403 });
+  }
+
   let resolved = resolvePath(filePath, base);
   const isRelative = !filePath.startsWith("~/") && !path.isAbsolute(filePath);
 
-  // If not found and path is relative, search in base dir or ~/am
+  // If not found and path is relative, search in allowed roots
   if (!fs.existsSync(resolved) && isRelative) {
-    const searchRoot = base ? expandTilde(base) : AM_HOME;
-    const found = findInRoot(searchRoot, filePath);
+    const searchRoots = ALLOWED_ROOTS.filter(r => fs.existsSync(r));
+    const found = findInRoot(searchRoots, filePath);
     if (found) resolved = found;
+  }
+
+  // Validate the resolved path is within allowed directories
+  if (!isPathAllowed(resolved)) {
+    return NextResponse.json({ error: "Access denied — path outside allowed directories" }, { status: 403 });
   }
 
   const ext = path.extname(resolved).toLowerCase();
