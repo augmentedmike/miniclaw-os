@@ -14,7 +14,6 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd 2>/dev/null)" || REPO
 STATE_DIR="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}"
 MINICLAW_DIR="$STATE_DIR/miniclaw"
 PROJECTS_DIR="$STATE_DIR/projects"
-LOCAL_BIN="${LOCAL_BIN:-$HOME/.local/bin}"
 LOG_FILE="/tmp/miniclaw-install.log"
 ARCH=$(uname -m)
 
@@ -38,6 +37,15 @@ fail() { echo -e "  ${RED}[✗]${NC} $1"; }
 info() { echo -e "  ${BLUE}[i]${NC} $1"; }
 step() { echo -e "\n${BOLD}── $1${NC}"; }
 die()  { fail "$1"; exit 1; }
+
+# Run a command quietly — output goes to log file only, not terminal
+run_quiet() { "$@" >>"$LOG_FILE" 2>&1; }
+
+# Progress helpers: show [ ] line, then overwrite with result
+progress() { echo -ne "  ${BLUE}[ ]${NC} $1\r"; }
+progress_ok()   { echo -e "  ${GREEN}[✓]${NC} $1\033[K"; }
+progress_fail() { echo -e "  ${RED}[✗]${NC} $1\033[K"; }
+progress_warn() { echo -e "  ${YELLOW}[!]${NC} $1\033[K"; }
 
 echo ""
 echo -e "${BOLD}miniclaw-os installer${NC}"
@@ -147,8 +155,20 @@ for portnum in 4210 4220; do
   PORT_PID=$(lsof -ti ":$portnum" 2>/dev/null | head -1 || true)
   if [[ -n "$PORT_PID" ]]; then
     PORT_CMD=$(ps -p "$PORT_PID" -o comm= 2>/dev/null || echo "unknown")
-    warn "Port $portnum already in use by PID $PORT_PID ($PORT_CMD)"
-    COLLISIONS=$((COLLISIONS + 1))
+    warn "Port $portnum in use by PID $PORT_PID ($PORT_CMD) — killing"
+    kill "$PORT_PID" 2>/dev/null || true
+    # Wait briefly for clean shutdown, then force-kill if still alive
+    sleep 1
+    if kill -0 "$PORT_PID" 2>/dev/null; then
+      kill -9 "$PORT_PID" 2>/dev/null || true
+      sleep 0.5
+    fi
+    if kill -0 "$PORT_PID" 2>/dev/null; then
+      fail "Could not kill PID $PORT_PID on port $portnum"
+      COLLISIONS=$((COLLISIONS + 1))
+    else
+      ok "Killed PID $PORT_PID — port $portnum now free"
+    fi
   else
     ok "Port $portnum available"
   fi
@@ -213,7 +233,7 @@ elif [[ "$CHECK_ONLY" == true ]]; then
   fail "Homebrew not found"
 else
   info "Installing Homebrew..."
-  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" \
+  run_quiet /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" \
     || die "Homebrew install failed"
   if [[ "$ARCH" == "arm64" ]]; then
     eval "$(/opt/homebrew/bin/brew shellenv)"
@@ -234,7 +254,7 @@ brew_install() {
     warn "$cmd not found"
   else
     info "Installing $pkg..."
-    brew install "$pkg" && ok "$pkg installed"
+    run_quiet brew install "$pkg" && ok "$pkg installed"
   fi
 }
 
@@ -248,8 +268,8 @@ elif [[ "$CHECK_ONLY" == true ]]; then
   warn "Node.js 18+ not found"
 else
   info "Installing Node.js 22 LTS..."
-  brew install node@22
-  brew link --overwrite node@22 2>/dev/null || true
+  run_quiet brew install node@22
+  run_quiet brew link --overwrite node@22 || true
   NODE_PATH="$BREW_PREFIX/opt/node@22/bin"
   [[ -d "$NODE_PATH" && ":$PATH:" != *":$NODE_PATH:"* ]] && export PATH="$NODE_PATH:$PATH"
   for p in "$HOME/.zprofile" "$HOME/.zshrc"; do
@@ -272,7 +292,7 @@ elif [[ "$CHECK_ONLY" == true ]]; then
   fail "Git Butler not found ($GITBUTLER_BIN)"
 else
   info "Installing Git Butler..."
-  brew install --cask gitbutler \
+  run_quiet brew install --cask gitbutler \
     && ok "Git Butler installed" \
     || warn "Git Butler install failed — download from https://gitbutler.com"
 fi
@@ -286,7 +306,7 @@ if command -v bun &>/dev/null || [[ -f "$HOME/.bun/bin/bun" ]]; then
 elif [[ "$CHECK_ONLY" == true ]]; then
   warn "Bun not found"
 else
-  curl -fsSL https://bun.sh/install | bash
+  run_quiet bash -c "$(curl -fsSL https://bun.sh/install)"
   export PATH="$HOME/.bun/bin:$PATH"
   for p in "$HOME/.zprofile" "$HOME/.zshrc"; do
     grep -q '.bun/bin' "$p" 2>/dev/null \
@@ -301,15 +321,14 @@ if command -v qmd &>/dev/null || [[ -f "$HOME/.bun/bin/qmd" ]]; then
 elif [[ "$CHECK_ONLY" == true ]]; then
   warn "QMD not found"
 else
-  bun install -g qmd 2>/dev/null && ok "QMD installed" \
+  run_quiet bun install -g qmd && ok "QMD installed" \
     || warn "QMD install failed — run: bun install -g qmd"
 fi
 
 # ── Step 4: OpenClaw (from MiniClaw fork) ─────────────────────────────────────
 step "Step 4: OpenClaw"
 
-OPENCLAW_FORK="augmentedmike/openclaw"
-OPENCLAW_NPM_SRC="github:$OPENCLAW_FORK"
+OPENCLAW_NPM_PKG="@miniclaw_official/openclaw"
 
 if command -v openclaw &>/dev/null; then
   INSTALLED=$(openclaw --version 2>/dev/null | head -1 || echo "?")
@@ -317,8 +336,8 @@ if command -v openclaw &>/dev/null; then
 elif [[ "$CHECK_ONLY" == true ]]; then
   fail "OpenClaw not installed"
 else
-  info "Installing OpenClaw from $OPENCLAW_FORK..."
-  npm install -g "$OPENCLAW_NPM_SRC" || die "OpenClaw install failed"
+  info "Installing OpenClaw from $OPENCLAW_NPM_PKG..."
+  run_quiet npm install -g "$OPENCLAW_NPM_PKG" || die "OpenClaw install failed"
   ok "OpenClaw $(openclaw --version 2>/dev/null | head -1) installed"
 fi
 
@@ -359,6 +378,12 @@ mkdir -p "$MINICLAW_DIR/plugins" "$PROJECTS_DIR"
 ok "~/.openclaw/miniclaw/"
 ok "~/.openclaw/projects/"
 
+# Copy MANIFEST.json so the CLI can read the MiniClaw version at runtime
+if [[ -f "$REPO_DIR/MANIFEST.json" ]]; then
+  cp "$REPO_DIR/MANIFEST.json" "$MINICLAW_DIR/MANIFEST.json"
+  ok "MANIFEST.json (v$(python3 -c "import json; print(json.load(open('$MINICLAW_DIR/MANIFEST.json')).get('version','?'))"))"
+fi
+
 # ── Step 6: Install plugins ───────────────────────────────────────────────────
 step "Step 6: miniclaw plugins"
 
@@ -369,39 +394,46 @@ for migrated in "${MIGRATED_PLUGINS[@]}"; do
   src="$REPO_DIR/$migrated"
   dest="$MINICLAW_DIR/$migrated"
   if [[ ! -d "$src" ]]; then
-    warn "Migrated plugin source not found: $src"
+    warn "Source not found: $src"
     continue
   fi
-  already_exists=false
-  [[ -d "$dest" ]] && already_exists=true
+  progress "Installing $migrated (standalone)"
   rsync -a --exclude='node_modules' --exclude='.git' "$src/" "$dest/"
-  $already_exists && ok "Updated:   $migrated (standalone)" || ok "Installed: $migrated (standalone)"
-  # Make CLI executable
   [[ -f "$dest/cli" ]] && chmod +x "$dest/cli"
   [[ -f "$dest/cli.ts" ]] && chmod +x "$dest/cli.ts"
-  # Install dependencies
   if [[ -f "$dest/package.json" ]]; then
-    (cd "$dest" && bun install --frozen-lockfile 2>/dev/null || bun install 2>/dev/null) \
-      && ok "           deps installed" \
-      || warn "           bun install failed in $migrated"
+    if (cd "$dest" && run_quiet bun install --frozen-lockfile 2>/dev/null || run_quiet bun install); then
+      progress_ok "Installed $migrated (standalone)"
+    else
+      progress_warn "Installed $migrated (standalone) — deps failed"
+    fi
+  else
+    progress_ok "Installed $migrated (standalone)"
   fi
 done
 
 # Legacy plugins: install to $MINICLAW_DIR/plugins/mc-<name>/ (openclaw-hosted)
+PLUGIN_COUNT=0
+PLUGIN_FAIL=0
 for plugin_src in "$REPO_DIR/plugins"/*/; do
   plugin_name="$(basename "$plugin_src")"
   plugin_dest="$MINICLAW_DIR/plugins/$plugin_name"
-  already_exists=false
-  [[ -d "$plugin_dest" ]] && already_exists=true
+  progress "Installing $plugin_name"
   rsync -a --exclude='node_modules' --exclude='.git' "$plugin_src" "$plugin_dest/"
-  $already_exists && ok "Updated:   $plugin_name" || ok "Installed: $plugin_name"
-  # Install dependencies so tests can run
   if [[ -f "$plugin_dest/package.json" ]]; then
-    (cd "$plugin_dest" && bun install --frozen-lockfile 2>/dev/null || bun install 2>/dev/null) \
-      && ok "           deps installed" \
-      || warn "           bun install failed in $plugin_name"
+    if (cd "$plugin_dest" && run_quiet bun install --frozen-lockfile 2>/dev/null || run_quiet bun install); then
+      progress_ok "Installed $plugin_name"
+    else
+      progress_warn "Installed $plugin_name — deps failed"
+      PLUGIN_FAIL=$((PLUGIN_FAIL + 1))
+    fi
+  else
+    progress_ok "Installed $plugin_name"
   fi
+  PLUGIN_COUNT=$((PLUGIN_COUNT + 1))
 done
+ok "$PLUGIN_COUNT plugins installed"
+[[ "$PLUGIN_FAIL" -gt 0 ]] && warn "$PLUGIN_FAIL plugin(s) had dependency failures (see $LOG_FILE)"
 
 # ── Step 7: Patch openclaw.json ───────────────────────────────────────────────
 step "Step 7: openclaw.json"
@@ -423,49 +455,29 @@ p.setdefault("entries", {})
 
 state_dir = sys.argv[3] if len(sys.argv) > 3 else os.path.expanduser("~/.openclaw")
 
-plugin_defaults = {
-    "mc-board": {
-        "enabled": True,
-        "config": { "cardsDir": state_dir + "/USER/brain/cards", "qmdBin": "~/.bun/bin/qmd", "qmdCollection": "mc-board", "webPort": 4220 },
-    },
-    "mc-context": {
-        "enabled": True,
-        "config": { "windowMinutes": 60, "windowMinMessages": 10, "maxImagesInHistory": 2, "applyToChannels": True, "applyToDMs": True, "replaceMessages": True },
-    },
-    "mc-designer": {
-        "enabled": True,
-        "config": { "apiKey": "", "model": "gemini-3.1-flash-image-preview", "mediaDir": state_dir + "/media/designer", "defaultWidth": 1024, "defaultHeight": 1024, "vaultBin": mcl_dir + "/vault/cli" },
-    },
-    "mc-kb": {
-        "enabled": True,
-        "config": { "dbDir": state_dir + "/USER/brain/kb", "modelPath": "~/.cache/qmd/models/hf_ggml-org_embeddinggemma-300M-Q8_0.gguf", "qmdBin": "~/.bun/bin/qmd", "qmdCollection": "kb", "contextN": 3, "contextThreshold": 0.75 },
-    },
-    "mc-queue": {
-        "enabled": True,
-        "config": { "enabled": True, "haikuModel": "claude-haiku-4-5-20251001", "maxToolCallsPerTurn": 3, "applyToChannels": True, "applyToDMs": True, "tgLogChatId": "", "tgBotName": "", "boardUrl": "" },
-    },
-    "mc-soul": {
-        "enabled": True,
-        "config": {},
-    },
-    "mc-trust": {
-        "enabled": True,
-        "config": { "agentId": "am", "trustDir": state_dir + "/trust", "vaultBin": mcl_dir + "/vault/cli", "sessionTtlMs": 3600000 },
-    },
-    "mc-backup": {
-        "enabled": True,
-        "config": {},
-    },
+# Per-plugin config overrides (only for plugins that need non-empty config)
+plugin_config_overrides = {
+    "mc-board": { "cardsDir": state_dir + "/USER/brain/cards", "qmdBin": "~/.bun/bin/qmd", "qmdCollection": "mc-board", "webPort": 4220 },
+    "mc-context": { "windowMinutes": 60, "windowMinMessages": 10, "maxImagesInHistory": 2, "applyToChannels": True, "applyToDMs": True, "replaceMessages": True },
+    "mc-designer": { "apiKey": "", "model": "gemini-3.1-flash-image-preview", "mediaDir": state_dir + "/media/designer", "defaultWidth": 1024, "defaultHeight": 1024, "vaultBin": mcl_dir + "/vault/cli" },
+    "mc-kb": { "dbDir": state_dir + "/USER/brain/kb", "modelPath": "~/.cache/qmd/models/hf_ggml-org_embeddinggemma-300M-Q8_0.gguf", "qmdBin": "~/.bun/bin/qmd", "qmdCollection": "kb", "contextN": 3, "contextThreshold": 0.75 },
+    "mc-queue": { "enabled": True, "haikuModel": "claude-haiku-4-5-20251001", "maxToolCallsPerTurn": 3, "applyToChannels": True, "applyToDMs": True, "tgLogChatId": "", "tgBotName": "", "boardUrl": "" },
+    "mc-trust": { "agentId": "am", "trustDir": state_dir + "/trust", "vaultBin": mcl_dir + "/vault/cli", "sessionTtlMs": 3600000 },
 }
 
+# Register ALL plugins found in the plugins directory
 registered = []
-for name, defaults in plugin_defaults.items():
+for name in sorted(os.listdir(plugins_dir)):
     plugin_path = os.path.join(plugins_dir, name)
     if not os.path.isdir(plugin_path):
         continue
+    if name == "shared":
+        continue
     if name not in p["allow"]: p["allow"].append(name)
     if plugin_path not in p["load"]["paths"]: p["load"]["paths"].append(plugin_path)
-    if name not in p["entries"]: p["entries"][name] = defaults
+    if name not in p["entries"]:
+        cfg = plugin_config_overrides.get(name, {})
+        p["entries"][name] = {"enabled": True, "config": cfg}
     registered.append(name)
 
 with open(config_path, "w") as f:
@@ -475,30 +487,47 @@ print(f"  registered: {', '.join(registered)}")
 PYEOF
 ok "openclaw.json patched"
 
-# ── Step 8: CLI tools ─────────────────────────────────────────────────────────
-step "Step 8: CLI tools → $LOCAL_BIN"
+# ── Step 8: CLI tools → SYSTEM/bin ────────────────────────────────────────────
+step "Step 8: CLI tools"
 
-mkdir -p "$LOCAL_BIN"
+SYSTEM_BIN="$MINICLAW_DIR/SYSTEM/bin"
+USER_BIN="$STATE_DIR/USER/bin"
+mkdir -p "$SYSTEM_BIN" "$USER_BIN"
+
 for bin_src in "$REPO_DIR/SYSTEM/bin"/*; do
   [[ -f "$bin_src" ]] || continue
   bin_name="$(basename "$bin_src")"
-  # Migrated CLIs: symlink instead of copy (path derivation needs real location)
-  [[ "$bin_name" == "mc-vault" ]] && continue
-  [[ "$bin_name" == "mc" ]] && { ln -sf "$MINICLAW_DIR/SYSTEM/bin/mc" "$LOCAL_BIN/mc"; ok "Symlinked: mc → miniclaw/system/bin/mc"; continue; }
-  cp "$bin_src" "$LOCAL_BIN/$bin_name"
-  chmod +x "$LOCAL_BIN/$bin_name"
-  ok "Installed: $bin_name"
+  cp "$bin_src" "$SYSTEM_BIN/$bin_name"
+  chmod +x "$SYSTEM_BIN/$bin_name"
+  ok "Installed: $bin_name → SYSTEM/bin/"
 done
 
-# Symlink mc-vault → miniclaw/vault/cli (standalone plugin)
-ln -sf "$MINICLAW_DIR/vault/cli" "$LOCAL_BIN/mc-vault"
-ok "Symlinked: mc-vault → miniclaw/vault/cli"
+# mc-vault is the vault CLI
+cp "$MINICLAW_DIR/vault/cli" "$SYSTEM_BIN/mc-vault" 2>/dev/null && chmod +x "$SYSTEM_BIN/mc-vault" \
+  && ok "Installed: mc-vault → SYSTEM/bin/"
 
-if [[ ":$PATH:" != *":$LOCAL_BIN:"* ]]; then
-  warn "$LOCAL_BIN not in PATH — add to ~/.zshrc: export PATH=\"\$HOME/.local/bin:\$PATH\""
-else
-  ok "$LOCAL_BIN in PATH"
-fi
+ok "SYSTEM/bin: $(ls "$SYSTEM_BIN" | wc -l | tr -d ' ') tools"
+
+# Generate CLI wrappers for every plugin
+step "Step 8b: Plugin CLI wrappers"
+
+PLUGINS_DIR="$MINICLAW_DIR/plugins"
+GENERATED=0
+for plugin_dir in "$PLUGINS_DIR"/mc-*/; do
+  [[ -d "$plugin_dir" ]] || continue
+  plugin_name="$(basename "$plugin_dir")"
+  wrapper="$SYSTEM_BIN/$plugin_name"
+  # Don't overwrite hand-written tools
+  [[ -f "$wrapper" ]] && continue
+  cat > "$wrapper" <<WRAPPER
+#!/usr/bin/env bash
+exec openclaw $plugin_name "\$@"
+WRAPPER
+  chmod +x "$wrapper"
+  GENERATED=$((GENERATED + 1))
+done
+ok "Generated $GENERATED plugin CLI wrappers"
+ok "SYSTEM/bin total: $(ls "$SYSTEM_BIN" | wc -l | tr -d ' ') tools"
 
 # ── Step 9: Directories ───────────────────────────────────────────────────────
 step "Step 9: User directories"
@@ -829,6 +858,21 @@ for rcfile in "$HOME/.zshrc"; do
     echo "alias oc='openclaw'" >> "$rcfile"
     ok "Added oc alias to $rcfile"
   fi
+
+  # SYSTEM/bin and USER/bin on PATH
+  if grep -q 'miniclaw/SYSTEM/bin' "$rcfile"; then
+    ok "SYSTEM/bin already in PATH ($rcfile)"
+  else
+    echo "export PATH=\"\$OPENCLAW_STATE_DIR/miniclaw/SYSTEM/bin:\$PATH\"" >> "$rcfile"
+    ok "Added SYSTEM/bin to PATH in $rcfile"
+  fi
+
+  if grep -q 'USER/bin' "$rcfile"; then
+    ok "USER/bin already in PATH ($rcfile)"
+  else
+    echo "export PATH=\"\$OPENCLAW_STATE_DIR/USER/bin:\$PATH\"" >> "$rcfile"
+    ok "Added USER/bin to PATH in $rcfile"
+  fi
 done
 
 # ── Step 14: Board web build + LaunchAgent ────────────────────────────────────
@@ -837,7 +881,7 @@ step "Step 14: Board web server"
 BOARD_WEB_DIR="$MINICLAW_DIR/plugins/mc-board/web"
 if [[ -f "$BOARD_WEB_DIR/package.json" ]]; then
   info "Building board web..."
-  (cd "$BOARD_WEB_DIR" && npm install --production=false 2>&1 | tail -3 && npx next build 2>&1 | tail -5) \
+  (cd "$BOARD_WEB_DIR" && run_quiet npm install --production=false && run_quiet npx next build) \
     && ok "Board web built" \
     || warn "Board web build failed — run: cd $BOARD_WEB_DIR && npm install && npx next build"
 fi
@@ -949,7 +993,7 @@ if [[ -d "$REPO_DIR/apps/am-setup" ]]; then
   ok "am-setup app copied"
   # Install dependencies and build
   if [[ -f "$SETUP_APP_DIR/package.json" ]]; then
-    (cd "$SETUP_APP_DIR" && npm install --production=false 2>&1 | tail -3 && npm run build 2>&1 | tail -5) \
+    (cd "$SETUP_APP_DIR" && run_quiet npm install --production=false && run_quiet npm run build) \
       && ok "am-setup built" \
       || warn "am-setup build failed — run: cd $SETUP_APP_DIR && npm install && npm run build"
   fi
@@ -1028,6 +1072,42 @@ echo ""
 echo "  Setup:   http://localhost:4210"
 echo "  Board:   http://localhost:4220"
 echo "  Verify:  mc-smoke"
+echo ""
+echo -e "${BOLD}── Next step: Connect your Anthropic account${NC}"
+echo ""
+echo "  MiniClaw requires an Anthropic subscription to function."
+echo ""
+echo "  Recommended plans:"
+echo -e "    ${GREEN}Light user${NC}   — \$20/mo   (casual use, light automation)"
+echo -e "    ${BLUE}Average user${NC} — \$100/mo  (daily use, background agents)"
+echo -e "    ${YELLOW}Power user${NC}   — \$200/mo  (heavy agentic workloads, multiple cron workers)"
+echo ""
+echo "  If you don't have an account yet, one will be created during sign-in."
+echo ""
+
+# Check if Anthropic auth is already configured
+HAS_ANTHROPIC_AUTH=false
+AUTH_PROFILES="$STATE_DIR/agents/main/agent/auth-profiles.json"
+if [[ -f "$AUTH_PROFILES" ]] && python3 -c "
+import json, sys
+store = json.load(open(sys.argv[1]))
+profiles = store.get('profiles', {})
+sys.exit(0 if any(k.startswith('anthropic:') for k in profiles) else 1)
+" "$AUTH_PROFILES" 2>/dev/null; then
+  HAS_ANTHROPIC_AUTH=true
+fi
+
+if [[ "$HAS_ANTHROPIC_AUTH" == true ]]; then
+  ok "Anthropic account already connected"
+else
+  echo -e "  ${BOLD}Launching Anthropic sign-in...${NC}"
+  echo "  A browser window will open — sign in or create your account."
+  echo ""
+  openclaw models auth setup-token --provider anthropic --yes \
+    && ok "Anthropic account connected" \
+    || warn "Auth setup skipped — run later: openclaw models auth setup-token --provider anthropic"
+fi
+
 echo ""
 
 # Open the onboarding wizard in the default browser
