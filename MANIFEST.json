@@ -1,6 +1,6 @@
 {
   "name": "miniclaw-os",
-  "version": "0.1.3",
+  "version": "0.1.5",
   "description": "AugmentedMike's AI operating system \u2014 plugins, tools, and infrastructure for OpenClaw",
   "plugins": [
     {

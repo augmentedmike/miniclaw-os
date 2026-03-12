@@ -5,7 +5,7 @@
 # Safe to re-run — skips anything already installed.
 #
 # Usage (stable release):
-#   curl -fsSL https://raw.githubusercontent.com/augmentedmike/miniclaw-os/v0.1.2/bootstrap.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/augmentedmike/miniclaw-os/v0.1.5/bootstrap.sh | bash
 #
 # Usage (latest main):
 #   curl -fsSL https://raw.githubusercontent.com/augmentedmike/miniclaw-os/main/bootstrap.sh | bash
