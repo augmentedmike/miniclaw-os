@@ -12,9 +12,9 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd 2>/dev/null)" || REPO_DIR="$(pwd)"
 OPENCLAW_DIR="${OPENCLAW_DIR:-$HOME/.openclaw}"
-# STATE_DIR is where runtime data lives (cards, logs, cron, workspace, etc.)
-# Defaults to OPENCLAW_DIR so a fresh install "just works".
-STATE_DIR="${OPENCLAW_STATE_DIR:-$OPENCLAW_DIR}"
+# STATE_DIR = OPENCLAW_DIR. install.sh always installs to ~/.openclaw.
+# Users who want a custom state dir set OPENCLAW_STATE_DIR in their shell AFTER install.
+STATE_DIR="$OPENCLAW_DIR"
 MINICLAW_DIR="$OPENCLAW_DIR/miniclaw"
 PROJECTS_DIR="$OPENCLAW_DIR/projects"
 LOCAL_BIN="${LOCAL_BIN:-$HOME/.local/bin}"
@@ -61,8 +61,8 @@ NEEDS_MIGRATION=false
 OLD_CONFIG="" OLD_PLUGINS_DIR="" OLD_USER_DIR="" OLD_WORKSPACE="" OLD_CRON="" OLD_MEMORY=""
 
 if [[ -d "$OPENCLAW_DIR" && ! -d "$OPENCLAW_DIR/miniclaw" && \
-      ( -f "$OPENCLAW_DIR/openclaw.json" || -d "$OPENCLAW_DIR/plugins" || -d "$OPENCLAW_DIR/user" ) ]]; then
-  # Existing vanilla OpenClaw install with real content (not just an empty dir or leftover)
+      ( -d "$OPENCLAW_DIR/plugins" || -d "$OPENCLAW_DIR/user" ) ]]; then
+  # Existing vanilla OpenClaw install with real user data (not just openclaw.json from a prior install.sh run)
   info "Found existing OpenClaw install at $OPENCLAW_DIR"
   info "This looks like an upstream OpenClaw install (no miniclaw/ directory)."
   echo ""
