@@ -55,9 +55,42 @@ step "Step 0: Existing OpenClaw detection"
 
 ARCHIVE_DIR="$HOME/.openclaw-backup-$(date +%Y%m%d-%H%M%S)"
 NEEDS_MIGRATION=false
-OLD_CONFIG="" OLD_PLUGINS_DIR="" OLD_USER_DIR="" OLD_WORKSPACE="" OLD_CRON="" OLD_MEMORY=""
+OLD_CONFIG="" OLD_PLUGINS_DIR="" OLD_USER_DIR="" OLD_WORKSPACE="" OLD_CRON="" OLD_MEMORY="" OLD_PROJECTS=""
 
-if [[ -d "$STATE_DIR" && ! -d "$STATE_DIR/miniclaw" && \
+# If bootstrap already evacuated ~/.openclaw, use that as the migration source
+EVAC_DIR="${OPENCLAW_EVAC_DIR:-}"
+
+catalog_old_install() {
+  local src="$1"
+  [[ -f "$src/openclaw.json" ]] && OLD_CONFIG="$src/openclaw.json"
+  [[ -d "$src/plugins" ]] && OLD_PLUGINS_DIR="$src/plugins"
+  # OpenClaw uses lowercase "user", MiniClaw uses "USER"
+  [[ -d "$src/user" ]] && OLD_USER_DIR="$src/user"
+  [[ -d "$src/USER" ]] && OLD_USER_DIR="$src/USER"
+  [[ -d "$src/workspace" ]] && OLD_WORKSPACE="$src/workspace"
+  [[ -d "$src/cron" ]] && OLD_CRON="$src/cron"
+  [[ -d "$src/memory" ]] && OLD_MEMORY="$src/memory"
+  [[ -d "$src/projects" ]] && OLD_PROJECTS="$src/projects"
+
+  echo ""
+  info "Found in previous install:"
+  [[ -n "$OLD_CONFIG" ]] && ok "  openclaw.json (config)"
+  [[ -n "$OLD_PLUGINS_DIR" ]] && ok "  plugins/ ($(ls "$OLD_PLUGINS_DIR" 2>/dev/null | wc -l | tr -d ' ') plugins)"
+  [[ -n "$OLD_USER_DIR" ]] && ok "  user/ (personal data)"
+  [[ -n "$OLD_WORKSPACE" ]] && ok "  workspace/ (identity files)"
+  [[ -n "$OLD_CRON" ]] && ok "  cron/ (scheduled jobs)"
+  [[ -n "$OLD_MEMORY" ]] && ok "  memory/ (memory files)"
+  [[ -n "${OLD_PROJECTS:-}" ]] && ok "  projects/ ($(ls "$OLD_PROJECTS" 2>/dev/null | wc -l | tr -d ' ') project repos)"
+  echo ""
+}
+
+if [[ -n "$EVAC_DIR" && -d "$EVAC_DIR" ]]; then
+  # Bootstrap already moved the old install — use it as migration source
+  info "Previous install evacuated by bootstrap to $EVAC_DIR"
+  NEEDS_MIGRATION=true
+  ARCHIVE_DIR="$EVAC_DIR"
+  catalog_old_install "$EVAC_DIR"
+elif [[ -d "$STATE_DIR" && ! -d "$STATE_DIR/miniclaw" && \
       ( -d "$STATE_DIR/plugins" || -d "$STATE_DIR/user" ) ]]; then
   # Existing vanilla OpenClaw install with real user data (not just openclaw.json from a prior install.sh run)
   info "Found existing OpenClaw install at $STATE_DIR"
@@ -91,23 +124,7 @@ if [[ -d "$STATE_DIR" && ! -d "$STATE_DIR/miniclaw" && \
       cp -a "$STATE_DIR" "$ARCHIVE_DIR"
       ok "Archived to $ARCHIVE_DIR"
 
-      # Catalog what they have
-      [[ -f "$ARCHIVE_DIR/openclaw.json" ]] && OLD_CONFIG="$ARCHIVE_DIR/openclaw.json"
-      [[ -d "$ARCHIVE_DIR/plugins" ]] && OLD_PLUGINS_DIR="$ARCHIVE_DIR/plugins"
-      [[ -d "$ARCHIVE_DIR/user" ]] && OLD_USER_DIR="$ARCHIVE_DIR/user"
-      [[ -d "$ARCHIVE_DIR/workspace" ]] && OLD_WORKSPACE="$ARCHIVE_DIR/workspace"
-      [[ -d "$ARCHIVE_DIR/cron" ]] && OLD_CRON="$ARCHIVE_DIR/cron"
-      [[ -d "$ARCHIVE_DIR/memory" ]] && OLD_MEMORY="$ARCHIVE_DIR/memory"
-
-      echo ""
-      info "Found in your existing install:"
-      [[ -n "$OLD_CONFIG" ]] && ok "  openclaw.json (config)"
-      [[ -n "$OLD_PLUGINS_DIR" ]] && ok "  plugins/ ($(ls "$OLD_PLUGINS_DIR" 2>/dev/null | wc -l | tr -d ' ') plugins)"
-      [[ -n "$OLD_USER_DIR" ]] && ok "  user/ (personal data)"
-      [[ -n "$OLD_WORKSPACE" ]] && ok "  workspace/ (identity files)"
-      [[ -n "$OLD_CRON" ]] && ok "  cron/ (scheduled jobs)"
-      [[ -n "$OLD_MEMORY" ]] && ok "  memory/ (memory files)"
-      echo ""
+      catalog_old_install "$ARCHIVE_DIR"
     else
       echo "  Aborted. Your existing install is untouched."
       exit 0
@@ -646,6 +663,40 @@ with open(config_path, "w") as f:
 REG_PYEOF
     done
     ok "Imported $IMPORTED_COUNT upstream OpenClaw plugin(s)"
+  fi
+
+  # Import their project repos (openclaw fork, other repos)
+  if [[ -n "${OLD_PROJECTS:-}" ]]; then
+    info "Importing your project repos..."
+    mkdir -p "$PROJECTS_DIR"
+    PROJ_IMPORTED=0
+    for old_proj in "$OLD_PROJECTS"/*/; do
+      proj_name="$(basename "$old_proj")"
+      dest="$PROJECTS_DIR/$proj_name"
+      if [[ -d "$dest" ]]; then
+        info "  Skipped $proj_name (already exists at $dest)"
+        continue
+      fi
+      rsync -a --exclude='node_modules' "$old_proj" "$dest/"
+      ok "  Imported: $proj_name"
+      PROJ_IMPORTED=$((PROJ_IMPORTED + 1))
+    done
+    ok "Imported $PROJ_IMPORTED project repo(s)"
+  fi
+
+  # Migrate system crontab entries that reference the old install path
+  if crontab -l 2>/dev/null | grep -q "$ARCHIVE_DIR\|\.openclaw"; then
+    info "Migrating crontab entries..."
+    CRONTAB_BEFORE=$(crontab -l 2>/dev/null)
+    # Rewrite old paths to new STATE_DIR
+    CRONTAB_AFTER=$(echo "$CRONTAB_BEFORE" | sed "s|$ARCHIVE_DIR|$STATE_DIR|g" | sed "s|\$HOME/\.openclaw|$STATE_DIR|g" | sed "s|$HOME/\.openclaw|$STATE_DIR|g")
+    if [[ "$CRONTAB_BEFORE" != "$CRONTAB_AFTER" ]]; then
+      echo "$CRONTAB_AFTER" | crontab -
+      CHANGED=$(diff <(echo "$CRONTAB_BEFORE") <(echo "$CRONTAB_AFTER") | grep '^[<>]' | wc -l | tr -d ' ')
+      ok "Updated $CHANGED crontab line(s) to point to $STATE_DIR"
+    else
+      ok "No crontab entries needed updating"
+    fi
   fi
 
   echo ""

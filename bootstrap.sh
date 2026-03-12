@@ -203,11 +203,10 @@ if [[ -d "$OPENCLAW_DIR" ]]; then
   fi
   info "Moving $OPENCLAW_DIR → $EVAC_DIR"
   mv "$OPENCLAW_DIR" "$EVAC_DIR"
-  info "Compressing backup..."
-  (cd "$HOME" && zip -rq "$(basename "$EVAC_DIR").zip" "$(basename "$EVAC_DIR")" 2>/dev/null) \
-    && ok "Archived to ~/$(basename "$EVAC_DIR").zip" \
-    || warn "zip failed — uncompressed backup preserved at $EVAC_DIR"
-  ok "Previous install evacuated"
+  # Compress in background — don't block the install
+  (cd "$HOME" && zip -rq "$(basename "$EVAC_DIR").zip" "$(basename "$EVAC_DIR")" 2>/dev/null \
+    && echo "[background] Compressed backup → ~/$(basename "$EVAC_DIR").zip" >> "$LOG_FILE") &
+  ok "Previous install evacuated (compressing in background)"
 fi
 
 # ── Step 10: OpenClaw (from MiniClaw fork) ────────────────────────────────────
@@ -303,4 +302,4 @@ fi
 step "Step 13: miniclaw plugins + vault"
 
 kill $SUDO_PID 2>/dev/null || true
-OPENCLAW_STATE_DIR="$OPENCLAW_DIR" exec bash "$MINICLAW_OS_DIR/install.sh"
+OPENCLAW_STATE_DIR="$OPENCLAW_DIR" OPENCLAW_EVAC_DIR="${EVAC_DIR:-}" exec bash "$MINICLAW_OS_DIR/install.sh"
