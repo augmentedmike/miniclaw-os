@@ -120,6 +120,73 @@ else
 fi
 
 
+# ── Step 0b: Pre-flight collision checks ─────────────────────────────────────
+step "Step 0b: Pre-flight collision checks"
+
+COLLISIONS=0
+
+# Check ports 4210 (setup wizard) and 4220 (board web)
+for portnum in 4210 4220; do
+  PORT_PID=$(lsof -ti ":$portnum" 2>/dev/null | head -1 || true)
+  if [[ -n "$PORT_PID" ]]; then
+    PORT_CMD=$(ps -p "$PORT_PID" -o comm= 2>/dev/null || echo "unknown")
+    warn "Port $portnum already in use by PID $PORT_PID ($PORT_CMD)"
+    COLLISIONS=$((COLLISIONS + 1))
+  else
+    ok "Port $portnum available"
+  fi
+done
+
+# Check for existing com.miniclaw.* LaunchAgents from a different install
+for label in com.miniclaw.board-web com.miniclaw.am-setup; do
+  plist="$HOME/Library/LaunchAgents/$label.plist"
+  if [[ -f "$plist" ]]; then
+    PLIST_STATE_DIR=$(grep -A1 'OPENCLAW_STATE_DIR' "$plist" 2>/dev/null | tail -1 | sed 's/.*<string>//;s|</string>.*||' || true)
+    if [[ -n "$PLIST_STATE_DIR" && "$PLIST_STATE_DIR" != "$STATE_DIR" ]]; then
+      warn "LaunchAgent $label exists pointing to $PLIST_STATE_DIR (not $STATE_DIR)"
+      warn "  Will be overwritten. Old plist backed up to $plist.bak"
+      cp "$plist" "$plist.bak" 2>/dev/null || true
+      COLLISIONS=$((COLLISIONS + 1))
+    else
+      ok "$label plist already targets $STATE_DIR (will be updated)"
+    fi
+  else
+    ok "$label not yet installed"
+  fi
+done
+
+# Check for system crontab entries referencing .openclaw or miniclaw
+CRONTAB_HITS=$(crontab -l 2>/dev/null | grep -c 'openclaw\|miniclaw' || true)
+if [[ "$CRONTAB_HITS" -gt 0 ]]; then
+  warn "Found $CRONTAB_HITS crontab entries referencing openclaw/miniclaw"
+  warn "  (MiniClaw uses its own cron worker, not system crontab — these may be stale)"
+  crontab -l 2>/dev/null | grep 'openclaw\|miniclaw' | while read -r line; do
+    warn "    $line"
+  done
+  COLLISIONS=$((COLLISIONS + 1))
+fi
+
+# Check for other LaunchAgents/daemons that reference .openclaw
+for plist in "$HOME/Library/LaunchAgents/"*.plist /Library/LaunchDaemons/*.plist; do
+  [[ -f "$plist" ]] || continue
+  [[ "$(basename "$plist")" == com.miniclaw.* ]] && continue
+  if grep -q '\.openclaw' "$plist" 2>/dev/null; then
+    warn "Non-miniclaw plist references .openclaw: $(basename "$plist")"
+    warn "  This service may break if the home directory is relocated"
+    COLLISIONS=$((COLLISIONS + 1))
+  fi
+done
+
+if [[ "$COLLISIONS" -gt 0 ]]; then
+  echo ""
+  warn "$COLLISIONS collision(s) detected (see above)"
+  warn "Install will continue — but review the warnings above."
+  echo ""
+else
+  ok "No collisions detected"
+fi
+
+
 # ── Step 1: Homebrew ──────────────────────────────────────────────────────────
 step "Step 1: Homebrew"
 
@@ -804,6 +871,16 @@ conn.close()
 print(f"  Seeded {added} project(s)" if added else "  Projects already exist")
 PYEOF
 ok "Board DB seeded at $BOARD_DB"
+
+# ── Step 15a: Copy scripts ────────────────────────────────────────────────
+step "Step 15a: Scripts"
+
+if [[ -d "$REPO_DIR/scripts" ]]; then
+  mkdir -p "$MINICLAW_DIR/scripts"
+  cp "$REPO_DIR/scripts/relocate-home.sh" "$MINICLAW_DIR/scripts/" 2>/dev/null || true
+  chmod +x "$MINICLAW_DIR/scripts/"*.sh 2>/dev/null || true
+  ok "Scripts copied to $MINICLAW_DIR/scripts/"
+fi
 
 # ── Step 15b: AM Setup Wizard LaunchAgent ─────────────────────────────────
 step "Step 15b: AM Setup Wizard LaunchAgent"

@@ -11,7 +11,8 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const CONTACTS_DIR = path.join(process.env.HOME, '.openclaw', 'rolodex');
+const STATE_DIR = process.env.OPENCLAW_STATE_DIR || path.join(process.env.HOME, '.openclaw');
+const CONTACTS_DIR = path.join(STATE_DIR, 'rolodex');
 const CONTACTS_FILE = path.join(CONTACTS_DIR, 'contacts.json');
 
 // Sample contacts — replace with your own

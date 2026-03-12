@@ -34,7 +34,7 @@ function resolveConfig(api: OpenClawPluginApi): RolodexConfig {
   const raw = (api.pluginConfig ?? {}) as Partial<RolodexConfig>;
   return {
     storagePath: resolvePath(
-      raw.storagePath ?? `~/.openclaw/USER/rolodex/contacts.json`,
+      raw.storagePath ?? `${process.env.OPENCLAW_STATE_DIR || "~/.openclaw"}/USER/rolodex/contacts.json`,
     ),
   };
 }
