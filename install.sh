@@ -708,9 +708,9 @@ if [[ -f "$BOARD_WEB_DIR/package.json" ]]; then
 fi
 
 BOARD_PLIST="$HOME/Library/LaunchAgents/com.miniclaw.board-web.plist"
-if [[ ! -f "$BOARD_PLIST" ]]; then
-  mkdir -p "$HOME/Library/LaunchAgents"
-  cat > "$BOARD_PLIST" << PLIST
+mkdir -p "$HOME/Library/LaunchAgents"
+launchctl unload "$BOARD_PLIST" 2>/dev/null || true
+cat > "$BOARD_PLIST" << PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -749,12 +749,9 @@ if [[ ! -f "$BOARD_PLIST" ]]; then
 </dict>
 </plist>
 PLIST
-  mkdir -p "$STATE_DIR/logs"
-  launchctl load "$BOARD_PLIST" 2>/dev/null && ok "Board web LaunchAgent loaded (port 4220)" \
-    || warn "LaunchAgent created — run: launchctl load $BOARD_PLIST"
-else
-  ok "Board web LaunchAgent already exists"
-fi
+mkdir -p "$STATE_DIR/logs"
+launchctl load "$BOARD_PLIST" 2>/dev/null && ok "Board web LaunchAgent loaded (port 4220)" \
+  || warn "LaunchAgent created — run: launchctl load $BOARD_PLIST"
 
 # ── Step 15b: AM Setup Wizard LaunchAgent ─────────────────────────────────
 step "Step 15b: AM Setup Wizard LaunchAgent"
@@ -775,9 +772,9 @@ if [[ -d "$REPO_DIR/apps/am-setup" ]]; then
   fi
 fi
 
-if [[ ! -f "$SETUP_PLIST" ]]; then
-  mkdir -p "$HOME/Library/LaunchAgents"
-  cat > "$SETUP_PLIST" << PLIST
+mkdir -p "$HOME/Library/LaunchAgents"
+launchctl unload "$SETUP_PLIST" 2>/dev/null || true
+cat > "$SETUP_PLIST" << PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -818,12 +815,9 @@ if [[ ! -f "$SETUP_PLIST" ]]; then
 </dict>
 </plist>
 PLIST
-  mkdir -p "$STATE_DIR/logs"
-  launchctl load "$SETUP_PLIST" 2>/dev/null && ok "AM Setup LaunchAgent loaded (port 4210)" \
-    || warn "LaunchAgent created — run: launchctl load $SETUP_PLIST"
-else
-  ok "AM Setup LaunchAgent already exists"
-fi
+mkdir -p "$STATE_DIR/logs"
+launchctl load "$SETUP_PLIST" 2>/dev/null && ok "AM Setup LaunchAgent loaded (port 4210)" \
+  || warn "LaunchAgent created — run: launchctl load $SETUP_PLIST"
 
 # ── Step 16: Import shared KB ─────────────────────────────────────────────────
 step "Step 16: Shared knowledge base"
