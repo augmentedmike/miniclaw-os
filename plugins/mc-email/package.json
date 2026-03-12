@@ -11,6 +11,6 @@
     "nodemailer": "^8.0.1"
   },
   "devDependencies": {
-    "openclaw": "github:augmentedmike/openclaw"
+    "openclaw": "npm:@miniclaw_official/openclaw@^2026.3.8"
   }
 }

@@ -5,6 +5,6 @@
   "main": "index.ts",
   "description": "Role-specific job templates and workflows for MiniClaw agents",
   "devDependencies": {
-    "openclaw": "github:augmentedmike/openclaw"
+    "openclaw": "npm:@miniclaw_official/openclaw@^2026.3.8"
   }
 }

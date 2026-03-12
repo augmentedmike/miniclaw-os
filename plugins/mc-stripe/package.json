@@ -8,6 +8,6 @@
     "stripe": "^17.0.0"
   },
   "devDependencies": {
-    "openclaw": "github:augmentedmike/openclaw"
+    "openclaw": "npm:@miniclaw_official/openclaw@^2026.3.8"
   }
 }

@@ -6,6 +6,6 @@
   "description": "Square payment service — charge, refund, payment links. Zero deps, raw fetch.",
   "dependencies": {},
   "devDependencies": {
-    "openclaw": "github:augmentedmike/openclaw"
+    "openclaw": "npm:@miniclaw_official/openclaw@^2026.3.8"
   }
 }

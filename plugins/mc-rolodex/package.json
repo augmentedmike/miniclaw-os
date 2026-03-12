@@ -15,7 +15,7 @@
   "devDependencies": {
     "@types/blessed": "^0.1.24",
     "@types/node": "^22.0.0",
-    "openclaw": "github:augmentedmike/openclaw",
+    "openclaw": "npm:@miniclaw_official/openclaw@^2026.3.8",
     "typescript": "^5.3.3",
     "vitest": "^2.0.0"
   }

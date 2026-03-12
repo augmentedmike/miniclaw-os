@@ -10,6 +10,6 @@
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
-    "openclaw": "github:augmentedmike/openclaw"
+    "openclaw": "npm:@miniclaw_official/openclaw@^2026.3.8"
   }
 }
