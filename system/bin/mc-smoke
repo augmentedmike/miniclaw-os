@@ -11,9 +11,9 @@ fail() { echo "  ✗  $1  →  $2"; FAIL=$(( FAIL + 1 )); }
 warn() { echo "  ⚠  $1  →  $2"; WARN=$(( WARN + 1 )); }
 section() { echo ""; echo "── $1"; }
 
-OPENCLAW_DIR="${HOME}/.openclaw"
-MINICLAW_DIR="$OPENCLAW_DIR/miniclaw"
-VAULT_ROOT="$MINICLAW_DIR/system/vault"
+STATE_DIR="${OPENCLAW_STATE_DIR:-${HOME}/.openclaw}"
+MINICLAW_DIR="$STATE_DIR/miniclaw"
+VAULT_ROOT="$MINICLAW_DIR/SYSTEM/vault"
 
 # ── mc-vault ──────────────────────────────────────────────────────────────────
 section "mc-vault"
@@ -78,7 +78,7 @@ fi
 # ── soul-backups (optional) ───────────────────────────────────────────────────
 section "soul-backups  [optional]"
 
-SNAPSHOTS_DIR="${OPENCLAW_DIR}/soul-backups"
+SNAPSHOTS_DIR="${STATE_DIR}/soul-backups"
 if [[ -d "$SNAPSHOTS_DIR" ]]; then
   count=$(ls "$SNAPSHOTS_DIR" 2>/dev/null | wc -l | tr -d ' ')
   pass "soul-backups present ($count snapshots)"
@@ -102,16 +102,6 @@ else
   warn "check returned non-zero" "may be empty or key issue"
 fi
 
-# ── git butler ────────────────────────────────────────────────────────────────
-section "git butler"
-
-GITBUTLER_BIN="/Applications/GitButler.app/Contents/MacOS/gitbutler-tauri"
-if [[ -x "$GITBUTLER_BIN" ]]; then
-  pass "gitbutler-tauri present ($GITBUTLER_BIN)"
-else
-  fail "gitbutler-tauri not found" "brew install --cask gitbutler"
-fi
-
 # ── openclaw ──────────────────────────────────────────────────────────────────
 section "openclaw"
 
@@ -121,10 +111,10 @@ else
   fail "not found" "npm install -g openclaw@latest"
 fi
 
-if [[ -f "$OPENCLAW_DIR/openclaw.json" ]]; then
+if [[ -f "$STATE_DIR/openclaw.json" ]]; then
   pass "openclaw.json present"
 else
-  fail "openclaw.json missing" "$OPENCLAW_DIR/openclaw.json"
+  fail "openclaw.json missing" "$STATE_DIR/openclaw.json"
 fi
 
 # ── runtime ───────────────────────────────────────────────────────────────────
