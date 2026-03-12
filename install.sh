@@ -678,7 +678,7 @@ ok "Board cron workers written to $CRON_FILE"
 # Copy cron prompts
 if [[ -d "$REPO_DIR/cron/prompts" ]]; then
   mkdir -p "$CRON_DIR/prompts"
-  cp -r "$REPO_DIR/cron/prompts/"* "$CRON_DIR/prompts/" 2>/dev/null
+  cp -r "$REPO_DIR/cron/prompts/"* "$CRON_DIR/prompts/" 2>/dev/null || true
   ok "Cron prompts copied"
 fi
 

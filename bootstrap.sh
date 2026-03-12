@@ -285,4 +285,4 @@ fi
 step "Step 13: miniclaw plugins + vault"
 
 kill $SUDO_PID 2>/dev/null || true
-exec bash "$MINICLAW_OS_DIR/install.sh"
+OPENCLAW_STATE_DIR="$OPENCLAW_DIR" exec bash "$MINICLAW_OS_DIR/install.sh"
