@@ -11,7 +11,7 @@
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd 2>/dev/null)" || REPO_DIR="$(pwd)"
-STATE_DIR="$HOME/am"
+STATE_DIR="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}"
 MINICLAW_DIR="$STATE_DIR/miniclaw"
 PROJECTS_DIR="$STATE_DIR/projects"
 LOCAL_BIN="${LOCAL_BIN:-$HOME/.local/bin}"
