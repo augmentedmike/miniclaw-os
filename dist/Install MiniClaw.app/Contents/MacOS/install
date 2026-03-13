@@ -1,0 +1,3 @@
+#!/bin/bash
+# Fetch and run the latest bootstrap
+exec bash <(curl -fsSL https://raw.githubusercontent.com/augmentedmike/miniclaw-os/main/bootstrap.sh)
