@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { WizardState } from "../SetupWizard";
 
 interface Props {
@@ -33,8 +33,13 @@ export default function StepInstalling({ state, onDone, accent }: Props) {
   const [smokeResults, setSmokeResults] = useState<SmokeResult[]>([]);
   const [smokeSummary, setSmokeSummary] = useState<{ passed: number; failed: number; warned: number } | null>(null);
 
+  const checksRef = useRef(checks);
   const updateCheck = (id: string, patch: Partial<Check>) => {
-    setChecks((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+    setChecks((prev) => {
+      const next = prev.map((c) => (c.id === id ? { ...c, ...patch } : c));
+      checksRef.current = next;
+      return next;
+    });
   };
 
   useEffect(() => {
@@ -126,8 +131,12 @@ export default function StepInstalling({ state, onDone, accent }: Props) {
         updateCheck("smoke", { status: "error", detail: "Health check failed to run" });
       }
 
-      await delay(2000);
-      onDone();
+      const hasFailures = checksRef.current.some((c) => c.status === "error");
+      if (!hasFailures) {
+        await delay(2000);
+        onDone();
+      }
+      // If there are failures, don't auto-advance — show a button instead
     };
 
     run();
@@ -135,6 +144,7 @@ export default function StepInstalling({ state, onDone, accent }: Props) {
   }, []);
 
   const allDone = checks.every((c) => c.status === "ok" || c.status === "error");
+  const hasErrors = checks.some((c) => c.status === "error");
 
   return (
     <div className="flex flex-col gap-6 items-center text-center">
@@ -215,10 +225,25 @@ export default function StepInstalling({ state, onDone, accent }: Props) {
         </details>
       )}
 
-      {allDone && (
+      {allDone && !hasErrors && (
         <p className="text-sm text-[#666]">
           Taking you to {state.assistantName}...
         </p>
+      )}
+
+      {allDone && hasErrors && (
+        <div className="w-full flex flex-col gap-3">
+          <p className="text-sm text-[#888]">
+            Some checks had issues. You can continue — these can be fixed later with <span className="font-mono text-[#aaa]">mc-doctor</span>.
+          </p>
+          <button
+            onClick={onDone}
+            className="w-full py-3 rounded-xl font-semibold transition-all hover:opacity-90 active:scale-[0.98]"
+            style={{ background: accent, color: "#0f0f0f" }}
+          >
+            Continue anyway →
+          </button>
+        </div>
       )}
     </div>
   );

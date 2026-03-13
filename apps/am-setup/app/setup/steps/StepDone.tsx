@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 interface Props {
   name: string;
@@ -8,11 +8,32 @@ interface Props {
 }
 
 export default function StepDone({ name, accent }: Props) {
+  const [boardReady, setBoardReady] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+
+  // Check if board web is reachable, then redirect
   useEffect(() => {
-    const t = setTimeout(() => {
-      window.location.href = "http://localhost:4220";
-    }, 3000);
-    return () => clearTimeout(t);
+    let cancelled = false;
+    const check = async () => {
+      for (let i = 0; i < 30; i++) {
+        if (cancelled) return;
+        try {
+          const res = await fetch("http://localhost:4220/api/health", { mode: "no-cors" });
+          // no-cors means we can't read the response, but if it doesn't throw, the server is up
+          setBoardReady(true);
+          setTimeout(() => {
+            if (!cancelled) window.location.href = "http://localhost:4220";
+          }, 1500);
+          return;
+        } catch {
+          // not ready yet
+        }
+        await new Promise((r) => setTimeout(r, 2000));
+        if (!cancelled) setElapsed((e) => e + 2);
+      }
+    };
+    check();
+    return () => { cancelled = true; };
   }, []);
 
   return (
@@ -29,7 +50,9 @@ export default function StepDone({ name, accent }: Props) {
           {name} is ready.
         </h2>
         <p className="text-[#888] text-lg">
-          Taking you to the brain board now.
+          {boardReady
+            ? "Taking you to the brain board now."
+            : "Waiting for the brain board to start..."}
         </p>
       </div>
 
@@ -38,17 +61,37 @@ export default function StepDone({ name, accent }: Props) {
           className="h-1 rounded-full overflow-hidden w-48"
           style={{ background: "rgba(255,255,255,0.08)" }}
         >
-          <div
-            className="h-full rounded-full"
-            style={{
-              background: accent,
-              width: "100%",
-              animation: "grow-bar 3s linear forwards",
-            }}
-          />
+          {boardReady ? (
+            <div
+              className="h-full rounded-full"
+              style={{
+                background: accent,
+                width: "100%",
+                animation: "grow-bar 1.5s linear forwards",
+              }}
+            />
+          ) : (
+            <div
+              className="h-full rounded-full animate-pulse"
+              style={{ background: `${accent}66`, width: "60%" }}
+            />
+          )}
         </div>
-        <p className="text-xs text-[#555]">Redirecting to brain board...</p>
+        <p className="text-xs text-[#555]">
+          {boardReady ? "Redirecting..." : `Starting board web...${elapsed > 10 ? " (this can take a moment)" : ""}`}
+        </p>
       </div>
+
+      {/* Manual fallback after 20 seconds */}
+      {elapsed >= 20 && !boardReady && (
+        <a
+          href="http://localhost:4220"
+          className="px-6 py-3 rounded-xl font-semibold text-sm transition-all hover:opacity-90"
+          style={{ background: accent, color: "#0f0f0f" }}
+        >
+          Open brain board manually →
+        </a>
+      )}
 
       <style>{`
         @keyframes grow-bar {
