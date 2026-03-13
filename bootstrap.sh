@@ -31,15 +31,35 @@ get_sudo() {
   if sudo -n true 2>/dev/null; then
     return 0
   fi
-  # Native password dialog via osascript
-  local PW
-  PW=$(osascript -e 'display dialog "MiniClaw needs your Mac password to finish setting up." & return & return & "Your password is only used locally and is never stored." default answer "" with hidden answer with title "MiniClaw Setup" with icon caution buttons {"Cancel", "OK"} default button "OK"' -e 'text returned of result' 2>/dev/null) || exit 0
-  echo "$PW" | sudo -S true 2>/dev/null || {
-    osascript -e 'display dialog "Incorrect password. Please try again." with title "MiniClaw Setup" buttons {"OK"} default button "OK" with icon stop' 2>/dev/null
-    exit 1
-  }
-  # Keep sudo alive in background
-  ( while true; do sudo -n true 2>/dev/null; sleep 50; kill -0 $$ 2>/dev/null || exit; done ) &
+
+  # Retry up to 3 times
+  for attempt in 1 2 3; do
+    local PW
+    PW=$(osascript <<'APPLESCRIPT'
+tell application "System Events"
+  activate
+  set pw to text returned of (display dialog "MiniClaw needs your Mac password to finish setting up." & return & return & "Your password is only used locally and is never stored." default answer "" with hidden answer with title "MiniClaw Setup" with icon caution buttons {"Cancel", "OK"} default button "OK")
+  return pw
+end tell
+APPLESCRIPT
+    ) || exit 0  # User clicked Cancel
+
+    if [[ -z "$PW" ]]; then
+      osascript -e 'display dialog "Password cannot be empty." with title "MiniClaw Setup" buttons {"OK"} default button "OK" with icon stop'
+      continue
+    fi
+
+    if echo "$PW" | sudo -S true 2>/dev/null; then
+      # Keep sudo alive in background
+      ( while true; do sudo -n true 2>/dev/null; sleep 50; kill -0 $$ 2>/dev/null || exit; done ) &
+      return 0
+    else
+      osascript -e 'display dialog "Incorrect password. Please try again." with title "MiniClaw Setup" buttons {"OK"} default button "OK" with icon stop'
+    fi
+  done
+
+  osascript -e 'display dialog "Could not verify your password after 3 attempts." with title "MiniClaw Setup" buttons {"OK"} default button "OK" with icon stop'
+  exit 1
 }
 
 get_sudo
