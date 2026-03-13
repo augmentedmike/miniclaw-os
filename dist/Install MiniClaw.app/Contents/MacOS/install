@@ -1,3 +1,35 @@
 #!/bin/bash
-# Fetch and run the latest bootstrap
-exec bash <(curl -fsSL https://raw.githubusercontent.com/augmentedmike/miniclaw-os/main/bootstrap.sh)
+# MiniClaw Installer — .app entry point
+# Runs in a full login shell so PATH includes brew, node, etc.
+
+LOG="/tmp/miniclaw-installer-app.log"
+exec > >(tee -a "$LOG") 2>&1
+echo "=== MiniClaw .app started $(date) ===" >> "$LOG"
+
+# Ensure full PATH (macOS .app bundles have minimal PATH)
+export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$HOME/.bun/bin:$PATH"
+
+# Source shell env if available
+[[ -f "$HOME/.zshenv" ]] && source "$HOME/.zshenv" 2>/dev/null
+[[ -f "$HOME/.zprofile" ]] && source "$HOME/.zprofile" 2>/dev/null
+
+# Download and run bootstrap
+BOOTSTRAP="/tmp/miniclaw-bootstrap-$$.sh"
+/usr/bin/curl -fsSL "https://raw.githubusercontent.com/augmentedmike/miniclaw-os/main/bootstrap.sh" -o "$BOOTSTRAP" 2>>"$LOG"
+
+if [[ ! -s "$BOOTSTRAP" ]]; then
+  osascript -e 'display dialog "Could not download the MiniClaw installer. Check your internet connection and try again." with title "MiniClaw" buttons {"OK"} default button "OK" with icon stop' 2>/dev/null
+  exit 1
+fi
+
+chmod +x "$BOOTSTRAP"
+/bin/bash "$BOOTSTRAP" >>"$LOG" 2>&1
+EXIT_CODE=$?
+
+rm -f "$BOOTSTRAP"
+
+if [[ $EXIT_CODE -ne 0 ]]; then
+  osascript -e "display dialog \"Installation encountered an error (code $EXIT_CODE). Check the log at $LOG\" with title \"MiniClaw\" buttons {\"OK\"} default button \"OK\" with icon stop" 2>/dev/null
+fi
+
+exit $EXIT_CODE
