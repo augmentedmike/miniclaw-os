@@ -139,7 +139,7 @@ export default function StepGithub({
             c. Expiration: <span className="text-white">No expiration</span>
           </p>
           <p>
-            d. Scopes: click <span className="text-white">Select all</span> at the top
+            d. Scopes: check <span className="text-white">every top-level checkbox</span> (repo, workflow, admin:org, etc.)
           </p>
           <p>
             e. Click <span className="text-white">Generate token</span> and copy it
