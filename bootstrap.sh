@@ -50,20 +50,18 @@ if ! command -v node &>/dev/null; then
   fi
 fi
 
-# ── Clone or update the repo ────────────────────────────────────────────────
-if [[ -d "$INSTALL_DIR/.git" ]]; then
-  echo "  Updating MiniClaw..."
-  git -C "$INSTALL_DIR" fetch -q origin --tags
-  # MINICLAW_VERSION can be a tag (e.g. "stable") or a branch — handle both
-  git -C "$INSTALL_DIR" checkout -q "refs/tags/$MINICLAW_VERSION" 2>/dev/null \
-    || git -C "$INSTALL_DIR" checkout -q "$MINICLAW_VERSION" 2>/dev/null \
-    || git -C "$INSTALL_DIR" checkout -q "origin/$MINICLAW_VERSION" 2>/dev/null \
-    || { echo "  Error: could not checkout $MINICLAW_VERSION"; exit 1; }
-else
-  echo "  Downloading MiniClaw..."
-  mkdir -p "$(dirname "$INSTALL_DIR")"
-  git clone -q --branch "$MINICLAW_VERSION" --depth 1 "$REPO_URL" "$INSTALL_DIR"
+# ── Evacuate any existing install ────────────────────────────────────────────
+if [[ -d "$INSTALL_DIR" ]]; then
+  EVAC_DIR="${INSTALL_DIR}.previous-$(date +%Y%m%d-%H%M%S)"
+  echo "  Backing up previous install → $(basename "$EVAC_DIR")"
+  mv "$INSTALL_DIR" "$EVAC_DIR"
+  export OPENCLAW_EVAC_DIR="$EVAC_DIR"
 fi
+
+# ── Fresh clone ─────────────────────────────────────────────────────────────
+echo "  Downloading MiniClaw..."
+mkdir -p "$(dirname "$INSTALL_DIR")"
+git clone -q --depth 1 "$REPO_URL" "$INSTALL_DIR"
 
 # ── Install setup app deps and build ────────────────────────────────────────
 SETUP_DIR="$INSTALL_DIR/apps/am-setup"
