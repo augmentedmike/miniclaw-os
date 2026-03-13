@@ -36,7 +36,7 @@ fi
 # Fallback: open the browser in case bootstrap didn't
 sleep 2
 if /usr/bin/curl -sf "http://localhost:4220/api/health" &>/dev/null; then
-  /usr/bin/open "http://myam.localhost" 2>/dev/null || /usr/bin/open "http://localhost:4220" 2>/dev/null
+  /usr/bin/open "http://myam.localhost:4220" 2>/dev/null || /usr/bin/open "http://localhost:4220" 2>/dev/null
 fi
 
 exit 0

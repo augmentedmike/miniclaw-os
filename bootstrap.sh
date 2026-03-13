@@ -112,37 +112,7 @@ osascript -e 'display notification "Building app..." with title "MiniClaw"' 2>/d
 mkdir -p "$STATE_DIR/USER" "$STATE_DIR/logs"
 rm -f "$STATE_DIR/USER/setup-state.json"
 
-# ── Add myam.localhost hostname ──────────────────────────────────────────────
-if ! grep -q 'myam.localhost' /etc/hosts 2>/dev/null; then
-  echo "127.0.0.1 myam.localhost" | sudo tee -a /etc/hosts >/dev/null 2>&1
-fi
-
-# ── Port 80 → 4220 redirect ─────────────────────────────────────────────────
-PF_RULE="rdr pass on lo0 inet proto tcp from any to 127.0.0.1 port 80 -> 127.0.0.1 port $APP_PORT"
-echo "$PF_RULE" | sudo pfctl -a com.miniclaw -f - 2>/dev/null
-sudo pfctl -e 2>/dev/null || true
-
-# LaunchDaemon so the redirect survives reboots
-PF_DAEMON="/Library/LaunchDaemons/com.miniclaw.pfctl.plist"
-sudo tee "$PF_DAEMON" >/dev/null << PFDAEMON
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key>
-  <string>com.miniclaw.pfctl</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>/bin/sh</string>
-    <string>-c</string>
-    <string>echo "$PF_RULE" | /sbin/pfctl -a com.miniclaw -f - 2>/dev/null; /sbin/pfctl -e 2>/dev/null; true</string>
-  </array>
-  <key>RunAtLoad</key>
-  <true/>
-</dict>
-</plist>
-PFDAEMON
-sudo launchctl load "$PF_DAEMON" 2>/dev/null || true
+# .localhost TLD always resolves to 127.0.0.1 — no /etc/hosts needed
 
 # ── Install board-web LaunchAgent ────────────────────────────────────────────
 PLIST="$HOME/Library/LaunchAgents/com.miniclaw.board-web.plist"
@@ -206,10 +176,21 @@ for i in $(seq 1 30); do
 done
 
 # ── Open browser ─────────────────────────────────────────────────────────────
-open "http://myam.localhost"
+open "http://myam.localhost:4220"
 
 # ── Show success notification ────────────────────────────────────────────────
-osascript -e 'display notification "MiniClaw is ready! Opening your browser..." with title "MiniClaw" sound name "Glass"' 2>/dev/null
+osascript -e 'display notification "Look for your browser window — MiniClaw is ready!" with title "MiniClaw" sound name "Glass"' 2>/dev/null
+
+# Bring browser to front
+osascript -e '
+try
+  tell application "Google Chrome" to activate
+on error
+  try
+    tell application "Safari" to activate
+  end try
+end try
+' 2>/dev/null
 
 # ── Close the Terminal window ────────────────────────────────────────────────
 sleep 1
