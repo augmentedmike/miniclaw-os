@@ -63,7 +63,33 @@ export default function InstallOverlay({ accent }: Props) {
         body: JSON.stringify({}),
       });
 
+      // Already finished or already running — show as done
+      if (res.status === 409) {
+        setPhase("running");
+        setLines((p) => [...p, "Install already in progress..."]);
+        // Poll until it's done
+        const poll = setInterval(async () => {
+          try {
+            const s = await fetch("/api/setup/install").then(r => r.json());
+            if (!s.running) {
+              clearInterval(poll);
+              setPhase("done");
+            }
+          } catch { /* keep polling */ }
+        }, 2000);
+        return;
+      }
+
       if (!res.ok || !res.body) {
+        // Check if install already completed previously
+        try {
+          const status = await fetch("/api/setup/install").then(r => r.json());
+          if (!status.running) {
+            setPhase("done");
+            setLines((p) => [...p, "Install already complete."]);
+            return;
+          }
+        } catch { /* fall through */ }
         setPhase("error");
         setLines((p) => [...p, `Server error: ${res.status}`]);
         return;
@@ -138,8 +164,16 @@ export default function InstallOverlay({ accent }: Props) {
     };
   }, [pos]);
 
-  // Don't show anything once install succeeded and modal is closed
-  if (phase === "done" && !open) return null;
+  // Hide the pill 8 seconds after install completes (if modal is closed)
+  const [dismissed, setDismissed] = useState(false);
+  useEffect(() => {
+    if (phase === "done" && !open) {
+      const t = setTimeout(() => setDismissed(true), 8000);
+      return () => clearTimeout(t);
+    }
+  }, [phase, open]);
+
+  if (dismissed && !open) return null;
 
   // ── Floating pill ─────────────────────────────────────────────────────────
   const pillColor =
@@ -159,11 +193,11 @@ export default function InstallOverlay({ accent }: Props) {
       {!open && (
         <button
           onClick={() => setOpen(true)}
-          className="fixed bottom-5 right-5 z-50 flex items-center gap-2.5 px-4 py-2.5 rounded-full transition-all hover:scale-105 active:scale-95 shadow-lg"
+          className="fixed bottom-5 right-5 z-50 flex items-center gap-2.5 px-4 py-2.5 rounded-full transition-all hover:scale-105 active:scale-95 shadow-lg animate-[fadeSlideIn_0.4s_ease-out]"
           style={{
             background: "#1a1a1a",
-            border: `1px solid ${pillColor}44`,
-            boxShadow: `0 0 20px ${pillColor}15`,
+            border: `1px solid ${pillColor}55`,
+            boxShadow: `0 0 24px ${pillColor}20, 0 2px 8px rgba(0,0,0,0.4)`,
           }}
         >
           {/* Status dot */}
