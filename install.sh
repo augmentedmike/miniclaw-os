@@ -944,16 +944,29 @@ done
 step "Step 14: Board web server"
 
 BOARD_WEB_DIR="$MINICLAW_DIR/plugins/mc-board/web"
-if [[ -f "$BOARD_WEB_DIR/package.json" ]]; then
-  info "Building board web..."
-  (cd "$BOARD_WEB_DIR" && run_quiet npm install --production=false && run_quiet npx next build) \
-    && ok "Board web built" \
-    || warn "Board web build failed — run: cd $BOARD_WEB_DIR && npm install && npx next build"
+BOARD_PLIST="$HOME/Library/LaunchAgents/com.miniclaw.board-web.plist"
+
+# If the board web is already running (port 4220), skip build + reload —
+# it's the app the user is using right now (setup wizard lives here too).
+BOARD_RUNNING=false
+if lsof -ti :4220 &>/dev/null; then
+  BOARD_RUNNING=true
+  ok "Board web already running on port 4220 — skipping rebuild"
 fi
 
-BOARD_PLIST="$HOME/Library/LaunchAgents/com.miniclaw.board-web.plist"
+if [[ "$BOARD_RUNNING" == false ]]; then
+  if [[ -f "$BOARD_WEB_DIR/package.json" ]]; then
+    info "Building board web..."
+    (cd "$BOARD_WEB_DIR" && run_quiet npm install --production=false && run_quiet npx next build) \
+      && ok "Board web built" \
+      || warn "Board web build failed — run: cd $BOARD_WEB_DIR && npm install && npx next build"
+  fi
+fi
+
 mkdir -p "$HOME/Library/LaunchAgents"
-launchctl unload "$BOARD_PLIST" 2>/dev/null || true
+if [[ "$BOARD_RUNNING" == false ]]; then
+  launchctl unload "$BOARD_PLIST" 2>/dev/null || true
+fi
 cat > "$BOARD_PLIST" << PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -994,8 +1007,12 @@ cat > "$BOARD_PLIST" << PLIST
 </plist>
 PLIST
 mkdir -p "$STATE_DIR/logs"
-launchctl load "$BOARD_PLIST" 2>/dev/null && ok "Board web LaunchAgent loaded (port 4220)" \
-  || warn "LaunchAgent created — run: launchctl load $BOARD_PLIST"
+if [[ "$BOARD_RUNNING" == true ]]; then
+  ok "Plist written (board web is already live)"
+else
+  launchctl load "$BOARD_PLIST" 2>/dev/null && ok "Board web LaunchAgent loaded (port 4220)" \
+    || warn "LaunchAgent created — run: launchctl load $BOARD_PLIST"
+fi
 
 # ── Step 14b: Default board projects ──────────────────────────────────────────
 step "Step 14b: Default board projects"
