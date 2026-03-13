@@ -181,16 +181,9 @@ open "http://myam.localhost:4220"
 # ── Show success notification ────────────────────────────────────────────────
 osascript -e 'display notification "Look for your browser window — MiniClaw is ready!" with title "MiniClaw" sound name "Glass"' 2>/dev/null
 
-# Bring browser to front
-osascript -e '
-try
-  tell application "Google Chrome" to activate
-on error
-  try
-    tell application "Safari" to activate
-  end try
-end try
-' 2>/dev/null
+# Bring browser to front — open again to ensure focus
+sleep 1
+open "http://myam.localhost:4220"
 
 # ── Close the Terminal window ────────────────────────────────────────────────
 sleep 1
