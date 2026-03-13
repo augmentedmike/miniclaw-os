@@ -95,9 +95,10 @@ describe('DocumentStore', () => {
       expect(fetched?.history.length).toBe(1);
     });
 
-    it('should update the updated timestamp', () => {
+    it('should update the updated timestamp', async () => {
       const created = store.create('Test', 'author', 'Content');
       const originalUpdated = created.metadata.updated;
+      await Bun.sleep(5);
       const updated = store.update(created.metadata.id, 'New content', 'author2');
       expect(updated.metadata.updated).not.toBe(originalUpdated);
     });

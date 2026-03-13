@@ -1,16 +1,16 @@
 /**
  * db.ts — SQLite database initialization and schema for mc-board.
  *
- * Uses better-sqlite3 (synchronous, Node.js compatible).
+ * Uses bun:sqlite (synchronous, built-in).
  * Single DB file at: <stateDir>/board.db
  * WAL mode for concurrent reads from web + CLI.
  */
 
-import BetterSqlite3 from "better-sqlite3";
+import { Database } from "bun:sqlite";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-export type Database = BetterSqlite3.Database;
+export { Database };
 
 const SCHEMA = /* sql */ `
   CREATE TABLE IF NOT EXISTS cards (
@@ -79,9 +79,9 @@ const SCHEMA = /* sql */ `
 export function openDb(stateDir: string): Database {
   fs.mkdirSync(stateDir, { recursive: true });
   const dbPath = path.join(stateDir, "board.db");
-  const db = new BetterSqlite3(dbPath);
-  db.pragma("journal_mode = WAL");
-  db.pragma("foreign_keys = ON");
+  const db = new Database(dbPath);
+  db.exec("PRAGMA journal_mode = WAL");
+  db.exec("PRAGMA foreign_keys = ON");
   db.exec(SCHEMA);
   // Additive migrations for existing DBs
   try { db.exec(`ALTER TABLE cards ADD COLUMN research TEXT NOT NULL DEFAULT ''`); } catch { /* already exists */ }

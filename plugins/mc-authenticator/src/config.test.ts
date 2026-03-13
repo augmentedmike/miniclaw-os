@@ -4,7 +4,7 @@ import { resolveConfig } from "./config.js";
 describe("resolveConfig", () => {
   it("returns default vaultBin when not provided", () => {
     const cfg = resolveConfig({});
-    expect(cfg.vaultBin).toContain("miniclaw/SYSTEM/bin/miniclaw-vault");
+    expect(cfg.vaultBin).toContain("miniclaw/SYSTEM/bin/mc-vault");
   });
 
   it("uses provided vaultBin", () => {

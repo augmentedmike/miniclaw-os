@@ -836,47 +836,53 @@ fi
 # ── Step 13: Shell env ────────────────────────────────────────────────────────
 step "Step 13: Shell environment"
 
+# Env vars and PATH go in .zshenv so non-interactive shells (cron, agents,
+# IDE terminals) also pick them up.  Aliases stay in .zshrc (interactive only).
+ZSHENV="$HOME/.zshenv"
+touch "$ZSHENV"
+
+if grep -q "OPENCLAW_STATE_DIR" "$ZSHENV"; then
+  ok "OPENCLAW_STATE_DIR already in $ZSHENV"
+else
+  {
+    echo ""
+    echo "# OpenClaw / MiniClaw"
+    echo "export OPENCLAW_STATE_DIR=\"$STATE_DIR\""
+  } >> "$ZSHENV"
+  ok "Added OPENCLAW_STATE_DIR=$STATE_DIR to $ZSHENV"
+fi
+
+if grep -q "MINICLAW_HOME" "$ZSHENV"; then
+  ok "MINICLAW_HOME already in $ZSHENV"
+else
+  echo "export MINICLAW_HOME=\"$MINICLAW_DIR\"" >> "$ZSHENV"
+  ok "Added MINICLAW_HOME=$MINICLAW_DIR to $ZSHENV"
+fi
+
+# SYSTEM/bin and USER/bin on PATH
+if grep -q 'miniclaw/SYSTEM/bin' "$ZSHENV"; then
+  ok "SYSTEM/bin already in PATH ($ZSHENV)"
+else
+  echo "export PATH=\"\$OPENCLAW_STATE_DIR/miniclaw/SYSTEM/bin:\$PATH\"" >> "$ZSHENV"
+  ok "Added SYSTEM/bin to PATH in $ZSHENV"
+fi
+
+if grep -q 'USER/bin' "$ZSHENV"; then
+  ok "USER/bin already in PATH ($ZSHENV)"
+else
+  echo "export PATH=\"\$OPENCLAW_STATE_DIR/USER/bin:\$PATH\"" >> "$ZSHENV"
+  ok "Added USER/bin to PATH in $ZSHENV"
+fi
+
+# Interactive-only bits go in .zshrc
 for rcfile in "$HOME/.zshrc"; do
   [[ -f "$rcfile" ]] || continue
-
-  if grep -q "OPENCLAW_STATE_DIR" "$rcfile"; then
-    ok "OPENCLAW_STATE_DIR already in $rcfile"
-  else
-    {
-      echo ""
-      echo "# OpenClaw / MiniClaw"
-      echo "export OPENCLAW_STATE_DIR=\"$STATE_DIR\""
-    } >> "$rcfile"
-    ok "Added OPENCLAW_STATE_DIR=$STATE_DIR to $rcfile"
-  fi
-
-  if grep -q "MINICLAW_HOME" "$rcfile"; then
-    ok "MINICLAW_HOME already in $rcfile"
-  else
-    echo "export MINICLAW_HOME=\"$MINICLAW_DIR\"" >> "$rcfile"
-    ok "Added MINICLAW_HOME=$MINICLAW_DIR to $rcfile"
-  fi
 
   if grep -q "alias oc=" "$rcfile"; then
     ok "oc alias already in $rcfile"
   else
     echo "alias oc='openclaw'" >> "$rcfile"
     ok "Added oc alias to $rcfile"
-  fi
-
-  # SYSTEM/bin and USER/bin on PATH
-  if grep -q 'miniclaw/SYSTEM/bin' "$rcfile"; then
-    ok "SYSTEM/bin already in PATH ($rcfile)"
-  else
-    echo "export PATH=\"\$OPENCLAW_STATE_DIR/miniclaw/SYSTEM/bin:\$PATH\"" >> "$rcfile"
-    ok "Added SYSTEM/bin to PATH in $rcfile"
-  fi
-
-  if grep -q 'USER/bin' "$rcfile"; then
-    ok "USER/bin already in PATH ($rcfile)"
-  else
-    echo "export PATH=\"\$OPENCLAW_STATE_DIR/USER/bin:\$PATH\"" >> "$rcfile"
-    ok "Added USER/bin to PATH in $rcfile"
   fi
 done
 

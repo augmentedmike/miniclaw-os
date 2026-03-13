@@ -32,7 +32,6 @@ import { stdin as input, stdout as output } from "node:process";
 
 // src/client.ts
 import * as fs from "node:fs";
-import * as path from "node:path";
 
 class SubstackClient {
   base;

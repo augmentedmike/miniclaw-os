@@ -8,7 +8,7 @@ import { resolveConfig } from "./config.js";
 describe("resolveConfig", () => {
   it("returns defaults when raw config is empty", () => {
     const cfg = resolveConfig({});
-    expect(cfg.vaultBin).toContain("miniclaw/SYSTEM/bin/miniclaw-vault");
+    expect(cfg.vaultBin).toContain("miniclaw/SYSTEM/bin/mc-vault");
     expect(cfg.environment).toBe("sandbox");
     expect(cfg.locationId).toBe("");
     expect(cfg.currency).toBe("USD");

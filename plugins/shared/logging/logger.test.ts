@@ -8,8 +8,22 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, mock } from "bun:test";
 import { createLogger, type LogEntry, type Logger } from "./logger.js";
+
+// ── Env stubbing (bun:test doesn't have vi.stubEnv / vi.unstubAllEnvs) ───
+const envBackup: Record<string, string | undefined> = {};
+function stubEnv(key: string, value: string) {
+  if (!(key in envBackup)) envBackup[key] = process.env[key];
+  process.env[key] = value;
+}
+function unstubAllEnvs() {
+  for (const [key, val] of Object.entries(envBackup)) {
+    if (val === undefined) delete process.env[key];
+    else process.env[key] = val;
+  }
+  for (const k of Object.keys(envBackup)) delete envBackup[k];
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -56,7 +70,7 @@ describe("createLogger — JSON format", () => {
 
   afterEach(() => {
     out.restore();
-    vi.unstubAllEnvs();
+    unstubAllEnvs();
   });
 
   it("emits valid JSON for info level", () => {
@@ -132,7 +146,7 @@ describe("createLogger — JSON format", () => {
 
 describe("createLogger — level filtering", () => {
   afterEach(() => {
-    vi.unstubAllEnvs();
+    unstubAllEnvs();
   });
 
   it("suppresses messages below the configured level", () => {
@@ -169,7 +183,7 @@ describe("createLogger — level filtering", () => {
   });
 
   it("picks up MINICLAW_LOG_LEVEL from env", () => {
-    vi.stubEnv("MINICLAW_LOG_LEVEL", "debug");
+    stubEnv("MINICLAW_LOG_LEVEL", "debug");
     const log = createLogger("env-level-test", { format: "json" });
     expect(log.level).toBe("debug");
   });
@@ -177,7 +191,7 @@ describe("createLogger — level filtering", () => {
 
 describe("createLogger — text format", () => {
   afterEach(() => {
-    vi.unstubAllEnvs();
+    unstubAllEnvs();
   });
 
   it("emits human-readable text lines", () => {
@@ -201,13 +215,13 @@ describe("createLogger — text format", () => {
   });
 
   it("picks up MINICLAW_LOG_FORMAT=json from env", () => {
-    vi.stubEnv("MINICLAW_LOG_FORMAT", "json");
+    stubEnv("MINICLAW_LOG_FORMAT", "json");
     const log = createLogger("env-format-test");
     expect(log.format).toBe("json");
   });
 
   it("picks up MINICLAW_LOG_FORMAT=text from env", () => {
-    vi.stubEnv("MINICLAW_LOG_FORMAT", "text");
+    stubEnv("MINICLAW_LOG_FORMAT", "text");
     const log = createLogger("env-format-text");
     expect(log.format).toBe("text");
   });
@@ -231,7 +245,7 @@ describe("createLogger — file logging with rotation", () => {
   });
 
   afterEach(() => {
-    vi.unstubAllEnvs();
+    unstubAllEnvs();
     cleanup(logPath, ...Array.from({ length: 10 }, (_, i) => `${logPath}.${i + 1}`));
   });
 

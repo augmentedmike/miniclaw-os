@@ -15,7 +15,7 @@ import * as path from "node:path";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import { spawn } from "node:child_process";
-import { DatabaseSync } from "node:sqlite";
+import { Database } from "bun:sqlite";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 
 interface VoiceConfig {
@@ -61,8 +61,8 @@ function resolveConfig(api: OpenClawPluginApi): VoiceConfig {
 
 // ── SQLite helpers (sync) ──────────────────────────────────────────────────────
 
-function openDb(dbPath: string): DatabaseSync {
-  const db = new DatabaseSync(dbPath, { open: true });
+function openDb(dbPath: string): Database {
+  const db = new Database(dbPath);
   db.exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;");
 
   // Ensure disclosure columns exist (idempotent)
@@ -84,14 +84,14 @@ function openDb(dbPath: string): DatabaseSync {
   return db;
 }
 
-function isOptedOut(db: DatabaseSync, humanId: string): boolean {
+function isOptedOut(db: Database, humanId: string): boolean {
   const row = db.prepare(
     "SELECT opted_out FROM voice_settings WHERE human_id = ?"
   ).get(humanId) as { opted_out: number } | undefined;
   return Boolean(row?.opted_out);
 }
 
-function needsDisclosure(db: DatabaseSync, humanId: string): boolean {
+function needsDisclosure(db: Database, humanId: string): boolean {
   const row = db.prepare(
     "SELECT needs_disclosure, disclosed_at FROM voice_settings WHERE human_id = ?"
   ).get(humanId) as { needs_disclosure: number; disclosed_at: string | null } | undefined;
@@ -99,7 +99,7 @@ function needsDisclosure(db: DatabaseSync, humanId: string): boolean {
   return Boolean(row.needs_disclosure) && !row.disclosed_at;
 }
 
-function markDisclosed(db: DatabaseSync, humanId: string): void {
+function markDisclosed(db: Database, humanId: string): void {
   const now = new Date().toISOString();
   db.prepare(
     `UPDATE voice_settings
@@ -108,7 +108,7 @@ function markDisclosed(db: DatabaseSync, humanId: string): void {
   ).run(now, now, humanId);
 }
 
-function setOptedOut(db: DatabaseSync, humanId: string, value: boolean): void {
+function setOptedOut(db: Database, humanId: string, value: boolean): void {
   const now = new Date().toISOString();
   db.prepare(
     `INSERT INTO voice_settings (human_id, opted_out, opted_out_at, updated_at)
@@ -120,7 +120,7 @@ function setOptedOut(db: DatabaseSync, humanId: string, value: boolean): void {
   ).run(humanId, value ? 1 : 0, value ? now : null, now);
 }
 
-function purgeVoiceData(db: DatabaseSync, humanId: string): number {
+function purgeVoiceData(db: Database, humanId: string): number {
   const result = db.prepare(
     "DELETE FROM human_voice WHERE human_id = ?"
   ).run(humanId) as { changes: number };
@@ -191,8 +191,8 @@ export default function register(api: OpenClawPluginApi): void {
   );
 
   // Lazy DB handle — opened on first use
-  let _db: DatabaseSync | null = null;
-  function getDb(): DatabaseSync {
+  let _db: Database | null = null;
+  function getDb(): Database {
     if (!_db) _db = openDb(cfg.dbPath);
     return _db;
   }

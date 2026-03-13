@@ -15,50 +15,61 @@ import {
   describe,
   expect,
   it,
-  vi,
-  type MockInstance,
-} from "vitest";
+  mock,
+  spyOn,
+  type Mock,
+} from "bun:test";
 import { registerBrainCommands } from "./commands.js";
 import { CardStore } from "../src/store.js";
+import { openDb } from "../src/db.js";
 import type { Card } from "../src/card.js";
 
 // ---- Test harness ----
 
 let tmpDir: string;
 let stateDir: string;
-let cardsDir: string;
 let store: CardStore;
 let program: Command;
-let stdoutSpy: MockInstance;
-let stderrSpy: MockInstance;
-let exitSpy: MockInstance;
+let stdoutSpy: Mock<(...args: unknown[]) => void>;
+let stderrSpy: Mock<(...args: unknown[]) => void>;
+let exitSpy: Mock<(...args: unknown[]) => never>;
+let origLog: typeof console.log;
+let origError: typeof console.error;
+let origExit: typeof process.exit;
 
 beforeEach(() => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "brain-cli-test-"));
   stateDir = tmpDir;
-  cardsDir = path.join(tmpDir, "cards");
-  store = new CardStore(cardsDir);
+  const db = openDb(stateDir);
+  store = new CardStore(db);
 
   program = new Command();
   program.exitOverride(); // throw instead of process.exit
+
+  origLog = console.log;
+  origError = console.error;
+  origExit = process.exit;
+
+  stdoutSpy = spyOn(console, "log").mockImplementation(() => {});
+  stderrSpy = spyOn(console, "error").mockImplementation(() => {});
+  exitSpy = spyOn(process, "exit").mockImplementation((_code?: number) => {
+    throw new Error(`process.exit(${_code})`);
+  }) as Mock<(...args: unknown[]) => never>;
+
   registerBrainCommands(
     {
       program,
       stateDir,
-      logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+      logger: { info: mock(), warn: mock(), error: mock() },
     },
     store,
   );
-
-  stdoutSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-  stderrSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-  exitSpy = vi.spyOn(process, "exit").mockImplementation((_code?: number) => {
-    throw new Error(`process.exit(${_code})`);
-  });
 });
 
 afterEach(() => {
-  vi.restoreAllMocks();
+  stdoutSpy.mockRestore();
+  stderrSpy.mockRestore();
+  exitSpy.mockRestore();
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
