@@ -124,8 +124,8 @@ function ensureGatewayRunning(): { ok: boolean; error?: string } {
   const ocBin = findBin("openclaw");
   if (!ocBin) return { ok: false, error: "openclaw not found on PATH" };
 
-  // Clean up any invalid config keys before starting
-  spawnSync(ocBin, ["doctor", "--fix"], { encoding: "utf-8", timeout: 15_000 });
+  // DO NOT run openclaw doctor --fix here — it rewrites openclaw.json
+  // and wipes the miniclaw plugin paths/entries that install.sh configured.
 
   // Install the gateway LaunchAgent (creates plist + loads it)
   const installResult = spawnSync(ocBin, ["gateway", "install", "--force"], {
