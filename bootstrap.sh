@@ -7,7 +7,7 @@ STATE_DIR="${HOME}/.openclaw"
 WEB_DIR="$STATE_DIR/web"
 APP_PORT=4220
 LOG_FILE="/tmp/miniclaw-bootstrap.log"
-ZIP_URL="https://raw.githubusercontent.com/augmentedmike/miniclaw-os/main/dist/MiniClaw-Installer-v0.1.5.zip"
+ZIP_URL="https://github.com/augmentedmike/miniclaw-os/releases/download/v0.1.5-installer/MiniClaw-Installer-v0.1.5.zip"
 
 # Detect if running from .app bundle vs curl|bash
 IS_APP=false
@@ -72,7 +72,7 @@ fi
 # ── Download pre-built app (13MB) ─────────────────────────────────────────────
 echo "  Downloading (13MB)..."
 ZIP_TMP="/tmp/miniclaw-installer-$$.zip"
-/usr/bin/curl -fsSL --progress-bar "$ZIP_URL" -o "$ZIP_TMP" 2>&1
+/usr/bin/curl -fL# "$ZIP_URL" -o "$ZIP_TMP"
 
 echo "  Extracting..."
 EXTRACT_TMP="/tmp/miniclaw-extract-$$"
