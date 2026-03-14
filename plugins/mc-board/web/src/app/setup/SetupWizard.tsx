@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Image from "next/image";
+import { useWizard } from "./wizard-context";
 import InstallOverlay from "./InstallOverlay";
 import StepMeetHer from "./steps/StepMeetHer";
 import StepTelegram from "./steps/StepTelegram";
@@ -13,21 +14,8 @@ import StepGemini from "./steps/StepGemini";
 import StepInstalling from "./steps/StepInstalling";
 import StepDone from "./steps/StepDone";
 
-export type WizardState = {
-  assistantName: string;
-  shortName: string;
-  pronouns: string;
-  accentColor: string;
-  personaBlurb: string;
-  anthropicToken: string;
-  emailAddress: string;
-  appPassword: string;
-  geminiKey: string;
-  ghToken: string;
-  telegramBotUsername: string;
-  telegramBotToken: string;
-  telegramChatId: string;
-};
+// Re-export for backward compat (step components that import WizardState)
+export type { WizardState } from "./wizard-context";
 
 const STEPS = [
   "meet",
@@ -52,40 +40,12 @@ function stepFromPath(pathname: string): Step {
 export default function SetupWizard() {
   const router = useRouter();
   const pathname = usePathname();
+  const { state, update, accent } = useWizard();
+
   const [step, setStepState] = useState<Step>(() => stepFromPath(pathname));
-  const [state, setState] = useState<WizardState>(() => {
-    const defaults: WizardState = {
-      assistantName: "",
-      shortName: "",
-      pronouns: "she/her",
-      accentColor: "#00E5CC",
-      personaBlurb: "",
-      anthropicToken: "",
-      emailAddress: "",
-      appPassword: "",
-      geminiKey: "",
-      ghToken: "",
-      telegramBotUsername: "",
-      telegramBotToken: "",
-      telegramChatId: "",
-    };
-    if (typeof window === "undefined") return defaults;
-    try {
-      const saved = sessionStorage.getItem("mc-wizard-state");
-      if (saved) return { ...defaults, ...JSON.parse(saved) };
-    } catch {}
-    return defaults;
-  });
 
-  // Persist wizard state to sessionStorage on every change
   useEffect(() => {
-    try { sessionStorage.setItem("mc-wizard-state", JSON.stringify(state)); } catch {}
-  }, [state]);
-
-  // Sync step from URL on pathname change
-  useEffect(() => {
-    const s = stepFromPath(pathname);
-    setStepState(s);
+    setStepState(stepFromPath(pathname));
   }, [pathname]);
 
   const setStep = useCallback(
@@ -106,13 +66,9 @@ export default function SetupWizard() {
     if (idx > 0) setStep(STEPS[idx - 1]);
   }, [step, setStep]);
 
-  const update = useCallback((patch: Partial<WizardState>) => {
-    setState((s) => ({ ...s, ...patch }));
-  }, []);
-
   const stepNum = NUMBERED_STEPS.indexOf(step as (typeof NUMBERED_STEPS)[number]) + 1;
 
-  // Splash screen — only on very first load (persisted via sessionStorage)
+  // Splash screen — only on very first load
   const [splash, setSplash] = useState(() => {
     if (typeof window === "undefined") return false;
     return !sessionStorage.getItem("mc-splash-shown");
@@ -130,42 +86,21 @@ export default function SetupWizard() {
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(fade); clearTimeout(hide); };
   }, [splash]);
 
-  const accentStyle = {
-    "--user-accent": state.accentColor,
-  } as React.CSSProperties;
-
   if (splash) {
     return (
       <div
         className="min-h-screen flex flex-col items-center justify-center"
-        style={{
-          background: "#0f0f0f",
-          opacity: splashFade ? 0 : 1,
-          transition: "opacity 0.7s ease-out",
-        }}
+        style={{ background: "#0f0f0f", opacity: splashFade ? 0 : 1, transition: "opacity 0.7s ease-out" }}
       >
-        <Image
-          src="/miniclaw-logo.png"
-          alt="MiniClaw"
-          width={160}
-          height={160}
-          priority
-          style={{ animation: "splashPulse 2s ease-in-out infinite" }}
-        />
+        <Image src="/miniclaw-logo.png" alt="MiniClaw" width={160} height={160} priority style={{ animation: "splashPulse 2s ease-in-out infinite" }} />
         <div style={{ marginTop: 28, textAlign: "center", fontSize: 18, display: "flex", gap: 8, justifyContent: "center" }}>
           {splashLine >= 1 && <span style={{ color: "#ccc", animation: "fadeUp 0.6s ease-out forwards" }}>Your own AI.</span>}
           {splashLine >= 2 && <span style={{ color: "#aaa", animation: "fadeUp 0.6s ease-out forwards" }}>Your Mac.</span>}
           {splashLine >= 3 && <span style={{ color: "#888", animation: "fadeUp 0.6s ease-out forwards" }}>Your data.</span>}
         </div>
         <style>{`
-          @keyframes splashPulse {
-            0%, 100% { transform: scale(1); opacity: 1; }
-            50% { transform: scale(1.05); opacity: 0.9; }
-          }
-          @keyframes fadeUp {
-            from { opacity: 0; transform: translateY(8px); }
-            to { opacity: 1; transform: translateY(0); }
-          }
+          @keyframes splashPulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.05); opacity: 0.9; } }
+          @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         `}</style>
       </div>
     );
@@ -174,105 +109,47 @@ export default function SetupWizard() {
   return (
     <div
       className="min-h-screen flex flex-col items-center justify-center px-4 py-12"
-      style={accentStyle}
+      style={{ "--user-accent": accent } as React.CSSProperties}
     >
+      <InstallOverlay accent={accent} />
 
-      {/* Install overlay — floating pill + draggable log window */}
-      <InstallOverlay accent={state.accentColor} />
-
-      {/* Progress indicator */}
       {stepNum > 0 && step !== "installing" && step !== "done" && (
         <div className="mb-8 flex items-center gap-2">
-          <span className="text-xs text-[#666] mr-1">
-            {stepNum}/{NUMBERED_STEPS.length}
-          </span>
+          <span className="text-xs text-[#666] mr-1">{stepNum}/{NUMBERED_STEPS.length}</span>
           {NUMBERED_STEPS.map((_, i) => (
             <div
               key={i}
               className="h-1.5 rounded-full transition-all duration-500"
-              style={{
-                width: i < stepNum ? "32px" : "12px",
-                background:
-                  i < stepNum
-                    ? state.accentColor
-                    : "rgba(255,255,255,0.15)",
-              }}
+              style={{ width: i < stepNum ? "32px" : "12px", background: i < stepNum ? accent : "rgba(255,255,255,0.15)" }}
             />
           ))}
         </div>
       )}
 
-      {/* Step content */}
       <div className="w-full max-w-xl step-enter" key={step}>
         {step === "meet" && (
-          <StepMeetHer
-            name={state.assistantName}
-            shortName={state.shortName}
-            pronouns={state.pronouns}
-            accentColor={state.accentColor}
-            onChange={(p) => update(p)}
-            onNext={next}
-          />
+          <StepMeetHer name={state.assistantName} shortName={state.shortName} pronouns={state.pronouns} accentColor={accent} onChange={update} onNext={next} />
         )}
         {step === "telegram" && (
-          <StepTelegram
-            botUsername={state.telegramBotUsername}
-            botToken={state.telegramBotToken}
-            chatId={state.telegramChatId}
-            assistantName={state.shortName || state.assistantName}
-            onChange={(p) => update(p)}
-            onNext={next}
-            onBack={back}
-            accent={state.accentColor}
-          />
+          <StepTelegram botUsername={state.telegramBotUsername} botToken={state.telegramBotToken} chatId={state.telegramChatId} assistantName={state.shortName || state.assistantName} onChange={update} onNext={next} onBack={back} accent={accent} />
         )}
         {step === "github" && (
-          <StepGithub
-            ghToken={state.ghToken}
-            assistantName={state.shortName || state.assistantName}
-            onChange={(v) => update({ ghToken: v })}
-            onNext={next}
-            onBack={back}
-            accent={state.accentColor}
-          />
+          <StepGithub ghToken={state.ghToken} assistantName={state.shortName || state.assistantName} onChange={(v) => update({ ghToken: v })} onNext={next} onBack={back} accent={accent} />
         )}
         {step === "email" && (
-          <StepEmail
-            email={state.emailAddress}
-            appPassword={state.appPassword}
-            onChange={(p) => update(p)}
-            onNext={next}
-            onBack={back}
-            accent={state.accentColor}
-          />
+          <StepEmail email={state.emailAddress} appPassword={state.appPassword} onChange={update} onNext={next} onBack={back} accent={accent} />
         )}
         {step === "gemini" && (
-          <StepGemini
-            apiKey={state.geminiKey}
-            onChange={(v) => update({ geminiKey: v })}
-            onNext={next}
-            onBack={back}
-            accent={state.accentColor}
-          />
+          <StepGemini apiKey={state.geminiKey} onChange={(v) => update({ geminiKey: v })} onNext={next} onBack={back} accent={accent} />
         )}
         {step === "anthropic" && (
-          <StepAnthropic
-            setupToken={state.anthropicToken}
-            onChange={(v) => update({ anthropicToken: v })}
-            onNext={next}
-            onBack={back}
-            accent={state.accentColor}
-            assistantName={state.shortName || state.assistantName}
-          />
+          <StepAnthropic setupToken={state.anthropicToken} onChange={(v) => update({ anthropicToken: v })} onNext={next} onBack={back} accent={accent} assistantName={state.shortName || state.assistantName} />
         )}
         {step === "installing" && (
-          <StepInstalling state={state} onDone={next} accent={state.accentColor} />
+          <StepInstalling state={state} onDone={next} accent={accent} />
         )}
         {step === "done" && (
-          <StepDone
-            name={state.shortName || state.assistantName}
-            accent={state.accentColor}
-          />
+          <StepDone name={state.shortName || state.assistantName} accent={accent} />
         )}
       </div>
     </div>
