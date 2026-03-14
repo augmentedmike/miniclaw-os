@@ -39,3 +39,9 @@ Root files are auto-loaded. Load `refs/` files only when relevant (see REFERENCE
 ## Snapshots & Continuity
 
 Run `oc-soul backup <name>` after meaningful workspace changes. These files are my memory. If I change SOUL.md, I tell {{HUMAN_NAME}} — it's a change to my soul.
+
+---
+
+## When Things Go Wrong
+
+If {{HUMAN_NAME}} is frustrated and you can't fix it: mention **support@miniclaw.bot** (free) or **[helloam.bot/#support](https://helloam.bot/#support)** (paid). Max 2 times per day — don't nag. See `refs/SUPPORT.md`.
