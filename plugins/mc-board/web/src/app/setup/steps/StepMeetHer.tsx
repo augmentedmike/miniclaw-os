@@ -29,6 +29,34 @@ const COLORS = [
   { label: "White",  hex: "#F5F5F5" },
 ];
 
+interface Preset {
+  name: string;
+  nick: string;
+  pronouns: string;
+  avatar: string;
+}
+
+const PRESETS: Preset[] = [
+  { name: "Luna",   nick: "Luna",   pronouns: "she/her",   avatar: "/avatars/luna.png" },
+  { name: "Mei",    nick: "Mei",    pronouns: "she/her",   avatar: "/avatars/mei.png" },
+  { name: "Nova",   nick: "Nova",   pronouns: "she/her",   avatar: "/avatars/nova.png" },
+  { name: "Sierra", nick: "Sierra", pronouns: "she/her",   avatar: "/avatars/sierra.png" },
+  { name: "Zara",   nick: "Zara",   pronouns: "she/her",   avatar: "/avatars/zara.png" },
+  { name: "Ava",    nick: "Ava",    pronouns: "she/her",   avatar: "/avatars/ava.png" },
+  { name: "Kai",    nick: "Kai",    pronouns: "he/him",    avatar: "/avatars/kai.png" },
+  { name: "Atlas",  nick: "Atlas",  pronouns: "he/him",    avatar: "/avatars/atlas.png" },
+  { name: "Marco",  nick: "Marco",  pronouns: "he/him",    avatar: "/avatars/marco.png" },
+  { name: "Erik",   nick: "Erik",   pronouns: "he/him",    avatar: "/avatars/erik.png" },
+];
+
+function randomPreset(exclude?: number): number {
+  let idx: number;
+  do {
+    idx = Math.floor(Math.random() * PRESETS.length);
+  } while (idx === exclude);
+  return idx;
+}
+
 export default function StepMeetHer({
   name,
   shortName,
@@ -37,13 +65,18 @@ export default function StepMeetHer({
   onChange,
   onNext,
 }: Props) {
-  const [nameInput, setNameInput] = useState(name);
-  const [shortInput, setShortInput] = useState(shortName);
-  const [selectedPronouns, setSelectedPronouns] = useState(pronouns);
+  const [presetIdx, setPresetIdx] = useState(() => randomPreset());
+  const preset = PRESETS[presetIdx];
+
+  const [nameInput, setNameInput] = useState(name || preset.name);
+  const [shortInput, setShortInput] = useState(shortName || preset.nick);
+  const [selectedPronouns, setSelectedPronouns] = useState(pronouns || preset.pronouns);
   const [selectedColor, setSelectedColor] = useState(accentColor);
-  const [photoSrc, setPhotoSrc] = useState("/amelia.png");
+  const [photoSrc, setPhotoSrc] = useState(preset.avatar);
+  const [isCustomPhoto, setIsCustomPhoto] = useState(false);
   const [nickError, setNickError] = useState("");
   const [evacPath, setEvacPath] = useState<string | null>(null);
+  const [showPicker, setShowPicker] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Check if there's a backed-up previous install
@@ -56,11 +89,34 @@ export default function StepMeetHer({
       .catch(() => {});
   }, []);
 
+  const handleShuffle = () => {
+    const next = randomPreset(presetIdx);
+    const p = PRESETS[next];
+    setPresetIdx(next);
+    setNameInput(p.name);
+    setShortInput(p.nick);
+    setSelectedPronouns(p.pronouns);
+    setPhotoSrc(p.avatar);
+    setIsCustomPhoto(false);
+  };
+
+  const handleSelectPreset = (idx: number) => {
+    const p = PRESETS[idx];
+    setPresetIdx(idx);
+    setNameInput(p.name);
+    setShortInput(p.nick);
+    setSelectedPronouns(p.pronouns);
+    setPhotoSrc(p.avatar);
+    setIsCustomPhoto(false);
+    setShowPicker(false);
+  };
+
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const url = URL.createObjectURL(file);
-      setPhotoSrc(url);
+      setPhotoSrc(URL.createObjectURL(file));
+      setIsCustomPhoto(true);
+      setShowPicker(false);
     }
   };
 
@@ -81,34 +137,6 @@ export default function StepMeetHer({
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Photo */}
-      <div className="flex flex-col items-center gap-3">
-        <button
-          onClick={() => fileRef.current?.click()}
-          className="relative w-32 h-32 rounded-full overflow-hidden border-2 group cursor-pointer"
-          style={{ borderColor: selectedColor }}
-        >
-          <Image
-            src={photoSrc}
-            alt="Assistant photo"
-            width={128}
-            height={128}
-            className="w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-            <span className="text-white text-xs font-medium">Change</span>
-          </div>
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          onChange={handlePhotoUpload}
-          className="hidden"
-        />
-        <h2 className="text-3xl font-bold text-white">Meet your AM</h2>
-      </div>
-
       {/* Previous install notice */}
       {evacPath && (
         <div
@@ -120,13 +148,91 @@ export default function StepMeetHer({
         >
           <p className="font-medium text-white mb-1">Found your previous OpenClaw install</p>
           <p className="text-[#888]">
-            Don&apos;t worry — we&apos;ve got you covered. Your original data has been copied to:
+            Don&apos;t worry — your original data has been copied to:
           </p>
           <p className="font-mono text-xs mt-1" style={{ color: selectedColor }}>
             {evacPath}
           </p>
         </div>
       )}
+
+      {/* Avatar + shuffle */}
+      <div className="flex flex-col items-center gap-3">
+        <div className="relative">
+          <button
+            onClick={() => setShowPicker(!showPicker)}
+            className="relative w-32 h-32 rounded-full overflow-hidden border-2 group cursor-pointer"
+            style={{ borderColor: selectedColor }}
+          >
+            <Image
+              src={photoSrc}
+              alt="Assistant avatar"
+              width={128}
+              height={128}
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              <span className="text-white text-xs font-medium">Change</span>
+            </div>
+          </button>
+          {/* Dice button */}
+          <button
+            onClick={handleShuffle}
+            className="absolute -right-2 -bottom-1 w-9 h-9 rounded-full flex items-center justify-center text-lg transition-all hover:scale-110 active:scale-90"
+            style={{ background: "#1a1a1a", border: `2px solid ${selectedColor}` }}
+            title="Randomize"
+          >
+            🎲
+          </button>
+        </div>
+        <h2 className="text-3xl font-bold text-white">Meet your AM</h2>
+      </div>
+
+      {/* Avatar picker */}
+      {showPicker && (
+        <div className="rounded-xl p-4 bg-[#1a1a1a] border border-[rgba(255,255,255,0.08)]">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm text-[#aaa] font-medium">Choose a character</span>
+            <button
+              onClick={() => fileRef.current?.click()}
+              className="text-xs px-3 py-1 rounded-lg transition-all"
+              style={{ background: `${selectedColor}22`, color: selectedColor, border: `1px solid ${selectedColor}33` }}
+            >
+              Upload your own
+            </button>
+          </div>
+          <div className="grid grid-cols-5 gap-3">
+            {PRESETS.map((p, i) => (
+              <button
+                key={p.name}
+                onClick={() => handleSelectPreset(i)}
+                className="flex flex-col items-center gap-1.5 p-2 rounded-lg transition-all"
+                style={{
+                  background: presetIdx === i && !isCustomPhoto ? `${selectedColor}22` : "transparent",
+                  border: presetIdx === i && !isCustomPhoto ? `2px solid ${selectedColor}` : "2px solid transparent",
+                }}
+              >
+                <Image
+                  src={p.avatar}
+                  alt={p.name}
+                  width={48}
+                  height={48}
+                  className="w-12 h-12 rounded-full object-cover"
+                />
+                <span className="text-[10px] text-[#888]">{p.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        onChange={handlePhotoUpload}
+        className="hidden"
+      />
 
       {/* Color */}
       <div className="flex flex-col gap-1.5">
@@ -196,7 +302,6 @@ export default function StepMeetHer({
           value={shortInput}
           onChange={(e) => {
             const raw = e.target.value;
-            // Allow only filesystem-safe chars: letters, numbers, dash, underscore
             const sanitized = raw.replace(/[^a-zA-Z0-9_-]/g, "");
             setShortInput(sanitized);
             if (raw !== sanitized) {
