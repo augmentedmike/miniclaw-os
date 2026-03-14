@@ -1026,6 +1026,24 @@ else
   warn "seed.sql not found — no starter data"
 fi
 
+# Copy default triage/work prompts to USER brain (editable by user/agent)
+PROMPTS_DEFAULTS="$REPO_DIR/plugins/mc-board/prompts/defaults"
+PROMPTS_USER="$STATE_DIR/USER/brain/prompts"
+if [[ -d "$PROMPTS_DEFAULTS" ]]; then
+  mkdir -p "$PROMPTS_USER"
+  PROMPT_COUNT=0
+  for pf in "$PROMPTS_DEFAULTS"/*.txt; do
+    [[ -f "$pf" ]] || continue
+    dest="$PROMPTS_USER/$(basename "$pf")"
+    # Don't overwrite user-customized prompts
+    if [[ ! -f "$dest" ]]; then
+      cp "$pf" "$dest"
+      PROMPT_COUNT=$((PROMPT_COUNT + 1))
+    fi
+  done
+  ok "Installed $PROMPT_COUNT default prompt(s) to USER/brain/prompts/"
+fi
+
 # ── Step 15a: Copy scripts ────────────────────────────────────────────────
 step "Step 15a: Scripts"
 
