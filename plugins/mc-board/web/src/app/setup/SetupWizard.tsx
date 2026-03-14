@@ -99,13 +99,17 @@ export default function SetupWizard() {
 
   const stepNum = NUMBERED_STEPS.indexOf(step as (typeof NUMBERED_STEPS)[number]) + 1;
 
-  // Splash screen — show logo for 3s then fade
+  // Splash screen
   const [splash, setSplash] = useState(true);
   const [splashFade, setSplashFade] = useState(false);
+  const [splashLine, setSplashLine] = useState(0);
   useEffect(() => {
-    const fade = setTimeout(() => setSplashFade(true), 2500);
-    const hide = setTimeout(() => setSplash(false), 3200);
-    return () => { clearTimeout(fade); clearTimeout(hide); };
+    const t1 = setTimeout(() => setSplashLine(1), 800);
+    const t2 = setTimeout(() => setSplashLine(2), 1800);
+    const t3 = setTimeout(() => setSplashLine(3), 2800);
+    const fade = setTimeout(() => setSplashFade(true), 4000);
+    const hide = setTimeout(() => setSplash(false), 4700);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(fade); clearTimeout(hide); };
   }, []);
 
   const accentStyle = {
@@ -128,7 +132,23 @@ export default function SetupWizard() {
           width={160}
           height={160}
           priority
+          style={{ animation: "splashPulse 2s ease-in-out infinite" }}
         />
+        <div style={{ marginTop: 28, textAlign: "center", fontSize: 16, lineHeight: 2.2 }}>
+          {splashLine >= 1 && <div style={{ color: "#ccc", animation: "fadeUp 0.6s ease-out forwards" }}>Your own AI.</div>}
+          {splashLine >= 2 && <div style={{ color: "#aaa", animation: "fadeUp 0.6s ease-out forwards" }}>Your Mac.</div>}
+          {splashLine >= 3 && <div style={{ color: "#888", animation: "fadeUp 0.6s ease-out forwards" }}>Your data.</div>}
+        </div>
+        <style>{`
+          @keyframes splashPulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.9; }
+          }
+          @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+        `}</style>
       </div>
     );
   }

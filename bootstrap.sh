@@ -177,7 +177,7 @@ rm -f "$INSTALL_LOG"
   mkdir -p "$(dirname "$INSTALL_DIR")"
   [[ -d "$INSTALL_DIR/.git" ]] || git clone -q --depth 1 "$REPO_URL" "$INSTALL_DIR" 2>>"$LOG_FILE"
   if [[ -f "$INSTALL_DIR/install.sh" ]]; then
-    OPENCLAW_STATE_DIR="$STATE_DIR" bash "$INSTALL_DIR/install.sh" >"$INSTALL_LOG" 2>&1
+    echo "y" | OPENCLAW_STATE_DIR="$STATE_DIR" bash "$INSTALL_DIR/install.sh" >"$INSTALL_LOG" 2>&1
   fi
 ) &
 
