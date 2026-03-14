@@ -584,7 +584,7 @@ step "Step 10: QMD collections"
 
 if command -v qmd &>/dev/null; then
 
-  if qmd collection list 2>/dev/null | grep -q "^mc-memory"; then
+  if qmd collection list 2>/dev/null | grep -q "mc-memory"; then
     ok "mc-memory collection already registered"
   else
     qmd collection add mc-memory "$USER_MEMORY_DIR" 2>/dev/null \
