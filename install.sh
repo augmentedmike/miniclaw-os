@@ -388,43 +388,21 @@ for migrated in "${MIGRATED_PLUGINS[@]}"; do
     warn "Source not found: $src"
     continue
   fi
-  progress "Installing $migrated "
   rsync -a --exclude='node_modules' --exclude='.git' "$src/" "$dest/"
   [[ -f "$dest/cli" ]] && chmod +x "$dest/cli"
   [[ -f "$dest/cli.ts" ]] && chmod +x "$dest/cli.ts"
-  if [[ -f "$dest/package.json" ]]; then
-    if (cd "$dest" && run_quiet npm install --silent); then
-      progress_ok "Installed $migrated "
-    else
-      progress_warn "Installed $migrated  — deps failed"
-    fi
-  else
-    progress_ok "Installed $migrated "
-  fi
+  ok "Copied $migrated"
 done
 
-# Legacy plugins: install to $MINICLAW_DIR/plugins/mc-<name>/ (openclaw-hosted)
+# Copy plugins to $MINICLAW_DIR/plugins/ (deps handled by openclaw plugins install in Step 7)
 PLUGIN_COUNT=0
-PLUGIN_FAIL=0
 for plugin_src in "$REPO_DIR/plugins"/*/; do
   plugin_name="$(basename "$plugin_src")"
   plugin_dest="$MINICLAW_DIR/plugins/$plugin_name"
-  progress "Installing $plugin_name"
   rsync -a --exclude='node_modules' --exclude='.git' "$plugin_src" "$plugin_dest/"
-  if [[ -f "$plugin_dest/package.json" ]]; then
-    if (cd "$plugin_dest" && run_quiet npm install --silent); then
-      progress_ok "Installed $plugin_name"
-    else
-      progress_warn "Installed $plugin_name — deps failed"
-      PLUGIN_FAIL=$((PLUGIN_FAIL + 1))
-    fi
-  else
-    progress_ok "Installed $plugin_name"
-  fi
   PLUGIN_COUNT=$((PLUGIN_COUNT + 1))
 done
-ok "$PLUGIN_COUNT plugins installed"
-[[ "$PLUGIN_FAIL" -gt 0 ]] && warn "$PLUGIN_FAIL plugin(s) had dependency failures (see $LOG_FILE)"
+ok "$PLUGIN_COUNT plugins copied"
 
 # ── Step 7: Patch openclaw.json ───────────────────────────────────────────────
 step "Step 7: openclaw.json"
@@ -455,6 +433,7 @@ for plugin_dir in "$PLUGINS_DIR"/mc-*/; do
   # Only install if plugin has a proper manifest
   if [[ -f "$plugin_dir/openclaw.plugin.json" ]]; then
     if run_quiet openclaw plugins install "$plugin_dir"; then
+      ok "Registered $plugin_name"
       REGISTERED=$((REGISTERED + 1))
     else
       warn "Failed to register $plugin_name"
