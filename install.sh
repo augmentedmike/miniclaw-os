@@ -1007,7 +1007,7 @@ mkdir -p "$BOARD_DB_DIR"
 BOARD_DB="$BOARD_DB_DIR/board.db"
 
 python3 - "$BOARD_DB" << 'PYEOF'
-import sqlite3, datetime, sys
+import sqlite3, datetime, sys, uuid
 db = sys.argv[1]
 conn = sqlite3.connect(db)
 conn.execute("""CREATE TABLE IF NOT EXISTS projects (
@@ -1017,20 +1017,83 @@ conn.execute("""CREATE TABLE IF NOT EXISTS projects (
     work_dir TEXT NOT NULL DEFAULT '', github_repo TEXT NOT NULL DEFAULT '',
     build_command TEXT NOT NULL DEFAULT ''
 )""")
+conn.execute("""CREATE TABLE IF NOT EXISTS cards (
+    id TEXT PRIMARY KEY, title TEXT NOT NULL,
+    col TEXT NOT NULL DEFAULT 'backlog', priority TEXT NOT NULL DEFAULT 'medium',
+    tags TEXT NOT NULL DEFAULT '[]', project_id TEXT, work_type TEXT,
+    linked_card_id TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+    problem_description TEXT NOT NULL DEFAULT '', implementation_plan TEXT NOT NULL DEFAULT '',
+    acceptance_criteria TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '',
+    review_notes TEXT NOT NULL DEFAULT '', research TEXT NOT NULL DEFAULT '',
+    work_log TEXT NOT NULL DEFAULT '[]'
+)""")
+conn.execute("CREATE TABLE IF NOT EXISTS card_history (id INTEGER PRIMARY KEY AUTOINCREMENT, card_id TEXT NOT NULL, col TEXT NOT NULL, moved_at TEXT NOT NULL)")
+conn.execute("CREATE INDEX IF NOT EXISTS idx_cards_col ON cards(col)")
+conn.execute("CREATE INDEX IF NOT EXISTS idx_cards_project ON cards(project_id)")
+
 now = datetime.datetime.utcnow().isoformat() + "Z"
-seeds = [
+
+# Seed projects
+proj_seeds = [
     ("prj_uncategorized", "Uncategorized", "uncategorized", "Default project for unassigned cards"),
     ("prj_miniclaw_enh", "MiniClaw Enhancements", "miniclaw-enhancements", "Improvements and new features for MiniClaw"),
 ]
-added = 0
-for sid, name, slug, desc in seeds:
+proj_added = 0
+for sid, name, slug, desc in proj_seeds:
     if not conn.execute("SELECT id FROM projects WHERE id = ?", (sid,)).fetchone():
         conn.execute("INSERT INTO projects (id, name, slug, description, status, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
             (sid, name, slug, desc, "active", now, now))
-        added += 1
+        proj_added += 1
+
+# Seed starter cards (only if no cards exist yet)
+card_count = conn.execute("SELECT COUNT(*) FROM cards").fetchone()[0]
+card_added = 0
+if card_count == 0:
+    starter_cards = [
+        {
+            "title": "Verify MiniClaw installation",
+            "priority": "high",
+            "project_id": "prj_miniclaw_enh",
+            "tags": '["setup", "verification"]',
+            "problem_description": "Run mc-smoke and verify all checks pass. If any fail, run mc-doctor --auto to fix them.",
+            "acceptance_criteria": "mc-smoke reports 0 failures.",
+        },
+        {
+            "title": "Enable backlog cron worker",
+            "priority": "high",
+            "project_id": "prj_miniclaw_enh",
+            "tags": '["setup", "cron"]',
+            "problem_description": "The backlog cron worker automatically triages new cards every 5 minutes. Verify it is registered in ~/.openclaw/cron/jobs.json and the gateway is running to execute it.",
+            "acceptance_criteria": "board-worker-backlog job exists in jobs.json and gateway is running.",
+        },
+        {
+            "title": "Enable in-progress and in-review cron workers",
+            "priority": "medium",
+            "project_id": "prj_miniclaw_enh",
+            "tags": '["setup", "cron"]',
+            "problem_description": "The in-progress worker does one unit of work per card every 5 minutes. The in-review worker verifies completed work and ships or sends back. Both should be in jobs.json.",
+            "acceptance_criteria": "board-worker-in-progress and board-worker-in-review jobs exist in jobs.json.",
+        },
+        {
+            "title": "Get to know my human",
+            "priority": "high",
+            "project_id": "prj_uncategorized",
+            "tags": '["onboarding", "human"]',
+            "problem_description": "Collect basic information from your human: their name, email address, what they do, and what they'd like help with. Save this to the workspace memory so you can personalize your interactions.",
+            "acceptance_criteria": "Human's name, email, and general instructions are saved to workspace memory.",
+        },
+    ]
+    for card in starter_cards:
+        cid = "crd_" + uuid.uuid4().hex[:12]
+        conn.execute(
+            "INSERT INTO cards (id, title, col, priority, tags, project_id, created_at, updated_at, problem_description, acceptance_criteria) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (cid, card["title"], "backlog", card["priority"], card["tags"], card["project_id"], now, now, card["problem_description"], card["acceptance_criteria"])
+        )
+        card_added += 1
+
 conn.commit()
 conn.close()
-print(f"  Seeded {added} project(s)" if added else "  Projects already exist")
+print(f"  Seeded {proj_added} project(s), {card_added} card(s)")
 PYEOF
 ok "Board DB seeded at $BOARD_DB"
 
