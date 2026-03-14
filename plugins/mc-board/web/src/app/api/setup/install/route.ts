@@ -6,8 +6,22 @@ import * as fs from "node:fs";
 
 const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(process.env.HOME || "", ".openclaw");
 
-// Singleton: only one install can run at a time
-let installRunning = false;
+const LOCK_FILE = path.join(process.env.OPENCLAW_STATE_DIR ?? path.join(process.env.HOME || "", ".openclaw"), ".install-lock");
+
+function isInstallRunning(): boolean {
+  try {
+    if (!fs.existsSync(LOCK_FILE)) return false;
+    const pid = parseInt(fs.readFileSync(LOCK_FILE, "utf-8").trim(), 10);
+    if (isNaN(pid)) return false;
+    // Check if process is alive
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    // Process not running or file doesn't exist
+    try { fs.unlinkSync(LOCK_FILE); } catch { /* ignore */ }
+    return false;
+  }
+}
 
 /**
  * POST /api/setup/install
@@ -23,7 +37,7 @@ let installRunning = false;
  *   data: {"type":"error","message":"..."}   — fatal error
  */
 export async function POST(req: Request) {
-  if (installRunning) {
+  if (isInstallRunning()) {
     return new Response(JSON.stringify({ ok: false, error: "Install already running" }), {
       status: 409,
       headers: { "Content-Type": "application/json" },
@@ -72,7 +86,7 @@ export async function POST(req: Request) {
     });
   }
 
-  installRunning = true;
+  // Will write PID to lock file when process starts
 
   const stream = new ReadableStream({
     start(controller) {
@@ -102,6 +116,9 @@ export async function POST(req: Request) {
         stdio: ["pipe", "pipe", "pipe"],
       });
 
+      // Write lock file with PID
+      try { fs.writeFileSync(LOCK_FILE, String(proc.pid)); } catch { /* ignore */ }
+
       // Auto-answer "y" to migration prompts
       proc.stdin?.write("y\n");
       proc.stdin?.end();
@@ -128,14 +145,14 @@ export async function POST(req: Request) {
       proc.on("close", (code) => {
         if (buffer.trim()) send({ type: "output", data: buffer });
         if (sudoKeepAlive) clearInterval(sudoKeepAlive);
-        installRunning = false;
+        try { fs.unlinkSync(LOCK_FILE); } catch { /* ignore */ }
         send({ type: "done", code: code ?? 1 });
         controller.close();
       });
 
       proc.on("error", (err) => {
         if (sudoKeepAlive) clearInterval(sudoKeepAlive);
-        installRunning = false;
+        try { fs.unlinkSync(LOCK_FILE); } catch { /* ignore */ }
         send({ type: "error", message: err.message });
         controller.close();
       });
@@ -181,7 +198,7 @@ export async function GET() {
   }
 
   return new Response(JSON.stringify({
-    running: installRunning,
+    running: isInstallRunning(),
     evacuatedInstall: evacPath,
   }), {
     headers: { "Content-Type": "application/json" },
