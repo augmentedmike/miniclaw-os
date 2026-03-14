@@ -40,31 +40,23 @@ Imagine having a brilliant friend who knows everything — and they're *always* 
 
 ---
 
-## Install (5 minutes)
+## Install
 
-Open **Terminal** (Applications → Utilities → Terminal).
+### Web installer (recommended)
 
-Paste this and press Enter:
+Visit **[miniclaw.bot/install](https://miniclaw.bot/install)** and follow the instructions.
+
+### Terminal one-liner
+
+Open Terminal (Cmd+Space → type "Terminal" → Enter) and paste:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/augmentedmike/miniclaw-os/stable/bootstrap.sh | bash
+bash <(curl -fsSL https://raw.githubusercontent.com/augmentedmike/miniclaw-os/main/bootstrap.sh)
 ```
 
-The installer will:
-1. Install Homebrew (the macOS package manager)
-2. Install Node.js and Python
-3. Install OpenClaw (the AI engine)
-4. Install MiniClaw plugins (memory, vision, planning, security)
-5. Set up a private vault for your API keys
-6. Start everything and verify it works
+Your browser opens automatically when it's ready. The setup wizard walks you through everything — Telegram, GitHub, email, Claude subscription.
 
-Takes about 10–15 minutes. **Safe to re-run** — it skips anything already installed.
-
-When it's done:
-
-```
-✓ MiniClaw is ready.
-```
+**Safe to re-run** — it skips anything already installed.
 
 ---
 
