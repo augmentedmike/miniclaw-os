@@ -262,32 +262,16 @@ else
     || warn "Git Butler install failed — download from https://gitbutler.com"
 fi
 
-# ── Step 3: Bun ───────────────────────────────────────────────────────────────
-step "Step 3: Bun"
+# ── Step 3: QMD (optional) ────────────────────────────────────────────────────
+step "Step 3: QMD"
 
-if command -v bun &>/dev/null || [[ -f "$HOME/.bun/bin/bun" ]]; then
-  [[ -f "$HOME/.bun/bin/bun" ]] && export PATH="$HOME/.bun/bin:$PATH"
-  ok "Bun already installed"
-elif [[ "$CHECK_ONLY" == true ]]; then
-  warn "Bun not found"
-else
-  run_quiet bash -c "$(curl -fsSL https://bun.sh/install)"
-  export PATH="$HOME/.bun/bin:$PATH"
-  for p in "$HOME/.zprofile" "$HOME/.zshrc"; do
-    grep -q '.bun/bin' "$p" 2>/dev/null \
-      || echo 'export PATH="$HOME/.bun/bin:$PATH"' >> "$p"
-  done
-  ok "Bun installed"
-fi
-
-# QMD
-if command -v qmd &>/dev/null || [[ -f "$HOME/.bun/bin/qmd" ]]; then
+if command -v qmd &>/dev/null; then
   ok "QMD already installed"
 elif [[ "$CHECK_ONLY" == true ]]; then
   warn "QMD not found"
 else
-  run_quiet bun install -g qmd && ok "QMD installed" \
-    || warn "QMD install failed — run: bun install -g qmd"
+  run_quiet npm install -g qmd && ok "QMD installed" \
+    || warn "QMD install failed — run: npm install -g qmd"
 fi
 
 # ── Step 4: OpenClaw (from MiniClaw fork) ─────────────────────────────────────
@@ -404,18 +388,18 @@ for migrated in "${MIGRATED_PLUGINS[@]}"; do
     warn "Source not found: $src"
     continue
   fi
-  progress "Installing $migrated (standalone)"
+  progress "Installing $migrated "
   rsync -a --exclude='node_modules' --exclude='.git' "$src/" "$dest/"
   [[ -f "$dest/cli" ]] && chmod +x "$dest/cli"
   [[ -f "$dest/cli.ts" ]] && chmod +x "$dest/cli.ts"
   if [[ -f "$dest/package.json" ]]; then
-    if (cd "$dest" && run_quiet bun install --frozen-lockfile 2>/dev/null || run_quiet bun install); then
-      progress_ok "Installed $migrated (standalone)"
+    if (cd "$dest" && run_quiet npm install --silent); then
+      progress_ok "Installed $migrated "
     else
-      progress_warn "Installed $migrated (standalone) — deps failed"
+      progress_warn "Installed $migrated  — deps failed"
     fi
   else
-    progress_ok "Installed $migrated (standalone)"
+    progress_ok "Installed $migrated "
   fi
 done
 
@@ -428,7 +412,7 @@ for plugin_src in "$REPO_DIR/plugins"/*/; do
   progress "Installing $plugin_name"
   rsync -a --exclude='node_modules' --exclude='.git' "$plugin_src" "$plugin_dest/"
   if [[ -f "$plugin_dest/package.json" ]]; then
-    if (cd "$plugin_dest" && run_quiet bun install --frozen-lockfile 2>/dev/null || run_quiet bun install); then
+    if (cd "$plugin_dest" && run_quiet npm install --silent); then
       progress_ok "Installed $plugin_name"
     else
       progress_warn "Installed $plugin_name — deps failed"
@@ -538,8 +522,7 @@ ok "~/.openclaw/soul-backups/"
 # ── Step 10: QMD collections ──────────────────────────────────────────────────
 step "Step 10: QMD collections"
 
-if command -v qmd &>/dev/null || [[ -f "$HOME/.bun/bin/qmd" ]]; then
-  export PATH="$HOME/.bun/bin:$PATH"
+if command -v qmd &>/dev/null; then
 
   if qmd collection list 2>/dev/null | grep -q "^mc-memory"; then
     ok "mc-memory collection already registered"

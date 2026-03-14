@@ -113,10 +113,24 @@ export function LogDisplay({
 
 function isImportantLine(l: string): boolean {
   const s = strip(l);
-  if (s.startsWith("──")) return true;
+  if (s.startsWith("──") || s.startsWith("===")) return true;
   if (/\[✓\]|\[✗\]|\[!\]|\[i\]|✓|✗|⚠/.test(s)) return true;
   if (s.includes("miniclaw-os install")) return true;
-  if (/Install(ed|ing)|Registered|Seeded/.test(s)) return true;
+  if (/Registered|Seeded/.test(s)) return true;
+  // Show "Installed plugin:" but hide "Installing to /path..."
+  if (s.startsWith("Installed plugin:")) return true;
+  // Hide noisy openclaw output, bun install output, npm output, etc.
+  if (s.startsWith("Installing to ")) return false;
+  if (s.includes("bun install") || s.includes("npm install")) return false;
+  if (s.includes("packages installed")) return false;
+  if (s.includes("Resolving dependencies")) return false;
+  if (s.includes("postinstalls")) return false;
+  if (s.includes("lockfile")) return false;
+  if (s.includes("[plugins]")) return false;
+  if (s.includes("Config overwrite")) return false;
+  if (s.includes("Config warnings")) return false;
+  // Show progress lines like "[ ] Installing mc-board"
+  if (/^\[ \]|^\[✓\]|^\[✗\]/.test(s)) return true;
   return false;
 }
 
