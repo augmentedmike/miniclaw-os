@@ -372,6 +372,35 @@ if command -v openclaw &>/dev/null; then
   fi
 fi
 
+# ── telegram channel ──────────────────────────────────────────────────────────
+section "telegram"
+
+if command -v python3 &>/dev/null && [[ -f "$STATE_DIR/openclaw.json" ]]; then
+  TG_CHECK=$(python3 - "$STATE_DIR/openclaw.json" <<'PYEOF'
+import json, sys
+with open(sys.argv[1]) as f: cfg = json.load(f)
+ch = cfg.get("channels", {}).get("telegram", {})
+if not ch:
+    print("MISSING")
+elif not ch.get("enabled"):
+    print("DISABLED")
+elif not ch.get("botToken"):
+    print("NO_TOKEN")
+else:
+    print("OK")
+PYEOF
+  )
+  case "$TG_CHECK" in
+    OK)       pass "telegram channel configured and enabled" ;;
+    MISSING)  fail "telegram channel not in openclaw.json" "run setup wizard or add channels.telegram to config" ;;
+    DISABLED) fail "telegram channel disabled" "set channels.telegram.enabled = true in openclaw.json" ;;
+    NO_TOKEN) fail "telegram bot token missing" "set channels.telegram.botToken in openclaw.json" ;;
+    *)        fail "telegram config check failed" "$TG_CHECK" ;;
+  esac
+else
+  warn "cannot check telegram config" "python3 or openclaw.json missing"
+fi
+
 # ── LaunchAgents ─────────────────────────────────────────────────────────────
 section "LaunchAgents"
 

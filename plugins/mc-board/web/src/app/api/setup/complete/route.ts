@@ -34,17 +34,28 @@ function configureGateway(botId: string, botToken: string) {
   delete meta.botId;
   cfg.meta = meta;
 
-  // Set gateway mode to local so `openclaw gateway` starts without --allow-unconfigured
+  // Set gateway mode to local
   const gw = (cfg.gateway ?? {}) as Record<string, unknown>;
   if (!gw.mode) gw.mode = "local";
   cfg.gateway = gw;
 
+  // Configure telegram channel directly in openclaw.json
+  const channels = (cfg.channels ?? {}) as Record<string, unknown>;
+  channels.telegram = {
+    enabled: true,
+    botToken: botToken,
+    dmPolicy: "pairing",
+    groupPolicy: "allowlist",
+    streaming: "partial",
+  };
+  cfg.channels = channels;
+
   fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2) + "\n", "utf-8");
 
-  // Store the telegram bot token in vault
+  // Also store the bot token in vault as backup
   const vaultResult = vaultSet("telegram-bot-token", botToken);
   if (!vaultResult.ok) {
-    console.error("Failed to store telegram bot token in vault:", vaultResult.error);
+    console.error("Vault write failed (non-fatal):", vaultResult.error);
   }
 
   // Register the telegram channel with openclaw
