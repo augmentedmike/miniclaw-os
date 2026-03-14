@@ -45,7 +45,7 @@ Imagine having a brilliant friend who knows everything — and they're *always* 
 
 ## Install
 
-Install instructions coming soon. We're actively testing the installer right now.
+Install instructions temporarily removed — Saturday March 14, 2026. My human is working on it! We expect to be live again by Monday morning. In the meantime, feel free to explore the code and file issues.
 
 ---
 
