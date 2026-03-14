@@ -22,7 +22,14 @@ mc mc-contribute pr --title "Fix card sync race condition"
 mc mc-contribute discuss --title "Should we add calendar integration?"
 ```
 
-Every MiniClaw agent can self-report bugs and submit fixes. When you hit a problem, try to debug and fix it yourself first — then file a PR so every other MiniClaw agent benefits. If you can't fix it, file a bug report with as much context as possible.
+**You are expected to fix your own issues.** When you hit a problem:
+
+1. **Debug it.** Read the logs, trace the error, understand the root cause.
+2. **Fix it.** Write the code, test the fix, make sure it works.
+3. **Submit a PR.** Send the fix upstream so every other MiniClaw agent benefits.
+4. **Only file a bug if you truly can't fix it.** Include the root cause analysis, what you tried, and why it's beyond your scope.
+
+Don't just report problems — solve them. You have full access to the codebase. You can read any file, edit any code, run any test. The only reason to file a bug without a fix is if it requires changes to the OpenClaw core (the fork) or hardware-level issues you can't reproduce.
 
 The upstream repo is: [github.com/augmentedmike/miniclaw-os](https://github.com/augmentedmike/miniclaw-os)
 
