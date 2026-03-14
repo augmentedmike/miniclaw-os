@@ -19,7 +19,7 @@ function normalizeBotId(username: string): string {
  * The botId is written under `meta.botId` (NOT top-level) so openclaw config
  * validation doesn't reject it.
  */
-function configureGateway(botId: string, botToken: string) {
+function configureGateway(botId: string, botToken: string, chatId?: string) {
   const configPath = path.join(STATE_DIR, "openclaw.json");
   let cfg: Record<string, unknown> = {};
   try {
@@ -45,7 +45,9 @@ function configureGateway(botId: string, botToken: string) {
     enabled: true,
     botToken: botToken,
     dmPolicy: "pairing",
-    groupPolicy: "open",
+    groupPolicy: "allowlist",
+    groupAllowFrom: chatId ? [chatId] : [],
+    allowFrom: chatId ? [chatId] : [],
     streaming: "partial",
   };
   cfg.channels = channels;
@@ -180,7 +182,7 @@ export async function POST() {
   }
 
   // Configure openclaw.json, register telegram channel, store token in vault
-  configureGateway(botId, setupState.telegramBotToken);
+  configureGateway(botId, setupState.telegramBotToken, setupState.telegramChatId);
 
   // Create USER/brain/ and seed the board DB with default projects
   seedBoardDb();
