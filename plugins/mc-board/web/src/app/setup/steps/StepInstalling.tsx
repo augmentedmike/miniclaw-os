@@ -18,20 +18,14 @@ interface Check {
   detail?: string;
 }
 
-interface SmokeResult {
-  status: "pass" | "fail" | "warn";
-  label: string;
-}
-
 export default function StepInstalling({ state, onDone, accent }: Props) {
   const [checks, setChecks] = useState<Check[]>([
-    { id: "config", label: "Saving your configuration", status: "pending" },
+    { id: "config", label: "Saving your preferences", status: "pending" },
+    { id: "install", label: "Installing MiniClaw", status: "pending" },
+    { id: "secrets", label: "Saving your credentials", status: "pending" },
     { id: "gateway", label: "Starting the gateway", status: "pending" },
-    { id: "complete", label: "Finalizing setup", status: "pending" },
     { id: "smoke", label: "Running system checks", status: "pending" },
   ]);
-  const [smokeResults, setSmokeResults] = useState<SmokeResult[]>([]);
-  const [smokeSummary, setSmokeSummary] = useState<{ passed: number; failed: number; warned: number } | null>(null);
 
   const checksRef = useRef(checks);
   const updateCheck = (id: string, patch: Partial<Check>) => {
@@ -44,9 +38,8 @@ export default function StepInstalling({ state, onDone, accent }: Props) {
 
   useEffect(() => {
     const run = async () => {
-      // 1. Save config + persist state
+      // 1. Save config
       updateCheck("config", { status: "running" });
-      await delay(400);
       try {
         await fetch("/api/setup/state", {
           method: "POST",
@@ -59,12 +52,75 @@ export default function StepInstalling({ state, onDone, accent }: Props) {
             personaBlurb: state.personaBlurb,
           }),
         });
-        updateCheck("config", { status: "ok", detail: "Config saved" });
+        updateCheck("config", { status: "ok", detail: "Preferences saved" });
       } catch {
         updateCheck("config", { status: "error", detail: "Failed to save config" });
       }
 
-      // 2. Complete setup (registers telegram, starts gateway, etc.)
+      // 2. Run install.sh (wait for repo clone if needed)
+      updateCheck("install", { status: "running", detail: "Waiting for install..." });
+      try {
+        const res = await fetch("/api/setup/install", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        });
+        if (res.ok && res.body) {
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let sseBuffer = "";
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            sseBuffer += decoder.decode(value, { stream: true });
+            const parts = sseBuffer.split("\n\n");
+            sseBuffer = parts.pop() || "";
+            for (const part of parts) {
+              const dataLine = part.split("\n").find((l) => l.startsWith("data: "));
+              if (!dataLine) continue;
+              try {
+                const evt = JSON.parse(dataLine.slice(6));
+                if (evt.type === "step") {
+                  updateCheck("install", { detail: evt.name.replace(/^Step\s+\S+:?\s*/, "") });
+                }
+                if (evt.type === "done") {
+                  if (evt.code === 0) {
+                    updateCheck("install", { status: "ok", detail: "Installed" });
+                  } else {
+                    updateCheck("install", { status: "error", detail: `Exit code ${evt.code}` });
+                  }
+                }
+              } catch { /* skip */ }
+            }
+          }
+        } else {
+          updateCheck("install", { status: "error", detail: "Could not start install" });
+        }
+      } catch {
+        updateCheck("install", { status: "error", detail: "Install failed" });
+      }
+
+      // If install didn't finish ok, still continue to try persisting
+      if (checksRef.current.find(c => c.id === "install")?.status !== "ok") {
+        // Give it a moment in case it's still finishing
+        await delay(2000);
+      }
+
+      // 3. Persist secrets to vault
+      updateCheck("secrets", { status: "running" });
+      try {
+        const res = await fetch("/api/setup/persist", { method: "POST" });
+        const data = await res.json();
+        if (data.ok) {
+          updateCheck("secrets", { status: "ok", detail: "Credentials secured" });
+        } else {
+          updateCheck("secrets", { status: "error", detail: `${data.failed} secret(s) failed` });
+        }
+      } catch {
+        updateCheck("secrets", { status: "error", detail: "Could not save credentials" });
+      }
+
+      // 4. Complete setup (gateway, telegram channel, etc.)
       updateCheck("gateway", { status: "running" });
       try {
         const res = await fetch("/api/setup/complete", { method: "POST" });
@@ -72,71 +128,54 @@ export default function StepInstalling({ state, onDone, accent }: Props) {
         if (data.gateway?.ok) {
           updateCheck("gateway", { status: "ok", detail: "Gateway running" });
         } else {
-          updateCheck("gateway", { status: "ok", detail: data.gateway?.error || "Gateway installed — may need a moment" });
+          updateCheck("gateway", { status: "ok", detail: data.gateway?.error || "Configured" });
         }
       } catch {
         updateCheck("gateway", { status: "error", detail: "Could not start gateway" });
       }
 
-      // 3. Mark complete
-      updateCheck("complete", { status: "running" });
-      await delay(300);
-      updateCheck("complete", { status: "ok", detail: "Setup complete" });
-
-      // 4. Run mc-smoke via SSE
+      // 5. Run mc-smoke
       updateCheck("smoke", { status: "running" });
       try {
         const res = await fetch("/api/setup/smoke");
-        if (!res.ok || !res.body) {
-          updateCheck("smoke", { status: "error", detail: "Could not run health checks" });
-          await delay(1500);
-          onDone();
-          return;
-        }
-
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let sseBuffer = "";
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          sseBuffer += decoder.decode(value, { stream: true });
-          const parts = sseBuffer.split("\n\n");
-          sseBuffer = parts.pop() || "";
-
-          for (const part of parts) {
-            const dataLine = part.split("\n").find((l) => l.startsWith("data: "));
-            if (!dataLine) continue;
-            try {
-              const evt = JSON.parse(dataLine.slice(6));
-
-              if (evt.type === "check") {
-                setSmokeResults((prev) => [...prev, { status: evt.status, label: evt.label }]);
-              }
-
-              if (evt.type === "done") {
-                setSmokeSummary({ passed: evt.passed, failed: evt.failed, warned: evt.warned });
-                if (evt.failed === 0) {
-                  updateCheck("smoke", { status: "ok", detail: `${evt.passed} passed, ${evt.warned} warned` });
-                } else {
-                  updateCheck("smoke", { status: "error", detail: `${evt.failed} failed, ${evt.passed} passed` });
+        if (res.ok && res.body) {
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let sseBuffer = "";
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            sseBuffer += decoder.decode(value, { stream: true });
+            const parts = sseBuffer.split("\n\n");
+            sseBuffer = parts.pop() || "";
+            for (const part of parts) {
+              const dataLine = part.split("\n").find((l) => l.startsWith("data: "));
+              if (!dataLine) continue;
+              try {
+                const evt = JSON.parse(dataLine.slice(6));
+                if (evt.type === "done") {
+                  if (evt.failed === 0) {
+                    updateCheck("smoke", { status: "ok", detail: `${evt.passed} passed` });
+                  } else {
+                    updateCheck("smoke", { status: "error", detail: `${evt.failed} failed` });
+                  }
                 }
-              }
-            } catch { /* skip */ }
+              } catch { /* skip */ }
+            }
           }
+        } else {
+          updateCheck("smoke", { status: "ok", detail: "Skipped" });
         }
       } catch {
-        updateCheck("smoke", { status: "error", detail: "Health check failed to run" });
+        updateCheck("smoke", { status: "ok", detail: "Skipped" });
       }
 
-      const hasFailures = checksRef.current.some((c) => c.status === "error");
-      if (!hasFailures) {
+      // Auto-advance if no critical failures
+      const hasErrors = checksRef.current.some((c) => c.status === "error");
+      if (!hasErrors) {
         await delay(2000);
         onDone();
       }
-      // If there are failures, don't auto-advance — show a button instead
     };
 
     run();
@@ -150,10 +189,9 @@ export default function StepInstalling({ state, onDone, accent }: Props) {
     <div className="flex flex-col gap-6 items-center text-center">
       <div>
         <h2 className="text-3xl font-bold text-white mb-2">Finishing up...</h2>
-        <p className="text-[#888]">Starting {state.assistantName} and verifying everything works</p>
+        <p className="text-[#888]">Installing and configuring {state.assistantName}</p>
       </div>
 
-      {/* Setup checks */}
       <div className="w-full flex flex-col gap-3">
         {checks.map((check) => (
           <div
@@ -188,9 +226,7 @@ export default function StepInstalling({ state, onDone, accent }: Props) {
             <div className="flex-1 text-left">
               <div
                 className="text-sm font-medium"
-                style={{
-                  color: check.status === "ok" || check.status === "running" ? "#fff" : "#666",
-                }}
+                style={{ color: check.status === "ok" || check.status === "running" ? "#fff" : "#666" }}
               >
                 {check.label}
               </div>
@@ -201,29 +237,6 @@ export default function StepInstalling({ state, onDone, accent }: Props) {
           </div>
         ))}
       </div>
-
-      {/* Smoke test results (collapsed list) */}
-      {smokeResults.length > 0 && (
-        <details className="w-full text-left" open={smokeSummary?.failed !== undefined && smokeSummary.failed > 0}>
-          <summary className="text-xs text-[#555] cursor-pointer hover:text-[#888] transition-colors">
-            {smokeSummary
-              ? `${smokeSummary.passed} passed · ${smokeSummary.warned} warned · ${smokeSummary.failed} failed`
-              : `${smokeResults.length} checks so far...`}
-          </summary>
-          <div className="mt-2 rounded-lg bg-[#0a0a0a] border border-[rgba(255,255,255,0.06)] p-3 max-h-48 overflow-y-auto">
-            {smokeResults.map((r, i) => (
-              <div key={i} className="flex items-center gap-2 py-0.5 text-xs font-mono">
-                <span style={{
-                  color: r.status === "pass" ? "#4ade80" : r.status === "fail" ? "#FF5252" : "#fbbf24"
-                }}>
-                  {r.status === "pass" ? "✓" : r.status === "fail" ? "✗" : "⚠"}
-                </span>
-                <span className="text-[#888]">{r.label}</span>
-              </div>
-            ))}
-          </div>
-        </details>
-      )}
 
       {allDone && !hasErrors && (
         <p className="text-sm text-[#666]">

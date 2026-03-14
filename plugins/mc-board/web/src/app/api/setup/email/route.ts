@@ -1,7 +1,6 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { vaultSet } from "@/lib/vault";
 import { checkGmailAuth, checkSmtpAuth } from "@/lib/email-check";
 import { writeSetupState } from "@/lib/setup-state";
 
@@ -35,25 +34,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: authCheck.error || "Auth failed" }, { status: 400 });
   }
 
-  // 2. Write to vault
-  const emailResult = vaultSet("gmail-email", email);
-  if (!emailResult.ok) {
-    return NextResponse.json({ ok: false, error: `Vault error: ${emailResult.error}` }, { status: 500 });
-  }
-
-  const pwResult = vaultSet("gmail-app-password", appPassword);
-  if (!pwResult.ok) {
-    return NextResponse.json({ ok: false, error: `Vault error: ${pwResult.error}` }, { status: 500 });
-  }
-
-  // 3. Save SMTP config for non-Gmail
-  if (!gmail && smtpHost) {
-    vaultSet("smtp-host", smtpHost);
-    vaultSet("smtp-port", smtpPort || "587");
-  }
-
-  // 4. Update setup state
-  writeSetupState({ emailAddress: email, emailConfigured: true });
+  // 2. Save to setup state — vault persists at "Finishing up" step after install.sh
+  writeSetupState({
+    emailAddress: email,
+    emailAppPassword: appPassword,
+    emailSmtpHost: smtpHost || "",
+    emailSmtpPort: smtpPort || "587",
+    emailConfigured: true,
+  } as Record<string, string | boolean>);
 
   return NextResponse.json({ ok: true });
 }

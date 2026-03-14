@@ -1,7 +1,6 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { vaultSet } from "@/lib/vault";
 import { writeSetupState } from "@/lib/setup-state";
 
 export async function POST(req: Request) {
@@ -33,17 +32,13 @@ export async function POST(req: Request) {
 
     const user = (await res.json()) as { login: string; name?: string };
 
-    // Store in vault
-    const vaultResult = vaultSet("gh-token", token.trim());
-    if (!vaultResult.ok) {
-      return NextResponse.json({
-        ok: false,
-        error: `Token valid but vault write failed: ${vaultResult.error}`,
-      });
-    }
-
-    // Save to setup state
-    writeSetupState({ ghConfigured: true } as Record<string, string | boolean>);
+    // Save token to setup state — vault doesn't exist yet during first-run.
+    // The "Finishing up" step moves it to vault after install.sh runs.
+    writeSetupState({
+      ghToken: token.trim(),
+      ghUsername: user.login,
+      ghConfigured: true,
+    } as Record<string, string | boolean>);
 
     return NextResponse.json({
       ok: true,
