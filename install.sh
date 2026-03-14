@@ -1128,8 +1128,4 @@ echo "  Verify:   mc-smoke"
 echo ""
 echo ""
 
-# Open the onboarding wizard in the default browser
-if command -v open &>/dev/null; then
-  sleep 2  # give LaunchAgents a moment to start
-  open "http://localhost:4220"
-fi
+# Don't open browser — the setup wizard is already running and open
