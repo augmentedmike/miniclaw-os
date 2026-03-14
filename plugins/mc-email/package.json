@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "main": "index.ts",
-  "description": "Gmail integration — read, triage, archive, send via Google OAuth2 + Gmail API",
+  "description": "Gmail integration \u2014 read, triage, archive, send via Google OAuth2 + Gmail API",
   "dependencies": {
     "google-auth-library": "^9.0.0",
     "googleapis": "^144.0.0",
@@ -12,5 +12,10 @@
   },
   "devDependencies": {
     "openclaw": "npm:@miniclaw_official/openclaw@^2026.3.8"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
   }
 }

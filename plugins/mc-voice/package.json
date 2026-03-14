@@ -2,7 +2,7 @@
   "name": "mc-voice",
   "version": "0.1.0",
   "type": "module",
-  "description": "Human voice message store — schema and embedding pipeline",
+  "description": "Human voice message store \u2014 schema and embedding pipeline",
   "scripts": {
     "migrate": "npx tsx src/migrate.ts",
     "build": "tsc"
@@ -15,5 +15,10 @@
     "@types/node": "*",
     "tsx": "*",
     "typescript": "*"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
   }
 }

@@ -3,11 +3,16 @@
   "version": "0.1.0",
   "type": "module",
   "main": "index.ts",
-  "description": "Shared Stripe payment service — charge, refund, customer management",
+  "description": "Shared Stripe payment service \u2014 charge, refund, customer management",
   "dependencies": {
     "stripe": "^17.0.0"
   },
   "devDependencies": {
     "openclaw": "npm:@miniclaw_official/openclaw@^2026.3.8"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
   }
 }

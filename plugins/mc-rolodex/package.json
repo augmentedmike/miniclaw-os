@@ -1,7 +1,7 @@
 {
   "name": "@miniclaw/mc-rolodex",
   "version": "1.0.0",
-  "description": "Interactive contact browser UI for MiniClaw — fast, searchable access to trusted contacts",
+  "description": "Interactive contact browser UI for MiniClaw \u2014 fast, searchable access to trusted contacts",
   "type": "module",
   "main": "index.ts",
   "scripts": {
@@ -18,5 +18,10 @@
     "openclaw": "npm:@miniclaw_official/openclaw@^2026.3.8",
     "typescript": "^5.3.3",
     "vitest": "^2.0.0"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
   }
 }

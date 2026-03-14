@@ -3,5 +3,10 @@
   "version": "0.1.0",
   "description": "MiniClaw contribution workflow plugin",
   "type": "module",
-  "main": "index.ts"
+  "main": "index.ts",
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
 }

@@ -10,5 +10,10 @@
   },
   "devDependencies": {
     "openclaw": "npm:@miniclaw_official/openclaw@^2026.3.8"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
   }
 }
