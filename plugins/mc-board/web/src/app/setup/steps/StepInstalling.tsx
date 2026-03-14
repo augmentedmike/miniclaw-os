@@ -70,14 +70,29 @@ export default function StepInstalling({ state, onDone, accent }: Props) {
               updateCheck("install", { status: "ok", detail: "Installed" });
               break;
             }
-            // Show latest step in the detail
+            // Show latest activity in the detail
             if (data.lines && data.lines.length > 0) {
+              let found = false;
               for (let j = data.lines.length - 1; j >= 0; j--) {
-                const m = data.lines[j].match(/^── (Step\s+\S+:?\s*.*)$/);
-                if (m) {
-                  updateCheck("install", { detail: m[1].replace(/^Step\s+\S+:?\s*/, "") });
+                const line = data.lines[j];
+                // Match step headers: "── Step N: Description"
+                const stepM = line.match(/Step\s+\S+:?\s*(.*)/);
+                if (stepM && stepM[1]) {
+                  updateCheck("install", { detail: stepM[1].trim() });
+                  found = true;
                   break;
                 }
+                // Match plugin installs: "Installing mc-something" or "Installed mc-something"
+                const pluginM = line.match(/Install(?:ing|ed)\s+(mc-\S+|vault|designer)/);
+                if (pluginM) {
+                  updateCheck("install", { detail: `${pluginM[0]}...` });
+                  found = true;
+                  break;
+                }
+              }
+              if (!found && data.lines.length > 0) {
+                // Show line count as progress
+                updateCheck("install", { detail: `${data.lines.length} lines...` });
               }
             }
           }

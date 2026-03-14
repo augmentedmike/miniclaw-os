@@ -20,7 +20,7 @@ ARCH=$(uname -m)
 CHECK_ONLY=false
 [[ "${1:-}" == "--check" ]] && CHECK_ONLY=true
 
-exec > >(tee -a "$LOG_FILE") 2>&1
+exec > >(tee "$LOG_FILE") 2>&1
 echo "=== miniclaw install started $(date) ==="
 
 # ── Colours ───────────────────────────────────────────────────────────────────
