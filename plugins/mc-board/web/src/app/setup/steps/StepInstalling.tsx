@@ -21,7 +21,7 @@ interface Check {
 export default function StepInstalling({ state, onDone, accent }: Props) {
   const [checks, setChecks] = useState<Check[]>([
     { id: "config", label: "Saving your preferences", status: "pending" },
-    { id: "install", label: "Installing MiniClaw", status: "pending" },
+    { id: "install", label: "Waiting for install to finish", status: "pending" },
     { id: "secrets", label: "Saving your credentials", status: "pending" },
     { id: "gateway", label: "Starting the gateway", status: "pending" },
     { id: "smoke", label: "Running system checks", status: "pending" },
@@ -57,82 +57,35 @@ export default function StepInstalling({ state, onDone, accent }: Props) {
         updateCheck("config", { status: "error", detail: "Failed to save config" });
       }
 
-      // 2. Run install.sh (wait for repo clone if needed)
-      updateCheck("install", { status: "running", detail: "Waiting for install..." });
-      try {
-        const res = await fetch("/api/setup/install", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
-        });
-        if (res.status === 409) {
-          // Install already running (e.g. from a previous page visit) — poll until done
-          updateCheck("install", { detail: "Install in progress..." });
-          while (true) {
-            await delay(3000);
-            try {
-              const status = await fetch("/api/setup/install").then(r => r.json());
-              if (!status.running) {
-                updateCheck("install", { status: "ok", detail: "Installed" });
-                break;
+      // 2. Wait for install.sh to finish (reads log file via polling)
+      updateCheck("install", { status: "running", detail: "Installing..." });
+      let installDone = false;
+      for (let i = 0; i < 300; i++) {
+        try {
+          const res = await fetch("/api/setup/install/log?offset=0");
+          if (res.ok) {
+            const data = await res.json();
+            if (data.done) {
+              installDone = true;
+              updateCheck("install", { status: "ok", detail: "Installed" });
+              break;
+            }
+            // Show latest step in the detail
+            if (data.lines && data.lines.length > 0) {
+              for (let j = data.lines.length - 1; j >= 0; j--) {
+                const m = data.lines[j].match(/^── (Step\s+\S+:?\s*.*)$/);
+                if (m) {
+                  updateCheck("install", { detail: m[1].replace(/^Step\s+\S+:?\s*/, "") });
+                  break;
+                }
               }
-            } catch { /* keep polling */ }
-          }
-        } else if (res.ok && res.body) {
-          const reader = res.body.getReader();
-          const decoder = new TextDecoder();
-          let sseBuffer = "";
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            sseBuffer += decoder.decode(value, { stream: true });
-            const parts = sseBuffer.split("\n\n");
-            sseBuffer = parts.pop() || "";
-            for (const part of parts) {
-              const dataLine = part.split("\n").find((l) => l.startsWith("data: "));
-              if (!dataLine) continue;
-              try {
-                const evt = JSON.parse(dataLine.slice(6));
-                if (evt.type === "step") {
-                  updateCheck("install", { detail: evt.name.replace(/^Step\s+\S+:?\s*/, "") });
-                }
-                if (evt.type === "done") {
-                  if (evt.code === 0) {
-                    updateCheck("install", { status: "ok", detail: "Installed" });
-                  } else {
-                    updateCheck("install", { status: "error", detail: `Exit code ${evt.code}` });
-                  }
-                }
-              } catch { /* skip */ }
             }
           }
-        } else if (res.status === 503) {
-          // Repo still cloning — wait and retry
-          updateCheck("install", { detail: "Waiting for download..." });
-          await delay(5000);
-          updateCheck("install", { status: "running", detail: "Retrying..." });
-          // Recursive retry via re-running the whole step
-          const retry = await fetch("/api/setup/install", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({}),
-          });
-          if (retry.ok) {
-            updateCheck("install", { status: "ok", detail: "Installed" });
-          } else {
-            updateCheck("install", { status: "error", detail: "Could not start install" });
-          }
-        } else {
-          updateCheck("install", { status: "error", detail: "Could not start install" });
-        }
-      } catch {
-        updateCheck("install", { status: "error", detail: "Install failed" });
+        } catch { /* keep polling */ }
+        await delay(3000);
       }
-
-      // If install didn't finish ok, still continue to try persisting
-      if (checksRef.current.find(c => c.id === "install")?.status !== "ok") {
-        // Give it a moment in case it's still finishing
-        await delay(2000);
+      if (!installDone) {
+        updateCheck("install", { status: "error", detail: "Install timed out" });
       }
 
       // 3. Persist secrets to vault
@@ -149,7 +102,7 @@ export default function StepInstalling({ state, onDone, accent }: Props) {
         updateCheck("secrets", { status: "error", detail: "Could not save credentials" });
       }
 
-      // 4. Complete setup (gateway, telegram channel, etc.)
+      // 4. Complete setup (gateway, telegram channel config)
       updateCheck("gateway", { status: "running" });
       try {
         const res = await fetch("/api/setup/complete", { method: "POST" });
@@ -170,18 +123,18 @@ export default function StepInstalling({ state, onDone, accent }: Props) {
         if (res.ok && res.body) {
           const reader = res.body.getReader();
           const decoder = new TextDecoder();
-          let sseBuffer = "";
+          let buf = "";
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
-            sseBuffer += decoder.decode(value, { stream: true });
-            const parts = sseBuffer.split("\n\n");
-            sseBuffer = parts.pop() || "";
+            buf += decoder.decode(value, { stream: true });
+            const parts = buf.split("\n\n");
+            buf = parts.pop() || "";
             for (const part of parts) {
-              const dataLine = part.split("\n").find((l) => l.startsWith("data: "));
-              if (!dataLine) continue;
+              const dl = part.split("\n").find((l) => l.startsWith("data: "));
+              if (!dl) continue;
               try {
-                const evt = JSON.parse(dataLine.slice(6));
+                const evt = JSON.parse(dl.slice(6));
                 if (evt.type === "done") {
                   if (evt.failed === 0) {
                     updateCheck("smoke", { status: "ok", detail: `${evt.passed} passed` });
@@ -199,7 +152,6 @@ export default function StepInstalling({ state, onDone, accent }: Props) {
         updateCheck("smoke", { status: "ok", detail: "Skipped" });
       }
 
-      // Auto-advance if no critical failures
       const hasErrors = checksRef.current.some((c) => c.status === "error");
       if (!hasErrors) {
         await delay(2000);
@@ -227,50 +179,30 @@ export default function StepInstalling({ state, onDone, accent }: Props) {
             key={check.id}
             className="flex items-center gap-4 px-5 py-4 rounded-xl transition-all"
             style={{
-              background:
-                check.status === "ok" ? `${accent}11` :
-                check.status === "error" ? "#FF525211" :
-                check.status === "running" ? "rgba(255,255,255,0.05)" :
-                "rgba(255,255,255,0.02)",
-              border:
-                check.status === "ok" ? `1px solid ${accent}33` :
-                check.status === "error" ? "1px solid #FF525233" :
-                check.status === "running" ? "1px solid rgba(255,255,255,0.1)" :
-                "1px solid transparent",
+              background: check.status === "ok" ? `${accent}11` : check.status === "error" ? "#FF525211" : check.status === "running" ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.02)",
+              border: check.status === "ok" ? `1px solid ${accent}33` : check.status === "error" ? "1px solid #FF525233" : check.status === "running" ? "1px solid rgba(255,255,255,0.1)" : "1px solid transparent",
             }}
           >
             <div className="w-6 h-6 flex items-center justify-center flex-shrink-0">
               {check.status === "ok" && <span style={{ color: accent }}>✓</span>}
               {check.status === "error" && <span className="text-[#FF5252]">✗</span>}
               {check.status === "running" && (
-                <div
-                  className="w-4 h-4 rounded-full border-2 border-t-transparent animate-spin"
-                  style={{ borderColor: `${accent}66`, borderTopColor: "transparent" }}
-                />
+                <div className="w-4 h-4 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: `${accent}66`, borderTopColor: "transparent" }} />
               )}
-              {check.status === "pending" && (
-                <div className="w-4 h-4 rounded-full border border-[rgba(255,255,255,0.1)]" />
-              )}
+              {check.status === "pending" && <div className="w-4 h-4 rounded-full border border-[rgba(255,255,255,0.1)]" />}
             </div>
             <div className="flex-1 text-left">
-              <div
-                className="text-sm font-medium"
-                style={{ color: check.status === "ok" || check.status === "running" ? "#fff" : "#666" }}
-              >
+              <div className="text-sm font-medium" style={{ color: check.status === "ok" || check.status === "running" ? "#fff" : "#666" }}>
                 {check.label}
               </div>
-              {check.detail && (
-                <div className="text-xs text-[#666] mt-0.5">{check.detail}</div>
-              )}
+              {check.detail && <div className="text-xs text-[#666] mt-0.5">{check.detail}</div>}
             </div>
           </div>
         ))}
       </div>
 
       {allDone && !hasErrors && (
-        <p className="text-sm text-[#666]">
-          Taking you to {state.assistantName}...
-        </p>
+        <p className="text-sm text-[#666]">Taking you to {state.assistantName}...</p>
       )}
 
       {allDone && hasErrors && (
@@ -278,11 +210,7 @@ export default function StepInstalling({ state, onDone, accent }: Props) {
           <p className="text-sm text-[#888]">
             Some checks had issues. You can continue — these can be fixed later with <span className="font-mono text-[#aaa]">mc-doctor</span>.
           </p>
-          <button
-            onClick={onDone}
-            className="w-full py-3 rounded-xl font-semibold transition-all hover:opacity-90 active:scale-[0.98]"
-            style={{ background: accent, color: "#0f0f0f" }}
-          >
+          <button onClick={onDone} className="w-full py-3 rounded-xl font-semibold transition-all hover:opacity-90 active:scale-[0.98]" style={{ background: accent, color: "#0f0f0f" }}>
             Continue anyway →
           </button>
         </div>
@@ -291,6 +219,4 @@ export default function StepInstalling({ state, onDone, accent }: Props) {
   );
 }
 
-function delay(ms: number) {
-  return new Promise((r) => setTimeout(r, ms));
-}
+function delay(ms: number) { return new Promise((r) => setTimeout(r, ms)); }

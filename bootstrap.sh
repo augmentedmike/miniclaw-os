@@ -169,10 +169,16 @@ sleep 1
 echo "  ✓ Opening browser..."
 open "http://myam.localhost:$APP_PORT"
 
-# Clone repo in background (for install.sh later)
+# ── Clone repo and start install.sh in background ────────────────────────────
+echo "  Starting install..."
+INSTALL_LOG="/tmp/miniclaw-install.log"
+rm -f "$INSTALL_LOG"
 (
   mkdir -p "$(dirname "$INSTALL_DIR")"
   [[ -d "$INSTALL_DIR/.git" ]] || git clone -q --depth 1 "$REPO_URL" "$INSTALL_DIR" 2>>"$LOG_FILE"
+  if [[ -f "$INSTALL_DIR/install.sh" ]]; then
+    OPENCLAW_STATE_DIR="$STATE_DIR" bash "$INSTALL_DIR/install.sh" >"$INSTALL_LOG" 2>&1
+  fi
 ) &
 
 # ── Done ─────────────────────────────────────────────────────────────────────

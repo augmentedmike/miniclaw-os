@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import Image from "next/image";
 import InstallOverlay from "./InstallOverlay";
 import StepMeetHer from "./steps/StepMeetHer";
 import StepTelegram from "./steps/StepTelegram";
@@ -98,9 +99,39 @@ export default function SetupWizard() {
 
   const stepNum = NUMBERED_STEPS.indexOf(step as (typeof NUMBERED_STEPS)[number]) + 1;
 
+  // Splash screen — show logo for 3s then fade
+  const [splash, setSplash] = useState(true);
+  const [splashFade, setSplashFade] = useState(false);
+  useEffect(() => {
+    const fade = setTimeout(() => setSplashFade(true), 2500);
+    const hide = setTimeout(() => setSplash(false), 3200);
+    return () => { clearTimeout(fade); clearTimeout(hide); };
+  }, []);
+
   const accentStyle = {
     "--user-accent": state.accentColor,
   } as React.CSSProperties;
+
+  if (splash) {
+    return (
+      <div
+        className="min-h-screen flex flex-col items-center justify-center"
+        style={{
+          background: "#0f0f0f",
+          opacity: splashFade ? 0 : 1,
+          transition: "opacity 0.7s ease-out",
+        }}
+      >
+        <Image
+          src="/miniclaw-logo.png"
+          alt="MiniClaw"
+          width={160}
+          height={160}
+          priority
+        />
+      </div>
+    );
+  }
 
   return (
     <div
