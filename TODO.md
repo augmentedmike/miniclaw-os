@@ -7,13 +7,19 @@
 - [x] 3. Wire LogDisplay component into InstallOverlay + TriageModal
 - [ ] 4. Welcome wizard cron enable — needs clean test to verify
 
-## Ready for clean test
+## Clean test in progress
 
-- [ ] 5. Rebuild release zip + full clean e2e test
+- [ ] 5. Full clean e2e test
 - [ ] 6. Verify triage apply works (`openclaw mc-board update`) with plugins loaded
 - [ ] 7. Yank old openclaw npm versions
 
+## Next up
+
+- [ ] 8. Rewrite npm README for @miniclaw_official/openclaw from MiniClaw perspective
+- [ ] 9. GitHub Actions: run tests on release (stable tag), add build badge to README
+- [ ] 10. Build badge tied to stable tag
+
 ## Nice to have
 
-- [ ] 8. Refactor wizard state to context/provider/hook pattern
-- [ ] 9. Rename PascalCase files to kebab-case
+- [ ] 11. Refactor wizard state to context/provider/hook pattern
+- [ ] 12. Rename PascalCase files to kebab-case
