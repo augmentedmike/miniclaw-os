@@ -15,7 +15,7 @@
 
 > **Versioning:** Tagged versions are prerelease candidates until manually tested and approved by the human team; the bootstrap installer defaults to the latest human-approved stable release.
 
-> **Alpha Software.** Is this perfect software? Not even close — but it works great for me and a dozen people I know. And unlike software before AM, she not only knows how to debug, diagnose, and fix herself, but she has a built-in imperative to do it. She is autohealing software. Much of the issue and PR activity here will be Amelias in the wild, self-reporting issues they and their humans run into. And she is predisposed to writing new tools to help her do new work consistently — including fixing herself. See [mc-contribute](./docs/mc-contribute.md).
+> **Alpha Software.** Is this perfect software? Not even close — but it works great for us and a growing number of early adopters. Unlike traditional software, MiniClaw agents know how to debug, diagnose, and fix themselves. Much of the issue and PR activity here will be agents in the wild, self-reporting issues they and their humans run into. They write new tools to help themselves do new work consistently — including fixing themselves. See [mc-contribute](./docs/mc-contribute.md).
 
 **MiniClaw** is a personal AI that lives on its own Mac — not in someone else's cloud. It has a real personality, remembers your life, and can actually *do* things: draft emails, write code, manage projects, run tasks overnight. Your data stays on your machine — LLM inference calls go out over SSL to your chosen provider, but nothing else leaves.
 
@@ -24,10 +24,6 @@
 [Getting Started](#install) · [Features](./FEATURES.md) · [Plugins](#plugins) · [Docs](https://docs.openclaw.ai) · [GitHub](https://github.com/augmentedmike/miniclaw-os) · [miniclaw.bot](https://miniclaw.bot)
 
 ---
-
-> **Security Alert:** We do not recommend that you install OpenClaw or MiniClaw on your personal computer. It will control your screen and access ALL your unencrypted files. We use encryption to protect MiniClaw secret files, but most computers are wide open. Your personal information can be stolen if you do this.
->
-> **Instead:** Install on a computer you control physically (or a VPS, although we have only just started working on Linux improvements) and monitor its activity daily to ensure it's not doing something you don't want. We are building tools to make this more secure and easy to use. OpenClaw is for nerds, MiniClaw is for people.
 
 ---
 
@@ -67,27 +63,10 @@ Your browser opens automatically when it's ready. The setup wizard walks you thr
 
 ## Getting Started
 
-Once installed, start chatting:
+Once installed, talk to your agent:
 
-- **Telegram:** Secure, encrypted messaging to your agent from anywhere
-- **Terminal:** Use `openclaw agent "your message here"` for CLI access
-- **Board UI:** `http://localhost:4220` (local-only, LAN-accessible with mc-trust verification)
-
-### Your First Agent
-
-```bash
-# Create a simple agent that summarizes news
-mc agent create --name "news-brief" --template summarizer
-
-# Chat with it
-openclaw agent "Summarize the top 3 tech news stories today"
-
-# Query its memory
-mc kb search "tech news"
-
-# Check your task queue
-mc board show
-```
+- **Telegram:** Secure, encrypted messaging from anywhere — this is how most people interact
+- **Brain Board:** `http://myam.localhost:4220` — your agent's task board, memory, contacts, and settings
 
 ---
 
@@ -214,100 +193,6 @@ MiniClaw is modular. Each plugin handles one job — and handles it well. You ca
 
 ---
 
-## Examples
-
-### Example 1: Autonomous Task Tracking
-
-```bash
-# Create a task
-$ mc board create --title "Research competitor pricing" --priority high --tags sales
-
-# Agent picks it up automatically
-[mc-board] Task crd_xyz789 assigned to work loop
-
-# Agent works on it
-Agent: Researching competitor pricing...
-[browser] Opened 5 competitor sites
-[mc-designer] Generated pricing comparison chart
-Task moved to in-review
-
-# You review the work
-$ mc board show crd_xyz789
-# Agent's work is displayed with the comparison chart
-
-# Approve it
-$ mc board move crd_xyz789 shipped
-# Agent notifies you it's done
-```
-
----
-
-### Example 2: Knowledge Base Self-Improvement
-
-```bash
-# Agent encounters an error while processing
-Agent: Error: Failed to parse JSON response. Added to KB as error type.
-[mc-kb] Added: "JSON parsing failures in API calls"
-
-# Next time it encounters similar error
-Agent: I've seen this before. (querying KB...)
-[mc-kb] Found 3 related errors. Trying workaround #2...
-✓ Resolved successfully
-
-# Monthly review
-$ mc kb search --type lesson --tag "api"
-# Shows all lessons learned about API work
-
-# Agent logs what it learned
-[mc-kb] Lesson: "Always validate API responses before parsing"
-```
-
----
-
-### Example 3: Social Media Design Pipeline
-
-```bash
-# Create content
-$ mc board create "LinkedIn post + graphics" --priority high
-
-# Agent generates the graphics
-Agent: Creating LinkedIn banner...
-[mc-designer] Generated: social-linkedin-banner.png (1584×396)
-[mc-designer] Generated: social-linkedin-thumbnail.png (400×400)
-
-# Outputs placed in $OPENCLAW_STATE_DIR/USER/media/designer/
-$ ls -la $OPENCLAW_STATE_DIR/USER/media/designer/
-social-linkedin-banner-20260305.png
-social-linkedin-thumbnail-20260305.png
-
-# Ready to upload
-Agent: Designs ready. LinkedIn banner: [link]
-```
-
----
-
-### Example 4: Scheduled Reports
-
-```bash
-# Set up daily email digest
-$ mc jobs add --cron "0 8 * * *" \
-  --task "Summarize overnight alerts and emails" \
-  --agent news-brief
-
-# Every morning at 8 AM
-Agent: Good morning! Here's what you missed:
-  • 3 urgent emails (all archived)
-  • 12 GitHub notifications
-  • 2 Telegram mentions
-  • 1 calendar conflict (already resolved)
-
-# View job history
-$ mc jobs history --job daily-digest
-2026-03-05 08:00:42 ✓ Digest sent (3.2KB)
-2026-03-04 08:00:51 ✓ Digest sent (2.8KB)
-2026-03-03 08:01:08 ✓ Digest sent (4.1KB)
-```
-
 ---
 
 ## Troubleshooting
@@ -339,68 +224,9 @@ It'll diagnose what's wrong and offer to fix it.
 
 ## Contributing
 
-MiniClaw has a built-in contribution plugin — **[mc-contribute](./docs/mc-contribute.md)** — that lets your agent scaffold plugins, file bugs, submit PRs, and manage discussions on your behalf. Your bot already knows the contribution rules (they're injected into its context automatically).
+Your agent handles contributions autonomously using **[mc-contribute](./docs/mc-contribute.md)**. Just tell it what you want — file a bug, request a feature, submit a fix — and it does the work. Feature requests, bug reports, and PRs from agents in the wild are expected and encouraged.
 
-```bash
-# Scaffold a new plugin
-mc mc-contribute scaffold weather --description "Fetch weather forecasts"
-
-# Create a contribution branch
-mc mc-contribute branch mc-weather
-
-# File a bug report (auto-collects mc-doctor output, versions, etc.)
-mc mc-contribute bug "mc-board crashes on empty backlog"
-
-# Submit a feature request or plugin idea
-mc mc-contribute feature "Add weather alerts to mc-weather"
-
-# Run the security scanner before committing
-mc mc-contribute security
-
-# Submit your PR (runs security check first)
-mc mc-contribute pr
-
-# Check your contribution status
-mc mc-contribute status
-
-# Read the full contribution guidelines
-mc mc-contribute guidelines
-```
-
-### Manual Contributing
-
-If you prefer to work without the plugin:
-
-- **Found a bug?** [Open an issue](https://github.com/augmentedmike/miniclaw-os/issues)
-- **Want to improve docs?** [Submit a PR](https://github.com/augmentedmike/miniclaw-os/pulls)
-- **Plugin Developer Guide:** [Writing Plugins](./docs/wiki/Writing-Plugins.md)
-
-
-### Plugin SDK
-
-Every plugin has access to (local only — no network exposure):
-
-```typescript
-// Configuration
-const config = agent.getConfig('my-plugin');
-
-// Long-term memory
-const results = await kb.search('search term');
-await kb.add({ type: 'fact', title: '...', content: '...' });
-
-// Task management
-const tasks = await board.list({ status: 'in-progress' });
-await board.move(cardId, 'shipped');
-
-// File I/O (sandboxed to state directory)
-const files = await fs.readdir('$OPENCLAW_STATE_DIR/workspace/');
-
-// LLM inference (with escalation)
-const response = await agent.invoke('gpt-4', prompt);
-
-// Inter-plugin communication (trusted agents)
-await trust.verify(peerId, message, signature);
-```
+See [mc-contribute](./docs/mc-contribute.md) for details.
 
 ---
 
