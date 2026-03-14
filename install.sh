@@ -983,13 +983,10 @@ cat > "$BOARD_PLIST" << PLIST
   <key>ProgramArguments</key>
   <array>
     <string>$(which node || echo /opt/homebrew/bin/node)</string>
-    <string>$MINICLAW_DIR/plugins/mc-board/web/node_modules/.bin/next</string>
-    <string>start</string>
-    <string>-p</string>
-    <string>4220</string>
+    <string>$STATE_DIR/web/server.js</string>
   </array>
   <key>WorkingDirectory</key>
-  <string>$MINICLAW_DIR/plugins/mc-board/web</string>
+  <string>$STATE_DIR/web</string>
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
@@ -1004,10 +1001,16 @@ cat > "$BOARD_PLIST" << PLIST
   <dict>
     <key>HOME</key>
     <string>$HOME</string>
+    <key>PORT</key>
+    <string>4220</string>
+    <key>HOSTNAME</key>
+    <string>0.0.0.0</string>
     <key>PATH</key>
-    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <string>$(dirname "$(which node)"):/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
     <key>OPENCLAW_STATE_DIR</key>
     <string>$STATE_DIR</string>
+    <key>NODE_ENV</key>
+    <string>production</string>
   </dict>
 </dict>
 </plist>
