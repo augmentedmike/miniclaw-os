@@ -97,10 +97,13 @@ rm -rf "$EXTRACT_TMP"
 mkdir -p "$STATE_DIR/USER" "$STATE_DIR/logs"
 rm -f "$STATE_DIR/USER/setup-state.json"
 
-# ── Kill existing on port ────────────────────────────────────────────────────
+# ── Kill existing on port (force — stale processes hold the old code in memory) ─
 launchctl unload "$HOME/Library/LaunchAgents/com.miniclaw.board-web.plist" 2>/dev/null || true
-PORT_PID=$(lsof -ti ":$APP_PORT" 2>/dev/null | head -1 || true)
-[[ -n "$PORT_PID" ]] && kill "$PORT_PID" 2>/dev/null && sleep 1
+rm -f "$STATE_DIR/.install-lock"
+for pid in $(lsof -ti ":$APP_PORT" 2>/dev/null); do
+  kill -9 "$pid" 2>/dev/null
+done
+sleep 1
 
 # ── Install LaunchAgent ──────────────────────────────────────────────────────
 echo "  Starting service..."
