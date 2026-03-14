@@ -27,7 +27,7 @@ export default function InstallOverlay({ accent }: Props) {
 
   useEffect(() => {
     if (open && !posInit) {
-      setPos({ x: Math.max(0, (window.innerWidth - 560) / 2), y: Math.max(40, (window.innerHeight - 440) / 2) });
+      setPos({ x: Math.max(0, (window.innerWidth - 560) / 2), y: 20 });
       setPosInit(true);
     }
   }, [open, posInit]);
