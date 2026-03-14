@@ -468,6 +468,14 @@ for plugin_dir in "$PLUGINS_DIR"/mc-*/; do
   REGISTERED=$((REGISTERED + 1))
 done
 
+# Rebuild native modules for this machine's Node version
+if [[ -d "$EXTENSIONS_DIR/node_modules/better-sqlite3" ]]; then
+  info "Rebuilding native modules for Node $(node --version)..."
+  (cd "$EXTENSIONS_DIR" && npm rebuild better-sqlite3 2>>"$LOG_FILE") \
+    && ok "better-sqlite3 rebuilt for Node $(node --version)" \
+    || warn "better-sqlite3 rebuild failed — gateway plugins may not load"
+fi
+
 # Clean up pre-built staging
 rm -rf "$PREBUILT_DIR"
 

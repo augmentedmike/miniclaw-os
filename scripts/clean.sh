@@ -44,7 +44,17 @@ else
   echo "  ~/.openclaw already gone"
 fi
 
-# 5. Clean install log
+# 5. Uninstall openclaw from all Node versions
+echo "  Uninstalling openclaw..."
+npm uninstall -g @miniclaw_official/openclaw 2>/dev/null || true
+npm uninstall -g openclaw 2>/dev/null || true
+# Also try NVM nodes and homebrew node
+for node_dir in "$HOME/.nvm/versions/node"/*/bin "$HOME/.volta/bin" /opt/homebrew/bin /usr/local/bin; do
+  [[ -x "$node_dir/npm" ]] && "$node_dir/npm" uninstall -g @miniclaw_official/openclaw 2>/dev/null || true
+  [[ -x "$node_dir/npm" ]] && "$node_dir/npm" uninstall -g openclaw 2>/dev/null || true
+done
+
+# 6. Clean install log
 rm -f /tmp/miniclaw-install.log /tmp/miniclaw-bootstrap.log
 
 echo "✓ Clean. Ready for fresh install."
