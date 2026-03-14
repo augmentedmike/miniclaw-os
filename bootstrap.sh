@@ -20,7 +20,11 @@ LOG_FILE="/tmp/miniclaw-bootstrap.log"
 osascript -e 'tell application "Terminal" to set visible of front window to false' 2>/dev/null &
 
 # ── Show a friendly notification ─────────────────────────────────────────────
-osascript -e 'display notification "Installing — this takes a few minutes..." with title "MiniClaw" subtitle "Setting up your AM"' 2>/dev/null &
+osascript -e 'display notification "Setting up — this will be quick..." with title "MiniClaw"' 2>/dev/null &
+echo ""
+echo "  🦀 MiniClaw"
+echo "  Setting up..."
+echo ""
 
 # ── macOS check ──────────────────────────────────────────────────────────────
 [[ "$(uname)" == "Darwin" ]] || exit 1
@@ -97,16 +101,46 @@ if [[ -d "$INSTALL_DIR" ]]; then
   export OPENCLAW_EVAC_DIR="$EVAC_DIR"
 fi
 
-# ── Fresh clone ──────────────────────────────────────────────────────────────
-osascript -e 'display notification "Downloading MiniClaw..." with title "MiniClaw"' 2>/dev/null
-mkdir -p "$(dirname "$INSTALL_DIR")"
-git clone -q --depth 1 "$REPO_URL" "$INSTALL_DIR"
+# ── Download pre-built web app ────────────────────────────────────────────────
+WEB_DIR="$STATE_DIR/web"
+ZIP_URL="https://raw.githubusercontent.com/augmentedmike/miniclaw-os/main/dist/MiniClaw-Installer-v0.1.5.zip"
+ZIP_TMP="/tmp/miniclaw-installer-$$.zip"
 
-# ── Build the board web app ──────────────────────────────────────────────────
-APP_DIR="$INSTALL_DIR/plugins/mc-board/web"
-osascript -e 'display notification "Building app..." with title "MiniClaw"' 2>/dev/null
-(cd "$APP_DIR" && npm install --silent >>"$LOG_FILE" 2>&1)
-(cd "$APP_DIR" && npx next build >>"$LOG_FILE" 2>&1) || true
+osascript -e 'display notification "Downloading MiniClaw..." with title "MiniClaw"' 2>/dev/null
+echo "  Downloading..."
+/usr/bin/curl -fsSL "$ZIP_URL" -o "$ZIP_TMP" 2>>"$LOG_FILE"
+
+# Extract the pre-built web app from the .app bundle inside the zip
+EXTRACT_TMP="/tmp/miniclaw-extract-$$"
+mkdir -p "$EXTRACT_TMP"
+unzip -q -o "$ZIP_TMP" -d "$EXTRACT_TMP"
+rm -f "$ZIP_TMP"
+
+# Deploy the pre-built web app
+rm -rf "$WEB_DIR"
+if [[ -d "$EXTRACT_TMP/Install MiniClaw.app/Contents/Resources/miniclaw-web" ]]; then
+  mv "$EXTRACT_TMP/Install MiniClaw.app/Contents/Resources/miniclaw-web" "$WEB_DIR"
+else
+  # Fallback: clone and build if zip doesn't have pre-built app
+  echo "  Pre-built app not found in zip — building from source..."
+  mkdir -p "$(dirname "$INSTALL_DIR")"
+  git clone -q --depth 1 "$REPO_URL" "$INSTALL_DIR" 2>>"$LOG_FILE"
+  APP_DIR="$INSTALL_DIR/plugins/mc-board/web"
+  (cd "$APP_DIR" && npm install --silent >>"$LOG_FILE" 2>&1)
+  (cd "$APP_DIR" && npx next build >>"$LOG_FILE" 2>&1) || true
+  # Use standalone output
+  cp -a "$APP_DIR/.next/standalone/." "$WEB_DIR/" 2>/dev/null || true
+  cp -r "$APP_DIR/.next/static" "$WEB_DIR/.next/static" 2>/dev/null || true
+  cp -r "$APP_DIR/public" "$WEB_DIR/public" 2>/dev/null || true
+fi
+rm -rf "$EXTRACT_TMP"
+echo "  ✓ App ready"
+
+# ── Clone the repo in the background (for install.sh later) ──────────────────
+(
+  mkdir -p "$(dirname "$INSTALL_DIR")"
+  [[ -d "$INSTALL_DIR/.git" ]] || git clone -q --depth 1 "$REPO_URL" "$INSTALL_DIR" 2>>"$LOG_FILE"
+) &
 
 # ── Reset setup state ────────────────────────────────────────────────────────
 mkdir -p "$STATE_DIR/USER" "$STATE_DIR/logs"
@@ -133,13 +167,10 @@ cat > "$PLIST" << PLIST
   <key>ProgramArguments</key>
   <array>
     <string>$NODE_BIN</string>
-    <string>$APP_DIR/node_modules/.bin/next</string>
-    <string>start</string>
-    <string>-p</string>
-    <string>$APP_PORT</string>
+    <string>$WEB_DIR/server.js</string>
   </array>
   <key>WorkingDirectory</key>
-  <string>$APP_DIR</string>
+  <string>$WEB_DIR</string>
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
@@ -154,6 +185,10 @@ cat > "$PLIST" << PLIST
   <dict>
     <key>HOME</key>
     <string>$HOME</string>
+    <key>PORT</key>
+    <string>$APP_PORT</string>
+    <key>HOSTNAME</key>
+    <string>0.0.0.0</string>
     <key>PATH</key>
     <string>$(dirname "$NODE_BIN"):/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
     <key>OPENCLAW_STATE_DIR</key>
