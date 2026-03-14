@@ -2,7 +2,6 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import InstallOverlay from "./InstallOverlay";
 import StepMeetHer from "./steps/StepMeetHer";
 import StepTelegram from "./steps/StepTelegram";
 import StepGithub from "./steps/StepGithub";
@@ -107,8 +106,6 @@ export default function SetupWizard() {
       className="min-h-screen flex flex-col items-center justify-center px-4 py-12"
       style={accentStyle}
     >
-      {/* Background install — floating indicator + draggable log modal */}
-      <InstallOverlay accent={state.accentColor} />
 
       {/* Progress indicator */}
       {stepNum > 0 && step !== "installing" && step !== "done" && (

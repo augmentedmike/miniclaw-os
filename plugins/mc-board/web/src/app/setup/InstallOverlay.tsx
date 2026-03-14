@@ -46,13 +46,9 @@ export default function InstallOverlay({ accent }: Props) {
     }
   }, [lines, open]);
 
-  // Auto-start install on mount
-  useEffect(() => {
-    if (startedRef.current) return;
-    startedRef.current = true;
-    startInstall();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Don't auto-start — install runs from the "Finishing up" step
+  // when the repo clone is guaranteed to be done.
+  // The overlay only activates if manually triggered.
 
   const startInstall = useCallback(async () => {
     setPhase("connecting");
