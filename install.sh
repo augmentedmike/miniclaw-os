@@ -465,6 +465,22 @@ for plugin_src in "$REPO_DIR/plugins"/*/; do
 done
 ok "$PLUGIN_COUNT plugins copied"
 
+# Install deps for mc-board in miniclaw/plugins/ — the agent-runner runs from
+# this directory and needs better-sqlite3 native bindings for the host Node.
+BOARD_PLUGIN_DIR="$MINICLAW_DIR/plugins/mc-board"
+if [[ -f "$BOARD_PLUGIN_DIR/package.json" ]]; then
+  info "Installing mc-board deps (agent-runner needs native better-sqlite3)..."
+  if (cd "$BOARD_PLUGIN_DIR" && PATH="$NODE_DIR:$PATH" "$NPM_BIN" install --omit=dev >>"$LOG_FILE" 2>&1); then
+    if (cd "$BOARD_PLUGIN_DIR" && PATH="$NODE_DIR:$PATH" "$NPM_BIN" rebuild better-sqlite3 >>"$LOG_FILE" 2>&1); then
+      ok "mc-board deps installed + better-sqlite3 rebuilt"
+    else
+      warn "mc-board npm install ok but better-sqlite3 rebuild failed"
+    fi
+  else
+    warn "mc-board npm install failed — agent-runner may crash-loop"
+  fi
+fi
+
 # ── Step 8: Install plugins to extensions + patch openclaw.json ──────────────
 step "Step 8: Plugin registration"
 

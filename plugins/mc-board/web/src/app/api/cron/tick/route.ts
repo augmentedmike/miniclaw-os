@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
 import { listCronJobs, updateCronJob } from "@/lib/cron";
-import { listCards, getActiveWork } from "@/lib/data";
+import { listCards, getActiveWork, getRunningByCol } from "@/lib/data";
 import { releaseCard } from "@/lib/actions";
 import { sortCards } from "@/lib/sort";
 
@@ -174,6 +174,16 @@ export async function GET(req: Request) {
     if (!prompt) { skipped.push(`${job.id}: no prompt`); continue; }
 
     const maxConcurrent = job.maxConcurrent ?? 3;
+
+    // Subtract already-running agents from the available slots
+    const runningByCol = getRunningByCol();
+    const runningCount = (runningByCol[column] ?? []).length;
+    const availableSlots = Math.max(0, maxConcurrent - runningCount);
+    if (availableSlots === 0) {
+      skipped.push(`${job.id}: at WIP limit (${runningCount}/${maxConcurrent} running)`);
+      continue;
+    }
+
     const allCards = listCards();
     const shippedIds = new Set(allCards.filter(c => c.column === "shipped").map(c => c.id));
     const cards = sortCards(allCards.filter(c => {
@@ -187,7 +197,7 @@ export async function GET(req: Request) {
         if (c.depends_on.some(dep => !shippedIds.has(dep))) return false;
         return true;
       }), activeIds)
-      .slice(0, maxConcurrent);
+      .slice(0, availableSlots);
 
     if (cards.length === 0) { skipped.push(`${job.id}: no eligible cards`); continue; }
 
