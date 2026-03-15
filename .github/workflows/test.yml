@@ -17,12 +17,15 @@ jobs:
         with:
           node-version: 22
 
+      - name: Install vitest globally
+        run: npm install -g vitest
+
       - name: Install plugin dependencies
         run: |
           for dir in plugins/mc-*/; do
             if [ -f "$dir/vitest.config.ts" ]; then
               echo "Installing deps for $(basename $dir)..."
-              (cd "$dir" && npm install 2>/dev/null) || true
+              (cd "$dir" && npm install) || true
             fi
           done
 
