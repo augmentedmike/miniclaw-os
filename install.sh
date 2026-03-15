@@ -393,7 +393,8 @@ import json, sys
 cfg = {
   "meta": {},
   "agents": { "defaults": { "model": { "primary": "claude-sonnet-4-6" }, "compaction": { "mode": "safeguard" } } },
-  "plugins": {}
+  "plugins": {},
+  "gateway": { "mode": "local" }
 }
 with open(sys.argv[1], "w") as f:
     json.dump(cfg, f, indent=2); f.write("\n")
@@ -755,6 +756,8 @@ MERGE_PYEOF
     IMPORTED_COUNT=0
     for old_plugin in "$OLD_PLUGINS_DIR"/*/; do
       plugin_name="$(basename "$old_plugin")"
+      # Skip node_modules and other non-plugin directories
+      [[ "$plugin_name" == "node_modules" || "$plugin_name" == ".git" ]] && continue
       # Skip if miniclaw already has this plugin (ours takes precedence)
       if [[ -d "$MINICLAW_DIR/plugins/$plugin_name" ]]; then
         info "  Skipped $plugin_name (MiniClaw version installed)"
@@ -1130,6 +1133,8 @@ if [[ -f "$RUNNER_SCRIPT" ]]; then
     <string>$HOME</string>
     <key>PATH</key>
     <string>$HOME/.local/bin:$NODE_DIR:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>NODE_PATH</key>
+    <string>$MINICLAW_DIR/plugins/mc-board/node_modules:$STATE_DIR/extensions/node_modules:$STATE_DIR/extensions/mc-board/node_modules</string>
     <key>OPENCLAW_STATE_DIR</key>
     <string>$STATE_DIR</string>
     <key>OPENCLAW_BIN</key>
