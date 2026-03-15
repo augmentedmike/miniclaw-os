@@ -206,15 +206,6 @@ mc-doctor
 
 It'll diagnose what's wrong and offer to fix it.
 
-**Common issues:**
-
-| Issue | Fix |
-|-------|-----|
-| Agent won't start | Run `mc-doctor` |
-| Telegram not connected | Check `$OPENCLAW_STATE_DIR/config/telegram.json` |
-| Out of memory | Restart: `brew services restart openclaw` |
-| Can't find mc-board | Reinstall plugins: `mc plugin install mc-board` |
-
 ---
 
 ## Contributing
