@@ -328,34 +328,31 @@
   "crons": [
     {
       "name": "board-worker-backlog",
-      "description": "Haiku triage: surveys backlog, selects best candidate per project (max 3), fills details, moves to in-progress",
+      "description": "Triage: surveys backlog, selects best candidate per project (max 3), fills details, moves to in-progress",
       "schedule": {
         "kind": "cron",
         "expr": "*/5 * * * *"
       },
-      "model": "claude-haiku-4-5-20251001",
       "timeoutSeconds": 600,
       "sessionTarget": "isolated"
     },
     {
       "name": "board-worker-in-progress",
-      "description": "Haiku triage: surveys in-progress, selects best per project (max 3), does one unit of work, checks criteria",
+      "description": "Triage: surveys in-progress, selects best per project (max 3), does one unit of work, checks criteria",
       "schedule": {
         "kind": "cron",
         "expr": "1-59/5 * * * *"
       },
-      "model": "claude-haiku-4-5-20251001",
       "timeoutSeconds": 600,
       "sessionTarget": "isolated"
     },
     {
       "name": "board-worker-in-review",
-      "description": "Haiku triage: surveys in-review, selects best per project (max 3), verifies + deploys, ships or fails back",
+      "description": "Triage: surveys in-review, selects best per project (max 3), verifies + deploys, ships or fails back",
       "schedule": {
         "kind": "cron",
         "expr": "2-59/5 * * * *"
       },
-      "model": "claude-haiku-4-5-20251001",
       "timeoutSeconds": 600,
       "sessionTarget": "isolated"
     },
