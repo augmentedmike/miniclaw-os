@@ -21,7 +21,7 @@ jobs:
           for dir in plugins/mc-*/; do
             if [ -f "$dir/vitest.config.ts" ]; then
               echo "Installing deps for $(basename $dir)..."
-              (cd "$dir" && npm install --omit=dev --ignore-scripts 2>/dev/null; npm install vitest 2>/dev/null) || true
+              (cd "$dir" && npm install 2>/dev/null) || true
             fi
           done
 
