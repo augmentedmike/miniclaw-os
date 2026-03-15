@@ -49,11 +49,11 @@ fi
 echo ""
 echo "── plugin checks"
 
-# #39: mc-booking has @hono/node-server
-if grep -q '@hono/node-server' "$REPO_DIR/plugins/mc-booking/package.json"; then
-  pass "#39 mc-booking has @hono/node-server dependency"
+# #45: mc-booking uses better-sqlite3 (redesigned from hono/turso)
+if grep -q 'better-sqlite3' "$REPO_DIR/plugins/mc-booking/package.json"; then
+  pass "#45 mc-booking uses better-sqlite3 (local DB)"
 else
-  fail "#39 mc-booking missing @hono/node-server" "add to package.json dependencies"
+  fail "#45 mc-booking missing better-sqlite3" "redesign requires local SQLite"
 fi
 
 # #40: api.hook guarded in mc-contribute
@@ -133,9 +133,9 @@ fi
 echo ""
 echo "── tool signature checks"
 
-# #46: mc-kb execute() has correct signature (_id, _input)
-if grep -q 'execute.*_id.*string.*_input.*unknown' "$REPO_DIR/plugins/mc-kb/tools/definitions.ts"; then
-  pass "#46 mc-kb execute() has correct (_id, _input) signature"
+# #46: mc-kb execute() has toolCallId first param
+if grep -q 'execute.*_toolCallId.*string\|execute.*_id.*string' "$REPO_DIR/plugins/mc-kb/tools/definitions.ts"; then
+  pass "#46 mc-kb execute() has toolCallId first param"
 else
   fail "#46 mc-kb execute() missing toolCallId first param" "params received as string instead of object"
 fi
