@@ -277,12 +277,18 @@ function AgentRunsSection({ cardId }: { cardId: string }) {
     fetcher,
     { refreshInterval: 10000 }
   );
+  const { data: budget } = useSWR<{ multiplier: number; plan: string }>(
+    "/api/budget",
+    fetcher,
+  );
   const [open, setOpen] = useState(false);
 
   const items = runs ?? [];
   const totalRuns = items.length;
   const totalTokens = items.reduce((s, r) => s + r.totalTokens, 0);
   const totalCost = items.reduce((s, r) => s + r.costUsd, 0);
+  const mult = budget?.multiplier ?? 1;
+  const subCost = (n: number) => fmtCost(n / mult);
 
   return (
     <div>
@@ -303,7 +309,7 @@ function AgentRunsSection({ cardId }: { cardId: string }) {
         )}
         {!isLoading && totalCost > 0 && (
           <span style={{ fontSize: 10, color: "#4ade80", background: "#052e16", borderRadius: 10, padding: "0 6px", lineHeight: "18px" }}>
-            {fmtCost(totalCost)}
+            {subCost(totalCost)}
           </span>
         )}
         <span style={{ fontSize: 10, color: "#52525b", marginLeft: 2 }}>{open ? "▲" : "▼"}</span>
@@ -356,7 +362,7 @@ function AgentRunsSection({ cardId }: { cardId: string }) {
                         <span>cache-w: {fmtTokens(run.cacheWriteTokens)}</span>
                         <span style={{ color: "#a1a1aa" }}>total: {fmtTokens(run.totalTokens)}</span>
                         {run.costUsd > 0 && (
-                          <span style={{ color: "#4ade80" }}>{fmtCost(run.costUsd)}</span>
+                          <span style={{ color: "#4ade80" }}>{subCost(run.costUsd)}{mult > 1 ? <span style={{ color: "#3f3f46" }}> (api {fmtCost(run.costUsd)})</span> : null}</span>
                         )}
                       </div>
                     )}
@@ -372,7 +378,7 @@ function AgentRunsSection({ cardId }: { cardId: string }) {
                 }}>
                   <span>{totalRuns} runs</span>
                   {totalTokens > 0 && <span>{fmtTokens(totalTokens)} tokens</span>}
-                  {totalCost > 0 && <span style={{ color: "#4ade80" }}>{fmtCost(totalCost)} total</span>}
+                  {totalCost > 0 && <span style={{ color: "#4ade80" }}>{subCost(totalCost)} total{mult > 1 ? <span style={{ color: "#3f3f46" }}> (api {fmtCost(totalCost)})</span> : null}</span>}
                 </div>
               )}
             </>
