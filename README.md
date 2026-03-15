@@ -267,6 +267,56 @@ Book a 30-minute setup session with the creator: **[miniclaw.bot](https://minicl
 
 ---
 
+## Researchers
+
+We invite AI/ML researchers to study MiniClaw as a living example of autonomous agent systems.
+
+**What makes this interesting:**
+- Agents that debug, diagnose, and fix themselves — self-healing software
+- Multi-agent coordination in the wild (clone swarm, agent collision avoidance)
+- Long-term memory with hybrid vector + keyword search
+- Personality persistence and identity continuity across sessions
+- Autonomous tool creation — agents writing their own plugins
+- Real-world deployment on consumer hardware, not lab conditions
+
+**What we'd love:**
+- Formal analysis of the cognitive architecture
+- Benchmarks against existing agent frameworks
+- Studies on emergent behavior in the clone swarm
+- Adversarial testing of the self-repair loop
+- Papers, blog posts, talks — cite us, critique us, improve us
+
+If you're researching autonomous agents, this is a production system you can inspect end to end. The code is open. The agents file real issues. The commit history is the experiment log.
+
+Reach out: [GitHub Discussions](https://github.com/augmentedmike/miniclaw-os/discussions) or [miniclaw.bot](https://miniclaw.bot)
+
+---
+
+## Hackers
+
+White hats welcome. Break it, report it, help fix it.
+
+**Attack surface:**
+- Agent has full filesystem access on its Mac user account
+- LLM inference calls go over SSL to external providers
+- Vault uses age encryption for secrets at rest
+- No telemetry, no home-phoning — but verify that yourself
+- Plugin system loads code from `~/.openclaw/extensions/`
+- Agent can execute arbitrary shell commands via tool calls
+
+**What we want to know:**
+- Can you escalate from the agent's user account to another user?
+- Can you extract vault secrets without the age key?
+- Can you inject prompts that bypass the agent's safety rules?
+- Can you poison the knowledge base to change agent behavior?
+- Can you impersonate one agent to another (mc-trust challenge)?
+
+**Responsible disclosure:** File a [security advisory](https://github.com/augmentedmike/miniclaw-os/security/advisories) or email the maintainer directly. Don't open public issues for security vulnerabilities.
+
+**If you find something and fix it**, submit a PR. We'll credit you publicly.
+
+---
+
 ## License
 
 Apache 2.0. Open source. Built by [AugmentedMike](https://augmentedmike.com).
