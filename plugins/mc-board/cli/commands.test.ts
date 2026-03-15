@@ -15,12 +15,12 @@ import {
   describe,
   expect,
   it,
-  mock,
-  spyOn,
+  vi,
   type Mock,
 } from "vitest";
 import { registerBrainCommands } from "./commands.js";
 import { CardStore } from "../src/store.js";
+import { ProjectStore } from "../src/project-store.js";
 import { openDb } from "../src/db.js";
 import type { Card } from "../src/card.js";
 
@@ -42,6 +42,7 @@ beforeEach(() => {
   stateDir = tmpDir;
   const db = openDb(stateDir);
   store = new CardStore(db);
+  const projects = new ProjectStore(db);
 
   program = new Command();
   program.exitOverride(); // throw instead of process.exit
@@ -50,27 +51,28 @@ beforeEach(() => {
   origError = console.error;
   origExit = process.exit;
 
-  stdoutSpy = spyOn(console, "log").mockImplementation(() => {});
-  stderrSpy = spyOn(console, "error").mockImplementation(() => {});
-  exitSpy = spyOn(process, "exit").mockImplementation((_code?: number) => {
+  stdoutSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+  stderrSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  exitSpy = vi.spyOn(process, "exit").mockImplementation((_code?: number) => {
     throw new Error(`process.exit(${_code})`);
-  }) as Mock<(...args: unknown[]) => never>;
+  }) as unknown as Mock<(...args: unknown[]) => never>;
 
   registerBrainCommands(
     {
       program,
       stateDir,
-      logger: { info: mock(), warn: mock(), error: mock() },
+      logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
     },
     store,
+    projects,
   );
 });
 
 afterEach(() => {
-  stdoutSpy.mockRestore();
-  stderrSpy.mockRestore();
-  exitSpy.mockRestore();
-  fs.rmSync(tmpDir, { recursive: true, force: true });
+  stdoutSpy?.mockRestore();
+  stderrSpy?.mockRestore();
+  exitSpy?.mockRestore();
+  if (tmpDir) fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
 async function run(...args: string[]): Promise<void> {

@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import type { Canvas, Layer, UsageRecord, UsageSummary, DesignerOp } from "./types.js";
-import type { DesignerConfig } from "./config.js";
+import type { Canvas, Layer, UsageRecord, UsageSummary, DesignerOp } from "./types.ts";
+import type { DesignerConfig } from "./config.ts";
 
 // ---- Gemini 2.0 Flash pricing (as of 2026-03) ----
 // Input:  $0.075 / 1M tokens
@@ -12,7 +12,10 @@ const PRICE_OUTPUT_PER_M = 0.30;
 const PRICE_PER_IMAGE    = 0.04;
 
 export class DesignerStore {
-  constructor(private cfg: DesignerConfig) {
+  private cfg: DesignerConfig;
+
+  constructor(cfg: DesignerConfig) {
+    this.cfg = cfg;
     this.ensureDirs();
   }
 

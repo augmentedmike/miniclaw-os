@@ -6,9 +6,9 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { DesignerStore } from "./store.js";
-import type { DesignerConfig } from "./config.js";
-import type { Canvas, Layer, UsageRecord } from "./types.js";
+import { DesignerStore } from "./store.ts";
+import type { DesignerConfig } from "./config.ts";
+import type { Canvas, Layer, UsageRecord } from "./types.ts";
 
 let tmpDir: string;
 let cfg: DesignerConfig;

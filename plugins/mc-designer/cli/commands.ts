@@ -2,13 +2,13 @@ import type { Command } from "commander";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { Logger } from "openclaw/plugin-sdk";
-import type { DesignerConfig } from "../src/config.js";
-import type { DesignerStore } from "../src/store.js";
-import type { GeminiClient } from "../src/gemini.js";
-import { compositeCanvas, stripBackground, chromaKey } from "../src/composite.js";
-import type { Layer } from "../src/types.js";
-import { promptAndVaultKey, isAuthError } from "../src/vault.js";
-import { displayImage } from "../src/display.js";
+import type { DesignerConfig } from "../src/config.ts";
+import type { DesignerStore } from "../src/store.ts";
+import type { GeminiClient } from "../src/gemini.ts";
+import { compositeCanvas, stripBackground, chromaKey } from "../src/composite.ts";
+import type { Layer } from "../src/types.ts";
+import { promptAndVaultKey, isAuthError } from "../src/vault.ts";
+import { displayImage } from "../src/display.ts";
 
 interface Ctx {
   program: Command;

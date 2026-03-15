@@ -7,7 +7,7 @@ import * as path from "node:path";
  * The USER/ directory is flat — no bot ID subdirectory.
  */
 
-const SRC_DIR = path.join(import.meta.dir);
+const SRC_DIR = path.dirname(new URL(import.meta.url).pathname);
 
 function walkTs(dir: string): string[] {
   const results: string[] = [];

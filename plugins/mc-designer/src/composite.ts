@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import sharp from "sharp";
-import type { Canvas, Layer } from "./types.js";
+import type { Canvas, Layer } from "./types.ts";
 
 /**
  * Flatten all visible layers in z-order and return the composited PNG buffer.

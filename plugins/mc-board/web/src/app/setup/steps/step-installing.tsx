@@ -119,15 +119,23 @@ export default function StepInstalling({ onNext }: Props) {
 
       // 4. Complete setup (gateway, telegram channel config)
       updateCheck("gateway", { status: "running" });
+      const gwLabels = ["Configuring Telegram", "Connecting to gateway", "Hacking the matrix", "Coming online"];
+      let gwLabelIdx = 0;
+      const gwRotate = setInterval(() => {
+        gwLabelIdx = (gwLabelIdx + 1) % gwLabels.length;
+        updateCheck("gateway", { label: gwLabels[gwLabelIdx] });
+      }, 3000);
       try {
         const res = await fetch("/api/setup/complete", { method: "POST" });
         const data = await res.json();
+        clearInterval(gwRotate);
         if (data.gateway?.ok) {
           updateCheck("gateway", { status: "ok", detail: "Gateway running" });
         } else {
           updateCheck("gateway", { status: "ok", detail: data.gateway?.error || "Configured" });
         }
       } catch {
+        clearInterval(gwRotate);
         updateCheck("gateway", { status: "error", detail: "Could not start gateway" });
       }
 

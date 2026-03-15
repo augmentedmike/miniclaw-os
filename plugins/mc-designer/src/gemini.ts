@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { spawnSync } from "node:child_process";
-import type { UsageRecord } from "./types.js";
+import type { UsageRecord } from "./types.ts";
 
 interface GenerateResult {
   buffer: Buffer;
@@ -39,7 +39,13 @@ function geminiRequest(apiKey: string, model: string, body: unknown): unknown {
 }
 
 export class GeminiClient {
-  constructor(private apiKey: string, private model: string) {}
+  private apiKey: string;
+  private model: string;
+
+  constructor(apiKey: string, model: string) {
+    this.apiKey = apiKey;
+    this.model = model;
+  }
 
   setApiKey(key: string): void {
     this.apiKey = key;

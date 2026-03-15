@@ -6,12 +6,11 @@ const openclaw = path.resolve(process.env.OPENCLAW_STATE_DIR ?? require("node:os
 export default defineConfig({
   resolve: {
     alias: {
-      commander: path.join(openclaw, "node_modules/commander"),
       "openclaw/plugin-sdk": path.join(openclaw, "dist/plugin-sdk/index.js"),
     },
   },
   test: {
     include: ["**/*.test.ts"],
-    exclude: ["**/node_modules/**"],
+    exclude: ["**/node_modules/**", "**/.next/**"],
   },
 });

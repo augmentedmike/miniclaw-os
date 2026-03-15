@@ -4,13 +4,18 @@
   "type": "module",
   "main": "index.ts",
   "description": "State-machine kanban board — the agent's prefrontal cortex",
+  "scripts": {
+    "test": "vitest run"
+  },
   "dependencies": {
     "better-sqlite3": "^11.9.0",
     "node-pty": "^1.1.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
-    "openclaw": "npm:@miniclaw_official/openclaw@^2026.3.8"
+    "commander": "^14.0.3",
+    "openclaw": "npm:@miniclaw_official/openclaw@^2026.3.8",
+    "vitest": "^4.1.0"
   },
   "openclaw": {
     "extensions": [

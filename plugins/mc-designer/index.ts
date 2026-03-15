@@ -15,11 +15,11 @@
  */
 
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
-import { resolveConfig } from "./src/config.js";
-import { DesignerStore } from "./src/store.js";
-import { GeminiClient } from "./src/gemini.js";
-import { readApiKeyFromVault } from "./src/vault.js";
-import { registerDesignerCommands } from "./cli/commands.js";
+import { resolveConfig } from "./src/config.ts";
+import { DesignerStore } from "./src/store.ts";
+import { GeminiClient } from "./src/gemini.ts";
+import { readApiKeyFromVault } from "./src/vault.ts";
+import { registerDesignerCommands } from "./cli/commands.ts";
 
 export default function register(api: OpenClawPluginApi): void {
   const cfg = resolveConfig((api.pluginConfig ?? {}) as Record<string, unknown>);
