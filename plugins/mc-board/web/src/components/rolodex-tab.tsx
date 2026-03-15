@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, FormEvent, MouseEvent } from "react";
+import { useSWRConfig } from "swr";
 
 interface Contact {
   id: string;
@@ -400,6 +401,7 @@ export function RolodexTab() {
   const [formMode, setFormMode] = useState<Contact | "new" | null>(null);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
+  const { mutate: globalMutate } = useSWRConfig();
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(query), 150);
@@ -427,7 +429,8 @@ export function RolodexTab() {
   const handleSaved = useCallback(() => {
     setFormMode(null);
     fetchContacts();
-  }, [fetchContacts]);
+    globalMutate("/api/rolodex/count");
+  }, [fetchContacts, globalMutate]);
 
   const handleDelete = useCallback(async (contact: Contact) => {
     setSelected(null);
@@ -439,7 +442,8 @@ export function RolodexTab() {
     } catch {
       fetchContacts();
     }
-  }, [data, fetchContacts]);
+    globalMutate("/api/rolodex/count");
+  }, [data, fetchContacts, globalMutate]);
 
   const handleEdit = useCallback((contact: Contact) => {
     setSelected(null);
