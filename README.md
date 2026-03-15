@@ -321,7 +321,7 @@ White hats welcome. Break it, report it, help fix it.
 
 Apache 2.0. Open source. Built by [AugmentedMike](https://augmentedmike.com).
 
-Made with coffee and conviction.
+Built on rough neuroscience, caffeine, conviction, a self-improving AI and advancements in foundational models, and never ending engineering and automation.
 
 ---
 
