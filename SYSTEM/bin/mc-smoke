@@ -469,6 +469,85 @@ PYEOF
   fi
 fi
 
+# ── install verification ──────────────────────────────────────────────────────
+section "install verification"
+
+# Workspace files must not contain template placeholders
+WORKSPACE_DIR="$STATE_DIR/miniclaw/workspace"
+if [[ -d "$WORKSPACE_DIR" ]]; then
+  PLACEHOLDER_COUNT=$(grep -rl '{{AGENT_NAME}}\|{{PRONOUNS}}\|{{AGENT_SHORT}}\|{{HUMAN_NAME}}\|{{VERSION}}\|{{DATE}}' "$WORKSPACE_DIR" 2>/dev/null | wc -l | tr -d ' ')
+  if [[ "$PLACEHOLDER_COUNT" -eq 0 ]]; then
+    pass "workspace files personalized (no placeholders)"
+  else
+    fail "workspace has $PLACEHOLDER_COUNT file(s) with unresolved {{placeholders}}" "run install.sh or complete setup wizard"
+  fi
+else
+  warn "workspace dir missing" "$WORKSPACE_DIR"
+fi
+
+# SOUL.md must contain the agent name from setup-state
+SETUP_STATE="$STATE_DIR/USER/setup-state.json"
+if [[ -f "$SETUP_STATE" && -f "$WORKSPACE_DIR/SOUL.md" ]]; then
+  AGENT_NAME=$(python3 -c "import json; print(json.load(open('$SETUP_STATE')).get('assistantName',''))" 2>/dev/null || echo "")
+  if [[ -n "$AGENT_NAME" ]]; then
+    if grep -q "$AGENT_NAME" "$WORKSPACE_DIR/SOUL.md" 2>/dev/null; then
+      pass "SOUL.md contains agent name ($AGENT_NAME)"
+    else
+      fail "SOUL.md missing agent name" "expected '$AGENT_NAME' in SOUL.md"
+    fi
+    if grep -q "$AGENT_NAME" "$WORKSPACE_DIR/IDENTITY.md" 2>/dev/null; then
+      pass "IDENTITY.md contains agent name ($AGENT_NAME)"
+    else
+      fail "IDENTITY.md missing agent name" "expected '$AGENT_NAME' in IDENTITY.md"
+    fi
+  fi
+fi
+
+# openclaw.json must have gateway.mode
+if [[ -f "$STATE_DIR/openclaw.json" ]]; then
+  GW_MODE=$(python3 -c "import json; print(json.load(open('$STATE_DIR/openclaw.json')).get('gateway',{}).get('mode',''))" 2>/dev/null || echo "")
+  if [[ "$GW_MODE" == "local" ]]; then
+    pass "gateway.mode = local"
+  else
+    fail "gateway.mode not set to local" "current: '$GW_MODE'"
+  fi
+
+  # Model should use provider prefix
+  MODEL=$(python3 -c "import json; print(json.load(open('$STATE_DIR/openclaw.json')).get('agents',{}).get('defaults',{}).get('model',{}).get('primary',''))" 2>/dev/null || echo "")
+  if [[ "$MODEL" == *"/"* ]]; then
+    pass "model uses provider prefix ($MODEL)"
+  elif [[ -n "$MODEL" ]]; then
+    fail "model missing provider prefix" "$MODEL — should be anthropic/$MODEL"
+  fi
+fi
+
+# Check for duplicate cron jobs
+if [[ -f "$STATE_DIR/cron/jobs.json" ]]; then
+  DUP_CHECK=$(python3 -c "
+import json, collections
+with open('$STATE_DIR/cron/jobs.json') as f:
+    jobs = json.load(f).get('jobs', [])
+names = [j['name'] for j in jobs]
+dupes = [n for n, c in collections.Counter(names).items() if c > 1]
+if dupes:
+    print('DUPES:' + ','.join(dupes))
+else:
+    print('OK:' + str(len(names)))
+" 2>/dev/null || echo "ERROR")
+  case "$DUP_CHECK" in
+    DUPES:*) fail "duplicate cron jobs: ${DUP_CHECK#DUPES:}" "remove duplicates with: openclaw cron rm <id>" ;;
+    OK:*)    pass "no duplicate cron jobs (${DUP_CHECK#OK:} total)" ;;
+    *)       warn "could not check cron jobs" "parse error" ;;
+  esac
+fi
+
+# Claude Code available
+if command -v claude &>/dev/null; then
+  pass "claude code on PATH ($(claude --version 2>/dev/null | head -1))"
+else
+  fail "claude code not on PATH" "run: npm install -g @anthropic-ai/claude-code"
+fi
+
 # ── summary ───────────────────────────────────────────────────────────────────
 echo ""
 echo "────────────────────────────────────────"
