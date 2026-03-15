@@ -6,6 +6,7 @@ import { vaultSet } from "@/lib/vault";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
+import * as crypto from "node:crypto";
 import { execSync, spawnSync } from "node:child_process";
 
 const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(process.env.HOME || "", ".openclaw");
@@ -404,6 +405,61 @@ function registerCronJobs() {
   }
 }
 
+/**
+ * Seed the rolodex with the human owner and agent contacts.
+ * Writes contacts.json so the rolodex SQLite migration picks them up on first open.
+ * Only seeds if contacts.json doesn't exist yet or is empty.
+ */
+function seedRolodexContacts() {
+  const setupState = readSetupState();
+  const rolodexDir = path.join(STATE_DIR, "USER", "rolodex");
+  const contactsPath = path.join(rolodexDir, "contacts.json");
+
+  // Skip if contacts.json already has data
+  if (fs.existsSync(contactsPath)) {
+    try {
+      const existing = JSON.parse(fs.readFileSync(contactsPath, "utf-8"));
+      if (Array.isArray(existing) && existing.length > 0) return;
+    } catch { /* treat parse errors as empty */ }
+  }
+
+  fs.mkdirSync(rolodexDir, { recursive: true });
+
+  const contacts = [];
+
+  // Human owner contact
+  const humanName = (setupState as Record<string, string>).ghUsername || "Human Owner";
+  const humanEmail = setupState.emailAddress || "";
+  contacts.push({
+    id: crypto.randomUUID(),
+    name: humanName,
+    emails: humanEmail ? [humanEmail] : [],
+    phones: [],
+    domains: [],
+    tags: ["owner", "human"],
+    trustStatus: "verified",
+    lastVerified: new Date().toISOString(),
+    notes: "Human owner — added during setup.",
+  });
+
+  // Agent contact
+  const agentName = setupState.assistantName || "MiniClaw";
+  const agentShort = setupState.shortName || agentName;
+  contacts.push({
+    id: crypto.randomUUID(),
+    name: agentName,
+    emails: [],
+    phones: [],
+    domains: [],
+    tags: ["agent", "self"],
+    trustStatus: "verified",
+    lastVerified: new Date().toISOString(),
+    notes: `AI agent (${agentShort}) — added during setup.`,
+  });
+
+  fs.writeFileSync(contactsPath, JSON.stringify(contacts, null, 2) + "\n", "utf-8");
+}
+
 export async function POST() {
   const setupState = readSetupState();
   const botId = normalizeBotId(setupState.telegramBotUsername);
@@ -435,6 +491,9 @@ export async function POST() {
 
   // Re-run workspace personalization now that setup-state.json is complete
   personalizeWorkspace();
+
+  // Seed rolodex with human owner and agent contacts
+  seedRolodexContacts();
 
   // Install and start the openclaw gateway
   const gw = ensureGatewayRunning();

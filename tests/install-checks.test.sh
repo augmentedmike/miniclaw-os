@@ -179,6 +179,16 @@ else
 fi
 
 echo ""
+echo "── rolodex seed checks"
+
+# #49/#54: complete route seeds rolodex contacts
+if grep -q 'seedRolodexContacts' "$REPO_DIR/plugins/mc-board/web/src/app/api/setup/complete/route.ts"; then
+  pass "#49/#54 complete route seeds rolodex contacts"
+else
+  fail "#49/#54 complete route missing rolodex seed" "add seedRolodexContacts to setup complete"
+fi
+
+echo ""
 echo "── vault env check"
 
 if grep -q 'OPENCLAW_VAULT_ROOT' "$REPO_DIR/plugins/mc-board/web/src/lib/vault.ts"; then
