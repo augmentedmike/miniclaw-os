@@ -353,8 +353,8 @@ if [[ "$(uname)" == "Darwin" ]]; then
     [[ "$DISK_SLEEP" == "0" ]] && ok "disksleep = 0" || warn "disksleep = ${DISK_SLEEP:-unknown}" "should be 0"
     [[ "$AUTO_RESTART" == "1" ]] && ok "autorestart = 1" || warn "autorestart = ${AUTO_RESTART:-unknown}" "should be 1"
   else
-    sudo pmset -a disksleep 0 && ok "disksleep set to 0 (disk sleep disabled)" || warn "failed to set disksleep"
-    sudo pmset -a autorestart 1 && ok "autorestart set to 1 (auto restart after power failure)" || warn "failed to set autorestart"
+    sudo pmset -a disksleep 0 2>/dev/null && ok "disksleep set to 0 (disk sleep disabled)" || warn "failed to set disksleep"
+    sudo pmset -a autorestart 1 2>/dev/null && ok "autorestart set to 1 (auto restart after power failure)" || warn "failed to set autorestart"
   fi
 fi
 
@@ -586,7 +586,7 @@ for plugin_dir in "$PLUGINS_DIR"/mc-*/; do
     if [[ -f "$ext_dest/package.json" ]]; then
       dep_count=$(python3 -c "import json; print(len(json.load(open('$ext_dest/package.json')).get('dependencies',{})))" 2>/dev/null || echo "0")
       if [[ "$dep_count" -gt 0 ]]; then
-        (cd "$ext_dest" && npm install --omit=dev 2>>"$LOG_FILE") || warn "npm install failed for $plugin_name"
+        (cd "$ext_dest" && npm install --omit=dev >>"$LOG_FILE" 2>&1) || warn "npm install failed for $plugin_name"
       fi
     fi
   fi
