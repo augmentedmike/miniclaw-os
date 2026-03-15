@@ -268,6 +268,12 @@ NODE_BIN="$(which node)"
 NODE_DIR="$(dirname "$NODE_BIN")"
 NPM_BIN="$NODE_DIR/npm"
 
+# Add npm global bin to PATH now so tools installed with npm -g are immediately usable
+NPM_GLOBAL_BIN="$($NPM_BIN config get prefix 2>/dev/null)/bin"
+if [[ -d "$NPM_GLOBAL_BIN" && ":$PATH:" != *":$NPM_GLOBAL_BIN:"* ]]; then
+  export PATH="$NPM_GLOBAL_BIN:$PATH"
+fi
+
 brew_install git
 brew_install python@3 python3
 brew_install jq
@@ -966,6 +972,27 @@ if grep -q "MINICLAW_HOME" "$ZSHENV"; then
 else
   echo "export MINICLAW_HOME=\"$MINICLAW_DIR\"" >> "$ZSHENV"
   ok "Added MINICLAW_HOME=$MINICLAW_DIR to $ZSHENV"
+fi
+
+# npm global bin on PATH (for claude, openclaw, qmd, etc.)
+NPM_GLOBAL_BIN="$(npm config get prefix 2>/dev/null)/bin"
+if [[ -d "$NPM_GLOBAL_BIN" ]]; then
+  if grep -q "$NPM_GLOBAL_BIN" "$ZSHENV" 2>/dev/null; then
+    ok "npm global bin already in PATH ($ZSHENV)"
+  else
+    echo "export PATH=\"$NPM_GLOBAL_BIN:\$PATH\"" >> "$ZSHENV"
+    ok "Added $NPM_GLOBAL_BIN to PATH in $ZSHENV"
+  fi
+fi
+
+# Node.js bin on PATH
+if [[ -n "${NODE_DIR:-}" && -d "$NODE_DIR" ]]; then
+  if grep -q "$NODE_DIR" "$ZSHENV" 2>/dev/null; then
+    ok "Node bin already in PATH ($ZSHENV)"
+  else
+    echo "export PATH=\"$NODE_DIR:\$PATH\"" >> "$ZSHENV"
+    ok "Added $NODE_DIR to PATH in $ZSHENV"
+  fi
 fi
 
 # SYSTEM/bin and USER/bin on PATH
