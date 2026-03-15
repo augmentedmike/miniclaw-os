@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { readSetupState, writeSetupState } from "@/lib/setup-state";
 import { vaultSet } from "@/lib/vault";
+import { execFileSync } from "node:child_process";
 
 /**
  * POST /api/setup/persist
@@ -39,6 +40,23 @@ export async function POST() {
 
   // Gemini
   persist("geminiApiKey", "gemini-api-key");
+
+  // Authenticate gh CLI with the GitHub token
+  const ghToken = (state as Record<string, string>).ghToken;
+  if (ghToken) {
+    try {
+      execFileSync("gh", ["auth", "login", "--with-token"], {
+        input: ghToken,
+        encoding: "utf-8",
+        timeout: 15_000,
+        env: { ...process.env, GH_PROMPT_DISABLED: "1" },
+      });
+      results.push({ key: "gh-auth", ok: true });
+    } catch (e) {
+      const err = e as { stderr?: string };
+      results.push({ key: "gh-auth", ok: false, error: err.stderr?.trim() || "gh auth failed" });
+    }
+  }
 
   // Mark as persisted
   writeSetupState({ secretsPersisted: true } as Record<string, string | boolean>);

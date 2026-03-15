@@ -121,6 +121,16 @@ else
 fi
 
 echo ""
+echo "── credential injection checks"
+
+# #48: persist route authenticates gh CLI
+if grep -q 'gh.*auth.*login.*--with-token' "$REPO_DIR/plugins/mc-board/web/src/app/api/setup/persist/route.ts"; then
+  pass "#48 persist route runs gh auth login"
+else
+  fail "#48 persist route doesn't authenticate gh CLI" "add gh auth login --with-token to persist route"
+fi
+
+echo ""
 echo "── vault env check"
 
 if grep -q 'OPENCLAW_VAULT_ROOT' "$REPO_DIR/plugins/mc-board/web/src/lib/vault.ts"; then
