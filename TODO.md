@@ -7,6 +7,10 @@
 - [ ] Improve coverage — many plugins have only smoke tests (2 tests)
 - [ ] GitHub Action: run tests on release, add pass/fail badge to README
 
+## Token tracking
+
+- [ ] mc-designer (Gemini) — track token usage and real API cost per image gen (not subscription, actual Gemini API billing)
+
 ## Chat (next release)
 
 - [ ] Chat daemon — persistent Claude Code session over Unix socket
