@@ -1,7 +1,7 @@
 # MiniClaw — Prove it isnt AGI. I dare you.
 
 <p align="center">
-    <img src="https://raw.githubusercontent.com/augmentedmike/miniclaw-os/main/assets/miniclaw-logo.png" alt="MiniClaw" width="500">
+    <img src="https://raw.githubusercontent.com/augmentedmike/miniclaw-os/main/assets/miniclaw-logo.png" alt="MiniClaw" width="350">
 </p>
 
 <p align="center">
