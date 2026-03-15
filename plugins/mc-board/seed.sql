@@ -14,5 +14,5 @@ VALUES
     'Run mc-smoke and verify all checks pass. If any fail, run mc-doctor --auto to fix them.',
     'mc-smoke reports 0 failures.'),
   ('crd_seed_meet_human', 'Get to know my human', 'backlog', 'high', '["onboarding","human"]', 'prj_setup', datetime('now'), datetime('now'),
-    'Collect basic information from your human: their name, email address, what they do, and what they would like help with. Save this to the workspace memory so you can personalize your interactions.',
-    'Human name, email, and general instructions are saved to workspace memory.');
+    'Collect basic information from your human: their name, email address, phone number, what they do, and what they would like help with. Save the contact to the rolodex using openclaw mc-rolodex add with all fields populated. Also save to workspace memory for personalization.',
+    'Human contact saved to rolodex (openclaw mc-rolodex search returns their entry with name, email, phone). Workspace memory updated with human preferences.');

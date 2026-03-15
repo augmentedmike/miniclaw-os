@@ -159,7 +159,7 @@ BOARD_DB="$STATE_DIR/USER/brain/board.db"
 if [[ -f "$BOARD_DB" ]]; then
   pass "board.db exists"
   if command -v node &>/dev/null; then
-    db_check=$(node --experimental-strip-types -e "
+    db_check=$(npx tsx -e "
       import { Database } from 'bun:sqlite';
       const db = new Database('$BOARD_DB', { readonly: true });
       const tables = db.prepare(\"SELECT name FROM sqlite_master WHERE type='table'\").all();
@@ -229,7 +229,7 @@ section "plugin secrets"
 
 MANIFEST="$MINICLAW_DIR/MANIFEST.json"
 if [[ -f "$MANIFEST" ]] && command -v node &>/dev/null; then
-  secrets_check=$(node --experimental-strip-types -e "
+  secrets_check=$(npx tsx -e "
     import manifest from '$MANIFEST';
     const plugins = manifest.plugins || [];
     const secrets = manifest.vaultSecrets || [];
@@ -301,7 +301,7 @@ else
       fail "$plugin_name" "missing index.ts"
       continue
     fi
-    load_out=$(cd "$plugin_dir" && node --experimental-strip-types -e "
+    load_out=$(cd "$plugin_dir" && npx tsx -e "
       import r from './index.ts';
       if (typeof r !== 'function') {
         console.error('default export is ' + typeof r + ', expected function');
