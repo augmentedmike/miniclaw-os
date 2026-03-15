@@ -13,7 +13,7 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd 2>/dev/null)" || REPO_DIR="$(pwd)"
 STATE_DIR="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}"
 MINICLAW_DIR="$STATE_DIR/miniclaw"
-PROJECTS_DIR="$STATE_DIR/projects"
+PROJECTS_DIR="$STATE_DIR/miniclaw/USER/projects"
 LOG_FILE="/tmp/miniclaw-install.log"
 ARCH=$(uname -m)
 
@@ -411,8 +411,10 @@ fi
 step "Step 6: Directories"
 
 mkdir -p "$MINICLAW_DIR/plugins" "$PROJECTS_DIR"
+ln -sfn "$PROJECTS_DIR" "$HOME/mc-projects"
 ok "~/.openclaw/miniclaw/"
-ok "~/.openclaw/projects/"
+ok "~/.openclaw/miniclaw/USER/projects/"
+ok "~/mc-projects symlink"
 
 # Copy MANIFEST.json so the CLI can read the MiniClaw version at runtime
 if [[ -f "$REPO_DIR/MANIFEST.json" ]]; then

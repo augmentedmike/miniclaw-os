@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REPO_URL="https://github.com/augmentedmike/miniclaw-os.git"
-INSTALL_DIR="${HOME}/.openclaw/projects/miniclaw-os"
+INSTALL_DIR="${HOME}/.openclaw/miniclaw/USER/projects/miniclaw-os"
 STATE_DIR="${HOME}/.openclaw"
 WEB_DIR="$STATE_DIR/web"
 APP_PORT=4220
@@ -103,8 +103,9 @@ fi
 rm -rf "$EXTRACT_TMP"
 
 # ── Prep state dir ───────────────────────────────────────────────────────────
-mkdir -p "$STATE_DIR/USER" "$STATE_DIR/logs"
+mkdir -p "$STATE_DIR/USER" "$STATE_DIR/logs" "$STATE_DIR/miniclaw/USER/projects"
 rm -f "$STATE_DIR/USER/setup-state.json"
+ln -sfn "$STATE_DIR/miniclaw/USER/projects" "$HOME/mc-projects"
 
 # ── Rebuild native modules for this machine's Node version ────────────────────
 echo "  Preparing native modules..."
