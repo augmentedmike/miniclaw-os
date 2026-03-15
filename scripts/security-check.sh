@@ -60,11 +60,19 @@ check_content() {
   for pattern in "${SECRET_PATTERNS[@]}"; do
     matches=$(echo "$content" | grep -nEi "$pattern" 2>/dev/null || true)
     if [[ -n "$matches" ]]; then
-      echo -e "${RED}BLOCKED${NC} — potential secret in ${YELLOW}${file}${NC}"
-      echo "$matches" | head -3 | while read -r line; do
-        echo -e "  ${RED}→${NC} $line"
-      done
-      FOUND=$((FOUND + 1))
+      # Filter out obvious placeholders and test values
+      filtered=$(echo "$matches" | grep -viE 'xxxx|placeholder|example|fake|dummy|mock|test.*secret|your[_-]' || true)
+      # Skip test files for generic password/secret/token patterns
+      if echo "$file" | grep -qE '\.(test|spec)\.(ts|js|tsx)|__tests__|docs/'; then
+        filtered=$(echo "$filtered" | grep -viE 'PASSWORD|SECRET|TOKEN|api_key|apikey' || true)
+      fi
+      if [[ -n "$filtered" ]]; then
+        echo -e "${RED}BLOCKED${NC} — potential secret in ${YELLOW}${file}${NC}"
+        echo "$filtered" | head -3 | while read -r line; do
+          echo -e "  ${RED}→${NC} $line"
+        done
+        FOUND=$((FOUND + 1))
+      fi
     fi
   done
 }

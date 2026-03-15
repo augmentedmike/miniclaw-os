@@ -79,6 +79,27 @@ export function updateCard(id: string, updates: Record<string, string>): string 
     }
   }
 
+  // Handle add-tags / remove-tags (atomic tag operations)
+  if (updates["add-tags"] || updates["remove-tags"]) {
+    const row = db().prepare("SELECT tags FROM cards WHERE id = ?").get(id) as { tags: string } | undefined;
+    let current: string[] = [];
+    try { current = JSON.parse(row?.tags ?? "[]"); } catch { /* empty */ }
+
+    if (updates["add-tags"]) {
+      const toAdd = updates["add-tags"].split(",").map((t: string) => t.trim()).filter(Boolean);
+      for (const t of toAdd) {
+        if (!current.includes(t)) current.push(t);
+      }
+    }
+    if (updates["remove-tags"]) {
+      const toRemove = new Set(updates["remove-tags"].split(",").map((t: string) => t.trim()));
+      current = current.filter(t => !toRemove.has(t));
+    }
+
+    sets.push("tags = ?");
+    vals.push(JSON.stringify(current));
+  }
+
   // Handle move_to
   if (updates.move_to) {
     sets.push("col = ?");
