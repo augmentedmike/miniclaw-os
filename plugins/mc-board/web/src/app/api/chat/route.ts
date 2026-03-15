@@ -19,15 +19,19 @@ function getAssistantName(): string {
   }
 }
 
+function readWorkspaceFile(filename: string): string {
+  try { return fs.readFileSync(path.join(STATE_DIR, "workspace", filename), "utf-8").trim(); } catch { return ""; }
+}
+
 function getSystemPrompt(): string {
-  const personaPath = path.join(STATE_DIR, "workspace", "refs", "chat-persona.md");
   const name = getAssistantName();
-  try {
-    const persona = fs.readFileSync(personaPath, "utf-8");
-    return persona.replace(/\{\{NAME\}\}/g, name);
-  } catch {
-    return `You are ${name}, a helpful assistant embedded in a task board. Be direct, concise, and honest.`;
-  }
+  const parts = [
+    readWorkspaceFile("IDENTITY.md"),
+    readWorkspaceFile("SOUL.md"),
+    readWorkspaceFile("refs/chat-persona.md").replace(/\{\{NAME\}\}/g, name),
+    readWorkspaceFile("refs/TOOLS.md"),
+  ].filter(Boolean);
+  return parts.join("\n\n") || `You are ${name}, a helpful assistant embedded in a task board. Be direct, concise, and honest.`;
 }
 
 function buildBoardContext(projectId?: string, activeCardId?: string): string {

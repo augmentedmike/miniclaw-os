@@ -3,9 +3,10 @@
   "version": "0.1.0",
   "type": "module",
   "main": "index.ts",
-  "description": "State-machine kanban board \u2014 the agent's prefrontal cortex",
+  "description": "State-machine kanban board — the agent's prefrontal cortex",
   "dependencies": {
-    "better-sqlite3": "^11.9.0"
+    "better-sqlite3": "^11.9.0",
+    "node-pty": "^1.1.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
