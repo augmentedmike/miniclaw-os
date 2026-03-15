@@ -239,18 +239,7 @@ export default function register(api: OpenClawPluginApi) {
     const sessionKey = ctx.sessionKey ?? "";
     if (!isMessagingSession(sessionKey)) return;
 
-    // Log channel always uses Haiku (fast redirect response)
-    if (isLogChannelSession(sessionKey, tgLogChatId)) {
-      return { modelOverride: haikuModel };
-    }
-
-    const isDM = sessionKey.includes(":direct:");
-    const isGroup =
-      sessionKey.includes(":group:") || sessionKey.includes(":channel:");
-    if (isDM && !applyToDMs) return;
-    if (isGroup && !applyToChannels) return;
-
-    return { modelOverride: haikuModel };
+    // No model override — use the gateway's configured default model
   });
 
   // ---- 2. Inject triage instructions into system prompt ----

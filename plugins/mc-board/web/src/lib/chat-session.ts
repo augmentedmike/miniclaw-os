@@ -52,7 +52,6 @@ export class ChatSession extends EventEmitter {
     const proc = spawn(CLAUDE_BIN, [
       "-p", fullPrompt,
       "--output-format", "stream-json",
-      "--model", "claude-haiku-4-5-20251001",
       "--system-prompt", this.systemPrompt,
       "--dangerously-skip-permissions",
       "--verbose",
