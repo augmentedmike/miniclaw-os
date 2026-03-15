@@ -40,6 +40,15 @@ MiniClaw agents are autohealing software. When an agent hits a bug, it can use m
 | `contribute_feature_request` | Submit a feature request or plugin idea |
 | `contribute_discussion` | List or create GitHub Discussions |
 
+## Agent Coordination (ref: GitHub issue #63)
+
+mc-contribute enforces agent coordination to prevent multiple clones from colliding on the same issues:
+
+- **Duplicate detection:** Before creating any issue or PR, the plugin searches for existing open items with similar titles using `gh issue list --search` / `gh pr list --search`.
+- **Comment instead of duplicate:** If a match is found, mc-contribute automatically comments on the existing issue/PR with the agent's details instead of creating a new one.
+- **Clone identity:** Every issue, PR, and comment includes the agent's clone identity (hostname, bot ID, state dir) for traceability.
+- **Tools affected:** `contribute_pr`, `contribute_bug_report`, `contribute_feature_request` all perform duplicate checks before creation.
+
 ## Configuration
 
 | Key | Default | Description |
