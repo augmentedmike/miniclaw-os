@@ -203,7 +203,7 @@ export function createBlogTools(config: BlogConfig, logger: Logger): AnyAgentToo
       parameters: schema({
         limit: { type: "number", description: "Max posts to return (default: all, most recent first)" },
       }) as never,
-      execute: async (input: { limit?: number }) => {
+      execute: async (_toolCallId: string, input: { limit?: number }) => {
         logger.debug("blog_list_posts called");
         let posts = listPosts(config.postsDir);
         if (input.limit) posts = posts.slice(-input.limit);
@@ -232,7 +232,7 @@ export function createBlogTools(config: BlogConfig, logger: Logger): AnyAgentToo
         },
         ["id"],
       ) as never,
-      execute: async (input: { id: string; part?: string }) => {
+      execute: async (_toolCallId: string, input: { id: string; part?: string }) => {
         logger.debug(`blog_read_post called: id=${input.id}`);
         const post = findPost(config.postsDir, input.id);
         if (!post) return toolErr(`Post not found: ${input.id}`);
@@ -276,7 +276,7 @@ export function createBlogTools(config: BlogConfig, logger: Logger): AnyAgentToo
         },
         ["slug_suffix", "title", "date"],
       ) as never,
-      execute: async (input: {
+      execute: async (_toolCallId: string, input: {
         slug_suffix: string;
         title: string;
         subtitle?: string;
@@ -331,7 +331,7 @@ export function createBlogTools(config: BlogConfig, logger: Logger): AnyAgentToo
         },
         ["id", "body"],
       ) as never,
-      execute: async (input: { id: string; body: string; language?: string }) => {
+      execute: async (_toolCallId: string, input: { id: string; body: string; language?: string }) => {
         logger.debug(`blog_write_body called: id=${input.id}`);
         try {
           const post = findPost(config.postsDir, input.id);
@@ -370,7 +370,7 @@ export function createBlogTools(config: BlogConfig, logger: Logger): AnyAgentToo
         },
         ["id", "author_note", "grounding_summary", "analysis_summary"],
       ) as never,
-      execute: async (input: {
+      execute: async (_toolCallId: string, input: {
         id: string;
         author_note: string;
         grounding_summary: string;
@@ -422,7 +422,7 @@ export function createBlogTools(config: BlogConfig, logger: Logger): AnyAgentToo
           recent_count: { type: "number", description: "Number of recent posts to include for context (default: 5)" },
         },
       ) as never,
-      execute: async (input: { recent_count?: number }) => {
+      execute: async (_toolCallId: string, input: { recent_count?: number }) => {
         logger.debug("blog_writing_brief called");
         const recentN = input.recent_count ?? 5;
 

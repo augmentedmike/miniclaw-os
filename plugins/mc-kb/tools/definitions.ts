@@ -69,8 +69,7 @@ export function createKbTools(
         },
         ["query"],
       ) as never,
-      execute: async (_id: string, _input: unknown) => {
-        const input = _input as { query: string; type?: string; tag?: string; n?: number };
+      execute: async (_toolCallId: string, input: { query: string; type?: string; tag?: string; n?: number }) => {
         const start = Date.now();
         logger.debug(`mc-kb/tool kb_search: query="${input.query}" type=${input.type ?? "any"}`);
         try {
@@ -111,11 +110,10 @@ export function createKbTools(
         },
         ["type", "title", "content"],
       ) as never,
-      execute: async (_id: string, _input: unknown) => {
-        const input = _input as {
-          type: string; title: string; content: string;
-          summary?: string; tags?: string; source?: string; severity?: string;
-        };
+      execute: async (_toolCallId: string, input: {
+        type: string; title: string; content: string;
+        summary?: string; tags?: string; source?: string; severity?: string;
+      }) => {
         const start = Date.now();
         logger.debug(`mc-kb/tool kb_add: type=${input.type} title="${input.title}"`);
         try {
@@ -169,11 +167,10 @@ export function createKbTools(
         },
         ["id"],
       ) as never,
-      execute: async (_id: string, _input: unknown) => {
-        const input = _input as {
-          id: string; type?: string; title?: string; content?: string;
-          summary?: string; tags?: string; severity?: string;
-        };
+      execute: async (_toolCallId: string, input: {
+        id: string; type?: string; title?: string; content?: string;
+        summary?: string; tags?: string; severity?: string;
+      }) => {
         const start = Date.now();
         logger.debug(`mc-kb/tool kb_update: id=${input.id}`);
         try {
@@ -224,8 +221,7 @@ export function createKbTools(
         { id: str("Entry ID (kb_<hex>)") },
         ["id"],
       ) as never,
-      execute: async (_id: string, _input: unknown) => {
-        const input = _input as { id: string };
+      execute: async (_toolCallId: string, input: { id: string }) => {
         logger.debug(`mc-kb/tool kb_get: id=${input.id}`);
         try {
           const entry = store.get(input.id);

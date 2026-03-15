@@ -68,7 +68,7 @@ export function createReflectionTools(
           date: str("Date to reflect on (YYYY-MM-DD). Defaults to today."),
         },
       ) as never,
-      execute: async (input: { date?: string }) => {
+      execute: async (_toolCallId: string, input: { date?: string }) => {
         logger.info(`reflection_gather: date=${input.date ?? "today"}`);
         try {
           const ctx = gather(cfg.gatherConfig, input.date);
@@ -103,7 +103,7 @@ export function createReflectionTools(
         },
         ["date", "summary"],
       ) as never,
-      execute: async (input: ReflectionCreate) => {
+      execute: async (_toolCallId: string, input: ReflectionCreate) => {
         logger.info(`reflection_save: date=${input.date}`);
         try {
           const store = new ReflectionStore(cfg.reflectionDir);
@@ -140,7 +140,7 @@ export function createReflectionTools(
           limit: { type: "number", description: "Max entries to return (default: 14)" },
         },
       ) as never,
-      execute: async (input: { limit?: number }) => {
+      execute: async (_toolCallId: string, input: { limit?: number }) => {
         logger.debug(`reflection_list: limit=${input.limit ?? 14}`);
         try {
           const store = new ReflectionStore(cfg.reflectionDir);
@@ -179,7 +179,7 @@ export function createReflectionTools(
         },
         ["id"],
       ) as never,
-      execute: async (input: { id: string }) => {
+      execute: async (_toolCallId: string, input: { id: string }) => {
         logger.debug(`reflection_show: id=${input.id}`);
         try {
           const store = new ReflectionStore(cfg.reflectionDir);
