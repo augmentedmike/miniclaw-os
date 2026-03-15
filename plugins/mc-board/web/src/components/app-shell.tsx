@@ -72,6 +72,7 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
   const [openCardId, setOpenCardId] = useState<string | null>(initialCardId ?? null);
   const { showWelcome, dismissWelcome } = useWelcomeWizard();
   const [assistantName, setAssistantName] = useState("Am");
+  const { data: rolodexCount } = useSWR<{ count: number }>("/api/rolodex/count", fetcher, { refreshInterval: 60000 });
 
   // Fetch assistant name for empty-state message
   useEffect(() => {
@@ -155,12 +156,13 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
           <div className="tab-bar">
             {(["board", "memory", "rolodex", "settings"] as Tab[]).map(t => {
               const activeCount = t === "board" && counts ? counts.inProgress + counts.inReview : 0;
+              const badgeCount = t === "rolodex" && rolodexCount ? rolodexCount.count : activeCount;
               return (
                 <button key={t} onClick={() => switchTab(t)}
                   className={`tab-btn${tab === t ? " active" : ""}`}
                   style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  {t === "board" ? "Board" : t === "memory" ? "Memory" : t === "rolodex" ? "Rolodex" : "Settings"}
-                  {activeCount > 0 && (
+                  {t === "board" ? "Board" : t === "memory" ? "Memory" : t === "rolodex" ? "Contacts" : "Settings"}
+                  {badgeCount > 0 && (
                     <span style={{
                       fontSize: 10,
                       fontWeight: 600,
@@ -169,7 +171,7 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
                       borderRadius: 10,
                       padding: "1px 6px",
                       lineHeight: "14px",
-                    }}>{activeCount}</span>
+                    }}>{badgeCount}</span>
                   )}
                 </button>
               );

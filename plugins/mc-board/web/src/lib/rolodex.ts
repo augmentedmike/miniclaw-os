@@ -153,6 +153,11 @@ function rowToContact(row: ContactRow): Contact {
   };
 }
 
+export function getContactCount(): number {
+  const db = getDb();
+  return (db.prepare("SELECT COUNT(*) as n FROM contacts").get() as { n: number }).n;
+}
+
 export function getAllContacts(): Contact[] {
   const db = getDb();
   const rows = db.prepare("SELECT * FROM contacts ORDER BY name ASC").all() as ContactRow[];

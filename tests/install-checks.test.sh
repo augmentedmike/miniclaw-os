@@ -162,6 +162,23 @@ else
 fi
 
 echo ""
+echo "── rolodex API checks"
+
+# #50: rolodex count API exists
+if [[ -f "$REPO_DIR/plugins/mc-board/web/src/app/api/rolodex/count/route.ts" ]]; then
+  pass "#50 rolodex count API route exists"
+else
+  fail "#50 rolodex count API route missing" "add plugins/mc-board/web/src/app/api/rolodex/count/route.ts"
+fi
+
+# #50: rolodex data layer exports getContactCount
+if grep -q 'getContactCount' "$REPO_DIR/plugins/mc-board/web/src/lib/rolodex.ts"; then
+  pass "#50 rolodex.ts exports getContactCount"
+else
+  fail "#50 rolodex.ts missing getContactCount" "add count query to data layer"
+fi
+
+echo ""
 echo "── vault env check"
 
 if grep -q 'OPENCLAW_VAULT_ROOT' "$REPO_DIR/plugins/mc-board/web/src/lib/vault.ts"; then
