@@ -233,17 +233,7 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
           </div>
         )}
 
-        {/* Chat toggle */}
-        <button
-          onClick={toggleChat}
-          className="flex items-center justify-center w-11 border-l border-zinc-800 shrink-0 hover:bg-zinc-900 transition-colors h-full"
-          title={chatOpen ? "Close chat" : "Open AM chat"}
-          style={{ color: chatOpen ? "#4ade80" : "#71717a" }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M20 2H4C2.9 2 2 2.9 2 4V22L6 18H20C21.1 18 22 17.1 22 16V4C22 2.9 21.1 2 20 2Z" fill="currentColor" />
-          </svg>
-        </button>
+        {/* Chat toggle — disabled until chat daemon is ready */}
 
         {/* Far right: alerts icon */}
         <button
@@ -285,15 +275,7 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
           </div>
         </div>
 
-        {/* Chat panel — stays mounted across tabs */}
-        <ChatPanel
-          open={chatOpen}
-          onClose={toggleChat}
-          pendingContext={pendingContext}
-          onContextConsumed={() => setPendingContext(null)}
-          projectId={selectedProject || undefined}
-          activeCardId={openCardId ?? undefined}
-        />
+        {/* Chat panel — disabled until chat daemon is ready (next release) */}
       </div>
 
       {/* Toasts */}
