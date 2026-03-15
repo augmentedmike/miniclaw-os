@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+# install-checks.test.sh — verify install.sh produces correct config and structure
+#
+# Tests for fixes #37-#41. Runs without a real install by checking
+# the install script's config generation and the resulting file structure.
+#
+# Usage: bash tests/install-checks.test.sh
+
+set -euo pipefail
+
+PASS=0
+FAIL=0
+
+pass() { echo "  ✓ $1"; PASS=$((PASS + 1)); }
+fail() { echo "  ✗ $1 — $2"; FAIL=$((FAIL + 1)); }
+
+REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+
+echo ""
+echo "── install config checks"
+
+# #41: Model name uses provider prefix in install.sh
+if grep -q '"anthropic/claude-sonnet-4-6"' "$REPO_DIR/install.sh"; then
+  pass "#41 model uses provider prefix in install.sh"
+else
+  fail "#41 model missing provider prefix" "should be anthropic/claude-sonnet-4-6"
+fi
+
+# #37: install.sh creates USER/voice/ and USER/brain/
+if grep -q 'USER/voice' "$REPO_DIR/install.sh"; then
+  pass "#37 install.sh creates USER/voice/"
+else
+  fail "#37 USER/voice/ not created in install.sh" "add mkdir -p to step 10"
+fi
+
+if grep -q 'USER/brain' "$REPO_DIR/install.sh"; then
+  pass "#37 install.sh creates USER/brain/"
+else
+  fail "#37 USER/brain/ not created in install.sh" "add mkdir -p to step 10"
+fi
+
+# #41: gateway.mode=local in initial config
+if grep -q '"gateway".*"mode".*"local"' "$REPO_DIR/install.sh"; then
+  pass "#41 gateway.mode=local in initial openclaw.json config"
+else
+  fail "#41 gateway.mode not set in initial config" "add gateway.mode to openclaw.json creation"
+fi
+
+echo ""
+echo "── plugin checks"
+
+# #39: mc-booking has @hono/node-server
+if grep -q '@hono/node-server' "$REPO_DIR/plugins/mc-booking/package.json"; then
+  pass "#39 mc-booking has @hono/node-server dependency"
+else
+  fail "#39 mc-booking missing @hono/node-server" "add to package.json dependencies"
+fi
+
+# #40: api.hook guarded in mc-contribute
+if grep -q 'typeof api.hook' "$REPO_DIR/plugins/mc-contribute/index.ts"; then
+  pass "#40 mc-contribute guards api.hook()"
+else
+  fail "#40 mc-contribute calls api.hook() without guard" "wrap in typeof check"
+fi
+
+# #40: api.hook guarded in mc-github
+if grep -q 'typeof api.hook' "$REPO_DIR/plugins/mc-github/index.ts"; then
+  pass "#40 mc-github guards api.hook()"
+else
+  fail "#40 mc-github calls api.hook() without guard" "wrap in typeof check"
+fi
+
+echo ""
+echo "── no-bun checks"
+
+# Verify no bun references in system scripts
+for script in mc-doctor mc-smoke mc; do
+  SCRIPT_PATH="$REPO_DIR/SYSTEM/bin/$script"
+  [[ -f "$SCRIPT_PATH" ]] || continue
+  # Check for bun as a command (not in comments or "bundle" etc)
+  BUN_REFS=$(grep -n 'command -v bun\b\|exec bun \|bun install\|bun:sqlite\|"bun"\|bun --version' "$SCRIPT_PATH" 2>/dev/null | grep -v '^#\|BUNDLED\|bundle' || true)
+  if [[ -z "$BUN_REFS" ]]; then
+    pass "no bun references in $script"
+  else
+    fail "bun reference in $script" "$BUN_REFS"
+  fi
+done
+
+echo ""
+echo "── mc-smoke install verification section exists"
+
+if grep -q 'install verification' "$REPO_DIR/SYSTEM/bin/mc-smoke"; then
+  pass "mc-smoke has install verification section"
+else
+  fail "mc-smoke missing install verification" "add section from #43"
+fi
+
+if grep -q 'AGENT_NAME.*placeholder' "$REPO_DIR/SYSTEM/bin/mc-smoke" || grep -q 'placeholder' "$REPO_DIR/SYSTEM/bin/mc-smoke"; then
+  pass "mc-smoke checks for unresolved placeholders"
+else
+  fail "mc-smoke doesn't check for placeholders" "add workspace template check"
+fi
+
+if grep -q 'gateway.mode' "$REPO_DIR/SYSTEM/bin/mc-smoke"; then
+  pass "mc-smoke checks gateway.mode"
+else
+  fail "mc-smoke doesn't check gateway.mode" "add config check"
+fi
+
+if grep -q 'duplicate cron' "$REPO_DIR/SYSTEM/bin/mc-smoke"; then
+  pass "mc-smoke checks for duplicate crons"
+else
+  fail "mc-smoke doesn't check for duplicate crons" "add cron dedup check"
+fi
+
+# #38: cron dedup handles {jobs:[]} format
+if grep -q 'Array.isArray' "$REPO_DIR/plugins/mc-board/web/src/app/api/setup/complete/route.ts"; then
+  pass "#38 cron dedup handles both array and {jobs:[]} formats"
+else
+  fail "#38 cron dedup doesn't handle {jobs:[]} format" "fix JSON parsing in registerCronJobs"
+fi
+
+echo ""
+echo "── vault env check"
+
+if grep -q 'OPENCLAW_VAULT_ROOT' "$REPO_DIR/plugins/mc-board/web/src/lib/vault.ts"; then
+  pass "#32 vault.ts sets OPENCLAW_VAULT_ROOT"
+else
+  fail "#32 vault.ts missing OPENCLAW_VAULT_ROOT" "vault CLI won't find key"
+fi
+
+echo ""
+echo "────────────────────────────────────────"
+echo "  ${PASS} passed  ${FAIL} failed"
+echo "────────────────────────────────────────"
+
+[[ $FAIL -eq 0 ]]

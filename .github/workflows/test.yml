@@ -26,5 +26,8 @@ jobs:
             fi
           done
 
-      - name: Run tests
+      - name: Run install verification tests
+        run: bash tests/install-checks.test.sh
+
+      - name: Run plugin tests
         run: npm test
