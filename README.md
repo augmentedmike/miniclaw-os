@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/augmentedmike/miniclaw-os/releases"><img src="https://img.shields.io/badge/version-v0.1.5-blue?style=for-the-badge" alt="v0.1.5"></a>
   <a href="https://github.com/augmentedmike/miniclaw-os/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=for-the-badge" alt="Apache 2.0 License"></a>
-  <a href="https://github.com/augmentedmike/miniclaw-os/actions/workflows/test.yml"><img src="https://img.shields.io/github/actions/workflow/status/augmentedmike/miniclaw-os/test.yml?style=for-the-badge&label=tests" alt="Tests"></a>
+  <a href="https://github.com/augmentedmike/miniclaw-os/actions/workflows/test.yml"><img src="https://img.shields.io/github/actions/workflow/status/augmentedmike/miniclaw-os/test.yml?branch=stable&style=for-the-badge&label=tests" alt="Tests"></a>
   <a href="#install"><img src="https://img.shields.io/badge/Install_Now-00E5CC?style=for-the-badge&logo=apple&logoColor=black" alt="Install Now"></a>
   <a href="#install-demo"><img src="https://img.shields.io/badge/See_Install_Demo-FF4081?style=for-the-badge&logo=youtube&logoColor=white" alt="See Install Demo"></a>
 </p>
