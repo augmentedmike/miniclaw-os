@@ -51,6 +51,14 @@ function randomPreset(exclude?: number): number {
 export default function StepMeetHer({ onNext }: Props) {
   const { state, update, accent } = useWizard();
 
+  const [shuffledOrder] = useState(() => {
+    const indices = PRESETS.map((_, i) => i);
+    for (let i = indices.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [indices[i], indices[j]] = [indices[j], indices[i]];
+    }
+    return indices;
+  });
   const [presetIdx, setPresetIdx] = useState(() => randomPreset());
   const preset = PRESETS[presetIdx];
 
@@ -84,6 +92,9 @@ export default function StepMeetHer({ onNext }: Props) {
     setSelectedPronouns(p.pronouns);
     setPhotoSrc(p.avatar);
     setIsCustomPhoto(false);
+    const randomColor = COLORS[Math.floor(Math.random() * COLORS.length)].hex;
+    setSelectedColor(randomColor);
+    update({ accentColor: randomColor });
   };
 
   const handleSelectPreset = (idx: number) => {
@@ -124,19 +135,60 @@ export default function StepMeetHer({ onNext }: Props) {
   return (
     <div className="flex flex-col gap-5">
 
+      {/* Avatar picker — above everything when open */}
+      {showPicker && (
+        <div className="rounded-xl p-4 bg-[#1a1a1a] border border-[rgba(255,255,255,0.08)]">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm text-[#aaa] font-medium">Choose a character</span>
+            <button
+              onClick={() => fileRef.current?.click()}
+              className="text-xs px-3 py-1 rounded-lg transition-all"
+              style={{ background: `${selectedColor}22`, color: selectedColor, border: `1px solid ${selectedColor}33` }}
+            >
+              Upload your own
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-4 justify-center">
+            {shuffledOrder.map((i) => {
+              const p = PRESETS[i];
+              return (
+              <button
+                key={p.name}
+                onClick={() => handleSelectPreset(i)}
+                className="flex flex-col items-center gap-1.5 p-2 rounded-lg transition-all"
+                style={{
+                  background: presetIdx === i && !isCustomPhoto ? `${selectedColor}22` : "transparent",
+                  border: presetIdx === i && !isCustomPhoto ? `2px solid ${selectedColor}` : "2px solid transparent",
+                }}
+              >
+                <Image
+                  src={p.avatar}
+                  alt={p.name}
+                  width={256}
+                  height={256}
+                  className="w-48 h-48 rounded-full object-cover"
+                />
+                <span className="text-[10px] text-[#888]">{p.name}</span>
+              </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Avatar + shuffle */}
       <div className="flex flex-col items-center gap-3">
         <div className="relative">
           <button
             onClick={() => setShowPicker(!showPicker)}
-            className="relative w-32 h-32 rounded-full overflow-hidden border-2 group cursor-pointer"
+            className="relative w-64 h-64 rounded-full overflow-hidden border-2 group cursor-pointer"
             style={{ borderColor: selectedColor }}
           >
             <Image
               src={photoSrc}
               alt="Assistant avatar"
-              width={128}
-              height={128}
+              width={256}
+              height={256}
               className="w-full h-full object-cover"
             />
             <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -155,44 +207,6 @@ export default function StepMeetHer({ onNext }: Props) {
         </div>
         <h2 className="text-3xl font-bold text-white">Create your assistant</h2>
       </div>
-
-      {/* Avatar picker */}
-      {showPicker && (
-        <div className="rounded-xl p-4 bg-[#1a1a1a] border border-[rgba(255,255,255,0.08)]">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm text-[#aaa] font-medium">Choose a character</span>
-            <button
-              onClick={() => fileRef.current?.click()}
-              className="text-xs px-3 py-1 rounded-lg transition-all"
-              style={{ background: `${selectedColor}22`, color: selectedColor, border: `1px solid ${selectedColor}33` }}
-            >
-              Upload your own
-            </button>
-          </div>
-          <div className="grid grid-cols-5 gap-3">
-            {PRESETS.map((p, i) => (
-              <button
-                key={p.name}
-                onClick={() => handleSelectPreset(i)}
-                className="flex flex-col items-center gap-1.5 p-2 rounded-lg transition-all"
-                style={{
-                  background: presetIdx === i && !isCustomPhoto ? `${selectedColor}22` : "transparent",
-                  border: presetIdx === i && !isCustomPhoto ? `2px solid ${selectedColor}` : "2px solid transparent",
-                }}
-              >
-                <Image
-                  src={p.avatar}
-                  alt={p.name}
-                  width={48}
-                  height={48}
-                  className="w-12 h-12 rounded-full object-cover"
-                />
-                <span className="text-[10px] text-[#888]">{p.name}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       <input
         ref={fileRef}
