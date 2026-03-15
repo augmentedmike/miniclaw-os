@@ -8,6 +8,8 @@ Usage:
   voice-ingest --human-id <id> --channel <ch> --batch <file.jsonl>
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import os
