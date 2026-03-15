@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import type { Client } from "@libsql/client";
+import type Database from "better-sqlite3";
 
 export interface Appointment {
   id: string;
@@ -7,14 +7,16 @@ export interface Appointment {
   email: string;
   interest: string;
   scheduled_time: string;
+  duration_min: number;
   notes: string;
-  status: string;
+  status: string; // pending | confirmed | cancelled
   manage_token: string;
-  stripe_payment_id: string;
-  stripe_refund_id: string;
+  payment_id: string;
+  refund_id: string;
   refund_amount: number;
   paid_at: string;
   cancelled_at: string;
+  approved_at: string;
   created_at: string;
   updated_at: string;
 }
@@ -28,16 +30,16 @@ function generateToken(): string {
 }
 
 export class AppointmentStore {
-  constructor(private db: Client) {}
+  constructor(private db: Database.Database) {}
 
-  async create(data: {
+  create(data: {
     name: string;
     email: string;
     interest?: string;
     scheduled_time: string;
+    duration_min?: number;
     notes?: string;
-    stripe_payment_id?: string;
-  }): Promise<Appointment> {
+  }): Appointment {
     const now = new Date().toISOString();
     const apt: Appointment = {
       id: generateId(),
@@ -45,119 +47,113 @@ export class AppointmentStore {
       email: data.email,
       interest: data.interest || "",
       scheduled_time: data.scheduled_time,
+      duration_min: data.duration_min || 30,
       notes: data.notes || "",
-      status: "confirmed",
+      status: "pending",
       manage_token: generateToken(),
-      stripe_payment_id: data.stripe_payment_id || "",
-      stripe_refund_id: "",
+      payment_id: "",
+      refund_id: "",
       refund_amount: 0,
-      paid_at: data.stripe_payment_id ? now : "",
+      paid_at: "",
       cancelled_at: "",
+      approved_at: "",
       created_at: now,
       updated_at: now,
     };
 
-    await this.db.execute({
-      sql: `INSERT INTO appointments (id, name, email, interest, scheduled_time, notes, status, manage_token, stripe_payment_id, stripe_refund_id, refund_amount, paid_at, cancelled_at, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      args: [
-        apt.id, apt.name, apt.email, apt.interest, apt.scheduled_time,
-        apt.notes, apt.status, apt.manage_token, apt.stripe_payment_id,
-        apt.stripe_refund_id, apt.refund_amount, apt.paid_at,
-        apt.cancelled_at, apt.created_at, apt.updated_at,
-      ],
-    });
+    this.db.prepare(`
+      INSERT INTO appointments (id, name, email, interest, scheduled_time, duration_min, notes, status, manage_token, payment_id, refund_id, refund_amount, paid_at, cancelled_at, approved_at, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      apt.id, apt.name, apt.email, apt.interest, apt.scheduled_time,
+      apt.duration_min, apt.notes, apt.status, apt.manage_token,
+      apt.payment_id, apt.refund_id, apt.refund_amount, apt.paid_at,
+      apt.cancelled_at, apt.approved_at, apt.created_at, apt.updated_at,
+    );
 
     return apt;
   }
 
-  async getByToken(token: string): Promise<Appointment | null> {
-    const result = await this.db.execute({
-      sql: "SELECT * FROM appointments WHERE manage_token = ?",
-      args: [token],
-    });
-    if (!result.rows.length) return null;
-    return result.rows[0] as unknown as Appointment;
+  getByToken(token: string): Appointment | null {
+    return this.db.prepare("SELECT * FROM appointments WHERE manage_token = ?").get(token) as Appointment | undefined ?? null;
   }
 
-  async getById(id: string): Promise<Appointment | null> {
-    const result = await this.db.execute({
-      sql: "SELECT * FROM appointments WHERE id = ?",
-      args: [id],
-    });
-    if (!result.rows.length) return null;
-    return result.rows[0] as unknown as Appointment;
+  getById(id: string): Appointment | null {
+    return this.db.prepare("SELECT * FROM appointments WHERE id = ?").get(id) as Appointment | undefined ?? null;
   }
 
-  async listUpcoming(limit = 20): Promise<Appointment[]> {
-    const result = await this.db.execute({
-      sql: `SELECT * FROM appointments
-            WHERE status = 'confirmed' AND scheduled_time >= datetime('now')
-            ORDER BY scheduled_time ASC LIMIT ?`,
-      args: [limit],
-    });
-    return result.rows as unknown as Appointment[];
+  listUpcoming(limit = 20): Appointment[] {
+    return this.db.prepare(`
+      SELECT * FROM appointments
+      WHERE status IN ('pending', 'confirmed') AND scheduled_time >= datetime('now')
+      ORDER BY scheduled_time ASC LIMIT ?
+    `).all(limit) as Appointment[];
   }
 
-  async hasConflict(scheduledTime: string): Promise<boolean> {
-    const result = await this.db.execute({
-      sql: `SELECT COUNT(*) as cnt FROM appointments
-            WHERE scheduled_time = ? AND status = 'confirmed'`,
-      args: [scheduledTime],
-    });
-    return (result.rows[0] as unknown as { cnt: number }).cnt > 0;
+  listPending(): Appointment[] {
+    return this.db.prepare(`
+      SELECT * FROM appointments WHERE status = 'pending'
+      ORDER BY created_at ASC
+    `).all() as Appointment[];
   }
 
-  async countOnDate(dateStr: string): Promise<number> {
-    const result = await this.db.execute({
-      sql: `SELECT COUNT(*) as cnt FROM appointments
-            WHERE scheduled_time LIKE ? AND status = 'confirmed'`,
-      args: [`${dateStr}%`],
-    });
-    return (result.rows[0] as unknown as { cnt: number }).cnt;
-  }
-
-  async cancel(token: string, refundId?: string, refundAmount?: number): Promise<Appointment | null> {
-    const apt = await this.getByToken(token);
-    if (!apt || apt.status !== "confirmed") return null;
-
+  approve(id: string): Appointment | null {
+    const apt = this.getById(id);
+    if (!apt || apt.status !== "pending") return null;
     const now = new Date().toISOString();
-    await this.db.execute({
-      sql: `UPDATE appointments
-            SET status = 'cancelled', cancelled_at = ?, stripe_refund_id = ?, refund_amount = ?, updated_at = ?
-            WHERE manage_token = ?`,
-      args: [now, refundId || "", refundAmount || 0, now, token],
-    });
-
-    return { ...apt, status: "cancelled", cancelled_at: now, stripe_refund_id: refundId || "", refund_amount: refundAmount || 0, updated_at: now };
+    this.db.prepare("UPDATE appointments SET status = 'confirmed', approved_at = ?, updated_at = ? WHERE id = ?").run(now, now, id);
+    return { ...apt, status: "confirmed", approved_at: now, updated_at: now };
   }
 
-  async reschedule(token: string, newTime: string): Promise<Appointment | null> {
-    const apt = await this.getByToken(token);
-    if (!apt || apt.status !== "confirmed") return null;
-
+  reject(id: string): Appointment | null {
+    const apt = this.getById(id);
+    if (!apt || apt.status !== "pending") return null;
     const now = new Date().toISOString();
-    await this.db.execute({
-      sql: `UPDATE appointments SET scheduled_time = ?, updated_at = ? WHERE manage_token = ?`,
-      args: [newTime, now, token],
-    });
+    this.db.prepare("UPDATE appointments SET status = 'cancelled', cancelled_at = ?, updated_at = ? WHERE id = ?").run(now, now, id);
+    return { ...apt, status: "cancelled", cancelled_at: now, updated_at: now };
+  }
 
+  hasConflict(scheduledTime: string): boolean {
+    const row = this.db.prepare(`
+      SELECT COUNT(*) as cnt FROM appointments
+      WHERE scheduled_time = ? AND status IN ('pending', 'confirmed')
+    `).get(scheduledTime) as { cnt: number };
+    return row.cnt > 0;
+  }
+
+  countOnDate(dateStr: string): number {
+    const row = this.db.prepare(`
+      SELECT COUNT(*) as cnt FROM appointments
+      WHERE scheduled_time LIKE ? AND status IN ('pending', 'confirmed')
+    `).get(`${dateStr}%`) as { cnt: number };
+    return row.cnt;
+  }
+
+  cancel(id: string, refundId?: string, refundAmount?: number): Appointment | null {
+    const apt = this.getById(id);
+    if (!apt || apt.status === "cancelled") return null;
+    const now = new Date().toISOString();
+    this.db.prepare(`
+      UPDATE appointments SET status = 'cancelled', cancelled_at = ?, refund_id = ?, refund_amount = ?, updated_at = ?
+      WHERE id = ?
+    `).run(now, refundId || "", refundAmount || 0, now, id);
+    return { ...apt, status: "cancelled", cancelled_at: now, refund_id: refundId || "", refund_amount: refundAmount || 0, updated_at: now };
+  }
+
+  reschedule(id: string, newTime: string): Appointment | null {
+    const apt = this.getById(id);
+    if (!apt || apt.status === "cancelled") return null;
+    const now = new Date().toISOString();
+    this.db.prepare("UPDATE appointments SET scheduled_time = ?, updated_at = ? WHERE id = ?").run(newTime, now, id);
     return { ...apt, scheduled_time: newTime, updated_at: now };
   }
 
-  async getConfig(key: string): Promise<string | null> {
-    const result = await this.db.execute({
-      sql: "SELECT value FROM config WHERE key = ?",
-      args: [key],
-    });
-    if (!result.rows.length) return null;
-    return (result.rows[0] as unknown as { value: string }).value;
+  getPref(key: string): string | null {
+    const row = this.db.prepare("SELECT value FROM preferences WHERE key = ?").get(key) as { value: string } | undefined;
+    return row?.value ?? null;
   }
 
-  async setConfig(key: string, value: string): Promise<void> {
-    await this.db.execute({
-      sql: "INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
-      args: [key, value],
-    });
+  setPref(key: string, value: string): void {
+    this.db.prepare("INSERT OR REPLACE INTO preferences (key, value) VALUES (?, ?)").run(key, value);
   }
 }

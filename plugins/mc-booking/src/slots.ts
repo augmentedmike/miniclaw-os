@@ -6,10 +6,7 @@ export interface Slot {
   available: boolean;
 }
 
-export async function generateSlots(
-  cfg: BookingConfig,
-  store: AppointmentStore,
-): Promise<Slot[]> {
+export function generateSlots(cfg: BookingConfig, store: AppointmentStore): Slot[] {
   const slots: Slot[] = [];
   const now = new Date();
   const endDate = new Date(now);
@@ -32,7 +29,11 @@ export async function generateSlots(
     if (!cfg.availableDays.includes(isoDow)) continue;
 
     const dateStr = cursor.toISOString().split("T")[0];
-    const dayCount = await store.countOnDate(dateStr);
+
+    // Skip blocked dates
+    if (cfg.blockedDates.includes(dateStr)) continue;
+
+    const dayCount = store.countOnDate(dateStr);
 
     for (const hour of cfg.timeSlots) {
       const slotTime = new Date(cursor);
@@ -41,7 +42,7 @@ export async function generateSlots(
       if (slotTime <= now) continue;
 
       const isoTime = slotTime.toISOString();
-      const hasConflict = await store.hasConflict(isoTime);
+      const hasConflict = store.hasConflict(isoTime);
       const atCapacity = dayCount >= cfg.maxPerDay;
 
       slots.push({
