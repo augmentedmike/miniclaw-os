@@ -88,7 +88,7 @@ if command -v qmd &>/dev/null; then
     warn "search returned no results" "run: qmd update && qmd embed"
   fi
 else
-  warn "qmd not found" "memory injection unavailable — run: bun install -g qmd"
+  warn "qmd not found" "memory injection unavailable — run: npm install -g qmd"
 fi
 
 # ── soul-backups (optional) ───────────────────────────────────────────────────
@@ -136,7 +136,7 @@ fi
 # ── runtime ───────────────────────────────────────────────────────────────────
 section "runtime"
 
-for tool in bun node; do
+for tool in node; do
   if command -v "$tool" &>/dev/null; then
     ver=$("$tool" --version 2>/dev/null | head -1)
     pass "$tool ($ver)"
@@ -160,7 +160,7 @@ if [[ -f "$BOARD_DB" ]]; then
   pass "board.db exists"
   if command -v node &>/dev/null; then
     db_check=$(npx tsx -e "
-      import { Database } from 'bun:sqlite';
+      import Database from 'better-sqlite3';
       const db = new Database('$BOARD_DB', { readonly: true });
       const tables = db.prepare(\"SELECT name FROM sqlite_master WHERE type='table'\").all();
       const names = tables.map(t => t.name);
@@ -312,9 +312,9 @@ else
     if echo "$load_out" | grep -q "^ok$"; then
       pass "$plugin_name exports register()"
     else
-      # grab first meaningful error line (skip blank lines and bun version)
-      err_line=$(echo "$load_out" | grep -v "^$" | grep -vi "^Bun v" | head -1)
-      [[ -z "$err_line" ]] && err_line="unknown error — run: cd $plugin_dir && bun -e \"import r from './index.ts'\""
+      # grab first meaningful error line (skip blank lines)
+      err_line=$(echo "$load_out" | grep -v "^$" | head -1)
+      [[ -z "$err_line" ]] && err_line="unknown error — run: cd $plugin_dir && npx tsx -e \"import r from './index.ts'\""
       fail "$plugin_name load failed" "$err_line"
     fi
   done

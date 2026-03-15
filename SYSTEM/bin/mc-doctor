@@ -80,31 +80,14 @@ else
   fi
 fi
 
-# ── bun ───────────────────────────────────────────────────────────────────────
-section "bun"
-
-if command -v bun &>/dev/null || [[ -f "$HOME/.bun/bin/bun" ]]; then
-  [[ -f "$HOME/.bun/bin/bun" ]] && export PATH="$HOME/.bun/bin:$PATH"
-  ok "bun present"
-else
-  if ask "Install bun?"; then
-    curl -fsSL https://bun.sh/install | bash \
-      && export PATH="$HOME/.bun/bin:$PATH" \
-      && fixed "bun installed" || broke "bun install failed"
-  else
-    skip "bun"
-  fi
-fi
-
 # ── qmd ───────────────────────────────────────────────────────────────────────
 section "qmd  [optional]"
 
-if command -v qmd &>/dev/null || [[ -f "$HOME/.bun/bin/qmd" ]]; then
-  export PATH="$HOME/.bun/bin:$PATH"
+if command -v qmd &>/dev/null; then
   ok "qmd present"
 else
-  if ask "Install qmd (bun install -g qmd)?"; then
-    bun install -g qmd && fixed "qmd installed" || broke "qmd install failed"
+  if ask "Install qmd (npm install -g qmd)?"; then
+    npm install -g qmd && fixed "qmd installed" || broke "qmd install failed"
   else
     skip "qmd"
   fi
@@ -214,15 +197,15 @@ PLUGINS_DIR="$MINICLAW_DIR/plugins"
 
 if [[ ! -d "$PLUGINS_DIR" ]]; then
   broke "plugins dir not found — run install.sh first"
-elif ! command -v bun &>/dev/null; then
-  skip "bun not found — cannot install plugin deps"
+elif ! command -v npm &>/dev/null; then
+  skip "npm not found — cannot install plugin deps"
 else
   for plugin_dir in "$PLUGINS_DIR"/*/; do
     plugin_name="$(basename "$plugin_dir")"
     if [[ -f "$plugin_dir/package.json" && ! -d "$plugin_dir/node_modules" ]]; then
-      if ask "Install deps for $plugin_name (bun install)?"; then
-        (cd "$plugin_dir" && bun install 2>/dev/null) \
-          && fixed "$plugin_name deps installed" || broke "$plugin_name bun install failed"
+      if ask "Install deps for $plugin_name (npm install)?"; then
+        (cd "$plugin_dir" && npm install 2>/dev/null) \
+          && fixed "$plugin_name deps installed" || broke "$plugin_name npm install failed"
       else
         skip "$plugin_name deps"
       fi

@@ -11,7 +11,7 @@
 #
 # Migrated plugins (standalone CLI):
 #   mc vault <cmd>     → miniclaw/vault/cli
-#   mc designer <cmd>  → miniclaw/designer/cli.ts (bun)
+#   mc designer <cmd>  → miniclaw/designer/cli.ts (node/tsx)
 #
 # Legacy plugins (still routed through openclaw):
 #   mc board <cmd>     → openclaw mc-board <cmd>
@@ -43,7 +43,7 @@ case "$SUBCOMMAND" in
     ;;
   designer)
     shift
-    exec bun "$MINICLAW_HOME/designer/cli.ts" "$@"
+    exec npx tsx "$MINICLAW_HOME/designer/cli.ts" "$@"
     ;;
 
   # ── Legacy: still via openclaw ──
