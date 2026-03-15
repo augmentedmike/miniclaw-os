@@ -305,6 +305,36 @@ else
     || warn "Google Chrome install failed — download from https://google.com/chrome"
 fi
 
+# Claude Chrome extension — force-install via managed policy
+# Extension ID: fcoeoabgfenejglbffodgkkbkcdhcgfn (Anthropic's official "Claude" extension)
+CHROME_POLICY_DIR="/Library/Google/Chrome/Managed Preferences"
+CHROME_POLICY_FILE="$CHROME_POLICY_DIR/com.google.Chrome.plist"
+CLAUDE_EXT_ID="fcoeoabgfenejglbffodgkkbkcdhcgfn"
+
+if [[ -d "/Applications/Google Chrome.app" ]]; then
+  # Check if extension is already in the force-install list
+  if defaults read "$CHROME_POLICY_FILE" ExtensionInstallForcelist 2>/dev/null | grep -q "$CLAUDE_EXT_ID"; then
+    ok "Claude Chrome extension already in force-install policy"
+  elif [[ "$CHECK_ONLY" == true ]]; then
+    warn "Claude Chrome extension not in force-install policy"
+  else
+    info "Adding Claude Chrome extension to force-install policy..."
+    sudo mkdir -p "$CHROME_POLICY_DIR"
+    # Read existing forcelist or start fresh
+    EXISTING=$(defaults read "$CHROME_POLICY_FILE" ExtensionInstallForcelist 2>/dev/null | grep -o '"[^"]*"' | tr -d '"' || true)
+    ENTRIES=()
+    if [[ -n "$EXISTING" ]]; then
+      while IFS= read -r entry; do
+        [[ -n "$entry" ]] && ENTRIES+=("$entry")
+      done <<< "$EXISTING"
+    fi
+    ENTRIES+=("${CLAUDE_EXT_ID};https://clients2.google.com/service/update2/crx")
+    # Write the plist
+    sudo defaults write "$CHROME_POLICY_FILE" ExtensionInstallForcelist -array "${ENTRIES[@]}"
+    ok "Claude Chrome extension added to force-install policy (installs on next Chrome launch)"
+  fi
+fi
+
 # mc-chrome launcher (starts Chrome with remote debugging on port 9222)
 MC_CHROME="$REPO_DIR/SYSTEM/bin/mc-chrome"
 if [[ -x "$MC_CHROME" ]]; then
@@ -1084,7 +1114,7 @@ if [[ -n "$CLAUDE_BIN" ]]; then
   if grep -q "alias claude=" "$ZSHENV"; then
     ok "claude alias already in $ZSHENV"
   else
-    echo "alias claude='claude --dangerously-skip-permissions'" >> "$ZSHENV"
+    echo "alias claude='claude --dangerously-skip-permissions --chrome'" >> "$ZSHENV"
     ok "Added claude alias to $ZSHENV"
   fi
 fi
