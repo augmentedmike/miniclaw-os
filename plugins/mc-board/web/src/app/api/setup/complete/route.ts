@@ -214,6 +214,33 @@ function setGithubDefaultRepo() {
 }
 
 /**
+ * Create the canonical projects folder and ~/mc-projects symlink.
+ * Path: ~/.openclaw/miniclaw/USER/projects (safe from updates)
+ * Symlink: ~/mc-projects -> the above path
+ */
+function ensureProjectsFolder(): { ok: boolean; path: string; symlink: string } {
+  const projectsDir = path.join(STATE_DIR, "miniclaw", "USER", "projects");
+  const symlinkPath = path.join(os.homedir(), "mc-projects");
+
+  fs.mkdirSync(projectsDir, { recursive: true });
+
+  // Create symlink if it doesn't already point to the right place
+  try {
+    const existing = fs.readlinkSync(symlinkPath);
+    if (existing !== projectsDir) {
+      fs.unlinkSync(symlinkPath);
+      fs.symlinkSync(projectsDir, symlinkPath);
+    }
+  } catch {
+    // symlink doesn't exist or isn't a symlink — create it
+    try { fs.unlinkSync(symlinkPath); } catch { /* ignore */ }
+    fs.symlinkSync(projectsDir, symlinkPath);
+  }
+
+  return { ok: true, path: projectsDir, symlink: symlinkPath };
+}
+
+/**
  * Run mc-smoke and return the output.
  */
 function runSmoke(): { output: string; passed: boolean } {
@@ -403,6 +430,9 @@ export async function POST() {
   // Create USER/brain/ and seed the board DB with default projects
   seedBoardDb();
 
+  // Create canonical projects folder and ~/mc-projects symlink
+  const projectsFolder = ensureProjectsFolder();
+
   // Re-run workspace personalization now that setup-state.json is complete
   personalizeWorkspace();
 
@@ -425,6 +455,7 @@ export async function POST() {
     state,
     ghAuth,
     gateway: gw,
+    projectsFolder,
     smoke: { output: smoke.output, passed: smoke.passed },
   });
 }

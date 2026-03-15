@@ -19,7 +19,7 @@ function normalizeBotId(username: string): string {
  * The botId is written under `meta.botId` (NOT top-level) so openclaw config
  * validation doesn't reject it.
  */
-function configureGateway(botId: string, botToken: string) {
+function configureGateway(botId: string, botToken: string, chatId?: string) {
   const configPath = path.join(STATE_DIR, "openclaw.json");
   let cfg: Record<string, unknown> = {};
   try {
@@ -28,25 +28,36 @@ function configureGateway(botId: string, botToken: string) {
     }
   } catch { /* start fresh */ }
 
-  // Store botId under meta (not top-level — top-level causes validation failure)
+  // Remove any botId from config — openclaw doesn't recognize it
+  delete cfg.botId;
   const meta = (cfg.meta ?? {}) as Record<string, unknown>;
-  meta.botId = botId;
+  delete meta.botId;
   cfg.meta = meta;
 
-  // Remove any legacy top-level botId
-  delete cfg.botId;
-
-  // Set gateway mode to local so `openclaw gateway` starts without --allow-unconfigured
+  // Set gateway mode to local
   const gw = (cfg.gateway ?? {}) as Record<string, unknown>;
   if (!gw.mode) gw.mode = "local";
   cfg.gateway = gw;
 
+  // Configure telegram channel directly in openclaw.json
+  const channels = (cfg.channels ?? {}) as Record<string, unknown>;
+  channels.telegram = {
+    enabled: true,
+    botToken: botToken,
+    dmPolicy: "pairing",
+    groupPolicy: "allowlist",
+    groupAllowFrom: chatId ? [chatId] : [],
+    allowFrom: chatId ? [chatId] : [],
+    streaming: "partial",
+  };
+  cfg.channels = channels;
+
   fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2) + "\n", "utf-8");
 
-  // Store the telegram bot token in vault
+  // Also store the bot token in vault as backup
   const vaultResult = vaultSet("telegram-bot-token", botToken);
   if (!vaultResult.ok) {
-    console.error("Failed to store telegram bot token in vault:", vaultResult.error);
+    console.error("Vault write failed (non-fatal):", vaultResult.error);
   }
 
   // Register the telegram channel with openclaw
@@ -114,6 +125,9 @@ conn.close()
 function ensureGatewayRunning(): { ok: boolean; error?: string } {
   const ocBin = findBin("openclaw");
   if (!ocBin) return { ok: false, error: "openclaw not found on PATH" };
+
+  // DO NOT run openclaw doctor --fix here — it rewrites openclaw.json
+  // and wipes the miniclaw plugin paths/entries that install.sh configured.
 
   // Install the gateway LaunchAgent (creates plist + loads it)
   const installResult = spawnSync(ocBin, ["gateway", "install", "--force"], {
@@ -200,6 +214,33 @@ function setGithubDefaultRepo() {
 }
 
 /**
+ * Create the canonical projects folder and ~/mc-projects symlink.
+ * Path: ~/.openclaw/miniclaw/USER/projects (safe from updates)
+ * Symlink: ~/mc-projects -> the above path
+ */
+function ensureProjectsFolder(): { ok: boolean; path: string; symlink: string } {
+  const projectsDir = path.join(STATE_DIR, "miniclaw", "USER", "projects");
+  const symlinkPath = path.join(os.homedir(), "mc-projects");
+
+  fs.mkdirSync(projectsDir, { recursive: true });
+
+  // Create symlink if it doesn't already point to the right place
+  try {
+    const existing = fs.readlinkSync(symlinkPath);
+    if (existing !== projectsDir) {
+      fs.unlinkSync(symlinkPath);
+      fs.symlinkSync(projectsDir, symlinkPath);
+    }
+  } catch {
+    // symlink doesn't exist or isn't a symlink — create it
+    try { fs.unlinkSync(symlinkPath); } catch { /* ignore */ }
+    fs.symlinkSync(projectsDir, symlinkPath);
+  }
+
+  return { ok: true, path: projectsDir, symlink: symlinkPath };
+}
+
+/**
  * Run mc-smoke and return the output.
  */
 function runSmoke(): { output: string; passed: boolean } {
@@ -215,6 +256,154 @@ function runSmoke(): { output: string; passed: boolean } {
   return { output, passed: result.status === 0 };
 }
 
+/**
+ * Re-run the workspace personalization from install.sh.
+ * Replaces {{AGENT_NAME}}, {{PRONOUNS}}, etc. in all workspace .md files.
+ */
+function personalizeWorkspace() {
+  const setupState = readSetupState();
+  const name = setupState.assistantName;
+  if (!name) return;
+
+  const miniclaw = path.join(STATE_DIR, "miniclaw");
+  const workspace = path.join(miniclaw, "workspace");
+  const manifestPath = path.join(miniclaw, "MANIFEST.json");
+
+  if (!fs.existsSync(workspace)) return;
+
+  const script = `
+import json, sys, os
+from datetime import date
+
+workspace = sys.argv[1]
+manifest_path = sys.argv[2]
+state = json.loads(sys.argv[3])
+
+name = state.get("assistantName", "")
+short = state.get("shortName", name)
+pronouns = state.get("pronouns", "they/them")
+blurb = state.get("personaBlurb", "")
+
+if not name:
+    sys.exit(0)
+
+pmap = {"she/her": ("she", "her"), "he/him": ("he", "his"), "they/them": ("they", "their")}
+subj, poss = pmap.get(pronouns, ("they", "their"))
+
+version = "0.1.0"
+try:
+    with open(manifest_path) as f:
+        version = json.load(f).get("version", version)
+except Exception:
+    pass
+
+today = date.today().isoformat()
+replacements = {
+    "{{AGENT_NAME}}": name, "{{AGENT_SHORT}}": short,
+    "{{HUMAN_NAME}}": "my human", "{{PRONOUNS}}": pronouns,
+    "{{PRONOUNS_SUBJECT}}": subj, "{{PRONOUNS_POSSESSIVE}}": poss,
+    "{{VERSION}}": version, "{{DATE}}": today,
+}
+
+for dirpath, _dirs, files in os.walk(workspace):
+    for fname in files:
+        if not fname.endswith(".md"):
+            continue
+        fpath = os.path.join(dirpath, fname)
+        with open(fpath) as f:
+            content = f.read()
+        changed = False
+        for placeholder, value in replacements.items():
+            if placeholder in content:
+                content = content.replace(placeholder, value)
+                changed = True
+        if changed:
+            with open(fpath, "w") as f:
+                f.write(content)
+
+print(f"Personalized: {name} ({pronouns})")
+`;
+
+  try {
+    const stateJson = JSON.stringify(setupState);
+    const tmpScript = path.join(os.tmpdir(), `miniclaw-personalize-${process.pid}.py`);
+    fs.writeFileSync(tmpScript, script, "utf-8");
+    execSync(`python3 "${tmpScript}" "${workspace}" "${manifestPath}" '${stateJson.replace(/'/g, "'\\''")}'`, {
+      encoding: "utf-8",
+      timeout: 15_000,
+    });
+    fs.unlinkSync(tmpScript);
+  } catch (e) {
+    console.error("Workspace personalization failed:", e);
+  }
+}
+
+/**
+ * Register cron jobs with the gateway from jobs.json.
+ * The gateway must be running for this to work.
+ */
+function registerCronJobs() {
+  const ocBin = findBin("openclaw");
+  if (!ocBin) return;
+
+  const cronFile = path.join(STATE_DIR, "cron", "jobs.json");
+  if (!fs.existsSync(cronFile)) return;
+
+  try {
+    const store = JSON.parse(fs.readFileSync(cronFile, "utf-8"));
+    const jobs = store.jobs || [];
+
+    // Check what's already registered
+    const listResult = spawnSync(ocBin, ["cron", "list", "--json"], {
+      encoding: "utf-8",
+      timeout: 10_000,
+    });
+    let existingNames = new Set<string>();
+    try {
+      const parsed = JSON.parse(listResult.stdout || "[]");
+      // Handle both array and {jobs: []} formats
+      const existing = Array.isArray(parsed) ? parsed : (parsed.jobs || []);
+      existingNames = new Set(existing.map((j: { name?: string }) => j.name));
+    } catch { /* no existing jobs */ }
+
+    for (const job of jobs) {
+      if (existingNames.has(job.name)) continue;
+
+      const cronExpr = job.schedule?.expr || "*/5 * * * *";
+      const args = [
+        "cron", "add",
+        "--name", job.name,
+        "--cron", cronExpr,
+        "--session", job.sessionTarget || "isolated",
+      ];
+
+      if (job.payload?.timeoutSeconds) {
+        args.push("--timeout-seconds", String(job.payload.timeoutSeconds));
+      }
+
+      if (job.payload?.messageFile) {
+        const promptPath = path.join(STATE_DIR, "cron", job.payload.messageFile);
+        if (fs.existsSync(promptPath)) {
+          const prompt = fs.readFileSync(promptPath, "utf-8").trim();
+          args.push("--message", prompt);
+        }
+      }
+
+      const result = spawnSync(ocBin, args, {
+        encoding: "utf-8",
+        timeout: 10_000,
+      });
+      if (result.status === 0) {
+        console.log(`Registered cron: ${job.name}`);
+      } else {
+        console.error(`Failed to register cron ${job.name}:`, result.stderr);
+      }
+    }
+  } catch (e) {
+    console.error("Cron registration failed:", e);
+  }
+}
+
 export async function POST() {
   const setupState = readSetupState();
   const botId = normalizeBotId(setupState.telegramBotUsername);
@@ -227,7 +416,7 @@ export async function POST() {
   }
 
   // Configure openclaw.json, register telegram channel, store token in vault
-  configureGateway(botId, setupState.telegramBotToken);
+  configureGateway(botId, setupState.telegramBotToken, setupState.telegramChatId);
 
   // Authenticate gh CLI with the GitHub token (non-fatal if it fails)
   const ghAuth = applyGithubAuth();
@@ -241,8 +430,17 @@ export async function POST() {
   // Create USER/brain/ and seed the board DB with default projects
   seedBoardDb();
 
+  // Create canonical projects folder and ~/mc-projects symlink
+  const projectsFolder = ensureProjectsFolder();
+
+  // Re-run workspace personalization now that setup-state.json is complete
+  personalizeWorkspace();
+
   // Install and start the openclaw gateway
   const gw = ensureGatewayRunning();
+
+  // Register cron jobs with the running gateway
+  registerCronJobs();
 
   // Run mc-smoke to verify everything is healthy
   const smoke = runSmoke();
@@ -257,6 +455,7 @@ export async function POST() {
     state,
     ghAuth,
     gateway: gw,
+    projectsFolder,
     smoke: { output: smoke.output, passed: smoke.passed },
   });
 }
