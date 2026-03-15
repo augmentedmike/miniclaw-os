@@ -19,6 +19,13 @@ export const metadata: Metadata = {
     template: "MiniClaw Cognitive Framework — %s",
   },
   description: "Your own AI. Your Mac. Your data.",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon.png", type: "image/png" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export default function RootLayout({
