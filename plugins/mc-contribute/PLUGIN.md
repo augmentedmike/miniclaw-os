@@ -50,3 +50,7 @@ MiniClaw agents are autohealing software. When an agent hits a bug, it can use m
 ## Full documentation
 
 See [docs/mc-contribute.md](../../docs/mc-contribute.md).
+
+## For Reviewers
+
+If you're reviewing an incoming PR (not submitting one), see [REVIEWING.md](../../REVIEWING.md) in the repo root. It has a structured checklist covering security audit, code quality, test coverage, CI, philosophical alignment, and trust verification.
