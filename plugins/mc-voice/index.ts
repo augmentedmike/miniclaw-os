@@ -62,8 +62,40 @@ function resolveConfig(api: OpenClawPluginApi): VoiceConfig {
 // ── SQLite helpers (sync) ──────────────────────────────────────────────────────
 
 function openDb(dbPath: string): Database {
+  const dir = path.dirname(dbPath);
+  fs.mkdirSync(dir, { recursive: true });
   const db = new Database(dbPath);
   db.exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;");
+
+  // Ensure core tables exist (voice-ingest normally creates these, but the
+  // plugin must be self-sufficient in case voice-ingest has never run)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS voice_settings (
+      human_id                       TEXT PRIMARY KEY,
+      opted_out                      INTEGER NOT NULL DEFAULT 0 CHECK(opted_out IN (0,1)),
+      opted_out_at                   TEXT,
+      learning_active                INTEGER NOT NULL DEFAULT 1 CHECK(learning_active IN (0,1)),
+      last_analyzed_at               TEXT,
+      message_count_at_last_analysis INTEGER NOT NULL DEFAULT 0,
+      updated_at                     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS human_voice (
+      id         TEXT PRIMARY KEY,
+      human_id   TEXT NOT NULL,
+      channel    TEXT NOT NULL CHECK(channel IN ('telegram','inbox','claude-code','other')),
+      message    TEXT NOT NULL,
+      embedding  BLOB,
+      sent_at    TEXT NOT NULL,
+      opted_out  INTEGER NOT NULL DEFAULT 0 CHECK(opted_out IN (0,1)),
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_voice_human_id   ON human_voice(human_id);
+    CREATE INDEX IF NOT EXISTS idx_voice_channel    ON human_voice(channel);
+    CREATE INDEX IF NOT EXISTS idx_voice_sent_at    ON human_voice(sent_at);
+    CREATE INDEX IF NOT EXISTS idx_voice_opted_out  ON human_voice(opted_out);
+  `);
 
   // Ensure disclosure columns exist (idempotent)
   for (const ddl of [
