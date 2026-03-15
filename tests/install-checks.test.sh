@@ -199,6 +199,23 @@ else
 fi
 
 echo ""
+echo "── browser setup checks"
+
+# #93: install.sh references google-chrome
+if grep -q 'google-chrome' "$REPO_DIR/install.sh"; then
+  pass "#93 install.sh installs Google Chrome"
+else
+  fail "#93 install.sh missing google-chrome" "add brew install --cask google-chrome"
+fi
+
+# #93: mc-smoke has browser section
+if grep -q 'section "browser"' "$REPO_DIR/SYSTEM/bin/mc-smoke"; then
+  pass "#93 mc-smoke has browser section"
+else
+  fail "#93 mc-smoke missing browser section" "add browser checks to mc-smoke"
+fi
+
+echo ""
 echo "── vault env check"
 
 if grep -q 'OPENCLAW_VAULT_ROOT' "$REPO_DIR/plugins/mc-board/web/src/lib/vault.ts"; then
