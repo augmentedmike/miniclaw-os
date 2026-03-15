@@ -1136,9 +1136,14 @@ fi
 if [[ "$BOARD_RUNNING" == false ]]; then
   if [[ -f "$BOARD_WEB_DIR/package.json" ]]; then
     info "Building board web..."
-    (cd "$BOARD_WEB_DIR" && run_quiet npm install --production=false && run_quiet npx next build) \
-      && ok "Board web built" \
-      || warn "Board web build failed — run: cd $BOARD_WEB_DIR && npm install && npx next build"
+    if (cd "$BOARD_WEB_DIR" && run_quiet npm install --production=false && run_quiet npx next build); then
+      # Copy static assets into standalone dir (Next.js doesn't do this automatically)
+      cp -r "$BOARD_WEB_DIR/.next/static" "$BOARD_WEB_DIR/.next/standalone/.next/static" 2>/dev/null
+      cp -r "$BOARD_WEB_DIR/public" "$BOARD_WEB_DIR/.next/standalone/public" 2>/dev/null
+      ok "Board web built (standalone + static assets)"
+    else
+      warn "Board web build failed — run: cd $BOARD_WEB_DIR && npm install && npx next build"
+    fi
   fi
 fi
 
@@ -1590,4 +1595,8 @@ echo "  Verify:   mc-smoke"
 echo ""
 echo ""
 
-# Don't open browser — the setup wizard is already running and open
+# Open the setup wizard if this is a standalone install (not from bootstrap)
+if [[ -z "${MINICLAW_NONINTERACTIVE:-}" ]]; then
+  sleep 2
+  open "http://localhost:4220"
+fi
