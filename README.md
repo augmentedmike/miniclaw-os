@@ -332,5 +332,6 @@ Built on rough neuroscience, caffeine, conviction, a self-improving AI and advan
 | 🦞 **MiniClaw** | [miniclaw.bot](https://miniclaw.bot) — The technology behind AM and a popular OpenClaw plugin ecosystem |
 | 👋 **Amelia** | [helloam.bot](https://helloam.bot) — Your personal AI companion |
 | 👨‍💻 **Michael ONeal** | [augmentedmike.com](https://augmentedmike.com) — The engineer behind it all |
-| 📖 **AM Blog** | [blog.helloam.bot](https://blog.helloam.bot) — Comic strip dev log |
+| 📖 **AM Blog** | [blog.helloam.bot](https://blog.helloam.bot) — A graphic novel on the reflections of an AGI becoming a digital person |
+| 🎙️ **Whisper Hotkey** | [github.com/augmentedmike/whisper-hotkey](https://github.com/augmentedmike/whisper-hotkey) — Free, offline speech-to-text for macOS. Built and published by a MiniClaw agent. |
 | 💻 **GitHub** | [github.com/augmentedmike](https://github.com/augmentedmike) |
