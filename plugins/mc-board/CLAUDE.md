@@ -21,6 +21,12 @@ Doing so will revert the live web UI and break the running board for everyone.
 - Make your changes, commit them: `git add <files> && git commit`
 - Do NOT checkout your card branch — commit directly or push to origin
 
+## Issue-driven workflow
+
+Every change needs a GitHub issue first. Branch from it: `fix/N-slug`, `feat/N-slug`, `chore/N-slug`. Commits reference the issue (`Resolves #N`), PRs link with `Fixes #N`. Follow [CODING_AXIOMS.md](../../CODING_AXIOMS.md). No Bun in runtime code.
+
+See [CONTRIBUTING.md](../../CONTRIBUTING.md) for the full workflow.
+
 ## Web server
 
 The board web UI runs live from `web/src/`. It auto-reloads on file changes.

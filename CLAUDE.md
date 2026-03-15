@@ -37,6 +37,22 @@ Seed data: `plugins/mc-board/seed.sql`
 - Plugins are pre-built in `release.sh` (deps installed, native modules compiled) and shipped in the zip
 - install.sh copies pre-built plugins directly to `~/.openclaw/extensions/` and writes `openclaw.json` entries — no `openclaw plugins install` CLI needed
 
+## Issue-driven workflow
+
+Every change needs a GitHub issue first. No exceptions.
+
+```
+Issue → Branch → Work → Commit → PR → CI → Merge → Close
+```
+
+- **Branch from the issue:** `fix/32-credentials-save`, `feat/34-mc-github-plugin`, `chore/35-branch-workflow`
+- **Commits reference the issue:** include `Resolves #N` or `Fixes #N` in the commit body
+- **PRs link to issues:** use `Fixes #N` in the PR body so the issue auto-closes on merge
+- **Follow [CODING_AXIOMS.md](./CODING_AXIOMS.md)** — fail loudly, compose, delete don't deprecate
+- **No Bun in runtime code.** `bun:*` imports, `Bun.serve()`, `bun:test` will be rejected
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full workflow.
+
 ## Testing
 
 ```ts
