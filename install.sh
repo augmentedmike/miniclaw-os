@@ -275,6 +275,7 @@ if [[ -d "$NPM_GLOBAL_BIN" && ":$PATH:" != *":$NPM_GLOBAL_BIN:"* ]]; then
 fi
 
 brew_install git
+brew_install gh
 brew_install python@3 python3
 brew_install jq
 brew_install age

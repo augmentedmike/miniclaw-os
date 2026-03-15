@@ -131,6 +131,16 @@ else
 fi
 
 echo ""
+echo "── dependency checks"
+
+# #56: gh CLI installed by install.sh
+if grep -q 'brew_install gh' "$REPO_DIR/install.sh"; then
+  pass "#56 install.sh installs gh CLI"
+else
+  fail "#56 install.sh missing gh CLI" "add brew_install gh to step 2"
+fi
+
+echo ""
 echo "── path consistency checks"
 
 # #52: rolodex web uses USER/rolodex/ not legacy path
