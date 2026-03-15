@@ -38,6 +38,8 @@ Multiple agents work on this repo simultaneously. Follow these rules to prevent 
 
 6. **Contribute, don't compete.** If another agent filed a bug and you have the fix, comment with your solution on their issue. Don't file a new issue and a competing PR.
 
+7. **NEVER tag stable.** Only the human moves the `stable` tag. Agents merge PRs to main — that's it. Tagging stable is a human decision that triggers CI and signals a release candidate. No agent has authority to make that call.
+
 ---
 
 ## Coding Standards
