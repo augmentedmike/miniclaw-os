@@ -235,28 +235,6 @@ for dirpath, _dirs, files in os.walk(workspace):
             with open(fpath, "w") as f:
                 f.write(content)
 
-identity_path = os.path.join(workspace, "IDENTITY.md")
-if os.path.exists(identity_path):
-    with open(identity_path) as f:
-        content = f.read()
-    if "_(pick something you like)_" in content:
-        content = content.replace("- **Name:**\\n  _(pick something you like)_", f"- **Name:** {name}")
-        content = content.replace("- **Creature:**\\n  _(AI? robot? familiar? ghost in the machine? something weirder?)_", "- **Creature:** AI companion")
-        content = content.replace("- **Vibe:**\\n  _(how do you come across? sharp? warm? chaotic? calm?)_", f"- **Vibe:** {blurb if blurb else 'warm, helpful, curious'}")
-        content = content.replace("- **Emoji:**\\n  _(your signature \\u2014 pick one that feels right)_", "- **Emoji:** \\U0001f980")
-        with open(identity_path, "w") as f:
-            f.write(content)
-
-soul_path = os.path.join(workspace, "SOUL.md")
-if os.path.exists(soul_path):
-    with open(soul_path) as f:
-        soul = f.read()
-    if name not in soul:
-        header = f"## My Identity\\n\\nMy name is **{name}** ({pronouns}). My short name is **{short}**.\\nI run on MiniClaw v{version}.\\n\\n"
-        soul = soul.replace("# SOUL.md - Who You Are\\n", f"# SOUL.md - Who You Are\\n\\n{header}")
-        with open(soul_path, "w") as f:
-            f.write(soul)
-
 print(f"Personalized: {name} ({pronouns})")
 `;
 
