@@ -555,6 +555,22 @@ else
   fail "claude code not on PATH" "run: npm install -g @anthropic-ai/claude-code"
 fi
 
+# ── browser ──────────────────────────────────────────────────────────────────
+section "browser"
+
+if [[ -d "/Applications/Google Chrome.app" ]]; then
+  pass "Google Chrome installed"
+else
+  fail "Google Chrome not installed" "brew install --cask google-chrome"
+fi
+
+MC_CHROME="$MINICLAW_DIR/SYSTEM/bin/mc-chrome"
+if [[ -x "$MC_CHROME" ]]; then
+  pass "mc-chrome launcher present ($MC_CHROME)"
+else
+  fail "mc-chrome launcher missing" "expected at $MC_CHROME"
+fi
+
 # ── power management (macOS) ──────────────────────────────────────────────────
 if [[ "$(uname)" == "Darwin" ]]; then
   section "power management"

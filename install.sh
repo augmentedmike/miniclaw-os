@@ -293,6 +293,26 @@ else
     || warn "Git Butler install failed — download from https://gitbutler.com"
 fi
 
+# Google Chrome (required for browser automation via remote debugging)
+if [[ -d "/Applications/Google Chrome.app" ]]; then
+  ok "Google Chrome already installed"
+elif [[ "$CHECK_ONLY" == true ]]; then
+  fail "Google Chrome not found (/Applications/Google Chrome.app)"
+else
+  info "Installing Google Chrome..."
+  run_quiet brew install --cask google-chrome \
+    && ok "Google Chrome installed" \
+    || warn "Google Chrome install failed — download from https://google.com/chrome"
+fi
+
+# mc-chrome launcher (starts Chrome with remote debugging on port 9222)
+MC_CHROME="$REPO_DIR/SYSTEM/bin/mc-chrome"
+if [[ -x "$MC_CHROME" ]]; then
+  ok "mc-chrome launcher present"
+else
+  fail "mc-chrome launcher missing — expected at $MC_CHROME"
+fi
+
 # ── Step 2b: Power management (macOS) ────────────────────────────────────────
 if [[ "$(uname)" == "Darwin" ]]; then
   step "Step 2b: Power management (always-on)"
