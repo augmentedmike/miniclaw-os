@@ -170,6 +170,110 @@ function runSmoke(): { output: string; passed: boolean } {
   return { output, passed: result.status === 0 };
 }
 
+/**
+ * Re-run the workspace personalization from install.sh.
+ * Replaces {{AGENT_NAME}}, {{PRONOUNS}}, etc. in all workspace .md files.
+ */
+function personalizeWorkspace() {
+  const setupState = readSetupState();
+  const name = setupState.assistantName;
+  if (!name) return;
+
+  const miniclaw = path.join(STATE_DIR, "miniclaw");
+  const workspace = path.join(miniclaw, "workspace");
+  const manifestPath = path.join(miniclaw, "MANIFEST.json");
+
+  if (!fs.existsSync(workspace)) return;
+
+  const script = `
+import json, sys, os
+from datetime import date
+
+workspace = sys.argv[1]
+manifest_path = sys.argv[2]
+state = json.loads(sys.argv[3])
+
+name = state.get("assistantName", "")
+short = state.get("shortName", name)
+pronouns = state.get("pronouns", "they/them")
+blurb = state.get("personaBlurb", "")
+
+if not name:
+    sys.exit(0)
+
+pmap = {"she/her": ("she", "her"), "he/him": ("he", "his"), "they/them": ("they", "their")}
+subj, poss = pmap.get(pronouns, ("they", "their"))
+
+version = "0.1.0"
+try:
+    with open(manifest_path) as f:
+        version = json.load(f).get("version", version)
+except Exception:
+    pass
+
+today = date.today().isoformat()
+replacements = {
+    "{{AGENT_NAME}}": name, "{{AGENT_SHORT}}": short,
+    "{{HUMAN_NAME}}": "my human", "{{PRONOUNS}}": pronouns,
+    "{{PRONOUNS_SUBJECT}}": subj, "{{PRONOUNS_POSSESSIVE}}": poss,
+    "{{VERSION}}": version, "{{DATE}}": today,
+}
+
+for dirpath, _dirs, files in os.walk(workspace):
+    for fname in files:
+        if not fname.endswith(".md"):
+            continue
+        fpath = os.path.join(dirpath, fname)
+        with open(fpath) as f:
+            content = f.read()
+        changed = False
+        for placeholder, value in replacements.items():
+            if placeholder in content:
+                content = content.replace(placeholder, value)
+                changed = True
+        if changed:
+            with open(fpath, "w") as f:
+                f.write(content)
+
+identity_path = os.path.join(workspace, "IDENTITY.md")
+if os.path.exists(identity_path):
+    with open(identity_path) as f:
+        content = f.read()
+    if "_(pick something you like)_" in content:
+        content = content.replace("- **Name:**\\n  _(pick something you like)_", f"- **Name:** {name}")
+        content = content.replace("- **Creature:**\\n  _(AI? robot? familiar? ghost in the machine? something weirder?)_", "- **Creature:** AI companion")
+        content = content.replace("- **Vibe:**\\n  _(how do you come across? sharp? warm? chaotic? calm?)_", f"- **Vibe:** {blurb if blurb else 'warm, helpful, curious'}")
+        content = content.replace("- **Emoji:**\\n  _(your signature \\u2014 pick one that feels right)_", "- **Emoji:** \\U0001f980")
+        with open(identity_path, "w") as f:
+            f.write(content)
+
+soul_path = os.path.join(workspace, "SOUL.md")
+if os.path.exists(soul_path):
+    with open(soul_path) as f:
+        soul = f.read()
+    if name not in soul:
+        header = f"## My Identity\\n\\nMy name is **{name}** ({pronouns}). My short name is **{short}**.\\nI run on MiniClaw v{version}.\\n\\n"
+        soul = soul.replace("# SOUL.md - Who You Are\\n", f"# SOUL.md - Who You Are\\n\\n{header}")
+        with open(soul_path, "w") as f:
+            f.write(soul)
+
+print(f"Personalized: {name} ({pronouns})")
+`;
+
+  try {
+    const stateJson = JSON.stringify(setupState);
+    const tmpScript = path.join(os.tmpdir(), `miniclaw-personalize-${process.pid}.py`);
+    fs.writeFileSync(tmpScript, script, "utf-8");
+    execSync(`python3 "${tmpScript}" "${workspace}" "${manifestPath}" '${stateJson.replace(/'/g, "'\\''")}'`, {
+      encoding: "utf-8",
+      timeout: 15_000,
+    });
+    fs.unlinkSync(tmpScript);
+  } catch (e) {
+    console.error("Workspace personalization failed:", e);
+  }
+}
+
 export async function POST() {
   const setupState = readSetupState();
   const botId = normalizeBotId(setupState.telegramBotUsername);
@@ -186,6 +290,9 @@ export async function POST() {
 
   // Create USER/brain/ and seed the board DB with default projects
   seedBoardDb();
+
+  // Re-run workspace personalization now that setup-state.json is complete
+  personalizeWorkspace();
 
   // Install and start the openclaw gateway
   const gw = ensureGatewayRunning();
