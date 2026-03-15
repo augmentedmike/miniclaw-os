@@ -391,15 +391,14 @@ function spawnFullAgent(row, card, project) {
           currentTool = ""; currentToolInput = "";
         }
         if (msg.type === "result" && typeof msg.result === "string") writeFile(msg.result);
-        // Accumulate token usage from any message that carries it
-        const usage = msg.usage ?? ev.usage ?? null;
-        if (usage) {
-          usageAccum.input += usage.input ?? 0;
-          usageAccum.output += usage.output ?? 0;
-          usageAccum.cacheRead += usage.cacheRead ?? 0;
-          usageAccum.cacheWrite += usage.cacheWrite ?? 0;
-          usageAccum.totalTokens += usage.totalTokens ?? 0;
-          usageAccum.costUsd += usage.cost?.total ?? 0;
+        // Grab final usage from the result event (most accurate)
+        if (msg.type === "result" && msg.usage) {
+          usageAccum.input = msg.usage.input_tokens ?? msg.usage.inputTokens ?? 0;
+          usageAccum.output = msg.usage.output_tokens ?? msg.usage.outputTokens ?? 0;
+          usageAccum.cacheRead = msg.usage.cache_read_input_tokens ?? msg.usage.cacheReadInputTokens ?? 0;
+          usageAccum.cacheWrite = msg.usage.cache_creation_input_tokens ?? msg.usage.cacheCreationInputTokens ?? 0;
+          usageAccum.totalTokens = usageAccum.input + usageAccum.output + usageAccum.cacheRead + usageAccum.cacheWrite;
+          usageAccum.costUsd = msg.total_cost_usd ?? 0;
         }
       } catch {}
     }
