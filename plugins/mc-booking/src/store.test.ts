@@ -1,249 +1,103 @@
-/**
- * store.test.ts — unit tests for AppointmentStore
- *
- * Uses @libsql/client with :memory: for fast in-process testing.
- */
-
-import { createClient, type Client } from "@libsql/client";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { test, expect, beforeEach, afterEach } from "vitest";
+import { openDb, closeDb } from "./db.js";
 import { AppointmentStore } from "./store.js";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import * as os from "node:os";
 
-let db: Client;
 let store: AppointmentStore;
+let dbPath: string;
 
-const SCHEMA = `
-CREATE TABLE IF NOT EXISTS appointments (
-  id               TEXT PRIMARY KEY,
-  name             TEXT NOT NULL,
-  email            TEXT NOT NULL,
-  interest         TEXT NOT NULL DEFAULT '',
-  scheduled_time   TEXT NOT NULL,
-  notes            TEXT NOT NULL DEFAULT '',
-  status           TEXT NOT NULL DEFAULT 'confirmed',
-  manage_token     TEXT NOT NULL UNIQUE,
-  stripe_payment_id TEXT NOT NULL DEFAULT '',
-  stripe_refund_id  TEXT NOT NULL DEFAULT '',
-  refund_amount    INTEGER NOT NULL DEFAULT 0,
-  paid_at          TEXT NOT NULL DEFAULT '',
-  cancelled_at     TEXT NOT NULL DEFAULT '',
-  created_at       TEXT NOT NULL,
-  updated_at       TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_appointments_time_status ON appointments(scheduled_time, status);
-CREATE INDEX IF NOT EXISTS idx_appointments_token ON appointments(manage_token);
-CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-`;
-
-beforeEach(async () => {
-  db = createClient({ url: ":memory:" });
-  await db.executeMultiple(SCHEMA);
+beforeEach(() => {
+  dbPath = path.join(os.tmpdir(), `mc-booking-test-${Date.now()}-${Math.random().toString(36).slice(2)}.db`);
+  const db = openDb(dbPath);
   store = new AppointmentStore(db);
 });
 
 afterEach(() => {
-  db.close();
+  closeDb();
+  try { fs.unlinkSync(dbPath); } catch {}
 });
 
-// Future time for tests
-const futureTime = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-const futureTime2 = new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toISOString();
-
-describe("create", () => {
-  it("creates an appointment with all fields", async () => {
-    const apt = await store.create({
-      name: "Alice Smith",
-      email: "alice@example.com",
-      interest: "AI consulting",
-      scheduled_time: futureTime,
-      notes: "Looking forward to it",
-    });
-    expect(apt.id).toMatch(/^apt_[0-9a-f]{8}$/);
-    expect(apt.name).toBe("Alice Smith");
-    expect(apt.email).toBe("alice@example.com");
-    expect(apt.interest).toBe("AI consulting");
-    expect(apt.status).toBe("confirmed");
-    expect(apt.manage_token).toHaveLength(64); // 32 bytes hex
-    expect(apt.created_at).toBeTruthy();
-    expect(apt.updated_at).toBeTruthy();
-  });
-
-  it("creates appointment with minimal fields", async () => {
-    const apt = await store.create({
-      name: "Bob",
-      email: "bob@example.com",
-      scheduled_time: futureTime,
-    });
-    expect(apt.name).toBe("Bob");
-    expect(apt.interest).toBe("");
-    expect(apt.notes).toBe("");
-    expect(apt.stripe_payment_id).toBe("");
-  });
-
-  it("creates appointment with payment ID and sets paid_at", async () => {
-    const apt = await store.create({
-      name: "Carol",
-      email: "carol@example.com",
-      scheduled_time: futureTime,
-      stripe_payment_id: "pi_test123",
-    });
-    expect(apt.stripe_payment_id).toBe("pi_test123");
-    expect(apt.paid_at).toBeTruthy();
-  });
-
-  it("generates unique IDs and tokens", async () => {
-    const apt1 = await store.create({ name: "A", email: "a@x.com", scheduled_time: futureTime });
-    const apt2 = await store.create({ name: "B", email: "b@x.com", scheduled_time: futureTime2 });
-    expect(apt1.id).not.toBe(apt2.id);
-    expect(apt1.manage_token).not.toBe(apt2.manage_token);
-  });
+test("create appointment starts as pending", () => {
+  const apt = store.create({ name: "Jane", email: "j@e.com", scheduled_time: "2026-04-01T14:00:00Z" });
+  expect(apt.id).toMatch(/^apt_/);
+  expect(apt.status).toBe("pending");
+  expect(apt.duration_min).toBe(30);
+  expect(apt.manage_token).toHaveLength(64);
 });
 
-describe("getByToken", () => {
-  it("returns appointment by token", async () => {
-    const apt = await store.create({ name: "Alice", email: "a@x.com", scheduled_time: futureTime });
-    const found = await store.getByToken(apt.manage_token);
-    expect(found).not.toBeNull();
-    expect(found!.id).toBe(apt.id);
-    expect(found!.name).toBe("Alice");
-  });
-
-  it("returns null for unknown token", async () => {
-    const found = await store.getByToken("nonexistent");
-    expect(found).toBeNull();
-  });
+test("approve changes status to confirmed", () => {
+  const apt = store.create({ name: "Jane", email: "j@e.com", scheduled_time: "2026-04-01T14:00:00Z" });
+  const approved = store.approve(apt.id);
+  expect(approved).not.toBeNull();
+  expect(approved!.status).toBe("confirmed");
+  expect(approved!.approved_at).not.toBe("");
 });
 
-describe("getById", () => {
-  it("returns appointment by ID", async () => {
-    const apt = await store.create({ name: "Bob", email: "b@x.com", scheduled_time: futureTime });
-    const found = await store.getById(apt.id);
-    expect(found).not.toBeNull();
-    expect(found!.name).toBe("Bob");
-  });
-
-  it("returns null for unknown ID", async () => {
-    expect(await store.getById("apt_nonexist")).toBeNull();
-  });
+test("reject changes status to cancelled", () => {
+  const apt = store.create({ name: "Jane", email: "j@e.com", scheduled_time: "2026-04-01T14:00:00Z" });
+  const rejected = store.reject(apt.id);
+  expect(rejected).not.toBeNull();
+  expect(rejected!.status).toBe("cancelled");
 });
 
-describe("listUpcoming", () => {
-  it("returns empty when no appointments", async () => {
-    const list = await store.listUpcoming();
-    expect(list).toEqual([]);
-  });
-
-  it("returns confirmed future appointments sorted by time", async () => {
-    await store.create({ name: "Later", email: "a@x.com", scheduled_time: futureTime2 });
-    await store.create({ name: "Sooner", email: "b@x.com", scheduled_time: futureTime });
-    const list = await store.listUpcoming();
-    expect(list).toHaveLength(2);
-    expect(list[0].name).toBe("Sooner");
-    expect(list[1].name).toBe("Later");
-  });
-
-  it("excludes cancelled appointments", async () => {
-    const apt = await store.create({ name: "Cancel me", email: "a@x.com", scheduled_time: futureTime });
-    await store.cancel(apt.manage_token);
-    const list = await store.listUpcoming();
-    expect(list).toHaveLength(0);
-  });
-
-  it("respects limit", async () => {
-    await store.create({ name: "A", email: "a@x.com", scheduled_time: futureTime });
-    await store.create({ name: "B", email: "b@x.com", scheduled_time: futureTime2 });
-    const list = await store.listUpcoming(1);
-    expect(list).toHaveLength(1);
-  });
+test("cannot approve non-pending", () => {
+  const apt = store.create({ name: "Jane", email: "j@e.com", scheduled_time: "2026-04-01T14:00:00Z" });
+  store.approve(apt.id);
+  expect(store.approve(apt.id)).toBeNull();
 });
 
-describe("hasConflict", () => {
-  it("returns false when no appointments at time", async () => {
-    expect(await store.hasConflict(futureTime)).toBe(false);
-  });
-
-  it("returns true when confirmed appointment exists at time", async () => {
-    await store.create({ name: "A", email: "a@x.com", scheduled_time: futureTime });
-    expect(await store.hasConflict(futureTime)).toBe(true);
-  });
-
-  it("returns false when appointment at time is cancelled", async () => {
-    const apt = await store.create({ name: "A", email: "a@x.com", scheduled_time: futureTime });
-    await store.cancel(apt.manage_token);
-    expect(await store.hasConflict(futureTime)).toBe(false);
-  });
+test("hasConflict detects bookings", () => {
+  store.create({ name: "Jane", email: "j@e.com", scheduled_time: "2026-04-01T14:00:00Z" });
+  expect(store.hasConflict("2026-04-01T14:00:00Z")).toBe(true);
+  expect(store.hasConflict("2026-04-01T15:00:00Z")).toBe(false);
 });
 
-describe("countOnDate", () => {
-  it("returns 0 for empty date", async () => {
-    expect(await store.countOnDate("2026-12-25")).toBe(0);
-  });
-
-  it("counts confirmed appointments on date", async () => {
-    const dateStr = futureTime.split("T")[0];
-    await store.create({ name: "A", email: "a@x.com", scheduled_time: futureTime });
-    expect(await store.countOnDate(dateStr)).toBe(1);
-  });
+test("cancelled appointments dont conflict", () => {
+  const apt = store.create({ name: "Jane", email: "j@e.com", scheduled_time: "2026-04-01T14:00:00Z" });
+  store.cancel(apt.id);
+  expect(store.hasConflict("2026-04-01T14:00:00Z")).toBe(false);
 });
 
-describe("cancel", () => {
-  it("cancels a confirmed appointment", async () => {
-    const apt = await store.create({ name: "Cancel me", email: "a@x.com", scheduled_time: futureTime });
-    const cancelled = await store.cancel(apt.manage_token);
-    expect(cancelled).not.toBeNull();
-    expect(cancelled!.status).toBe("cancelled");
-    expect(cancelled!.cancelled_at).toBeTruthy();
-  });
-
-  it("records refund info", async () => {
-    const apt = await store.create({ name: "A", email: "a@x.com", scheduled_time: futureTime });
-    const cancelled = await store.cancel(apt.manage_token, "re_test123", 9950);
-    expect(cancelled!.stripe_refund_id).toBe("re_test123");
-    expect(cancelled!.refund_amount).toBe(9950);
-  });
-
-  it("returns null for unknown token", async () => {
-    expect(await store.cancel("nonexistent")).toBeNull();
-  });
-
-  it("returns null for already cancelled appointment", async () => {
-    const apt = await store.create({ name: "A", email: "a@x.com", scheduled_time: futureTime });
-    await store.cancel(apt.manage_token);
-    expect(await store.cancel(apt.manage_token)).toBeNull();
-  });
+test("countOnDate", () => {
+  store.create({ name: "A", email: "a@e.com", scheduled_time: "2026-04-01T10:00:00Z" });
+  store.create({ name: "B", email: "b@e.com", scheduled_time: "2026-04-01T14:00:00Z" });
+  store.create({ name: "C", email: "c@e.com", scheduled_time: "2026-04-02T10:00:00Z" });
+  expect(store.countOnDate("2026-04-01")).toBe(2);
+  expect(store.countOnDate("2026-04-02")).toBe(1);
 });
 
-describe("reschedule", () => {
-  it("reschedules to a new time", async () => {
-    const apt = await store.create({ name: "A", email: "a@x.com", scheduled_time: futureTime });
-    const updated = await store.reschedule(apt.manage_token, futureTime2);
-    expect(updated).not.toBeNull();
-    expect(updated!.scheduled_time).toBe(futureTime2);
-  });
-
-  it("returns null for unknown token", async () => {
-    expect(await store.reschedule("nonexistent", futureTime2)).toBeNull();
-  });
-
-  it("returns null for cancelled appointment", async () => {
-    const apt = await store.create({ name: "A", email: "a@x.com", scheduled_time: futureTime });
-    await store.cancel(apt.manage_token);
-    expect(await store.reschedule(apt.manage_token, futureTime2)).toBeNull();
-  });
+test("listPending returns only pending", () => {
+  store.create({ name: "Pending", email: "p@e.com", scheduled_time: "2026-04-01T10:00:00Z" });
+  const apt2 = store.create({ name: "Approved", email: "a@e.com", scheduled_time: "2026-04-01T14:00:00Z" });
+  store.approve(apt2.id);
+  const pending = store.listPending();
+  expect(pending.length).toBe(1);
+  expect(pending[0].name).toBe("Pending");
 });
 
-describe("config", () => {
-  it("returns null for unset key", async () => {
-    expect(await store.getConfig("unset-key")).toBeNull();
-  });
+test("cancel works", () => {
+  const apt = store.create({ name: "A", email: "a@e.com", scheduled_time: "2026-04-01T10:00:00Z" });
+  const cancelled = store.cancel(apt.id);
+  expect(cancelled!.status).toBe("cancelled");
+});
 
-  it("round-trips a config value", async () => {
-    await store.setConfig("priceCents", "29900");
-    expect(await store.getConfig("priceCents")).toBe("29900");
-  });
+test("reschedule moves time", () => {
+  const apt = store.create({ name: "A", email: "a@e.com", scheduled_time: "2026-04-01T10:00:00Z" });
+  const moved = store.reschedule(apt.id, "2026-04-02T10:00:00Z");
+  expect(moved!.scheduled_time).toBe("2026-04-02T10:00:00Z");
+});
 
-  it("overwrites existing config", async () => {
-    await store.setConfig("maxPerDay", "1");
-    await store.setConfig("maxPerDay", "3");
-    expect(await store.getConfig("maxPerDay")).toBe("3");
-  });
+test("preferences get/set", () => {
+  expect(store.getPref("k")).toBeNull();
+  store.setPref("k", "v");
+  expect(store.getPref("k")).toBe("v");
+});
+
+test("unique IDs", () => {
+  const a = store.create({ name: "A", email: "a@e.com", scheduled_time: "2026-04-01T10:00:00Z" });
+  const b = store.create({ name: "B", email: "b@e.com", scheduled_time: "2026-04-01T14:00:00Z" });
+  expect(a.id).not.toBe(b.id);
+  expect(a.manage_token).not.toBe(b.manage_token);
 });
