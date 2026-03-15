@@ -1,0 +1,30 @@
+name: PR Tests
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install plugin dependencies
+        run: |
+          for dir in plugins/mc-*/; do
+            if [ -f "$dir/vitest.config.ts" ]; then
+              echo "Installing deps for $(basename $dir)..."
+              (cd "$dir" && npm install && npm install --save-dev vitest) || true
+            fi
+          done
+
+      - name: Run install verification tests
+        run: bash tests/install-checks.test.sh
+
+      - name: Run plugin tests
+        run: npm test
