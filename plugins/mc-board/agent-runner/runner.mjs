@@ -181,24 +181,33 @@ function markFailed(db, id) {
   ).run(new Date().toISOString(), id);
 }
 
+const STALE_MS = 30 * 60 * 1000;
+
 function resetStaleRunning() {
   const db = getDb();
-  // Only reset rows whose agent PID is no longer alive.
-  // Agents are spawned detached and survive runner restarts — don't re-queue them.
-  const rows = db.prepare(`SELECT id, pid FROM agent_queue WHERE status = 'running'`).all();
+  const rows = db.prepare(`SELECT id, pid, card_id, started_at FROM agent_queue WHERE status = 'running'`).all();
   let reset = 0;
+  let failed = 0;
+  const now = Date.now();
   for (const row of rows) {
     let alive = false;
     if (row.pid) {
-      try { process.kill(row.pid, 0); alive = true; } catch { /* process gone */ }
+      try { process.kill(row.pid, 0); alive = true; } catch { /* gone */ }
     }
-    if (!alive) {
+    if (alive) continue;
+    const age = row.started_at ? now - new Date(row.started_at).getTime() : Infinity;
+    if (!row.pid || age > STALE_MS) {
+      db.prepare(`UPDATE agent_queue SET status = 'failed', ended_at = ? WHERE id = ?`).run(new Date().toISOString(), row.id);
+      failed++;
+      log(`resetStaleRunning: failed stale ${row.id} card=${row.card_id} age=${Math.round(age / 1000)}s`);
+      try { runBoard("release", row.card_id, "--worker", "board-worker-in-progress"); } catch {}
+    } else {
       db.prepare(`UPDATE agent_queue SET status = 'pending', started_at = NULL WHERE id = ?`).run(row.id);
       reset++;
     }
   }
   db.close();
-  if (rows.length > 0) log(`resetStaleRunning: ${rows.length} running rows checked, ${reset} reset to pending (${rows.length - reset} still alive)`);
+  if (rows.length > 0) log(`resetStaleRunning: ${rows.length} rows — ${reset} reset, ${failed} failed, ${rows.length - reset - failed} alive`);
 }
 
 // ---- openclaw CLI helpers ----

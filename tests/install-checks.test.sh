@@ -141,6 +141,16 @@ else
 fi
 
 echo ""
+echo "── agent-runner checks"
+
+# #84: resetStaleRunning has TTL-based cleanup
+if grep -q 'STALE_MS' "$REPO_DIR/plugins/mc-board/agent-runner/runner.mjs"; then
+  pass "#84 agent-runner has TTL-based stale cleanup"
+else
+  fail "#84 agent-runner missing stale TTL cleanup" "stale rows consume all concurrent slots"
+fi
+
+echo ""
 echo "── dependency checks"
 
 # #56: gh CLI installed by install.sh
