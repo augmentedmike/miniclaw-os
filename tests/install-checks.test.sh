@@ -131,6 +131,16 @@ else
 fi
 
 echo ""
+echo "── tool signature checks"
+
+# #46: mc-kb execute() has correct signature (_id, _input)
+if grep -q 'execute.*_id.*string.*_input.*unknown' "$REPO_DIR/plugins/mc-kb/tools/definitions.ts"; then
+  pass "#46 mc-kb execute() has correct (_id, _input) signature"
+else
+  fail "#46 mc-kb execute() missing toolCallId first param" "params received as string instead of object"
+fi
+
+echo ""
 echo "── dependency checks"
 
 # #56: gh CLI installed by install.sh
