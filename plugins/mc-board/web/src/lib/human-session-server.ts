@@ -71,12 +71,19 @@ export function closeSession(token: string): boolean {
   return true;
 }
 
+/** Check if an IPv4 address is in the CGNAT range (100.64.0.0/10) used by Tailscale. */
+function isCgnatIp(ip: string): boolean {
+  const parts = ip.split(".").map(Number);
+  if (parts[0] !== 100) return false;
+  return parts[1] >= 64 && parts[1] <= 127;
+}
+
 function getLanIp(): string {
   const ifaces = os.networkInterfaces();
   for (const iface of Object.values(ifaces)) {
     if (!iface) continue;
     for (const addr of iface) {
-      if (addr.family === "IPv4" && !addr.internal) return addr.address;
+      if (addr.family === "IPv4" && !addr.internal && !isCgnatIp(addr.address)) return addr.address;
     }
   }
   return "127.0.0.1";
