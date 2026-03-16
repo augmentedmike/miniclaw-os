@@ -1,6 +1,6 @@
 {
   "name": "miniclaw-os",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "openclaw": {
     "npm": "@miniclaw_official/openclaw",
     "repo": "augmentedmike/openclaw",
