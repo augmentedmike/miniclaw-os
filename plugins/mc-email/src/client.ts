@@ -7,7 +7,7 @@ import type { EmailMessage, SendEmailOptions } from "./types.js";
 function createImapClient(cfg: EmailConfig): ImapFlow {
   const password = getAppPassword(cfg.vaultBin);
   if (!password) {
-    throw new Error("Email app password not found in vault. Run: mc mc-email auth");
+    throw new Error("Email password not found in vault. Run: mc mc-email auth");
   }
   return new ImapFlow({
     host: cfg.imapHost,
@@ -106,8 +106,18 @@ export class GmailClient {
     await client.connect();
     try {
       await client.mailboxOpen("INBOX");
-      // Move to [Gmail]/All Mail (archive = remove from INBOX in Gmail)
-      await client.messageMove({ uid: parseInt(id, 10) }, "[Gmail]/All Mail", { uid: true });
+      // Archive: move to Archive or All Mail (provider-dependent)
+      // Try standard "Archive" first, fall back to IMAP delete flag (mark as read + delete from INBOX)
+      try {
+        await client.messageMove({ uid: parseInt(id, 10) }, "Archive", { uid: true });
+      } catch {
+        try {
+          await client.messageMove({ uid: parseInt(id, 10) }, "[Gmail]/All Mail", { uid: true });
+        } catch {
+          // Fallback: mark as read and flag for deletion from INBOX
+          await client.messageFlagsAdd({ uid: parseInt(id, 10) }, ["\\Seen", "\\Deleted"], { uid: true });
+        }
+      }
     } finally {
       await client.logout();
     }
@@ -116,7 +126,7 @@ export class GmailClient {
   async sendMessage(opts: SendEmailOptions): Promise<string> {
     const password = getAppPassword(this.cfg.vaultBin);
     if (!password) {
-      throw new Error("Gmail app password not found in vault. Run: mc mc-email auth");
+      throw new Error("Email password not found in vault. Run: mc mc-email auth");
     }
     const transport = nodemailer.createTransport({
       host: this.cfg.smtpHost,
