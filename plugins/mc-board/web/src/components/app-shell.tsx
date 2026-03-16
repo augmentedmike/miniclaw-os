@@ -73,6 +73,7 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
   const { showWelcome, dismissWelcome } = useWelcomeWizard();
   const [assistantName, setAssistantName] = useState("Am");
   const { data: rolodexCount } = useSWR<{ count: number }>("/api/rolodex/count", fetcher, { refreshInterval: 60000 });
+  const { data: memoryStats } = useSWR<{ memoryFiles: number; kbEntries: number; total: number }>("/api/memory/stats", fetcher, { refreshInterval: 60000 });
 
   // Fetch assistant name for empty-state message
   useEffect(() => {
@@ -156,7 +157,8 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
           <div className="tab-bar">
             {(["board", "memory", "rolodex", "settings"] as Tab[]).map(t => {
               const activeCount = t === "board" && counts ? counts.inProgress + counts.inReview : 0;
-              const badgeCount = t === "rolodex" && rolodexCount ? rolodexCount.count : activeCount;
+              const memoryCount = t === "memory" && memoryStats ? memoryStats.total : 0;
+              const badgeCount = t === "rolodex" && rolodexCount ? rolodexCount.count : t === "memory" ? memoryCount : activeCount;
               return (
                 <button key={t} onClick={() => switchTab(t)}
                   className={`tab-btn${tab === t ? " active" : ""}`}
@@ -261,6 +263,11 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
             <span className="stat-pill">in&nbsp;review<b>{counts.inReview}</b></span>
             <span className="stat-pill">shipped<b>{counts.shipped}</b></span>
             <DailyStats />
+            {memoryStats && (
+              <span className="stat-pill" title={`${memoryStats.memoryFiles} memory files, ${memoryStats.kbEntries} KB entries`}>
+                memory<b>{memoryStats.memoryFiles}&thinsp;/&thinsp;{memoryStats.kbEntries}</b>
+              </span>
+            )}
           </div>
         )}
 
