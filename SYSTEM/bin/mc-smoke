@@ -163,6 +163,49 @@ else
   warn "uv not found" "optional — brew install uv"
 fi
 
+# ── browser ──────────────────────────────────────────────────────────────────
+section "browser"
+
+if [[ -d "/Applications/Google Chrome.app" ]]; then
+  pass "Google Chrome installed"
+else
+  fail "Google Chrome not found" "brew install --cask google-chrome"
+fi
+
+MC_CHROME_BIN="$MINICLAW_DIR/SYSTEM/bin/mc-chrome"
+if [[ -x "$MC_CHROME_BIN" ]]; then
+  pass "mc-chrome launcher present"
+else
+  fail "mc-chrome launcher missing" "run install.sh"
+fi
+
+CHROME_POLICY="/Library/Google/Chrome/Managed Preferences/com.google.Chrome.plist"
+if [[ -f "$CHROME_POLICY" ]]; then
+  if defaults read "$CHROME_POLICY" ExtensionInstallForcelist 2>/dev/null | grep -q "fcoeoabgfenejglbffodgkkbkcdhcgfn"; then
+    pass "Chrome extension policy configured"
+  else
+    warn "Chrome extension policy incomplete" "run: mc-browser setup"
+  fi
+else
+  warn "Chrome managed policy not found" "run: mc-browser setup (requires sudo)"
+fi
+
+# Check if CDP port is listening (Chrome may not be running)
+CDP_PORT="${MC_CHROME_DEBUG_PORT:-9222}"
+if command -v curl &>/dev/null && curl -s --max-time 1 "http://127.0.0.1:$CDP_PORT/json/version" &>/dev/null; then
+  pass "CDP port $CDP_PORT accessible"
+else
+  warn "CDP port $CDP_PORT not listening" "launch Chrome via: mc-chrome"
+fi
+
+# Browser Relay extension present in plugin assets
+RELAY_EXT="$MINICLAW_DIR/plugins/mc-browser/assets/extension/manifest.json"
+if [[ -f "$RELAY_EXT" ]]; then
+  pass "OpenClaw Browser Relay extension present"
+else
+  warn "Browser Relay extension not found" "run install.sh to copy plugin assets"
+fi
+
 # ── board DB ──────────────────────────────────────────────────────────────────
 section "board DB"
 
@@ -539,6 +582,13 @@ else:
     OK:*)    pass "no duplicate cron jobs (${DUP_CHECK#OK:} total)" ;;
     *)       warn "could not check cron jobs" "parse error" ;;
   esac
+fi
+
+# gh CLI available
+if command -v gh &>/dev/null; then
+  pass "gh CLI on PATH ($(gh --version 2>/dev/null | head -1))"
+else
+  fail "gh CLI not on PATH" "run: brew install gh"
 fi
 
 # Claude Code available

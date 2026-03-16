@@ -97,6 +97,25 @@ export function checkGate(card: Card, target: Column): GateResult {
   return failures.length === 0 ? { ok: true } : { ok: false, failures };
 }
 
+// ---- WIP limit check ----
+
+export interface WipLimitResult {
+  ok: boolean;
+  current: number;
+  max: number;
+}
+
+/**
+ * Check if a column is at or over its WIP limit.
+ * Returns { ok: true } if there's room, { ok: false, current, max } if at capacity.
+ */
+export function checkWipLimit(currentCount: number, maxConcurrent: number): WipLimitResult {
+  if (currentCount >= maxConcurrent) {
+    return { ok: false, current: currentCount, max: maxConcurrent };
+  }
+  return { ok: true, current: currentCount, max: maxConcurrent };
+}
+
 // ---- Error formatting ----
 
 export function formatGateError(from: Column, to: Column, failures: GateFailure[]): string {

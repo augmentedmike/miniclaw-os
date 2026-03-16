@@ -43,10 +43,10 @@ function resolveDbPath(): string {
 function resolveJsonPath(): string {
   if (process.env.ROLODEX_STORAGE_PATH) return process.env.ROLODEX_STORAGE_PATH;
   const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
-  // Check new location first, then fall back to legacy
-  const newPath = path.join(stateDir, "USER", "rolodex", "contacts.json");
-  if (fs.existsSync(newPath)) return newPath;
-  return path.join(os.homedir(), ".openclaw", "rolodex", "contacts.json");
+  const jsonPath = path.join(stateDir, "USER", "rolodex", "contacts.json");
+  const dir = path.dirname(jsonPath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  return jsonPath;
 }
 
 let _db: Database.Database | null = null;

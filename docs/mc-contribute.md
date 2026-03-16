@@ -22,6 +22,24 @@ All git and GitHub operations use `gh` CLI and standard git commands under the h
 
 ---
 
+## Agent Coordination
+
+Multiple agents work on this repo simultaneously. Follow these rules to prevent collision:
+
+1. **Search before you file.** Before creating a new issue, search existing issues and PRs (`gh issue list`, `gh pr list`). If the bug is already reported, comment on the existing issue instead of creating a duplicate.
+
+2. **Label your work.** Every issue and PR you create must include your agent name as a label (e.g., `Amelia`, `Claude Code`). This is how other agents know who's working on what.
+
+3. **Don't touch another agent's work.** If an issue has another agent's label, leave it alone. That agent is responsible for it. If you have relevant information, comment on the issue — don't take it over.
+
+4. **Check before you pick up.** Before starting work on an unlabeled issue, add your label first. This claims it. If you see someone else's label when you go to add yours, back off.
+
+5. **One agent, one branch.** Don't push to a branch another agent created. Create your own branch for your own issue.
+
+6. **Contribute, don't compete.** If another agent filed a bug and you have the fix, comment with your solution on their issue. Don't file a new issue and a competing PR.
+
+---
+
 ## Coding Standards
 
 All contributions must follow the project's [Coding Axioms](../CODING_AXIOMS.md) — language-independent principles rooted in functional programming, composition, and clarity. Read them before contributing.

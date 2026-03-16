@@ -63,13 +63,13 @@ export function createKbTools(
       parameters: schema(
         {
           query: str("Search query — describe what you're looking for"),
-          type: optStr("Filter by entry type: fact, workflow, guide, howto, error, postmortem, concept"),
+          type: optStr("Filter by entry type: fact, workflow, guide, howto, error, postmortem, lesson"),
           tag: optStr("Filter by tag"),
           n: optNum("Max results (default 5)"),
         },
         ["query"],
       ) as never,
-      execute: async (input: { query: string; type?: string; tag?: string; n?: number }) => {
+      execute: async (_toolCallId: string, input: { query: string; type?: string; tag?: string; n?: number }) => {
         const start = Date.now();
         logger.debug(`mc-kb/tool kb_search: query="${input.query}" type=${input.type ?? "any"}`);
         try {
@@ -100,7 +100,7 @@ export function createKbTools(
         "workflows, how-to guides, facts about the system, project postmortems.",
       parameters: schema(
         {
-          type: str("Entry type: fact, workflow, guide, howto, error, postmortem, concept"),
+          type: str("Entry type: fact, workflow, guide, howto, error, postmortem, lesson"),
           title: str("Concise descriptive title"),
           content: str("Full markdown content — the actual knowledge"),
           summary: optStr("1-2 sentence summary"),
@@ -110,7 +110,7 @@ export function createKbTools(
         },
         ["type", "title", "content"],
       ) as never,
-      execute: async (input: {
+      execute: async (_toolCallId: string, input: {
         type: string; title: string; content: string;
         summary?: string; tags?: string; source?: string; severity?: string;
       }) => {
@@ -167,7 +167,7 @@ export function createKbTools(
         },
         ["id"],
       ) as never,
-      execute: async (input: {
+      execute: async (_toolCallId: string, input: {
         id: string; type?: string; title?: string; content?: string;
         summary?: string; tags?: string; severity?: string;
       }) => {
@@ -221,7 +221,7 @@ export function createKbTools(
         { id: str("Entry ID (kb_<hex>)") },
         ["id"],
       ) as never,
-      execute: async (input: { id: string }) => {
+      execute: async (_toolCallId: string, input: { id: string }) => {
         logger.debug(`mc-kb/tool kb_get: id=${input.id}`);
         try {
           const entry = store.get(input.id);

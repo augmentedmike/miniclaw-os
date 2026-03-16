@@ -66,7 +66,7 @@ export function createMemoTools(memoDir: string, logger: Logger): AnyAgentTool[]
         },
         ["cardId", "note"],
       ) as never,
-      execute: async (input: { cardId: string; note: string }) => {
+      execute: async (_toolCallId: string, input: { cardId: string; note: string }) => {
         logger.debug(`mc-memo/tool memo_write: cardId=${input.cardId}`);
         try {
           fs.mkdirSync(memoDir, { recursive: true });
@@ -97,7 +97,7 @@ export function createMemoTools(memoDir: string, logger: Logger): AnyAgentTool[]
         },
         ["cardId"],
       ) as never,
-      execute: async (input: { cardId: string }) => {
+      execute: async (_toolCallId: string, input: { cardId: string }) => {
         logger.debug(`mc-memo/tool memo_read: cardId=${input.cardId}`);
         try {
           const filePath = path.join(memoDir, `${input.cardId}.md`);

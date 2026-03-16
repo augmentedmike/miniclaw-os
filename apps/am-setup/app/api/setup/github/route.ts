@@ -42,8 +42,12 @@ export async function POST(req: Request) {
       });
     }
 
-    // Save to setup state
-    writeSetupState({ ghConfigured: true } as Record<string, string | boolean>);
+    // Save to setup state (token + username for later use by complete handler)
+    writeSetupState({
+      ghToken: token.trim(),
+      ghUsername: user.login,
+      ghConfigured: true,
+    } as Record<string, string | boolean>);
 
     return NextResponse.json({
       ok: true,

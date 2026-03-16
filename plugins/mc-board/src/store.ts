@@ -1,7 +1,37 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
+import * as os from "node:os";
 import type { Database } from "./db.js";
 import type { Card, Column, Priority, WorkLogEntry } from "./card.js";
 import { generateId, sortCards } from "./card.js";
 import { type TitleConflict, findTitleConflict } from "./dedup.js";
+
+const COL_TO_JOB: Record<string, string> = {
+  "backlog": "board-backlog-triage",
+  "in-progress": "board-in-progress-triage",
+  "in-review": "board-in-review-triage",
+};
+
+const DEFAULT_WIP_LIMIT = 3;
+
+/**
+ * Read the WIP limit (maxConcurrent) for a column from board-cron.json.
+ * Falls back to DEFAULT_WIP_LIMIT if not configured.
+ */
+export function getWipLimit(column: Column, stateDir?: string): number {
+  const dir = stateDir ?? process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
+  const jobsFile = process.env.BOARD_CRON_JOBS ?? path.join(dir, "USER", "brain", "board-cron.json");
+  const jobId = COL_TO_JOB[column];
+  if (!jobId) return DEFAULT_WIP_LIMIT;
+  try {
+    const raw = JSON.parse(fs.readFileSync(jobsFile, "utf8"));
+    const job = raw[jobId];
+    if (job && typeof job.maxConcurrent === "number" && job.maxConcurrent > 0) {
+      return job.maxConcurrent;
+    }
+  } catch {}
+  return DEFAULT_WIP_LIMIT;
+}
 
 type WorkType = "work" | "verify";
 
@@ -191,6 +221,11 @@ export class CardStore {
       `INSERT INTO card_history (card_id, col, moved_at) VALUES (?, ?, ?)`,
     ).run(card.id, target, now);
     return this.findById(card.id);
+  }
+
+  countByColumn(column: Column): number {
+    const row = this.db.prepare(`SELECT COUNT(*) as cnt FROM cards WHERE col = ?`).get(column) as { cnt: number };
+    return row.cnt;
   }
 
   delete(id: string): void {

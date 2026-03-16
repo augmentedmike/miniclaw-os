@@ -69,6 +69,78 @@ function collectCloneIdentity(): string {
   return `- Clone hostname: ${hostname}\n- Bot ID: ${botId}\n- State dir: ${stateDir}`;
 }
 
+interface DuplicateMatch {
+  number: number;
+  title: string;
+  url: string;
+  state: string;
+}
+
+/**
+ * Search for existing issues or PRs that may match a given title/query.
+ * Returns matches so callers can decide whether to create or comment.
+ */
+function findDuplicates(
+  repo: string,
+  kind: "issue" | "pr",
+  query: string,
+  logger: Logger,
+): DuplicateMatch[] {
+  const searchCmd = kind === "pr" ? "pr" : "issue";
+  try {
+    const raw = run("gh", [
+      searchCmd, "list",
+      "--repo", repo,
+      "--search", query,
+      "--state", "open",
+      "--json", "number,title,url,state",
+      "--limit", "5",
+    ]);
+    if (!raw) return [];
+    const results = JSON.parse(raw) as DuplicateMatch[];
+    logger.info(`Duplicate check (${kind}): found ${results.length} match(es) for "${query}"`);
+    return results;
+  } catch {
+    logger.warn(`Duplicate check (${kind}) failed for query "${query}" — proceeding anyway`);
+    return [];
+  }
+}
+
+/**
+ * Comment on an existing issue or PR instead of creating a duplicate.
+ */
+function commentOnExisting(
+  repo: string,
+  kind: "issue" | "pr",
+  number: number,
+  body: string,
+  logger: Logger,
+): string {
+  const subcmd = kind === "pr" ? "pr" : "issue";
+  try {
+    const result = ghWithBodyFile(
+      [subcmd, "comment", String(number)],
+      body,
+      ["--repo", repo],
+    );
+    logger.info(`Commented on ${kind} #${number}`);
+    return result;
+  } catch (err: unknown) {
+    const e = err as { stderr?: string };
+    logger.warn(`Failed to comment on ${kind} #${number}: ${e.stderr || "unknown"}`);
+    return "";
+  }
+}
+
+/**
+ * Format duplicate matches for display to the agent.
+ */
+function formatDuplicates(matches: DuplicateMatch[], kind: string): string {
+  return matches
+    .map((m) => `  #${m.number}: ${m.title} (${m.url})`)
+    .join("\n");
+}
+
 export function createContributeTools(cfg: ContributeConfig, logger: Logger): AnyAgentTool[] {
   // Validate config at registration time
   const upstreamRepo = validateRepo(cfg.upstreamRepo);
@@ -354,6 +426,25 @@ export function register${cap}Commands(
         const plugins = p.pluginsAffected ? sanitizeFreeText(p.pluginsAffected, "plugins") : "N/A";
         const repoRoot = run("git", ["rev-parse", "--show-toplevel"]);
 
+        // Check for existing open PRs with similar title (agent coordination)
+        const prMatches = findDuplicates(upstreamRepo, "pr", title, logger);
+        if (prMatches.length > 0) {
+          const identity = collectCloneIdentity();
+          const commentBody =
+            `## Duplicate PR attempt detected\n\n` +
+            `Another agent attempted to open a PR with a similar title:\n` +
+            `**"${title}"**\n\n` +
+            `**Summary:** ${summary}\n\n` +
+            `**Clone identity**\n${identity}\n\n` +
+            `---\nDetected by mc-contribute duplicate check (ref: issue #63)`;
+          commentOnExisting(upstreamRepo, "pr", prMatches[0].number, commentBody, logger);
+          return ok(
+            `Duplicate PR detected — commented on existing PR instead of creating a new one.\n\n` +
+            `Existing PRs matching "${title}":\n${formatDuplicates(prMatches, "PR")}\n\n` +
+            `A comment with your contribution details was added to PR #${prMatches[0].number}.`
+          );
+        }
+
         // Run security check first
         const script = path.join(repoRoot, "scripts", "security-check.sh");
         try {
@@ -496,6 +587,25 @@ export function register${cap}Commands(
         const steps = sanitizeBody(p.stepsToReproduce);
         const plugins = p.pluginsInvolved ? sanitizeFreeText(p.pluginsInvolved, "plugins") : "N/A";
 
+        // Check for existing open issues with similar title (agent coordination)
+        const bugMatches = findDuplicates(upstreamRepo, "issue", `[Bug] ${title}`, logger);
+        if (bugMatches.length > 0) {
+          const identity = collectCloneIdentity();
+          const commentBody =
+            `## Additional report from another clone\n\n` +
+            `**What happened:** ${whatHappened}\n\n` +
+            `**Expected:** ${expected}\n\n` +
+            `**Steps:** ${steps}\n\n` +
+            `**Clone identity**\n${identity}\n\n` +
+            `---\nDuplicate detected by mc-contribute (ref: issue #63)`;
+          commentOnExisting(upstreamRepo, "issue", bugMatches[0].number, commentBody, logger);
+          return ok(
+            `Duplicate bug report detected — commented on existing issue instead of creating a new one.\n\n` +
+            `Existing issues matching "[Bug] ${title}":\n${formatDuplicates(bugMatches, "issue")}\n\n` +
+            `Your report details were added as a comment on issue #${bugMatches[0].number}.`
+          );
+        }
+
         // Collect environment info safely (no shell interpolation)
         let macosVersion = "unknown";
         let nodeVersion = "unknown";
@@ -585,6 +695,25 @@ export function register${cap}Commands(
         const exampleUsage = p.exampleUsage ? sanitizeBody(p.exampleUsage as string) : "";
         const isPlugin = p.isNewPlugin as boolean;
         const pluginName = p.pluginName ? sanitizeFreeText(p.pluginName as string, "plugin name") : "mc-???";
+
+        // Check for existing open issues with similar title (agent coordination)
+        const prefix = isPlugin ? "[Plugin]" : "[Feature]";
+        const featureMatches = findDuplicates(upstreamRepo, "issue", `${prefix} ${title}`, logger);
+        if (featureMatches.length > 0) {
+          const identity = collectCloneIdentity();
+          const commentBody =
+            `## Additional request from another clone\n\n` +
+            `**Problem:** ${problem}\n\n` +
+            `**Proposed solution:** ${solution}\n\n` +
+            `**Clone identity**\n${identity}\n\n` +
+            `---\nDuplicate detected by mc-contribute (ref: issue #63)`;
+          commentOnExisting(upstreamRepo, "issue", featureMatches[0].number, commentBody, logger);
+          return ok(
+            `Duplicate feature request detected — commented on existing issue instead of creating a new one.\n\n` +
+            `Existing issues matching "${prefix} ${title}":\n${formatDuplicates(featureMatches, "issue")}\n\n` +
+            `Your request details were added as a comment on issue #${featureMatches[0].number}.`
+          );
+        }
 
         let body: string;
         let label: string;

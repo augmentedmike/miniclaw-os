@@ -7,6 +7,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
 import { execSync, spawnSync } from "node:child_process";
+import { healSmokeFailures } from "@/lib/smoke-heal";
 
 const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(process.env.HOME || "", ".openclaw");
 
@@ -141,6 +142,65 @@ function ensureGatewayRunning(): { ok: boolean; error?: string } {
 }
 
 /**
+ * Authenticate the gh CLI using the GitHub token from setup-state or vault.
+ * This ensures `gh` commands work immediately after install.
+ */
+function applyGithubAuth(): { ok: boolean; error?: string } {
+  const state = readSetupState();
+  const token = (state as Record<string, string>).ghToken;
+  if (!token) {
+    return { ok: false, error: "No GitHub token found in setup state" };
+  }
+
+  const ghBin = findBin("gh");
+  if (!ghBin) {
+    return { ok: false, error: "gh CLI not found on PATH" };
+  }
+
+  const result = spawnSync(ghBin, ["auth", "login", "--with-token"], {
+    input: token,
+    encoding: "utf-8",
+    timeout: 15_000,
+    env: { ...process.env, GH_PROMPT_DISABLED: "1" },
+  });
+
+  if (result.status !== 0) {
+    return { ok: false, error: result.stderr?.trim() || "gh auth login failed" };
+  }
+
+  return { ok: true };
+}
+
+/**
+ * Set the mc-github defaultRepo in openclaw.json plugin config.
+ */
+function setGithubDefaultRepo() {
+  const state = readSetupState();
+  const username = (state as Record<string, string>).ghUsername;
+  if (!username) return;
+
+  const configPath = path.join(STATE_DIR, "openclaw.json");
+  let cfg: Record<string, unknown> = {};
+  try {
+    if (fs.existsSync(configPath)) {
+      cfg = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+    }
+  } catch { /* start fresh */ }
+
+  const plugins = (cfg.plugins ?? {}) as Record<string, unknown>;
+  const entries = (plugins.entries ?? {}) as Record<string, Record<string, unknown>>;
+  const mcGithub = entries["mc-github"] ?? {};
+  if (!mcGithub.defaultRepo) {
+    mcGithub.defaultRepo = `${username}/miniclaw-os`;
+  }
+  entries["mc-github"] = mcGithub;
+  plugins.entries = entries;
+  cfg.plugins = plugins;
+
+  fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2) + "\n", "utf-8");
+}
+
+/**
  * Run mc-smoke and return the output.
  */
 function runSmoke(): { output: string; passed: boolean } {
@@ -170,14 +230,33 @@ export async function POST() {
   // Configure openclaw.json, register telegram channel, store token in vault
   configureGateway(botId, setupState.telegramBotToken);
 
+  // Authenticate gh CLI with the GitHub token (non-fatal if it fails)
+  const ghAuth = applyGithubAuth();
+  if (!ghAuth.ok) {
+    console.warn("gh auth login skipped:", ghAuth.error);
+  }
+
+  // Set mc-github defaultRepo in openclaw.json
+  setGithubDefaultRepo();
+
   // Create USER/brain/ and seed the board DB with default projects
   seedBoardDb();
 
   // Install and start the openclaw gateway
   const gw = ensureGatewayRunning();
 
+  // Register cron jobs with the running gateway
+  registerCronJobs();
+
   // Run mc-smoke to verify everything is healthy
   const smoke = runSmoke();
+
+  // Self-healing: auto-create fix cards for any smoke test failures
+  const healResult = await healSmokeFailures(
+    smoke.output,
+    setupState.telegramBotToken,
+    setupState.telegramChatId,
+  );
 
   const state = writeSetupState({
     complete: true,
@@ -187,7 +266,18 @@ export async function POST() {
   return NextResponse.json({
     ok: true,
     state,
+    ghAuth,
     gateway: gw,
-    smoke: { output: smoke.output, passed: smoke.passed },
+    projectsFolder,
+    smoke: {
+      output: smoke.output,
+      passed: smoke.passed,
+      healing: {
+        failures: healResult.failures.length,
+        cardsCreated: healResult.cards.length,
+        notified: healResult.notified,
+        cards: healResult.cards,
+      },
+    },
   });
 }

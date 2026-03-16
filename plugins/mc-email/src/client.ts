@@ -7,11 +7,11 @@ import type { EmailMessage, SendEmailOptions } from "./types.js";
 function createImapClient(cfg: EmailConfig): ImapFlow {
   const password = getAppPassword(cfg.vaultBin);
   if (!password) {
-    throw new Error("Gmail app password not found in vault. Run: mc mc-email auth");
+    throw new Error("Email app password not found in vault. Run: mc mc-email auth");
   }
   return new ImapFlow({
-    host: "imap.gmail.com",
-    port: 993,
+    host: cfg.imapHost,
+    port: cfg.imapPort,
     secure: true,
     auth: {
       user: cfg.emailAddress,
@@ -119,9 +119,9 @@ export class GmailClient {
       throw new Error("Gmail app password not found in vault. Run: mc mc-email auth");
     }
     const transport = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 587,
-      secure: false,
+      host: this.cfg.smtpHost,
+      port: this.cfg.smtpPort,
+      secure: this.cfg.smtpPort === 465,
       auth: {
         user: this.cfg.emailAddress,
         pass: password,

@@ -131,6 +131,37 @@ else
 fi
 
 echo ""
+echo "── tool signature checks"
+
+# #46: mc-kb execute() has correct signature (_id, _input)
+if grep -q 'execute.*_id.*string.*_input.*unknown' "$REPO_DIR/plugins/mc-kb/tools/definitions.ts"; then
+  pass "#46 mc-kb execute() has correct (_id, _input) signature"
+else
+  fail "#46 mc-kb execute() missing toolCallId first param" "params received as string instead of object"
+fi
+
+echo ""
+echo "── dependency checks"
+
+# #56: gh CLI installed by install.sh
+if grep -q 'brew_install gh' "$REPO_DIR/install.sh"; then
+  pass "#56 install.sh installs gh CLI"
+else
+  fail "#56 install.sh missing gh CLI" "add brew_install gh to step 2"
+fi
+
+echo ""
+echo "── path consistency checks"
+
+# #52: rolodex web uses USER/rolodex/ not legacy path
+if grep -q 'USER.*rolodex.*contacts' "$REPO_DIR/plugins/mc-board/web/src/lib/rolodex.ts" && \
+   ! grep -q 'homedir.*"rolodex"' "$REPO_DIR/plugins/mc-board/web/src/lib/rolodex.ts"; then
+  pass "#52 rolodex web uses USER/rolodex/ path (no legacy fallback)"
+else
+  fail "#52 rolodex web still has legacy path fallback" "remove fallback to ~/.openclaw/rolodex/"
+fi
+
+echo ""
 echo "── vault env check"
 
 if grep -q 'OPENCLAW_VAULT_ROOT' "$REPO_DIR/plugins/mc-board/web/src/lib/vault.ts"; then

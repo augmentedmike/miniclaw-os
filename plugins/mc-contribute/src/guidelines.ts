@@ -75,6 +75,18 @@ plugins/mc-<name>/
 - Tag discussions with the relevant plugin name
 - Be constructive — explain trade-offs, not just opinions
 
+### Agent Coordination (ref: GitHub issue #63)
+- Before creating an issue or PR, mc-contribute automatically checks for existing open
+  issues/PRs with similar titles using \`gh issue list --search\` / \`gh pr list --search\`.
+- If a duplicate is found, mc-contribute comments on the existing issue/PR with your
+  details instead of creating a new one. This prevents collision when multiple agent
+  clones work on the same problem.
+- One agent, one branch — do not work on the same branch as another agent.
+- Check the mc-board for cards referencing the same GitHub issue before starting work.
+- Label your work with clone identity so maintainers can trace which agent contributed.
+- Contribute, don't compete — if another agent is already working on an issue, add
+  information to their PR rather than opening a competing one.
+
 ### Testing
 - Test your plugin with: mc plugin test mc-<name>
 - Run the security check: ./scripts/security-check.sh --all
