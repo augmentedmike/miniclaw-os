@@ -3,6 +3,7 @@
   "version": "0.1.7",
   "openclaw": {
     "npm": "@miniclaw_official/openclaw",
+    "npmVersion": "2026.3.12",
     "repo": "augmentedmike/openclaw",
     "tag": "v0.1.7"
   },

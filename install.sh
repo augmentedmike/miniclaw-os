@@ -472,6 +472,13 @@ import json
 m = json.load(open('$REPO_DIR/MANIFEST.json'))
 print(m.get('openclaw', {}).get('npm', '@miniclaw_official/openclaw'))
 " 2>/dev/null || echo "@miniclaw_official/openclaw")
+OPENCLAW_NPM_VER=$(python3 -c "
+import json
+m = json.load(open('$REPO_DIR/MANIFEST.json'))
+print(m.get('openclaw', {}).get('npmVersion', ''))
+" 2>/dev/null || echo "")
+OPENCLAW_INSTALL_SPEC="$OPENCLAW_NPM_PKG"
+[[ -n "$OPENCLAW_NPM_VER" ]] && OPENCLAW_INSTALL_SPEC="$OPENCLAW_NPM_PKG@$OPENCLAW_NPM_VER"
 
 # Remove any Homebrew openclaw — we always use the npm fork
 if brew list openclaw &>/dev/null 2>&1; then
@@ -492,9 +499,9 @@ if command -v openclaw &>/dev/null; then
     INSTALLED_VER=$(echo "$INSTALLED_PKG" | sed 's/.*@//')
     # Check if installed version has the root-alias fix (>= 2026.3.9)
     if [[ "$INSTALLED_VER" == *"-mc."* || "$INSTALLED_VER" < "2026.3.9" ]]; then
-      info "Updating OpenClaw fork from $INSTALLED_VER to latest..."
-      run_quiet npm install -g "$OPENCLAW_NPM_PKG@latest" && ok "Updated to $(openclaw --version 2>/dev/null | head -1)" \
-        || warn "Update failed — run: npm install -g $OPENCLAW_NPM_PKG@latest"
+      info "Updating OpenClaw fork from $INSTALLED_VER to $OPENCLAW_NPM_VER..."
+      run_quiet npm install -g "$OPENCLAW_INSTALL_SPEC" && ok "Updated to $(openclaw --version 2>/dev/null | head -1)" \
+        || warn "Update failed — run: npm install -g $OPENCLAW_INSTALL_SPEC"
     fi
     CORRECT_FORK=true
     INSTALLED=$(openclaw --version 2>/dev/null | head -1 || echo "?")
@@ -515,8 +522,8 @@ if [[ "$CORRECT_FORK" == false ]]; then
       info "Replacing upstream openclaw with MiniClaw fork..."
       run_quiet npm uninstall -g openclaw 2>/dev/null || true
     fi
-    info "Installing OpenClaw from $OPENCLAW_NPM_PKG..."
-    run_quiet npm install -g "$OPENCLAW_NPM_PKG" || die "OpenClaw install failed"
+    info "Installing OpenClaw from $OPENCLAW_INSTALL_SPEC..."
+    run_quiet npm install -g "$OPENCLAW_INSTALL_SPEC" || die "OpenClaw install failed"
     ok "OpenClaw $(openclaw --version 2>/dev/null | head -1) installed (fork: $OPENCLAW_NPM_PKG)"
   fi
 fi
