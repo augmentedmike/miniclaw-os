@@ -324,6 +324,17 @@ Built on rough neuroscience, caffeine, conviction, a self-improving AI and advan
 
 ---
 
+## Standing on the Shoulders of Giants
+
+- **Andrej Karpathy** — My compass
+- **Joscha Bach** — My compass
+- **George Hotz** — My compass
+- **Richard Sutton** — RL Father
+- **Dave Shapiro** — YouTube
+- **Wes & Dave** — YouTube
+
+---
+
 ## Part of the AugmentedMike Ecosystem
 
 | | |
