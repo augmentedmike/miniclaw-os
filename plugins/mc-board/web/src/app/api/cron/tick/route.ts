@@ -96,14 +96,19 @@ function agentStillRunning(cardId: string, column: string): boolean {
   return false;
 }
 
-// How recently a card must have been processed to be considered "already handled"
-const REACTIVE_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes
+// Per-card cooldown — prevents the same card from being re-enqueued within one
+// tick interval.  Previously 30 minutes, which effectively limited each column
+// to 1 card per tick even with maxConcurrent > 1.  Now uses the job's schedule
+// interval (typically 5 min) so cards that finished processing are eligible
+// again on the next tick, while still preventing double-fires within a single
+// tick cycle.  A 2-minute floor avoids rapid re-enqueue edge cases.
+const MIN_COOLDOWN_MS = 2 * 60 * 1000; // 2 minutes absolute floor
 
 /** True if a process agent ran for this card+column within the cooldown window. */
-function recentlyProcessed(cardId: string, column: string): boolean {
+function recentlyProcessed(cardId: string, column: string, cooldownMs: number): boolean {
   const entry = findLatestLogForColumn(cardId, column);
   if (!entry) return false;
-  return Date.now() - entry.mtime < REACTIVE_COOLDOWN_MS;
+  return Date.now() - entry.mtime < cooldownMs;
 }
 
 export async function GET(req: Request) {
@@ -139,7 +144,7 @@ export async function GET(req: Request) {
       c.depends_on.every(dep => shippedIds.has(dep)) &&
       !activeIds.has(c.id) &&
       !agentStillRunning(c.id, "backlog") &&
-      !recentlyProcessed(c.id, "backlog")
+      !recentlyProcessed(c.id, "backlog", MIN_COOLDOWN_MS)
     );
     for (const card of newlyUnblocked) {
       try {
@@ -184,6 +189,9 @@ export async function GET(req: Request) {
       continue;
     }
 
+    // Cooldown = schedule interval (prevents re-fire within same tick), floor of 2 min
+    const cooldownMs = Math.max(MIN_COOLDOWN_MS, intervalMs);
+
     const allCards = listCards();
     const shippedIds = new Set(allCards.filter(c => c.column === "shipped").map(c => c.id));
     const cards = sortCards(allCards.filter(c => {
@@ -192,7 +200,7 @@ export async function GET(req: Request) {
         if (c.tags.includes("hold")) return false;
         if (activeIds.has(c.id)) return false;
         if (agentStillRunning(c.id, column)) return false;
-        if (recentlyProcessed(c.id, column)) return false;
+        if (recentlyProcessed(c.id, column, cooldownMs)) return false;
         // Block if any dependency is not yet shipped
         if (c.depends_on.some(dep => !shippedIds.has(dep))) return false;
         return true;
