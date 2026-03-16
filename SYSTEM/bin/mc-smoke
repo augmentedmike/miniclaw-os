@@ -303,10 +303,14 @@ section "plugin loading"
 
 if ! command -v node &>/dev/null; then
   warn "node not found" "cannot verify plugin exports"
-elif [[ ! -d "$MINICLAW_PLUGINS_DIR" ]]; then
-  warn "plugins dir not found" "$MINICLAW_PLUGINS_DIR"
+# Test from extensions/ (where pre-built deps live), fall back to miniclaw/plugins/
+LOAD_TEST_DIR="$STATE_DIR/extensions"
+[[ ! -d "$LOAD_TEST_DIR" ]] && LOAD_TEST_DIR="$MINICLAW_PLUGINS_DIR"
+
+if [[ ! -d "$LOAD_TEST_DIR" ]]; then
+  warn "no plugin dir found" "neither extensions/ nor miniclaw/plugins/"
 else
-  for plugin_dir in "$MINICLAW_PLUGINS_DIR"/mc-*/; do
+  for plugin_dir in "$LOAD_TEST_DIR"/mc-*/; do
     plugin_name="$(basename "$plugin_dir")"
     if [[ ! -f "$plugin_dir/index.ts" ]]; then
       fail "$plugin_name" "missing index.ts"
