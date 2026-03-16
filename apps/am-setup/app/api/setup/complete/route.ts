@@ -377,6 +377,77 @@ print(f"Personalized: {name} ({pronouns})")
 }
 
 /**
+ * Seed the KB with built-in entries every install should have.
+ * Uses INSERT OR IGNORE so re-running setup is safe.
+ */
+function seedKb() {
+  const dbPath = path.join(STATE_DIR, "USER", "kb", "kb.db");
+  if (!fs.existsSync(dbPath)) return;
+
+  const CODING_AXIOMS_CONTENT = `# Coding Axioms
+
+Rules for writing code in this project. Language-independent unless noted.
+
+**Caveats — these override any axiom:**
+- When an axiom conflicts with a language's idioms, idiomatic code wins.
+- When a declarative/functional approach causes measurable slowness, a small imperative escape is fine.
+- These axioms are defaults, not dogma. Use judgment.
+
+1. **Fail loudly, not gracefully** — No silent catches, no fallback defaults that mask missing data. Wrong state should throw, not whisper a plausible answer.
+2. **Three lines > one abstraction** — Don't extract a helper for something that happens once. Extract on the fourth repetition.
+3. **Don't build for hypothetical futures** — Solve the problem in front of you. No flags, shims, or config options nobody asked for.
+4. **Deterministic beats probabilistic** — If behavior can be a pure function with known inputs/outputs, do that. Don't leave it to runtime inference.
+5. **Declarative over imperative** — Say what, not how. But not religiously — clarity and speed win over style.
+6. **Idiomatic code wins** — Don't force patterns from one language into another. Write what a senior engineer in that language would recognize as natural.
+7. **No over-engineering** — Don't refactor or improve code beyond what was asked. A bug fix doesn't need surrounding cleanup.
+8. **Validate at boundaries, trust internally** — Only validate at system edges (user input, APIs, file I/O). Trust types internally.
+9. **Composition over inheritance** — Small composable functions beat class hierarchies. Pipes beat orchestrators.
+10. **Delete, don't deprecate** — Unused code gets deleted. Git has history.
+11. **Tests prove behavior, not coverage** — One real integration test beats ten mocked unit tests.
+12. **Error messages are UI** — Specific, actionable, short. What went wrong + what to do about it.
+13. **Naming is the only documentation that stays current** — If a function needs a comment, rename it.
+14. **Side effects at the edges** — Keep core logic pure. Push I/O to the call stack edges.
+15. **Explicit over implicit** — No magic, no action at a distance, no global state. Pass dependencies in explicitly.
+16. **No DSLs for DSLs' sake** — A DSL is only justified when it genuinely compresses a domain. Config files are fine. Inventing a grammar is almost never fine.
+17. **Runtime decoration is evil** — Decorators/monkey-patching that change what code does without changing what code says. Read a function, trust what it says it does.`;
+
+  const script = `import sqlite3, datetime, json
+conn = sqlite3.connect("""${dbPath}""")
+now = datetime.datetime.utcnow().isoformat() + "Z"
+entries = [
+    (
+        "kb_seed_coding_axioms",
+        "guide",
+        "Coding Axioms — project coding standards",
+        """${CODING_AXIOMS_CONTENT.replace(/\\/g, "\\\\").replace(/"""/g, '\\"\\"\\"').replace(/\n/g, "\\n")}""",
+        "17 coding axioms for the MiniClaw project. Fail loudly, no over-engineering, explicit over implicit, delete don't deprecate, tests prove behavior not coverage.",
+        json.dumps(["coding","standards","axioms","miniclaw","rules"]),
+        "CODING_AXIOMS.md",
+        None,
+    ),
+]
+for e in entries:
+    conn.execute(
+        "INSERT OR IGNORE INTO entries (id,type,title,content,summary,tags,source,severity,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+        (*e, now, now)
+    )
+conn.commit()
+conn.close()
+print("KB seeded")
+`;
+
+  const tmpScript = path.join(os.tmpdir(), `miniclaw-kb-seed-${process.pid}.py`);
+  fs.writeFileSync(tmpScript, script, "utf-8");
+  try {
+    execSync(`python3 "${tmpScript}"`, { stdio: "pipe" });
+  } catch (e) {
+    console.error("KB seeding failed:", e);
+  } finally {
+    try { fs.unlinkSync(tmpScript); } catch { /* ignore */ }
+  }
+}
+
+/**
  * Register cron jobs with the gateway from jobs.json.
  * The gateway must be running for this to work.
  */
@@ -467,6 +538,9 @@ export async function POST() {
 
   // Create USER/brain/ and seed the board DB with default projects
   seedBoardDb();
+
+  // Seed built-in KB entries (coding axioms, etc.)
+  seedKb();
 
   // Seed GitHub presence setup card if GH token is configured
   if (ghAuth.ok) {
