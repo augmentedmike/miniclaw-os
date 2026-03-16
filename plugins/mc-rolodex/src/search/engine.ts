@@ -262,11 +262,13 @@ export class SearchEngine implements ContactStore {
   }
 
   add(contact: Contact): void {
+    this.loadContacts();
     this.contacts.set(contact.id, contact);
     this.saveContacts();
   }
 
   update(id: string, updates: Partial<Contact>): void {
+    this.loadContacts();
     const contact = this.contacts.get(id);
     if (contact) {
       this.contacts.set(id, { ...contact, ...updates });
@@ -275,6 +277,7 @@ export class SearchEngine implements ContactStore {
   }
 
   delete(id: string): void {
+    this.loadContacts();
     this.contacts.delete(id);
     this.saveContacts();
   }

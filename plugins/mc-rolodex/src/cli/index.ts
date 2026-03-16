@@ -11,7 +11,8 @@ import chalk from 'chalk';
 import * as fs from 'fs';
 
 const program = new Command();
-const engine = new SearchEngine();
+const storagePath = `${process.env.OPENCLAW_STATE_DIR || process.env.HOME + "/.openclaw"}/USER/rolodex/contacts.json`;
+const engine = new SearchEngine(storagePath);
 
 program
   .name('mc-rolodex')

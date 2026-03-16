@@ -194,3 +194,43 @@ describe('delete', () => {
     expect(engine.getAll()).toHaveLength(2);
   });
 });
+
+// ---- concurrent access ----
+
+describe('concurrent-safe add', () => {
+  it('two engines adding to the same file preserves both contacts', () => {
+    // Simulate two separate CLI processes with separate SearchEngine instances
+    const engine1 = new SearchEngine(storagePath);
+    const engine2 = new SearchEngine(storagePath);
+
+    const dave: Contact = {
+      id: 'c_dave',
+      name: 'Dave Brown',
+      emails: ['dave@example.com'],
+      tags: ['friend'],
+      trustStatus: 'unknown',
+    };
+
+    const eve: Contact = {
+      id: 'c_eve',
+      name: 'Eve Green',
+      emails: ['eve@example.com'],
+      tags: ['work'],
+      trustStatus: 'pending',
+    };
+
+    // engine1 adds dave, writes to disk
+    engine1.add(dave);
+
+    // engine2 adds eve — must reload from disk first to see dave
+    engine2.add(eve);
+
+    // Verify: a fresh engine should see all 5 contacts (alice, bob, carol + dave + eve)
+    const engine3 = new SearchEngine(storagePath);
+    const all = engine3.getAll();
+    expect(all).toHaveLength(5);
+    const ids = all.map(c => c.id);
+    expect(ids).toContain('c_dave');
+    expect(ids).toContain('c_eve');
+  });
+});
