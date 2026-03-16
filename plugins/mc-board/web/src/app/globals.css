@@ -268,6 +268,8 @@ a { color: inherit; }
 }
 .card:hover { border-color: rgba(113,113,122,.6); background: rgba(39,39,42,.8); }
 .card--active { border-color: rgba(34,197,94,.35); }
+.card--held { border-color: rgba(217,119,6,.35); background: rgba(28,25,23,.85); }
+.card--held:hover { border-color: rgba(217,119,6,.5); }
 .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
 .card-id { font-size: 11px; color: #52525b; font-family: monospace; }
 .priority-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; display: inline-block; }

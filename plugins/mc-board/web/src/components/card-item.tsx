@@ -96,7 +96,7 @@ export const CardItem = memo(function CardItem({ card, projectName, isActive, wo
       data-card-id={card.id}
       onClick={() => onClick(card.id)}
       onContextMenu={handleContextMenu}
-      className={`card${isActive ? " card--active" : ""}`}
+      className={`card${isActive ? " card--active" : ""}${held ? " card--held" : ""}`}
     >
       {/* Worker strip — click opens live log */}
       <div

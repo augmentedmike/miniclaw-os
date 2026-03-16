@@ -504,6 +504,56 @@ function seedRolodexContacts() {
 }
 
 /**
+ * Register an email watch cron job when email credentials are present.
+ * Checks IMAP every 5 minutes and surfaces relevant messages to the agent.
+ */
+function ensureEmailWatchCron() {
+  const state = readSetupState();
+  const addr = (state as Record<string, string>).emailAddress;
+  if (!addr) return;
+
+  const ocBin = findBin("openclaw");
+  if (!ocBin) return;
+
+  // Skip if already registered
+  const listResult = spawnSync(ocBin, ["cron", "list", "--json"], {
+    encoding: "utf-8",
+    timeout: 10_000,
+  });
+  try {
+    const parsed = JSON.parse(listResult.stdout || "{}");
+    const jobs = Array.isArray(parsed) ? parsed : (parsed.jobs || []);
+    if (jobs.some((j: { name?: string }) => j.name === "email-watch")) {
+      console.log("email-watch cron already registered — skipping");
+      return;
+    }
+  } catch { /* proceed */ }
+
+  const message = [
+    "REMINDER: Check inbox for new emails.",
+    "Run: mc email list --unread --limit 20",
+    "For each unread message: summarize subject + sender and surface it via mc-memo or alert the main session.",
+    "Mark messages read after processing.",
+    "If nothing new, do nothing.",
+  ].join(" ");
+
+  const result = spawnSync(ocBin, [
+    "cron", "add",
+    "--name", "email-watch",
+    "--every", "5m",
+    "--session", "isolated",
+    "--message", message,
+    "--timeout-seconds", "60",
+  ], { encoding: "utf-8", timeout: 15_000 });
+
+  if (result.status === 0) {
+    console.log("email-watch cron registered");
+  } else {
+    console.error("email-watch cron registration failed:", result.stderr);
+  }
+}
+
+/**
  * Send a welcome email from the agent to itself, confirming email is working.
  */
 function sendWelcomeEmail() {
@@ -600,6 +650,9 @@ export async function POST() {
 
   // Register cron jobs with the running gateway
   registerCronJobs();
+
+  // Register email watch cron if email is configured
+  ensureEmailWatchCron();
 
   // Send welcome email from the agent
   sendWelcomeEmail();

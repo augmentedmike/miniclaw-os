@@ -191,25 +191,28 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
   }, [mutate]);
 
   const handleHoldToggle = useCallback((cardId: string) => {
-    const card = data?.cards.find(c => c.id === cardId);
-    const isHeld = card?.tags.includes("hold") ?? false;
+    // Read held state from latest cache inside mutate to avoid stale closure
+    let wasHeld = false;
     mutate(current => {
       if (!current) return current;
       return {
         ...current,
         cards: current.cards.map(c => {
           if (c.id !== cardId) return c;
+          const isHeld = c.tags.includes("hold");
+          wasHeld = isHeld;
           const newTags = isHeld ? c.tags.filter(t => t !== "hold") : [...c.tags.filter(t => t !== "hold"), "hold"];
           return { ...c, tags: newTags };
         }),
       };
     }, { revalidate: false });
+    // Use wasHeld captured from the latest cache state
     fetch("/api/board/action", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "update", cardId, [isHeld ? "remove-tags" : "add-tags"]: "hold" }),
+      body: JSON.stringify({ action: "update", cardId, [wasHeld ? "remove-tags" : "add-tags"]: "hold" }),
     }).then(() => mutate()).catch(() => mutate());
-  }, [data, mutate]);
+  }, [mutate]);
 
   const handleSearchSelect = (cardId: string) => {
     setSearchQuery("");
