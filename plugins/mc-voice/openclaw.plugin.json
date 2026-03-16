@@ -1,0 +1,13 @@
+{
+  "id": "mc-voice",
+  "name": "Miniclaw Voice",
+  "description": "Local speech-to-text via whisper.cpp — record and transcribe audio files.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "model": { "type": "string", "enum": ["tiny", "base", "small", "medium", "large"], "default": "base" },
+      "language": { "type": "string", "default": "en" }
+    }
+  }
+}

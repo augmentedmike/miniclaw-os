@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# transcribe — local speech-to-text via whisper.cpp
+#
+# Usage:
+#   transcribe <audio_file>                  # base model
+#   transcribe <audio_file> --model medium   # better accuracy, slower
+#   transcribe <audio_file> --language en    # force language
+
+set -euo pipefail
+
+STATE_DIR="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}"
+MINICLAW_DIR="$STATE_DIR/miniclaw"
+WHISPER_BIN="$MINICLAW_DIR/SYSTEM/bin/whisper-cpp"
+MODELS_DIR="$MINICLAW_DIR/SYSTEM/whisper-models"
+
+MODEL="base"
+LANGUAGE="en"
+AUDIO_FILE=""
+
+# Parse args
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --model)   MODEL="$2"; shift 2 ;;
+    --language) LANGUAGE="$2"; shift 2 ;;
+    -h|--help)
+      echo "Usage: transcribe <audio_file> [--model tiny|base|small|medium|large] [--language en]"
+      exit 0 ;;
+    *)
+      if [[ -z "$AUDIO_FILE" ]]; then
+        AUDIO_FILE="$1"; shift
+      else
+        echo "Unknown argument: $1" >&2; exit 1
+      fi ;;
+  esac
+done
+
+[[ -z "$AUDIO_FILE" ]] && { echo "Usage: transcribe <audio_file> [--model MODEL] [--language LANG]" >&2; exit 1; }
+[[ ! -f "$AUDIO_FILE" ]] && { echo "File not found: $AUDIO_FILE" >&2; exit 1; }
+
+# Resolve model file
+if [[ "$MODEL" == "large" ]]; then
+  MODEL_FILE="$MODELS_DIR/ggml-large.bin"
+else
+  MODEL_FILE="$MODELS_DIR/ggml-${MODEL}.en.bin"
+fi
+
+[[ ! -f "$MODEL_FILE" ]] && { echo "Model not found: $MODEL_FILE" >&2; echo "Run: mc mc-voice download-model --model $MODEL" >&2; exit 1; }
+[[ ! -x "$WHISPER_BIN" ]] && { echo "whisper-cpp not found at $WHISPER_BIN" >&2; echo "Re-run install.sh to build whisper.cpp" >&2; exit 1; }
+
+# Convert to 16kHz mono WAV for whisper.cpp
+WAV_TMP=""
+if command -v sox &>/dev/null; then
+  WAV_TMP="$(mktemp /tmp/transcribe-XXXXXX.wav)"
+  sox "$AUDIO_FILE" -r 16000 -c 1 -b 16 "$WAV_TMP" 2>/dev/null || WAV_TMP=""
+fi
+
+INPUT="${WAV_TMP:-$AUDIO_FILE}"
+
+"$WHISPER_BIN" \
+  --model "$MODEL_FILE" \
+  --language "$LANGUAGE" \
+  --no-timestamps \
+  --file "$INPUT"
+
+# Clean up
+[[ -n "$WAV_TMP" && -f "$WAV_TMP" ]] && rm -f "$WAV_TMP"

@@ -358,6 +358,58 @@ else
   fail "mc-chrome launcher missing — expected at $MC_CHROME"
 fi
 
+# ── Step 2a: whisper.cpp + sox (mc-voice / transcribe) ───────────────────────
+step "Step 2a: whisper.cpp (local speech-to-text)"
+
+brew_install sox sox
+
+WHISPER_BIN="$MINICLAW_DIR/SYSTEM/bin/whisper-cpp"
+WHISPER_MODELS_DIR="$MINICLAW_DIR/SYSTEM/whisper-models"
+mkdir -p "$WHISPER_MODELS_DIR"
+
+if [[ -x "$WHISPER_BIN" ]]; then
+  ok "whisper-cpp already built"
+elif [[ "$CHECK_ONLY" == true ]]; then
+  warn "whisper-cpp not found at $WHISPER_BIN"
+else
+  info "Building whisper.cpp from source..."
+  WHISPER_BUILD_DIR="/tmp/whisper-cpp-build-$$"
+  rm -rf "$WHISPER_BUILD_DIR"
+  if git clone --depth 1 https://github.com/ggerganov/whisper.cpp.git "$WHISPER_BUILD_DIR" >>"$LOG_FILE" 2>&1; then
+    if (cd "$WHISPER_BUILD_DIR" && cmake -B build -DCMAKE_BUILD_TYPE=Release >>"$LOG_FILE" 2>&1 \
+       && cmake --build build --config Release -j "$(sysctl -n hw.ncpu)" >>"$LOG_FILE" 2>&1); then
+      # Copy the main binary
+      cp "$WHISPER_BUILD_DIR/build/bin/whisper-cli" "$WHISPER_BIN" 2>/dev/null \
+        || cp "$WHISPER_BUILD_DIR/build/bin/main" "$WHISPER_BIN" 2>/dev/null \
+        || cp "$WHISPER_BUILD_DIR/build/main" "$WHISPER_BIN" 2>/dev/null
+      chmod +x "$WHISPER_BIN"
+      ok "whisper-cpp built and installed"
+    else
+      warn "whisper.cpp build failed — check $LOG_FILE"
+    fi
+    rm -rf "$WHISPER_BUILD_DIR"
+  else
+    warn "whisper.cpp clone failed — check network"
+  fi
+fi
+
+# Download default base.en model (~142MB)
+BASE_MODEL="$WHISPER_MODELS_DIR/ggml-base.en.bin"
+if [[ -f "$BASE_MODEL" ]]; then
+  ok "whisper base.en model present"
+elif [[ "$CHECK_ONLY" == true ]]; then
+  warn "whisper base.en model not found"
+else
+  info "Downloading whisper base.en model (~142MB)..."
+  if curl -fsSL "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin" -o "$BASE_MODEL.tmp" 2>>"$LOG_FILE"; then
+    mv "$BASE_MODEL.tmp" "$BASE_MODEL"
+    ok "whisper base.en model downloaded"
+  else
+    rm -f "$BASE_MODEL.tmp"
+    warn "Model download failed — run: mc mc-voice download-model"
+  fi
+fi
+
 # ── Step 2b: Power management (macOS) ────────────────────────────────────────
 if [[ "$(uname)" == "Darwin" ]]; then
   step "Step 2b: Power management (always-on)"
