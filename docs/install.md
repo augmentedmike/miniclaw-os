@@ -508,6 +508,11 @@ mc-smoke            # smoke test: checks all tools, plugins, vault
 openclaw --version  # confirm OpenClaw is installed
 openclaw start      # start the agent server
 open http://localhost:4220  # open the board web UI
+
+# Power management — required for always-on operation
+sudo ./scripts/configure-power.sh          # apply pmset settings
+./cron/scripts/check-power-settings.sh     # verify power settings
+# See docs/power-management-setup.md for details
 ```
 
 ---
