@@ -30,7 +30,7 @@
 
 ## What does it feel like?
 
-Imagine having a brilliant friend who knows everything — and they're *always* available.
+Imagine a brilliant friend who can learn anything quickly and over time they learn everything about you, and they automate your life — only the truly important surfaces to you.
 
 - **Ask it to do things.** "Draft a reply to that email from Sarah."
 - **It works in the background.** Checks your calendar, monitors your inbox, runs tasks overnight.
