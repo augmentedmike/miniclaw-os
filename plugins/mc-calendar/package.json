@@ -1,0 +1,17 @@
+{
+  "name": "mc-calendar",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "index.ts",
+  "description": "Apple Calendar integration via macOS EventKit — list, create, update, delete, and search events",
+  "os": ["darwin"],
+  "dependencies": {},
+  "devDependencies": {
+    "openclaw": "npm:@miniclaw_official/openclaw@^2026.3.8"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}
