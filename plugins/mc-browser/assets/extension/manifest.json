@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "OpenClaw Browser Relay",
+  "version": "0.1.0",
+  "description": "Relays browser events to the OpenClaw agent runtime via CDP for browser automation.",
+  "permissions": [
+    "tabs",
+    "activeTab",
+    "scripting",
+    "webNavigation"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}

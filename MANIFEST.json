@@ -265,6 +265,19 @@
       }
     },
     {
+      "id": "mc-browser",
+      "label": "Browser",
+      "description": "Chrome auto-setup with remote debugging and extension management for browser automation.",
+      "path": "plugins/mc-browser",
+      "entry": "index.ts",
+      "cli": true,
+      "tools": [],
+      "config": {
+        "cdpPort": 9222,
+        "extensionIds": ["fcoeoabgfenejglbffodgkkbkcdhcgfn"]
+      }
+    },
+    {
       "id": "mc-authenticator",
       "label": "Authenticator",
       "description": "TOTP 2FA code generation — Google Authenticator compatible. Gives the agent autonomous 2FA capability.",
@@ -320,6 +333,11 @@
       "name": "mc-vault",
       "path": "SYSTEM/bin/mc-vault",
       "description": "age-encrypted secret store \u2014 get/set/export/list/rm"
+    },
+    {
+      "name": "mc-chrome",
+      "path": "SYSTEM/bin/mc-chrome",
+      "description": "Launch Chrome with remote debugging enabled on port 9222 (configurable via MC_CHROME_DEBUG_PORT)"
     },
     {
       "name": "mc-smoke",
