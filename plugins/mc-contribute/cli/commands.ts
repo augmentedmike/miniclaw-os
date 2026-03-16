@@ -21,6 +21,35 @@ function run(cmd: string, args: string[], cwd?: string): string {
   return execFileSync(cmd, args, { encoding: "utf-8", cwd, timeout: 30_000 }).trim();
 }
 
+/**
+ * Run security-check.sh and decide pass/fail based on exit code only.
+ * Uses a longer timeout (120s) since --all scans the entire repo.
+ */
+function runSecurityCheck(script: string, args: string[], cwd: string): { passed: boolean; output: string } {
+  try {
+    const output = execFileSync("bash", [script, ...args], {
+      encoding: "utf-8",
+      cwd,
+      timeout: 120_000,
+    }).trim();
+    return { passed: true, output };
+  } catch (err: unknown) {
+    const e = err as { status?: number | null; stdout?: string; stderr?: string; killed?: boolean; signal?: string };
+    // Timeout or signal kill — not a security finding
+    if (e.killed || e.signal) {
+      return {
+        passed: false,
+        output: `Security scan timed out or was killed (signal: ${e.signal || "unknown"}). Run manually: ./scripts/security-check.sh --all`,
+      };
+    }
+    // Non-zero exit code means the script found real issues
+    return {
+      passed: false,
+      output: e.stdout || e.stderr || "Security check failed (unknown error)",
+    };
+  }
+}
+
 function ghWithBodyFile(
   subcmd: string[],
   body: string,
@@ -183,14 +212,11 @@ export function register${cap}Commands(
     .action(async (opts: { all?: boolean }) => {
       const repoRoot = run("git", ["rev-parse", "--show-toplevel"]);
       const script = path.join(repoRoot, "scripts", "security-check.sh");
-      const args = opts.all ? [script, "--all"] : [script];
+      const args = opts.all ? ["--all"] : [];
 
-      try {
-        const output = run("bash", args, repoRoot);
-        console.log(output);
-      } catch (err: unknown) {
-        const e = err as { stdout?: string; stderr?: string };
-        console.error(`SECURITY ISSUES FOUND:\n\n${e.stdout || ""}\n${e.stderr || ""}`);
+      const result = runSecurityCheck(script, args, repoRoot);
+      console.log(result.output);
+      if (!result.passed) {
         console.error(`\nFix these before committing.`);
         process.exit(1);
       }
@@ -209,11 +235,9 @@ export function register${cap}Commands(
       const repoRoot = run("git", ["rev-parse", "--show-toplevel"]);
 
       const script = path.join(repoRoot, "scripts", "security-check.sh");
-      try {
-        run("bash", [script, "--all"], repoRoot);
-      } catch (err: unknown) {
-        const e = err as { stdout?: string };
-        console.error(`PR blocked — security issues found:\n\n${e.stdout || ""}`);
+      const secResult = runSecurityCheck(script, ["--all"], repoRoot);
+      if (!secResult.passed) {
+        console.error(`PR blocked — security issues found:\n\n${secResult.output}`);
         process.exit(1);
       }
 
