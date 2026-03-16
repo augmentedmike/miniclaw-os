@@ -21,6 +21,8 @@ import { checkRank } from "../src/rank-checker.js";
 import { pingSitemaps, fetchSitemap } from "../src/sitemap.js";
 import { formatPageAudit, formatSiteSummary } from "../src/reporter.js";
 import { SeoDb } from "../src/db.js";
+import { createExperiment, measureExperiment, rowToExperiment } from "../src/experiment.js";
+import { proposeNextExperiment, analyzeOpportunities } from "../src/strategy.js";
 import * as path from "node:path";
 import * as os from "node:os";
 import * as child_process from "node:child_process";
@@ -644,6 +646,122 @@ export function registerSeoCommands(
       }
 
       console.log(`\nCreated ${created} cards, skipped ${skipped} duplicates for ${cleanDomain}`);
+    });
+
+  // ── mc mc-seo experiment ─────────────────────────────────────────────────
+  const experiment = seo
+    .command("experiment")
+    .description("SEO autoresearch — propose, list, and check experiments");
+
+  experiment
+    .command("propose <domain>")
+    .description("Propose the next SEO experiment based on audit data and rank history")
+    .action((domain: string) => {
+      const cleanDomain = domain.replace(/^www\./, "");
+      const db = getDb(cfg);
+
+      const proposal = proposeNextExperiment(db, cleanDomain);
+      if (!proposal) {
+        console.log(`No experiment opportunities found for ${cleanDomain}. Run mc-seo crawl first.`);
+        db.close();
+        return;
+      }
+
+      const exp = createExperiment(db, cleanDomain);
+      db.close();
+
+      if (!exp) {
+        console.log("Audit data exists but no actionable experiment could be generated.");
+        return;
+      }
+
+      console.log(`\n🧪 Proposed Experiment: ${exp.id}`);
+      console.log(`   URL:        ${exp.url}`);
+      console.log(`   Type:       ${exp.change.type}`);
+      console.log(`   Hypothesis: ${exp.hypothesis}`);
+      console.log(`   Metric:     ${exp.metric} (baseline: ${exp.baselineValue})`);
+      console.log(`   Wait:       ${exp.waitDays} days after applying`);
+      console.log(`\n   Next: apply the change, then run "mc mc-seo experiment check" after ${exp.waitDays} days.`);
+    });
+
+  experiment
+    .command("list <domain>")
+    .description("List all experiments for a domain")
+    .option("--json", "Output raw JSON")
+    .action((domain: string, opts: { json?: boolean }) => {
+      const cleanDomain = domain.replace(/^www\./, "");
+      const db = getDb(cfg);
+      const experiments = db.listExperiments(cleanDomain);
+      db.close();
+
+      if (experiments.length === 0) {
+        console.log(`No experiments for ${cleanDomain}.`);
+        return;
+      }
+
+      if (opts.json) {
+        console.log(JSON.stringify(experiments, null, 2));
+        return;
+      }
+
+      console.log(`\n🧪 Experiments for ${cleanDomain} (${experiments.length}):\n`);
+      const statusIcon = (s: string) =>
+        s === "kept" ? "✅" : s === "reverted" ? "🔄" : s === "waiting" ? "⏳" :
+        s === "measured" ? "📊" : s === "applied" ? "🔧" : "💡";
+
+      for (const row of experiments) {
+        const exp = rowToExperiment(row);
+        const result = exp.resultValue !== undefined ? ` → ${exp.resultValue}` : "";
+        console.log(`  ${statusIcon(exp.status)} ${exp.id} [${exp.status}]`);
+        console.log(`     ${exp.change.type} on ${exp.url}`);
+        console.log(`     ${exp.hypothesis}`);
+        console.log(`     Baseline: ${exp.baselineValue}${result}`);
+        console.log("");
+      }
+    });
+
+  experiment
+    .command("check")
+    .description("Re-measure all waiting experiments whose wait period has elapsed")
+    .action(async () => {
+      const db = getDb(cfg);
+      const active = db.getActiveExperiments();
+
+      if (active.length === 0) {
+        console.log("No active experiments to check.");
+        db.close();
+        return;
+      }
+
+      const now = Date.now();
+      let checked = 0;
+
+      for (const exp of active) {
+        if (!exp.applied_at) continue;
+        const appliedMs = new Date(exp.applied_at).getTime();
+        const waitMs = exp.wait_days * 24 * 60 * 60 * 1000;
+
+        if (now - appliedMs < waitMs) {
+          const daysLeft = Math.ceil((waitMs - (now - appliedMs)) / (24 * 60 * 60 * 1000));
+          console.log(`⏳ ${exp.id}: ${daysLeft} days remaining`);
+          continue;
+        }
+
+        console.log(`📊 Checking ${exp.id}…`);
+        const result = await measureExperiment(db, exp.id, cfg);
+        checked++;
+
+        if (!result.ok) {
+          console.log(`   ❌ Error: ${result.error}`);
+        } else if (result.improved) {
+          console.log(`   ✅ IMPROVED (delta: ${result.delta})`);
+        } else {
+          console.log(`   ⚠️  No improvement (delta: ${result.delta})`);
+        }
+      }
+
+      db.close();
+      if (checked === 0) console.log("\nAll experiments still within their wait period.");
     });
 
   // ── mc mc-seo domains ────────────────────────────────────────────────────
