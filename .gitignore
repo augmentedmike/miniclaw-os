@@ -18,6 +18,9 @@ dist/
 # Environment and credential files
 .env
 .env.*
+
+# Headless install config (contains real credentials)
+examples/headless-config.json
 *.key
 *.pem
 *.p12
@@ -33,3 +36,5 @@ secrets/
 .DS_Store
 Thumbs.db
 test-results/
+.next/
+TODO-*.md

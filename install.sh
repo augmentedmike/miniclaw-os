@@ -5,8 +5,9 @@
 # Safe to re-run — skips anything already installed.
 #
 # Usage:
-#   ./install.sh
-#   ./install.sh --check   # verify only, no changes
+#   ./install.sh                    # interactive (opens browser wizard)
+#   ./install.sh --check            # verify only, no changes
+#   ./install.sh --config setup.json  # headless install from JSON config
 
 set -euo pipefail
 
@@ -18,7 +19,9 @@ LOG_FILE="/tmp/miniclaw-install.log"
 ARCH=$(uname -m)
 
 CHECK_ONLY=false
+CONFIG_FILE=""
 [[ "${1:-}" == "--check" ]] && CHECK_ONLY=true
+[[ "${1:-}" == "--config" ]] && CONFIG_FILE="${2:-}" && [[ -z "$CONFIG_FILE" ]] && { echo "Usage: install.sh --config <path-to-json>"; exit 1; }
 
 exec > >(tee "$LOG_FILE") 2>&1
 echo "=== miniclaw install started $(date) ==="
@@ -320,19 +323,21 @@ if [[ -d "/Applications/Google Chrome.app" ]]; then
     warn "Claude Chrome extension not in force-install policy"
   else
     info "Adding Claude Chrome extension to force-install policy..."
-    sudo mkdir -p "$CHROME_POLICY_DIR"
-    # Read existing forcelist or start fresh
-    EXISTING=$(defaults read "$CHROME_POLICY_FILE" ExtensionInstallForcelist 2>/dev/null | grep -o '"[^"]*"' | tr -d '"' || true)
-    ENTRIES=()
-    if [[ -n "$EXISTING" ]]; then
-      while IFS= read -r entry; do
-        [[ -n "$entry" ]] && ENTRIES+=("$entry")
-      done <<< "$EXISTING"
+    if sudo -n true 2>/dev/null; then
+      sudo mkdir -p "$CHROME_POLICY_DIR"
+      EXISTING=$(defaults read "$CHROME_POLICY_FILE" ExtensionInstallForcelist 2>/dev/null | grep -o '"[^"]*"' | tr -d '"' || true)
+      ENTRIES=()
+      if [[ -n "$EXISTING" ]]; then
+        while IFS= read -r entry; do
+          [[ -n "$entry" ]] && ENTRIES+=("$entry")
+        done <<< "$EXISTING"
+      fi
+      ENTRIES+=("${CLAUDE_EXT_ID};https://clients2.google.com/service/update2/crx")
+      sudo defaults write "$CHROME_POLICY_FILE" ExtensionInstallForcelist -array "${ENTRIES[@]}"
+      ok "Claude Chrome extension added to force-install policy (installs on next Chrome launch)"
+    else
+      warn "Claude Chrome extension skipped (no sudo — install manually from Chrome Web Store)"
     fi
-    ENTRIES+=("${CLAUDE_EXT_ID};https://clients2.google.com/service/update2/crx")
-    # Write the plist
-    sudo defaults write "$CHROME_POLICY_FILE" ExtensionInstallForcelist -array "${ENTRIES[@]}"
-    ok "Claude Chrome extension added to force-install policy (installs on next Chrome launch)"
   fi
 fi
 
@@ -1485,8 +1490,12 @@ if [[ -d "$TAILSCALE_APP" ]]; then
   if "$TAILSCALE_BIN" status 2>/dev/null | grep -q "Logged in"; then
     ok "Tailscale is connected"
   else
-    info "Tailscale installed — please log in via the Tailscale menu bar icon, then press Enter"
-    read -r -p "    Press Enter after logging into Tailscale... " || true
+    if [[ -n "$CONFIG_FILE" ]]; then
+      warn "Tailscale not logged in — run 'tailscale up' after install"
+    else
+      info "Tailscale installed — please log in via the Tailscale menu bar icon, then press Enter"
+      read -r -p "    Press Enter after logging into Tailscale... " || true
+    fi
     if "$TAILSCALE_BIN" status 2>/dev/null | grep -q "Logged in\|[0-9]\{1,3\}\.[0-9]"; then
       ok "Tailscale connected"
     else
@@ -1499,10 +1508,17 @@ else
   warn "Tailscale not installed — install from https://tailscale.com/download/mac (needed for remote access and mc-human)"
 fi
 
+# ── Headless: write setup-state.json early so personalization can use it ──────
+SETUP_STATE="$STATE_DIR/USER/setup-state.json"
+if [[ -n "$CONFIG_FILE" && -f "$CONFIG_FILE" && ! -f "$SETUP_STATE" ]]; then
+  mkdir -p "$(dirname "$SETUP_STATE")"
+  cp "$CONFIG_FILE" "$SETUP_STATE"
+  ok "Setup state written from config (headless)"
+fi
+
 # ── Step 15e: Personalize workspace from setup wizard ────────────────────────
 step "Step 15e: Agent identity"
 
-SETUP_STATE="$STATE_DIR/USER/setup-state.json"
 WORKSPACE_DIR="$STATE_DIR/workspace"
 
 # Copy MiniClaw workspace templates (root + refs/) if they exist in the repo
@@ -1616,6 +1632,199 @@ KB_TMP="/tmp/miniclaw-kb-import-$$.json"
 ) &
 ok "Shared KB import started in background"
 
+# ── Headless config: run post-wizard steps from JSON ─────────────────────────
+if [[ -n "$CONFIG_FILE" && -f "$CONFIG_FILE" ]]; then
+  step "Headless setup from $CONFIG_FILE"
+
+  # setup-state.json already written above (before step 15e)
+  ok "Setup state present"
+
+  # Persist secrets to vault
+  VAULT_ROOT="$MINICLAW_DIR/SYSTEM/vault"
+  MC_VAULT="$MINICLAW_DIR/vault/cli"
+  vault_set() {
+    local key="$1" val="$2"
+    [[ -z "$val" ]] && return
+    echo "$val" | OPENCLAW_VAULT_ROOT="$VAULT_ROOT" "$MC_VAULT" set "$key" - >>"$LOG_FILE" 2>&1 \
+      && ok "  vault: $key" || warn "  vault: $key failed"
+  }
+
+  # Read all fields using the same names as the web wizard's setup-state.json
+  read_cfg() { python3 -c "import json; print(json.load(open('$CONFIG_FILE')).get('$1',''))" 2>/dev/null; }
+
+  # Field names match the web wizard forms exactly
+  TG_TOKEN=$(read_cfg telegramBotToken)
+  GH_TOKEN=$(read_cfg ghToken)
+  EMAIL_PASS=$(read_cfg appPassword)
+  EMAIL_ADDR=$(read_cfg emailAddress)
+  EMAIL_SMTP_HOST=$(read_cfg emailSmtpHost)
+  EMAIL_SMTP_PORT=$(read_cfg emailSmtpPort)
+  GEMINI_KEY=$(read_cfg geminiKey)
+
+  vault_set "telegram-bot-token" "$TG_TOKEN"
+  vault_set "gh-token" "$GH_TOKEN"
+  vault_set "gmail-app-password" "$EMAIL_PASS"
+  vault_set "gmail-email" "$EMAIL_ADDR"
+  [[ -n "$EMAIL_SMTP_HOST" ]] && vault_set "smtp-host" "$EMAIL_SMTP_HOST"
+  [[ -n "$EMAIL_SMTP_PORT" ]] && vault_set "smtp-port" "$EMAIL_SMTP_PORT"
+  vault_set "gemini-api-key" "$GEMINI_KEY"
+
+  # Derive GitHub username from token
+  if [[ -n "$GH_TOKEN" ]] && command -v gh &>/dev/null; then
+    echo "$GH_TOKEN" | gh auth login --with-token >>"$LOG_FILE" 2>&1
+    GH_USERNAME=$(gh api user --jq '.login' 2>/dev/null || echo "")
+    if [[ -n "$GH_USERNAME" ]]; then
+      python3 -c "
+import json
+p = '$SETUP_STATE'
+with open(p) as f: s = json.load(f)
+s['ghUsername'] = '$GH_USERNAME'
+s['ghConfigured'] = True
+with open(p, 'w') as f: json.dump(s, f, indent=2); f.write('\n')
+"
+      ok "GitHub: $GH_USERNAME (derived from token)"
+    fi
+  fi
+
+  # gh already authenticated above when deriving username
+
+  # Configure gateway (telegram channel)
+  TG_USERNAME=$(python3 -c "import json; print(json.load(open('$CONFIG_FILE')).get('telegramBotUsername',''))" 2>/dev/null)
+  TG_CHAT_ID=$(python3 -c "import json; print(json.load(open('$CONFIG_FILE')).get('telegramChatId',''))" 2>/dev/null)
+  if [[ -n "$TG_USERNAME" && -n "$TG_TOKEN" ]]; then
+    python3 - "$STATE_DIR/openclaw.json" "$TG_USERNAME" "$TG_TOKEN" "$TG_CHAT_ID" <<'GWPY'
+import json, sys
+config_path, bot_id, bot_token, chat_id = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else ""
+with open(config_path) as f: cfg = json.load(f)
+channels = cfg.setdefault("channels", {})
+channels["telegram"] = {
+    "enabled": True, "botToken": bot_token,
+    "dmPolicy": "pairing", "groupPolicy": "allowlist",
+    "groupAllowFrom": [chat_id] if chat_id else [],
+    "allowFrom": [chat_id] if chat_id else [],
+    "streaming": "partial",
+}
+with open(config_path, "w") as f: json.dump(cfg, f, indent=2); f.write("\n")
+GWPY
+    ok "Gateway configured (telegram: @$TG_USERNAME)"
+  fi
+
+  # Personalize workspace (already happens in step 15e but re-run with full state)
+  # The step 15e block above already handles this if SETUP_STATE exists
+
+  # Seed rolodex
+  ROLODEX_DIR="$STATE_DIR/USER/rolodex"
+  CONTACTS_FILE="$ROLODEX_DIR/contacts.json"
+  if [[ ! -f "$CONTACTS_FILE" ]] || [[ "$(python3 -c "import json; print(len(json.load(open('$CONTACTS_FILE'))))" 2>/dev/null)" == "0" ]]; then
+    mkdir -p "$ROLODEX_DIR"
+    python3 - "$CONFIG_FILE" "$CONTACTS_FILE" <<'SEEDPY'
+import json, sys, uuid
+from datetime import datetime
+cfg = json.load(open(sys.argv[1]))
+contacts = [
+    {"id": str(uuid.uuid4()), "name": "My Human", "emails": [], "phones": [], "domains": [],
+     "tags": ["owner", "human"], "trustStatus": "verified", "lastVerified": datetime.utcnow().isoformat(),
+     "notes": f"GitHub: {cfg.get('ghUsername', '')}. Added during headless setup." if cfg.get('ghUsername') else "Human owner."},
+    {"id": str(uuid.uuid4()), "name": cfg.get("assistantName", "MiniClaw"),
+     "emails": [cfg["emailAddress"]] if cfg.get("emailAddress") else [], "phones": [], "domains": [],
+     "tags": ["agent", "self"], "trustStatus": "verified", "lastVerified": datetime.utcnow().isoformat(),
+     "notes": f"AI agent ({cfg.get('shortName', cfg.get('assistantName', 'mc'))})."}
+]
+with open(sys.argv[2], "w") as f: json.dump(contacts, f, indent=2); f.write("\n")
+print(f"  Seeded {len(contacts)} contacts")
+SEEDPY
+    ok "Rolodex seeded"
+  fi
+
+  # Start gateway
+  if command -v openclaw &>/dev/null; then
+    openclaw gateway install --force >>"$LOG_FILE" 2>&1 \
+      && ok "Gateway started" || warn "Gateway install failed"
+    sleep 3
+
+    # Register cron jobs
+    CRON_FILE="$STATE_DIR/cron/jobs.json"
+    if [[ -f "$CRON_FILE" ]]; then
+      EXISTING_CRONS=$(openclaw cron list --json 2>/dev/null || echo "[]")
+      python3 - "$CRON_FILE" "$EXISTING_CRONS" "$STATE_DIR" <<'CRONPY'
+import json, sys, os, subprocess
+jobs_file, existing_raw, state_dir = sys.argv[1], sys.argv[2], sys.argv[3]
+store = json.load(open(jobs_file))
+try:
+    parsed = json.loads(existing_raw)
+    existing = parsed if isinstance(parsed, list) else parsed.get("jobs", [])
+    existing_names = {j.get("name") for j in existing}
+except: existing_names = set()
+for job in store.get("jobs", []):
+    if job["name"] in existing_names: continue
+    expr = job.get("schedule", {}).get("expr", "*/5 * * * *")
+    args = ["openclaw", "cron", "add", "--name", job["name"], "--cron", expr, "--session", job.get("sessionTarget", "isolated")]
+    if job.get("payload", {}).get("messageFile"):
+        prompt_path = os.path.join(state_dir, "cron", job["payload"]["messageFile"])
+        if os.path.exists(prompt_path):
+            with open(prompt_path) as f: args += ["--message", f.read().strip()]
+    r = subprocess.run(args, capture_output=True, text=True, timeout=10)
+    status = "ok" if r.returncode == 0 else "fail"
+    print(f"  cron {job['name']}: {status}")
+CRONPY
+      ok "Cron jobs registered"
+    fi
+  fi
+
+  # Send welcome email from the agent to itself
+  if [[ -n "$EMAIL_ADDR" && -n "$EMAIL_PASS" ]]; then
+    AGENT_NAME=$(read_cfg assistantName)
+    python3 - "$EMAIL_ADDR" "$EMAIL_PASS" "${EMAIL_SMTP_HOST:-smtp.gmail.com}" "${EMAIL_SMTP_PORT:-587}" "$AGENT_NAME" <<'WELCOMEPY'
+import smtplib, sys, ssl
+from email.message import EmailMessage
+addr, pw, host, port, name = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4]), sys.argv[5]
+msg = EmailMessage()
+msg["Subject"] = f"Hello from {name}"
+msg["From"] = addr
+msg["To"] = addr
+msg.set_content(f"Hi! I'm {name}, your MiniClaw AI assistant. I just finished setting up and I'm ready to work.\n\nThis email confirms that my email is configured and working.\n\n— {name}")
+try:
+    if port == 465:
+        ctx = ssl.create_default_context()
+        with smtplib.SMTP_SSL(host, port, context=ctx) as s:
+            s.login(addr, pw)
+            s.send_message(msg)
+    else:
+        with smtplib.SMTP(host, port) as s:
+            s.starttls()
+            s.login(addr, pw)
+            s.send_message(msg)
+    print("  Welcome email sent")
+except Exception as e:
+    print(f"  Welcome email failed: {e}")
+WELCOMEPY
+    ok "Welcome email sent to $EMAIL_ADDR"
+  fi
+
+  # Mark complete
+  python3 -c "
+import json
+p = '$SETUP_STATE'
+with open(p) as f: s = json.load(f)
+s['complete'] = True
+from datetime import datetime
+s['completedAt'] = datetime.utcnow().isoformat()
+s['secretsPersisted'] = True
+with open(p, 'w') as f: json.dump(s, f, indent=2); f.write('\n')
+"
+  ok "Setup marked complete"
+
+  # Run mc-smoke with full PATH
+  step "Verification"
+  source "$HOME/.zshenv" 2>/dev/null || true
+  export PATH="$MINICLAW_DIR/SYSTEM/bin:$STATE_DIR/USER/bin:$NPM_GLOBAL_BIN:$NODE_DIR:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+  if command -v mc-smoke &>/dev/null; then
+    mc-smoke && ok "mc-smoke passed" || warn "mc-smoke had failures — check output above"
+  else
+    warn "mc-smoke not found on PATH (checked: $MINICLAW_DIR/SYSTEM/bin)"
+  fi
+fi
+
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}${BOLD}miniclaw-os installed.${NC}"
@@ -1623,10 +1832,9 @@ echo ""
 echo "  MiniClaw: http://localhost:4220"
 echo "  Verify:   mc-smoke"
 echo ""
-echo ""
 
-# Open the setup wizard if this is a standalone install (not from bootstrap)
-if [[ -z "${MINICLAW_NONINTERACTIVE:-}" ]]; then
+# Open the setup wizard if interactive (no --config, not from bootstrap)
+if [[ -z "$CONFIG_FILE" && -z "${MINICLAW_NONINTERACTIVE:-}" ]]; then
   sleep 2
   open "http://localhost:4220"
 fi

@@ -193,6 +193,23 @@ else
 fi
 
 echo ""
+echo "── headless config checks"
+
+# #112: install.sh supports --config flag
+if grep -q -- '--config' "$REPO_DIR/install.sh" && grep -q 'CONFIG_FILE' "$REPO_DIR/install.sh"; then
+  pass "#112 install.sh supports --config headless install"
+else
+  fail "#112 install.sh missing --config support" "add headless config install path"
+fi
+
+# #112: example config file exists
+if [[ -f "$REPO_DIR/examples/headless-config.example.json" ]]; then
+  pass "#112 example headless config exists"
+else
+  fail "#112 example headless config missing" "add examples/headless-config.example.json"
+fi
+
+echo ""
 echo "── browser setup checks"
 
 # #93: install.sh references google-chrome

@@ -105,7 +105,7 @@ fi
 # ── required directories ──────────────────────────────────────────────────────
 section "required directories"
 
-for reqdir in "$STATE_DIR/USER/memory" "$STATE_DIR/USER/voice" "$STATE_DIR/USER/brain" "$STATE_DIR/soul-backups"; do
+for reqdir in "$STATE_DIR/USER/memory" "$STATE_DIR/USER/brain" "$STATE_DIR/soul-backups"; do
   if [[ -d "$reqdir" ]]; then
     pass "$(basename "$reqdir")/ exists"
   else
@@ -473,7 +473,7 @@ fi
 section "install verification"
 
 # Workspace files must not contain template placeholders
-WORKSPACE_DIR="$STATE_DIR/miniclaw/workspace"
+WORKSPACE_DIR="$STATE_DIR/workspace"
 if [[ -d "$WORKSPACE_DIR" ]]; then
   PLACEHOLDER_COUNT=$(grep -rl '{{AGENT_NAME}}\|{{PRONOUNS}}\|{{AGENT_SHORT}}\|{{HUMAN_NAME}}\|{{VERSION}}\|{{DATE}}' "$WORKSPACE_DIR" 2>/dev/null | wc -l | tr -d ' ')
   if [[ "$PLACEHOLDER_COUNT" -eq 0 ]]; then

@@ -1,0 +1,17 @@
+{
+  "assistantName": "Amelia",
+  "shortName": "am",
+  "pronouns": "she/her",
+  "accentColor": "#00E5CC",
+  "personaBlurb": "",
+  "telegramBotUsername": "@your_bot_name",
+  "telegramBotToken": "YOUR_BOT_TOKEN:YOUR_BOT_SECRET",
+  "telegramChatId": "YOUR_CHAT_ID",
+  "ghToken": "ghp_YOUR_GITHUB_TOKEN",
+  "emailAddress": "your-agent@example.com",
+  "appPassword": "xxxx xxxx xxxx xxxx",
+  "emailSmtpHost": "smtp.privateemail.com",
+  "emailSmtpPort": "465",
+  "geminiKey": "",
+  "anthropicToken": ""
+}
