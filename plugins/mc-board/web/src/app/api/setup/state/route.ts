@@ -13,3 +13,9 @@ export async function POST(req: Request) {
   const next = writeSetupState(body);
   return NextResponse.json(next);
 }
+
+export async function PATCH(req: Request) {
+  const body = await req.json();
+  const next = writeSetupState(body);
+  return NextResponse.json(next);
+}
