@@ -214,7 +214,13 @@ export default function register(api: OpenClawPluginApi) {
   const applyToDMs = cfg.applyToDMs ?? true;
   const tgLogChatId = cfg.tgLogChatId ?? "";
   const tgBotName = cfg.tgBotName ?? "";
-  const boardUrl = process.env.MINICLAW_BOARD_URL ?? cfg.boardUrl ?? "";
+
+  // Board URL: env var → plugin config → gateway.externalUrl from openclaw.json
+  const gatewayExternalUrl =
+    (api.config as Record<string, unknown> & {
+      gateway?: { externalUrl?: string };
+    })?.gateway?.externalUrl ?? "";
+  const boardUrl = process.env.MINICLAW_BOARD_URL ?? cfg.boardUrl ?? gatewayExternalUrl;
 
   // Read bot token from OpenClaw's telegram channel config
   const tgBotToken =
@@ -264,8 +270,22 @@ export default function register(api: OpenClawPluginApi) {
       ? `[WHO YOU ARE]\n${SOUL_CONTEXT}\n\n`
       : "";
 
-    const telegramInstructions = TELEGRAM_INSTRUCTIONS
+    let telegramInstructions = TELEGRAM_INSTRUCTIONS
       || "You are a helpful assistant handling Telegram messages. Be direct, concise, and honest.";
+
+    // Inject dynamic board URL so the agent constructs clickable card deep links.
+    // Replaces any hardcoded localhost URL in the workspace template.
+    if (boardUrl) {
+      const baseUrl = boardUrl.replace(/\/$/, "");
+      telegramInstructions = telegramInstructions
+        .replace(/http:\/\/myam\.localhost:4220/g, baseUrl)
+        .replace(/\{board_url\}/g, baseUrl);
+      telegramInstructions +=
+        `\n\n## Card links\n` +
+        `When referencing a board card, always include a clickable link.\n` +
+        `Format: ${baseUrl}/board/{project_id}/{card_id}\n` +
+        `If you don't know the project_id, use: ${baseUrl}/board/{card_id}`;
+    }
 
     return {
       prependContext: `${soulSection}[TELEGRAM — mc-queue plugin]\n${telegramInstructions}`,
