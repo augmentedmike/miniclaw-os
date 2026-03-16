@@ -564,6 +564,18 @@
       },
       "timeoutSeconds": 600,
       "sessionTarget": "isolated"
+    },
+    {
+      "name": "email-triage-cron",
+      "description": "Email watch: checks IMAP inbox for new messages, classifies via Haiku, replies/archives/escalates",
+      "schedule": {
+        "kind": "cron",
+        "expr": "3-59/5 * * * *"
+      },
+      "timeoutSeconds": 600,
+      "sessionTarget": "isolated",
+      "requires": ["gmail-app-password"],
+      "optional": true
     }
   ],
   "launchAgents": [

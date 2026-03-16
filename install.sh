@@ -1008,9 +1008,11 @@ mkdir -p "$CRON_DIR"
 
 # Merge cron jobs from MANIFEST into jobs.json (preserves any existing jobs)
 python3 << PYEOF
-import json, uuid, os, sys
+import json, uuid, os, sys, subprocess
 
 cron_file = "$CRON_FILE"
+vault_bin = "$MC_VAULT"
+vault_root = "$VAULT_ROOT"
 
 # Load existing
 store = {"version": 1, "jobs": []}
@@ -1021,6 +1023,15 @@ except (FileNotFoundError, json.JSONDecodeError):
     pass
 
 existing_names = {j.get("name") for j in store.get("jobs", [])}
+
+def vault_has(key):
+    """Check if a vault secret exists."""
+    try:
+        env = dict(os.environ, OPENCLAW_VAULT_ROOT=vault_root)
+        r = subprocess.run([vault_bin, "get", key], capture_output=True, text=True, env=env)
+        return r.returncode == 0 and r.stdout.strip() != ""
+    except Exception:
+        return False
 
 # Read expected crons from MANIFEST.json
 manifest_path = os.path.join("$REPO_DIR", "MANIFEST.json")
@@ -1033,6 +1044,16 @@ except (FileNotFoundError, json.JSONDecodeError):
 
 workers = []
 for mc in manifest_crons:
+    # Check if this cron requires vault secrets
+    requires = mc.get("requires", [])
+    has_deps = all(vault_has(k) for k in requires) if requires else True
+    is_optional = mc.get("optional", False)
+
+    # Skip optional crons whose dependencies are missing
+    if is_optional and not has_deps:
+        print(f"  Skipping {mc['name']} (missing: {', '.join(requires)})")
+        continue
+
     w = {
         "name": mc["name"],
         "schedule": mc["schedule"],
@@ -1044,7 +1065,7 @@ for mc in manifest_crons:
             "messageFile": f"prompts/{mc['name']}.md"
         },
         "delivery": {"mode": "none"},
-        "enabled": True
+        "enabled": has_deps
     }
     workers.append(w)
 
@@ -1104,9 +1125,9 @@ with open(cron_file, "w") as f:
     json.dump(store, f, indent=2)
 
 if added:
-    print(f"  Added {added} board worker(s) to jobs.json")
+    print(f"  Added {added} cron worker(s) to jobs.json")
 else:
-    print("  Board workers already in jobs.json")
+    print("  All cron workers already in jobs.json")
 PYEOF
 ok "Cron workers written to $CRON_FILE"
 
