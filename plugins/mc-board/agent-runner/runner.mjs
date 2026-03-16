@@ -156,7 +156,17 @@ function claimPending(db) {
        WHERE q.status = 'pending'
          AND q.col = ?
          AND (c.tags IS NULL OR c.tags NOT LIKE '%"hold"%')
-       ORDER BY q.created_at ASC LIMIT ?`,
+       ORDER BY
+         CASE WHEN c.tags LIKE '%"focus"%' THEN 0 ELSE 1 END ASC,
+         CASE c.priority
+           WHEN 'critical' THEN 0
+           WHEN 'high'     THEN 1
+           WHEN 'medium'   THEN 2
+           WHEN 'low'      THEN 3
+           ELSE 4
+         END ASC,
+         q.created_at ASC
+       LIMIT ?`,
     ).all(col, slots);
 
     for (const row of rows) {
