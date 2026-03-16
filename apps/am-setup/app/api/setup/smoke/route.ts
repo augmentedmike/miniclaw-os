@@ -1,6 +1,8 @@
 export const dynamic = "force-dynamic";
 
 import { spawn } from "node:child_process";
+import { readSetupState } from "@/lib/setup-state";
+import { healSmokeFailures } from "@/lib/smoke-heal";
 
 /**
  * GET /api/setup/smoke
@@ -35,9 +37,12 @@ export async function GET() {
       let failed = 0;
       let warned = 0;
       let buffer = "";
+      let fullOutput = "";
 
       const processChunk = (chunk: Buffer) => {
-        buffer += chunk.toString();
+        const text = chunk.toString();
+        fullOutput += text;
+        buffer += text;
         const lines = buffer.split("\n");
         buffer = lines.pop() || "";
 
@@ -64,11 +69,34 @@ export async function GET() {
       proc.stdout?.on("data", processChunk);
       proc.stderr?.on("data", processChunk);
 
-      proc.on("close", (code) => {
+      proc.on("close", async (code) => {
         if (buffer.trim()) {
+          fullOutput += buffer;
           send({ type: "output", data: buffer });
         }
         send({ type: "done", code: code ?? 1, passed, failed, warned });
+
+        // Self-healing: auto-create fix cards for failures
+        if (failed > 0) {
+          try {
+            const state = readSetupState();
+            const result = await healSmokeFailures(
+              fullOutput,
+              state.telegramBotToken,
+              state.telegramChatId,
+            );
+            send({
+              type: "healing",
+              failures: result.failures.length,
+              cardsCreated: result.cards.length,
+              notified: result.notified,
+              cards: result.cards,
+            });
+          } catch (e) {
+            send({ type: "healing", error: e instanceof Error ? e.message : "unknown" });
+          }
+        }
+
         controller.close();
       });
 

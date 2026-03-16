@@ -245,9 +245,6 @@ export async function POST() {
   // Install and start the openclaw gateway
   const gw = ensureGatewayRunning();
 
-  // Register cron jobs with the running gateway
-  registerCronJobs();
-
   // Run mc-smoke to verify everything is healthy
   const smoke = runSmoke();
 
@@ -268,7 +265,6 @@ export async function POST() {
     state,
     ghAuth,
     gateway: gw,
-    projectsFolder,
     smoke: {
       output: smoke.output,
       passed: smoke.passed,
