@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { execSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
+import { consumeToken } from "@/lib/sensitive-auth";
 
 const CLAUDE_BIN = "/Users/michaeloneal/.local/bin/claude";
 const HOME = process.env.HOME || "";
@@ -65,7 +66,14 @@ export async function POST() {
 
 // PUT: paste a session token directly
 export async function PUT(req: Request) {
-  const { token } = await req.json();
+  const { token, sensitiveToken } = await req.json();
+
+  if (!consumeToken(sensitiveToken)) {
+    return NextResponse.json(
+      { ok: false, error: "Password confirmation required" },
+      { status: 403 },
+    );
+  }
 
   if (!token || typeof token !== "string") {
     return NextResponse.json({ ok: false, error: "Token is required" }, { status: 400 });

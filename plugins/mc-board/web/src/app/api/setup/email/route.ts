@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { checkGmailAuth, checkSmtpAuth } from "@/lib/email-check";
 import { writeSetupState } from "@/lib/setup-state";
+import { consumeToken } from "@/lib/sensitive-auth";
 
 function isGmail(email: string): boolean {
   const domain = email.split("@")[1]?.toLowerCase() || "";
@@ -10,7 +11,14 @@ function isGmail(email: string): boolean {
 }
 
 export async function POST(req: Request) {
-  const { email, appPassword, smtpHost, smtpPort } = await req.json();
+  const { email, appPassword, smtpHost, smtpPort, sensitiveToken } = await req.json();
+
+  if (!consumeToken(sensitiveToken)) {
+    return NextResponse.json(
+      { ok: false, error: "Password confirmation required" },
+      { status: 403 },
+    );
+  }
 
   if (!email || !appPassword) {
     return NextResponse.json({ ok: false, error: "Email and password are required" }, { status: 400 });

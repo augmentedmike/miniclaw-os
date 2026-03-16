@@ -1,8 +1,16 @@
 import { NextResponse } from "next/server";
 import { writeSetupState } from "@/lib/setup-state";
+import { consumeToken } from "@/lib/sensitive-auth";
 
 export async function POST(req: Request) {
-  const { botToken, chatId, botUsername } = await req.json();
+  const { botToken, chatId, botUsername, sensitiveToken } = await req.json();
+
+  if (!consumeToken(sensitiveToken)) {
+    return NextResponse.json(
+      { ok: false, error: "Password confirmation required" },
+      { status: 403 },
+    );
+  }
 
   if (!botToken || !chatId) {
     return NextResponse.json(

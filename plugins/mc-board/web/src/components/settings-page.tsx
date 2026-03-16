@@ -63,6 +63,7 @@ function PasswordConfirmModal({
     setVerifying(true);
     setError("");
     try {
+      // Verify password — the hook's handleConfirm will extract the token
       const res = await fetch("/api/setup/verify-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -70,7 +71,7 @@ function PasswordConfirmModal({
       });
       const data = await res.json();
       if (data.ok) {
-        onConfirm(pw);
+        onConfirm(data.sensitiveToken);
       } else {
         setError(data.error || "Incorrect password");
         setVerifying(false);
@@ -241,17 +242,17 @@ function GeneralPanel() {
 
 /* ── Sensitive Field Wrapper — requires password confirmation ── */
 function useSensitiveSave() {
-  const [pendingSave, setPendingSave] = useState<(() => Promise<void>) | null>(null);
+  const [pendingSave, setPendingSave] = useState<((sensitiveToken: string) => Promise<void>) | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
 
-  const requestSave = useCallback((saveFn: () => Promise<void>) => {
+  const requestSave = useCallback((saveFn: (sensitiveToken: string) => Promise<void>) => {
     setPendingSave(() => saveFn);
     setShowConfirm(true);
   }, []);
 
-  const handleConfirm = useCallback((_password: string) => {
+  const handleConfirm = useCallback((sensitiveToken: string) => {
     setShowConfirm(false);
-    if (pendingSave) pendingSave();
+    if (pendingSave) pendingSave(sensitiveToken);
     setPendingSave(null);
   }, [pendingSave]);
 
@@ -285,14 +286,14 @@ function TelegramPanel() {
       .catch(() => {});
   }, []);
 
-  const doSave = async () => {
+  const doSave = async (sensitiveToken: string) => {
     setStatus("saving");
     setError("");
     try {
       const res = await fetch("/api/setup/telegram", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ botToken: token.trim(), chatId: chatId.trim(), botUsername: username.trim() }),
+        body: JSON.stringify({ botToken: token.trim(), chatId: chatId.trim(), botUsername: username.trim(), sensitiveToken }),
       });
       const data = await res.json();
       if (data.ok) {
@@ -355,7 +356,7 @@ function GitHubPanel() {
       .catch(() => {});
   }, []);
 
-  const doSave = async () => {
+  const doSave = async (sensitiveToken: string) => {
     if (!token.trim()) return;
     setStatus("saving");
     setError("");
@@ -363,7 +364,7 @@ function GitHubPanel() {
       const res = await fetch("/api/setup/github", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: token.trim() }),
+        body: JSON.stringify({ token: token.trim(), sensitiveToken }),
       });
       const data = await res.json();
       if (data.ok) {
@@ -441,12 +442,12 @@ function EmailPanel() {
     }
   }, [emailAddr, isGmail]);
 
-  const doSave = async () => {
+  const doSave = async (sensitiveToken: string) => {
     if (!emailAddr.trim() || !appPassword.trim()) return;
     setStatus("saving");
     setError("");
     try {
-      const body: Record<string, string> = { email: emailAddr.trim(), appPassword: appPassword.trim() };
+      const body: Record<string, string> = { email: emailAddr.trim(), appPassword: appPassword.trim(), sensitiveToken };
       if (!isGmail) {
         body.smtpHost = smtpHost.trim();
         body.smtpPort = smtpPort.trim();
@@ -528,7 +529,7 @@ function GeminiPanel() {
       .catch(() => {});
   }, []);
 
-  const doSave = async () => {
+  const doSave = async (sensitiveToken: string) => {
     if (!apiKey.trim()) return;
     setStatus("saving");
     setError("");
@@ -536,7 +537,7 @@ function GeminiPanel() {
       const res = await fetch("/api/setup/gemini", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ apiKey: apiKey.trim() }),
+        body: JSON.stringify({ apiKey: apiKey.trim(), sensitiveToken }),
       });
       const data = await res.json();
       if (data.ok) {
@@ -591,7 +592,7 @@ function AnthropicPanel() {
       .catch(() => {});
   }, []);
 
-  const doSave = async () => {
+  const doSave = async (sensitiveToken: string) => {
     if (!token.trim()) return;
     setStatus("saving");
     setError("");
@@ -599,7 +600,7 @@ function AnthropicPanel() {
       const res = await fetch("/api/setup/anthropic", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: token.trim() }),
+        body: JSON.stringify({ token: token.trim(), sensitiveToken }),
       });
       const data = await res.json();
       if (data.ok) {

@@ -2,9 +2,17 @@ export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import { writeSetupState } from "@/lib/setup-state";
+import { consumeToken } from "@/lib/sensitive-auth";
 
 export async function POST(req: Request) {
-  const { token } = (await req.json()) as { token: string };
+  const { token, sensitiveToken } = (await req.json()) as { token: string; sensitiveToken?: string };
+
+  if (!consumeToken(sensitiveToken)) {
+    return NextResponse.json(
+      { ok: false, error: "Password confirmation required" },
+      { status: 403 },
+    );
+  }
 
   if (!token?.trim()) {
     return NextResponse.json({ ok: false, error: "Token is required" }, { status: 400 });
