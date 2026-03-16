@@ -296,17 +296,20 @@ if [[ -d "/Applications/Tailscale.app" ]]; then
 elif [[ "$CHECK_ONLY" == true ]]; then
   warn "Tailscale.app not found — remote access and mc-human will not work"
 else
-  info "Installing Tailscale Mac app..."
-  TS_ZIP="/tmp/tailscale-$$.zip"
-  TS_TMP="/tmp/tailscale-extract-$$"
-  if curl -fsSL "https://pkgs.tailscale.com/stable/Tailscale-1.94.2-macos.zip" -o "$TS_ZIP" 2>>"$LOG_FILE"; then
-    rm -rf "$TS_TMP" && mkdir -p "$TS_TMP"
-    unzip -q -o "$TS_ZIP" -d "$TS_TMP"
-    cp -a "$TS_TMP/Tailscale.app" "/Applications/Tailscale.app"
-    rm -rf "$TS_ZIP" "$TS_TMP"
+  info "Installing Tailscale Mac app (.pkg installer)..."
+  TS_PKG="/tmp/tailscale-$$.pkg"
+  if curl -fsSL "https://pkgs.tailscale.com/stable/Tailscale-1.94.2-macos.pkg" -o "$TS_PKG" 2>>"$LOG_FILE"; then
+    if sudo -n true 2>/dev/null; then
+      sudo installer -pkg "$TS_PKG" -target / >>"$LOG_FILE" 2>&1
+    else
+      installer -pkg "$TS_PKG" -target CurrentUserHomeDirectory >>"$LOG_FILE" 2>&1 \
+        || { info "Tailscale .pkg needs admin — attempting with sudo..."; sudo installer -pkg "$TS_PKG" -target / >>"$LOG_FILE" 2>&1; }
+    fi
+    rm -f "$TS_PKG"
     open -a Tailscale 2>/dev/null || true
     ok "Tailscale.app installed and launched (menu bar)"
   else
+    rm -f "$TS_PKG"
     warn "Tailscale download failed — install from https://pkgs.tailscale.com/stable/#macos"
   fi
 fi
