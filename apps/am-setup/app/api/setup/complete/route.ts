@@ -185,6 +185,44 @@ function applyGithubAuth(): { ok: boolean; error?: string } {
 }
 
 /**
+ * Seed the GitHub presence setup card into the board DB.
+ * Only called when a GH token is present and auth succeeded.
+ */
+function seedGithubSetupCard() {
+  const dbPath = path.join(STATE_DIR, "USER", "brain", "board.db");
+  if (!fs.existsSync(dbPath)) return;
+
+  const script = `import sqlite3
+conn = sqlite3.connect("${dbPath}")
+conn.execute("""INSERT OR IGNORE INTO cards (id, title, col, priority, tags, project_id, created_at, updated_at, problem_description, implementation_plan, acceptance_criteria)
+VALUES (
+  'crd_seed_github_presence',
+  'Set up GitHub presence',
+  'backlog',
+  'medium',
+  '["setup","github"]',
+  'prj_setup',
+  datetime('now'),
+  datetime('now'),
+  'GitHub token is configured but the account may not be set up for MiniClaw collaboration. Need to verify: profile avatar, profile README, fork of miniclaw-os, publish any extensions, and ensure contribution graph is visible.',
+  '1. Check if GitHub profile has an avatar — if not, upload one.\\n2. Create or update profile README (username/username repo) with a short bio.\\n3. Fork augmentedmike/miniclaw-os to the human''s account if not already forked.\\n4. If any local mc-* extensions exist, publish them as public repos.\\n5. Ensure contribution graph is set to show all contributions (not private-only).',
+  'GitHub profile has an avatar set. Profile README repo exists and is non-empty. miniclaw-os fork exists under the human''s account. Contribution graph is publicly visible.'
+)""")
+conn.commit()
+conn.close()
+`;
+  const tmpScript = path.join(os.tmpdir(), `miniclaw-gh-seed-${process.pid}.py`);
+  fs.writeFileSync(tmpScript, script, "utf-8");
+  try {
+    execSync(`python3 "${tmpScript}"`, { stdio: "pipe" });
+  } catch (e) {
+    console.error("GitHub setup card seeding failed:", e);
+  } finally {
+    try { fs.unlinkSync(tmpScript); } catch { /* ignore */ }
+  }
+}
+
+/**
  * Set the mc-github defaultRepo in openclaw.json plugin config.
  */
 function setGithubDefaultRepo() {
@@ -429,6 +467,11 @@ export async function POST() {
 
   // Create USER/brain/ and seed the board DB with default projects
   seedBoardDb();
+
+  // Seed GitHub presence setup card if GH token is configured
+  if (ghAuth.ok) {
+    seedGithubSetupCard();
+  }
 
   // Create canonical projects folder and ~/mc-projects symlink
   const projectsFolder = ensureProjectsFolder();

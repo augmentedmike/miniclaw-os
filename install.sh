@@ -1770,6 +1770,31 @@ s['ghConfigured'] = True
 with open(p, 'w') as f: json.dump(s, f, indent=2); f.write('\n')
 "
       ok "GitHub: $GH_USERNAME (derived from token)"
+
+      # Seed GitHub setup card now that we know GH is configured
+      if [[ -f "$BOARD_DB" ]]; then
+        sqlite3 "$BOARD_DB" <<'GHSEED'
+INSERT OR IGNORE INTO cards (id, title, col, priority, tags, project_id, created_at, updated_at, problem_description, implementation_plan, acceptance_criteria)
+VALUES (
+  'crd_seed_github_presence',
+  'Set up GitHub presence',
+  'backlog',
+  'medium',
+  '["setup","github"]',
+  'prj_setup',
+  datetime('now'),
+  datetime('now'),
+  'GitHub token is configured but the account may not be set up for MiniClaw collaboration. Need to verify: profile avatar, profile README, fork of miniclaw-os, publish any extensions, and ensure contribution graph is visible.',
+  '1. Check if GitHub profile has an avatar — if not, upload one.
+2. Create or update profile README (username/username repo) with a short bio.
+3. Fork augmentedmike/miniclaw-os to the human''s account if not already forked.
+4. If any local mc-* extensions exist, publish them as public repos.
+5. Ensure contribution graph is set to show all contributions (not private-only).',
+  'GitHub profile has an avatar set. Profile README repo exists and is non-empty. miniclaw-os fork exists under the human''s account. Contribution graph is publicly visible.'
+);
+GHSEED
+        ok "GitHub presence setup card created"
+      fi
     fi
   fi
 
