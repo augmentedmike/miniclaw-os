@@ -287,7 +287,8 @@ function spawnFullAgent(row, card, project) {
   }
 
   const cardMd = card ? cardToMarkdown(card) : `Card ${row.card_id} (details unavailable)`;
-  const fullPrompt = row.prompt.replace("{{CARD}}", cardMd).replace(/\{\{CARD_ID\}\}/g, row.card_id);
+  const systemPrompt = row.prompt.replace("{{CARD}}", "").replace(/\{\{CARD_ID\}\}/g, row.card_id).trim();
+  const userPrompt = `Here is the card to work on:\n\n${cardMd}\n\nCard ID: ${row.card_id}\n\nExecute the instructions in your system prompt now. Do not ask questions. Do not summarize. Use tools immediately.`;
   const agentCwd = (project?.work_dir && fs.existsSync(project.work_dir)) ? project.work_dir : runDir;
 
   fs.writeFileSync(path.join(runDir, "CLAUDE.md"), [
@@ -307,7 +308,9 @@ function spawnFullAgent(row, card, project) {
     "Plugin repo (public, backport target): ~/.openclaw/projects/miniclaw-os/",
     `Live state dir: ${STATE_DIR}`,
     "",
-    "You are a full autonomous agent. Use tools freely to do the actual work.",
+    "You are a non-interactive automation agent. Execute your instructions immediately using tool calls.",
+    "NEVER ask questions. NEVER generate conversational responses. NEVER summarize the board state.",
+    "If you cannot proceed, exit silently. Do not explain why.",
     "Update the card via: openclaw mc-board update / move / release",
     "",
     "## Available CLI tools (use via Bash)",
@@ -348,7 +351,8 @@ function spawnFullAgent(row, card, project) {
   const proc = spawn("stdbuf", [
     "-oL",
     CLAUDE_BIN,
-    "-p", fullPrompt,
+    "--system-prompt", systemPrompt,
+    "-p", userPrompt,
     "--output-format", "stream-json",
     "--include-partial-messages",
     "--verbose",
