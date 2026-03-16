@@ -7,6 +7,13 @@
     "tag": "v0.1.5"
   },
   "description": "AugmentedMike's AI operating system \u2014 plugins, tools, and infrastructure for OpenClaw",
+  "dependencies": {
+    "node": "24",
+    "tailscale": {
+      "version": "1.94.2",
+      "pkg": "https://pkgs.tailscale.com/stable/Tailscale-1.94.2-macos.pkg"
+    }
+  },
   "plugins": [
     {
       "id": "mc-board",

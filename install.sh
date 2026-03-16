@@ -229,8 +229,12 @@ brew_install() {
 # ── Step 2: Core deps ─────────────────────────────────────────────────────────
 step "Step 2: Core dependencies"
 
-# Node.js — pin to the major version the release was built with
-REQUIRED_NODE_MAJOR=24
+# Read pinned dependency versions from MANIFEST.json
+REQUIRED_NODE_MAJOR=$(python3 -c "import json; print(json.load(open('$REPO_DIR/MANIFEST.json'))['dependencies']['node'])" 2>/dev/null || echo "24")
+TAILSCALE_VERSION=$(python3 -c "import json; print(json.load(open('$REPO_DIR/MANIFEST.json'))['dependencies']['tailscale']['version'])" 2>/dev/null || echo "1.94.2")
+TAILSCALE_PKG_URL=$(python3 -c "import json; print(json.load(open('$REPO_DIR/MANIFEST.json'))['dependencies']['tailscale']['pkg'])" 2>/dev/null || echo "https://pkgs.tailscale.com/stable/Tailscale-${TAILSCALE_VERSION}-macos.pkg")
+
+# Allow .node-version file to override
 if [[ -f "$REPO_DIR/.node-version" ]]; then
   REQUIRED_NODE_MAJOR=$(cat "$REPO_DIR/.node-version" | tr -d '[:space:]')
 fi
@@ -296,9 +300,9 @@ if [[ -d "/Applications/Tailscale.app" ]]; then
 elif [[ "$CHECK_ONLY" == true ]]; then
   warn "Tailscale.app not found — remote access and mc-human will not work"
 else
-  info "Installing Tailscale Mac app (.pkg installer)..."
+  info "Installing Tailscale $TAILSCALE_VERSION Mac app (.pkg installer)..."
   TS_PKG="/tmp/tailscale-$$.pkg"
-  if curl -fsSL "https://pkgs.tailscale.com/stable/Tailscale-1.94.2-macos.pkg" -o "$TS_PKG" 2>>"$LOG_FILE"; then
+  if curl -fsSL "$TAILSCALE_PKG_URL" -o "$TS_PKG" 2>>"$LOG_FILE"; then
     if sudo -n true 2>/dev/null; then
       sudo installer -pkg "$TS_PKG" -target / >>"$LOG_FILE" 2>&1
     else
