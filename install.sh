@@ -292,6 +292,60 @@ else
     || warn "Git Butler install failed — download from https://gitbutler.com"
 fi
 
+# Google Chrome (required for browser automation via remote debugging)
+if [[ -d "/Applications/Google Chrome.app" ]]; then
+  ok "Google Chrome already installed"
+elif [[ "$CHECK_ONLY" == true ]]; then
+  fail "Google Chrome not found (/Applications/Google Chrome.app)"
+else
+  info "Installing Google Chrome..."
+  run_quiet brew install --cask google-chrome \
+    && ok "Google Chrome installed" \
+    || warn "Google Chrome install failed — download from https://google.com/chrome"
+fi
+
+# Chrome extension force-install via managed policy
+# Extension IDs: Claude (fcoeoabgfenejglbffodgkkbkcdhcgfn)
+CHROME_POLICY_DIR="/Library/Google/Chrome/Managed Preferences"
+CHROME_POLICY_FILE="$CHROME_POLICY_DIR/com.google.Chrome.plist"
+CLAUDE_EXT_ID="fcoeoabgfenejglbffodgkkbkcdhcgfn"
+
+if [[ -d "/Applications/Google Chrome.app" ]]; then
+  if defaults read "$CHROME_POLICY_FILE" ExtensionInstallForcelist 2>/dev/null | grep -q "$CLAUDE_EXT_ID"; then
+    ok "Chrome extension policy already configured"
+  elif [[ "$CHECK_ONLY" == true ]]; then
+    warn "Chrome extension policy not configured"
+  else
+    info "Configuring Chrome extension force-install policy..."
+    sudo mkdir -p "$CHROME_POLICY_DIR"
+    EXISTING=$(defaults read "$CHROME_POLICY_FILE" ExtensionInstallForcelist 2>/dev/null | grep -o '"[^"]*"' | tr -d '"' || true)
+    ENTRIES=()
+    if [[ -n "$EXISTING" ]]; then
+      while IFS= read -r entry; do
+        [[ -n "$entry" ]] && ENTRIES+=("$entry")
+      done <<< "$EXISTING"
+    fi
+    ENTRIES+=("${CLAUDE_EXT_ID};https://clients2.google.com/service/update2/crx")
+    sudo defaults write "$CHROME_POLICY_FILE" ExtensionInstallForcelist -array "${ENTRIES[@]}"
+    ok "Chrome extension policy configured (installs on next Chrome launch)"
+  fi
+
+  # Suppress command-line flag warnings for remote debugging
+  if [[ "$CHECK_ONLY" != true ]]; then
+    sudo defaults write "$CHROME_POLICY_FILE" CommandLineFlagSecurityWarningsEnabled -bool false 2>/dev/null \
+      && ok "Chrome remote debugging policy set" \
+      || warn "Could not set Chrome debugging policy (sudo required)"
+  fi
+fi
+
+# mc-chrome launcher (starts Chrome with remote debugging on port 9222)
+MC_CHROME="$REPO_DIR/SYSTEM/bin/mc-chrome"
+if [[ -x "$MC_CHROME" ]]; then
+  ok "mc-chrome launcher present"
+else
+  fail "mc-chrome launcher missing — expected at $MC_CHROME"
+fi
+
 # ── Step 3: Claude Code ──────────────────────────────────────────────────────
 step "Step 3: Claude Code"
 

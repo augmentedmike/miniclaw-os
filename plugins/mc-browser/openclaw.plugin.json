@@ -1,0 +1,21 @@
+{
+  "id": "mc-browser",
+  "name": "Miniclaw Browser",
+  "description": "Chrome auto-setup with remote debugging and extension management for browser automation.",
+  "version": "0.1.0",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "cdpPort": {
+        "type": "number",
+        "description": "Chrome DevTools Protocol remote debugging port. Default: 9222"
+      },
+      "extensionIds": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Chrome extension IDs to force-install via managed policy"
+      }
+    }
+  }
+}

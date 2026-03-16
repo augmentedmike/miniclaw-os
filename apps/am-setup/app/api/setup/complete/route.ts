@@ -7,6 +7,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
 import { execSync, spawnSync } from "node:child_process";
+import { healSmokeFailures } from "@/lib/smoke-heal";
 
 const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(process.env.HOME || "", ".openclaw");
 
@@ -176,8 +177,18 @@ export async function POST() {
   // Install and start the openclaw gateway
   const gw = ensureGatewayRunning();
 
+  // Register cron jobs with the running gateway
+  registerCronJobs();
+
   // Run mc-smoke to verify everything is healthy
   const smoke = runSmoke();
+
+  // Self-healing: auto-create fix cards for any smoke test failures
+  const healResult = await healSmokeFailures(
+    smoke.output,
+    setupState.telegramBotToken,
+    setupState.telegramChatId,
+  );
 
   const state = writeSetupState({
     complete: true,
@@ -188,6 +199,16 @@ export async function POST() {
     ok: true,
     state,
     gateway: gw,
-    smoke: { output: smoke.output, passed: smoke.passed },
+    projectsFolder,
+    smoke: {
+      output: smoke.output,
+      passed: smoke.passed,
+      healing: {
+        failures: healResult.failures.length,
+        cardsCreated: healResult.cards.length,
+        notified: healResult.notified,
+        cards: healResult.cards,
+      },
+    },
   });
 }
