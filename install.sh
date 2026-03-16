@@ -283,15 +283,20 @@ brew_install python@3 python3
 brew_install jq
 brew_install age
 
-# Tailscale (required for remote access, mc-human VNC sessions, and board card links)
-if command -v tailscale &>/dev/null && pgrep -x tailscaled &>/dev/null 2>&1; then
-  ok "Tailscale already installed and running"
-elif [[ -d "/Applications/Tailscale.app" ]]; then
+# Tailscale Mac app (required for remote access, mc-human VNC sessions, and board card links)
+# The Mac app provides the menu bar GUI + system extension. The Homebrew formula
+# only installs the CLI (`tailscale` + `tailscaled`) with no GUI — not sufficient.
+if [[ -d "/Applications/Tailscale.app" ]]; then
   ok "Tailscale.app already installed"
+  # Make sure it's running (menu bar app)
+  if ! pgrep -f "Tailscale.app" &>/dev/null; then
+    open -a Tailscale 2>/dev/null || true
+    ok "Tailscale.app launched"
+  fi
 elif [[ "$CHECK_ONLY" == true ]]; then
-  warn "Tailscale not found — remote access and mc-human will not work"
+  warn "Tailscale.app not found — remote access and mc-human will not work"
 else
-  info "Installing Tailscale..."
+  info "Installing Tailscale Mac app..."
   TS_ZIP="/tmp/tailscale-$$.zip"
   TS_TMP="/tmp/tailscale-extract-$$"
   if curl -fsSL "https://pkgs.tailscale.com/stable/Tailscale-1.94.2-macos.zip" -o "$TS_ZIP" 2>>"$LOG_FILE"; then
@@ -300,7 +305,7 @@ else
     cp -a "$TS_TMP/Tailscale.app" "/Applications/Tailscale.app"
     rm -rf "$TS_ZIP" "$TS_TMP"
     open -a Tailscale 2>/dev/null || true
-    ok "Tailscale installed and launched"
+    ok "Tailscale.app installed and launched (menu bar)"
   else
     warn "Tailscale download failed — install from https://pkgs.tailscale.com/stable/#macos"
   fi
