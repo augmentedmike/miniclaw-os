@@ -467,9 +467,10 @@ function seedRolodexContacts() {
 
   // Human owner contact — ghUsername is their GitHub handle, email step is the AGENT's email
   const humanGh = (setupState as Record<string, string>).ghUsername || "";
+  const humanName = humanGh || "My Human";
   contacts.push({
     id: crypto.randomUUID(),
-    name: "My Human",
+    name: humanName,
     emails: [],
     phones: [],
     domains: [],
