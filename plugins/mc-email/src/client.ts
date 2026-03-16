@@ -1,5 +1,6 @@
 import { ImapFlow } from "imapflow";
 import nodemailer from "nodemailer";
+import { simpleParser } from "mailparser";
 import type { EmailConfig } from "./config.js";
 import { getAppPassword } from "./vault.js";
 import type { EmailMessage, SendEmailOptions } from "./types.js";
@@ -74,11 +75,30 @@ export class GmailClient {
     try {
       await client.mailboxOpen("INBOX");
       let found: EmailMessage | null = null;
+
       for await (const msg of client.fetch(
         { uid: parseInt(id, 10) },
-        { uid: true, envelope: true, flags: true, bodyStructure: true },
+        {
+          uid: true,
+          envelope: true,
+          flags: true,
+          source: true,
+        },
         { uid: true }
       )) {
+        let body = "";
+        let snippet = "";
+
+        if (msg.source) {
+          const parsed = await simpleParser(msg.source);
+          body = parsed.text ?? "";
+          if (!body && parsed.html) {
+            // Strip HTML tags as fallback when no plain-text part exists
+            body = parsed.html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+          }
+          snippet = body.substring(0, 500);
+        }
+
         found = {
           id: String(msg.uid),
           threadId: String(msg.uid),
@@ -88,13 +108,15 @@ export class GmailClient {
             : "",
           to: msg.envelope?.to?.[0]?.address ?? "",
           date: msg.envelope?.date?.toISOString() ?? "",
-          snippet: "",
+          snippet,
+          body,
           labelIds: msg.flags ? Array.from(msg.flags) : [],
         };
         break;
       }
       return found;
-    } catch {
+    } catch (err) {
+      console.error("Error fetching message:", err);
       return null;
     } finally {
       await client.logout();

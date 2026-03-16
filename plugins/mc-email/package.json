@@ -8,6 +8,7 @@
     "google-auth-library": "^9.0.0",
     "googleapis": "^144.0.0",
     "imapflow": "^1.2.12",
+    "mailparser": "^3.9.4",
     "nodemailer": "^8.0.1"
   },
   "devDependencies": {

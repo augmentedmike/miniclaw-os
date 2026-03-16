@@ -91,7 +91,10 @@ export function registerEmailCommands(ctx: Ctx): void {
       console.log(`Date:    ${msg.date}`);
       console.log(`Subject: ${msg.subject}`);
       console.log(`Flags:   ${msg.labelIds.join(", ")}`);
-      if (msg.snippet) {
+      if (msg.body) {
+        console.log();
+        console.log(msg.body);
+      } else if (msg.snippet) {
         console.log();
         console.log(msg.snippet);
       }
