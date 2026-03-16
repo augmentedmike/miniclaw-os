@@ -1834,9 +1834,9 @@ import json, sys, uuid
 from datetime import datetime
 cfg = json.load(open(sys.argv[1]))
 contacts = [
-    {"id": str(uuid.uuid4()), "name": "My Human", "emails": [], "phones": [], "domains": [],
+    {"id": str(uuid.uuid4()), "name": cfg.get("ghUsername", "My Human"), "emails": [], "phones": [], "domains": [],
      "tags": ["owner", "human"], "trustStatus": "verified", "lastVerified": datetime.utcnow().isoformat(),
-     "notes": f"GitHub: {cfg.get('ghUsername', '')}. Added during headless setup." if cfg.get('ghUsername') else "Human owner."},
+     "notes": f"GitHub: {cfg.get('ghUsername', '')}. Added during setup." if cfg.get('ghUsername') else "Human owner."},
     {"id": str(uuid.uuid4()), "name": cfg.get("assistantName", "MiniClaw"),
      "emails": [cfg["emailAddress"]] if cfg.get("emailAddress") else [], "phones": [], "domains": [],
      "tags": ["agent", "self"], "trustStatus": "verified", "lastVerified": datetime.utcnow().isoformat(),
