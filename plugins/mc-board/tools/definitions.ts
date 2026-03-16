@@ -177,7 +177,8 @@ export const brainTools: AnyAgentTool[] = [
     label: "Brain Next Task",
     description:
       "Get the highest-priority actionable card to work on next. " +
-      "Prefers in-progress > in-review > backlog, then high > medium > low priority.",
+      "Focus-tagged cards always come first. Then prefers in-progress > in-review > backlog, " +
+      "then critical > high > medium > low priority.",
     parameters: schema({}) as never,
     execute: async () => {
       const { stdout, stderr, exitCode } = runBrain(["next"]);

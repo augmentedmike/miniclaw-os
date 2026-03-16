@@ -278,6 +278,11 @@ export function suggestNext(cards: Card[]): Card | null {
   if (active.length === 0) return null;
 
   return active.sort((a, b) => {
+    // Focus-tagged cards always come first
+    const aF = a.tags.includes("focus") ? 1 : 0;
+    const bF = b.tags.includes("focus") ? 1 : 0;
+    if (aF !== bF) return bF - aF;
+
     const colDiff = columnScore[b.column] - columnScore[a.column];
     if (colDiff !== 0) return colDiff;
     return (priorityScore[b.priority] ?? 0) - (priorityScore[a.priority] ?? 0);
@@ -303,6 +308,11 @@ export function renderColumnContext(col: Column, cards: Card[], projects: Projec
   const priorityScore: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
   const sortCards = (list: Card[]) =>
     [...list].sort((a, b) => {
+      // Focus-tagged cards always come first
+      const aF = a.tags.includes("focus") ? 1 : 0;
+      const bF = b.tags.includes("focus") ? 1 : 0;
+      if (aF !== bF) return bF - aF;
+
       const pd = (priorityScore[b.priority] ?? 0) - (priorityScore[a.priority] ?? 0);
       if (pd !== 0) return pd;
       return a.created_at.localeCompare(b.created_at);
