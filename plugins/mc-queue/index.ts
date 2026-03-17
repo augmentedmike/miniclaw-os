@@ -82,6 +82,11 @@ function isCronSession(sessionKey?: string): boolean {
   return sessionKey.includes(":cron:");
 }
 
+function isBoardWorkerSession(sessionKey?: string): boolean {
+  if (!sessionKey) return false;
+  return sessionKey.includes(":cron:board-worker:");
+}
+
 function isLogChannelSession(sessionKey: string, logChatId: string): boolean {
   if (!logChatId) return false;
   return sessionKey.includes(logChatId);
@@ -199,6 +204,8 @@ export default function register(api: OpenClawPluginApi) {
   const cfg = (api.pluginConfig ?? {}) as {
     enabled?: boolean;
     haikuModel?: string;
+    sonnetModel?: string;
+    opusModel?: string;
     maxToolCallsPerTurn?: number;
     applyToChannels?: boolean;
     applyToDMs?: boolean;
@@ -209,6 +216,8 @@ export default function register(api: OpenClawPluginApi) {
 
   const enabled = cfg.enabled ?? true;
   const haikuModel = cfg.haikuModel ?? "claude-haiku-4-5-20251001";
+  const sonnetModel = cfg.sonnetModel ?? "claude-sonnet-4-6-20260315";
+  const opusModel = cfg.opusModel ?? "claude-opus-4-6-20260315";
   const maxToolCallsPerTurn = cfg.maxToolCallsPerTurn ?? 3;
   const applyToChannels = cfg.applyToChannels ?? true;
   const applyToDMs = cfg.applyToDMs ?? true;
@@ -234,19 +243,29 @@ export default function register(api: OpenClawPluginApi) {
   }
 
   api.logger.info(
-    `mc-queue loaded (model=${haikuModel}, maxTools=${maxToolCallsPerTurn}, channels=${applyToChannels}, dms=${applyToDMs}, tgLog=${tgLogChatId ? "enabled" : "disabled"})`,
+    `mc-queue loaded (haiku=${haikuModel}, sonnet=${sonnetModel}, opus=${opusModel}, maxTools=${maxToolCallsPerTurn}, channels=${applyToChannels}, dms=${applyToDMs}, tgLog=${tgLogChatId ? "enabled" : "disabled"})`,
   );
 
   // Per-turn tool call counter keyed by runId
   const toolCallCounts = new Map<string, number>();
 
-  // ---- 1. Switch messaging sessions to Haiku ----
+  // ---- 1. Route models by session type ----
+  // Messaging → Haiku (fast chat), Board workers → Opus (coding), Other cron → Sonnet (planning)
   api.on("before_model_resolve", async (_event, ctx) => {
     const sessionKey = ctx.sessionKey ?? "";
-    if (!isMessagingSession(sessionKey)) return;
 
-    return { model: haikuModel };
-  });
+    if (isMessagingSession(sessionKey)) {
+      return { model: haikuModel };
+    }
+
+    if (isBoardWorkerSession(sessionKey)) {
+      return { model: opusModel };
+    }
+
+    if (isCronSession(sessionKey)) {
+      return { model: sonnetModel };
+    }
+  }, { priority: 50 });
 
   // ---- 2. Inject triage instructions into system prompt ----
   api.on("before_prompt_build", async (_event, ctx) => {
@@ -368,7 +387,9 @@ export default function register(api: OpenClawPluginApi) {
       text:
         `*mc-queue status*\n` +
         `Enabled: ${enabled}\n` +
-        `Model: ${haikuModel}\n` +
+        `Chat model (Haiku): ${haikuModel}\n` +
+        `Planning model (Sonnet): ${sonnetModel}\n` +
+        `Coding model (Opus): ${opusModel}\n` +
         `Max tool calls/turn: ${maxToolCallsPerTurn}\n` +
         `Apply to channels: ${applyToChannels}\n` +
         `Apply to DMs: ${applyToDMs}\n` +
