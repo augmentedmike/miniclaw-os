@@ -30,7 +30,9 @@ const SCHEMA = /* sql */ `
     notes            TEXT NOT NULL DEFAULT '',
     review_notes     TEXT NOT NULL DEFAULT '',
     research         TEXT NOT NULL DEFAULT '',
-    work_log         TEXT NOT NULL DEFAULT '[]'
+    work_log         TEXT NOT NULL DEFAULT '[]',
+    pickup_count     INTEGER NOT NULL DEFAULT 0,
+    correction_count INTEGER NOT NULL DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS card_history (
@@ -91,6 +93,8 @@ export function openDb(stateDir: string): Database {
   try { db.exec(`ALTER TABLE projects ADD COLUMN github_repo TEXT NOT NULL DEFAULT ''`); } catch { /* already exists */ }
   try { db.exec(`ALTER TABLE projects ADD COLUMN build_command TEXT NOT NULL DEFAULT ''`); } catch { /* already exists */ }
   try { db.exec(`ALTER TABLE cards ADD COLUMN depends_on TEXT NOT NULL DEFAULT '[]'`); } catch { /* already exists */ }
+  try { db.exec(`ALTER TABLE cards ADD COLUMN pickup_count INTEGER NOT NULL DEFAULT 0`); } catch { /* already exists */ }
+  try { db.exec(`ALTER TABLE cards ADD COLUMN correction_count INTEGER NOT NULL DEFAULT 0`); } catch { /* already exists */ }
   // Agent run token usage columns
   try { db.exec(`ALTER TABLE agent_runs ADD COLUMN input_tokens INTEGER DEFAULT 0`); } catch { /* already exists */ }
   try { db.exec(`ALTER TABLE agent_runs ADD COLUMN output_tokens INTEGER DEFAULT 0`); } catch { /* already exists */ }

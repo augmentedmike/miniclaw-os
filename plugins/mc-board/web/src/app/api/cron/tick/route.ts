@@ -6,6 +6,7 @@ import { listCronJobs, updateCronJob } from "@/lib/cron";
 import { listCards, getActiveWork, getRunningByCol } from "@/lib/data";
 import { releaseCard } from "@/lib/actions";
 import { sortCards } from "@/lib/sort";
+import { isOverLimit, autoCorrectCard, incrementGlobalCorrections, maybeSendCorrectionAlert } from "@/lib/pickup-limits";
 
 export const dynamic = "force-dynamic";
 
@@ -162,6 +163,35 @@ export async function GET(req: Request) {
 
   const fired: string[] = [];
   const skipped: string[] = [];
+  const corrected: string[] = [];
+
+  // ---- Auto-correct stuck cards (over pickup limit) before scheduling ----
+  // Runs every tick regardless of job schedule. Checks all non-shipped columns.
+  {
+    const allCardsForCorrection = listCards();
+    for (const card of allCardsForCorrection) {
+      const col = card.column;
+      if (col === "shipped") continue;
+      if (isOverLimit(card, col)) {
+        const result = autoCorrectCard(card, col);
+        if (result) {
+          corrected.push(`${card.id}: ${col} → ${result.toColumn}${result.holdTagAdded ? "+hold" : ""}`);
+          // Release from active_work if it was active
+          if (activeIds.has(card.id)) {
+            try { releaseCard(card.id, "tick-auto-correct"); } catch {}
+            activeIds.delete(card.id);
+          }
+          const correctionState = incrementGlobalCorrections();
+          // Fire TG alert if threshold hit — read bot token + chat ID from env/vault
+          const botToken = process.env.TELEGRAM_BOT_TOKEN ?? "";
+          const chatId = process.env.TELEGRAM_HUMAN_CHAT_ID ?? "";
+          if (botToken && chatId) {
+            maybeSendCorrectionAlert(correctionState, botToken, chatId).catch(() => {});
+          }
+        }
+      }
+    }
+  }
 
   for (const job of jobs) {
     const parsed = parseJobId(job.id);
@@ -205,6 +235,8 @@ export async function GET(req: Request) {
         if (recentlyProcessed(c.id, column, cooldownMs)) return false;
         // Block if any dependency is not yet shipped
         if (c.depends_on.some(dep => !shippedIds.has(dep))) return false;
+        // Block if over the pickup limit (auto-correction handles these separately)
+        if (isOverLimit(c, column)) return false;
         return true;
       }), activeIds)
       .slice(0, availableSlots);
@@ -230,5 +262,5 @@ export async function GET(req: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, fired, skipped, released, reactivelyFired, ts: new Date(now).toISOString() });
+  return NextResponse.json({ ok: true, fired, skipped, released, reactivelyFired, corrected, ts: new Date(now).toISOString() });
 }

@@ -28,6 +28,8 @@ export interface Card {
   work_log: WorkLogEntry[];
   depends_on: string[];
   attachments: Attachment[];
+  pickup_count: number;
+  correction_count: number;
 }
 
 export interface Attachment {

@@ -19,6 +19,8 @@ export function pickupCard(id: string, worker: string): string {
   const now = new Date().toISOString();
   db().prepare("INSERT OR REPLACE INTO active_work (card_id, project_id, title, worker, col, picked_up_at) VALUES (?, ?, ?, ?, ?, ?)").run(id, card.project_id, card.title, worker, card.col, now);
   db().prepare("INSERT INTO pickup_log (card_id, project_id, title, worker, col, action, at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(id, card.project_id, card.title, worker, card.col, "pickup", now);
+  // Increment pickup_count so the pickup-limits system can track stuck cards
+  db().prepare("UPDATE cards SET pickup_count = pickup_count + 1 WHERE id = ?").run(id);
   return `Picked up ${id}`;
 }
 

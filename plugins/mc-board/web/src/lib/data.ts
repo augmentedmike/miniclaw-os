@@ -63,6 +63,8 @@ interface CardRow {
   work_log: string;
   depends_on: string;
   attachments: string;
+  pickup_count: number;
+  correction_count: number;
 }
 
 interface HistoryRow {
@@ -143,6 +145,8 @@ function rowToCard(row: CardRow, history: HistoryRow[]): Card {
     verify_url: row.verify_url ?? "",
     depends_on: (() => { try { return JSON.parse(row.depends_on || "[]") as string[]; } catch { return []; } })(),
     attachments: (() => { try { return JSON.parse(row.attachments || "[]") as import("./types").Attachment[]; } catch { return []; } })(),
+    pickup_count: row.pickup_count ?? 0,
+    correction_count: row.correction_count ?? 0,
     work_log: (() => {
       try {
         const raw = JSON.parse(row.work_log || "[]") as Array<Record<string, unknown>>;

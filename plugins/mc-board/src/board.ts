@@ -144,6 +144,8 @@ export function renderCardDetail(card: Card): string {
     `**Created:** ${card.created_at}`,
     `**Updated:** ${card.updated_at}`,
     `project_id: ${card.project_id ?? ""}`,
+    `**Pickup count:** ${card.pickup_count ?? 0}`,
+    `**Correction count:** ${card.correction_count ?? 0}`,
     ``,
     `## Problem Description`,
     card.problem_description || "(empty)",

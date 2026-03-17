@@ -32,6 +32,10 @@ export interface Card {
   research: string;
   verify_url: string;
   work_log: WorkLogEntry[];
+  // Pickup tracking — incremented each time an agent picks up this card
+  pickup_count: number;
+  // Correction tracking — incremented each time auto-correction is triggered
+  correction_count: number;
 }
 
 export interface WorkLogEntry {

@@ -55,6 +55,8 @@ interface CardRow {
   research: string;
   verify_url: string;
   work_log: string;
+  pickup_count: number;
+  correction_count: number;
 }
 
 interface HistoryRow {
@@ -86,6 +88,8 @@ function rowToCard(row: CardRow, history: HistoryRow[]): Card {
     research: row.research,
     verify_url: row.verify_url ?? "",
     work_log: (() => { try { return JSON.parse(row.work_log || "[]"); } catch { return []; } })(),
+    pickup_count: row.pickup_count ?? 0,
+    correction_count: row.correction_count ?? 0,
   };
 }
 
@@ -226,6 +230,10 @@ export class CardStore {
   countByColumn(column: Column): number {
     const row = this.db.prepare(`SELECT COUNT(*) as cnt FROM cards WHERE col = ?`).get(column) as { cnt: number };
     return row.cnt;
+  }
+
+  incrementCorrectionCount(id: string): void {
+    this.db.prepare(`UPDATE cards SET correction_count = correction_count + 1 WHERE id = ?`).run(id);
   }
 
   delete(id: string): void {

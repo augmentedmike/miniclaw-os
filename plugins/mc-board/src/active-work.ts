@@ -58,6 +58,10 @@ export class ActiveWorkStore {
       `INSERT INTO pickup_log (card_id, project_id, title, worker, col, action, at)
        VALUES (?, ?, ?, ?, ?, 'pickup', ?)`,
     ).run(entry.cardId, entry.projectId ?? null, entry.title, entry.worker, entry.column, now);
+    // Atomically increment pickup_count on the card
+    this.db.prepare(
+      `UPDATE cards SET pickup_count = pickup_count + 1 WHERE id = ?`,
+    ).run(entry.cardId);
     this._trimLog();
     return { ...entry, pickedUpAt: now };
   }
