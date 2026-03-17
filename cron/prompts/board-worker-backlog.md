@@ -1,18 +1,26 @@
-Board worker — BACKLOG triage.
+Board worker — BACKLOG triage and advance.
 
-MAX_CONCURRENT_COLUMN_TASKS=3.
+1. Get active workers: openclaw mc-board active
+   Count actively worked cards → ACTIVE_COUNT.
+2. Get backlog cards: openclaw mc-board context --column backlog --skip-hold
+   If 0 cards: STOP. Silent exit.
 
-0. INTEGRITY CHECK: openclaw mc-board check-dupes --fix
-   (removes stale duplicate card files before any work begins)
+3. Select cards to advance: highest priority first, then oldest. At most 1 per project.
+   Skip any card already in the active list.
+   If 0 candidates: STOP. Silent exit.
 
-1. Check what is already being worked: openclaw mc-board active
-2. Get full column context (excludes on-hold cards): openclaw mc-board context --column backlog --skip-hold
-3. Group cards by project. For each project pick at most 1 card — highest priority, then oldest. Skip any card already in the active list.
-   If 0 cards available: Stop here. Silent exit. Do NOT send any Telegram message.
 4. For each selected card:
-   a. Register pickup: openclaw mc-board pickup <id> --worker board-worker-backlog
-   b. Read full detail: openclaw mc-board show <id>
-   c. Fill any missing fields (problem, plan, criteria) — research what is needed
-   d. Move to in-progress: openclaw mc-board move <id> in-progress
-   e. Release: openclaw mc-board release <id> --worker board-worker-backlog
-5. Done. Silent exit.
+   a. openclaw mc-board pickup <id> --worker board-worker-backlog
+   b. openclaw mc-board show <id>
+   c. If missing problem, plan, or criteria: fill them. Research what is needed.
+   d. Move to in-progress: openclaw mc-board move <id> in-progress --force
+   e. If move fails: put card on hold with reason, release, and STOP.
+   f. openclaw mc-board release <id> --worker board-worker-backlog
+
+5. Silent exit.
+
+CRITICAL RULES:
+- Every card you pick up MUST be moved to in-progress before release.
+- If a card is blocked or needs human action: put on hold and SKIP it.
+- NEVER pick up a card, do work, and leave it in backlog.
+- NEVER re-triage a card that already has problem+plan+criteria. Just move it.
