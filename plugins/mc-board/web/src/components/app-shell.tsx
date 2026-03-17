@@ -75,6 +75,7 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
   const [assistantName, setAssistantName] = useState("Am");
   const { data: rolodexCount } = useSWR<{ count: number }>("/api/rolodex/count", fetcher, { refreshInterval: 60000 });
   const { data: memoryStats } = useSWR<{ memoryFiles: number; kbEntries: number; total: number }>("/api/memory/stats", fetcher, { refreshInterval: 60000 });
+  const { data: health } = useSWR<{ version: string }>("/api/health", fetcher, { refreshInterval: 300000 });
 
   // Fetch assistant name for empty-state message
   useEffect(() => {
@@ -281,6 +282,11 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
               fill="currentColor" />
           </svg>
         </button>
+        {health?.version && (
+          <span className="flex items-center px-3 border-l border-zinc-800 text-zinc-500 text-xs font-mono shrink-0 h-full">
+            v{health.version}
+          </span>
+        )}
       </div>
 
       {/* Main content + Chat panel flex row */}
