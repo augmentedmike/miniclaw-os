@@ -1,0 +1,15 @@
+title: miniclaw-os
+description: "miniclaw-os is a persistent autonomous agent operating system built on OpenClaw. Build self-managing AI agents with persistent memory, 30+ plugins, and scheduled autonomy."
+baseurl: "/miniclaw-os"
+url: "https://augmentedmike.github.io"
+theme: jekyll-theme-cayman
+plugins:
+  - jekyll-seo-tag
+  - jekyll-sitemap
+
+include:
+  - llm-seo
+
+exclude:
+  - install-instructions-draft.md
+  - RELEASING.md
