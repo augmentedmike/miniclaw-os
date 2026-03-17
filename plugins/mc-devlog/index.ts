@@ -28,7 +28,7 @@ function resolveConfig(api: OpenClawPluginApi): DevlogConfig {
   const raw = (api.pluginConfig ?? {}) as Partial<DevlogConfig>;
   return {
     repoDir: resolvePath(raw.repoDir ?? "~/.openclaw/projects/miniclaw-os"),
-    githubRepo: raw.githubRepo ?? "augmentedmike/miniclaw-os",
+    githubRepo: raw.githubRepo ?? "miniclaw-official/miniclaw-os",
     discussionCategory: raw.discussionCategory ?? "Devlog",
     postsDir: resolvePath(raw.postsDir ?? "~/.openclaw/USER/blog/posts"),
     contributorMap: raw.contributorMap ?? {},

@@ -39,22 +39,15 @@ function yesterdayDate(tz: string): { since: string; until: string; display: str
 export function gatherCommits(config: DevlogConfig): CommitEntry[] {
   const { since, until } = yesterdayDate(config.timezone);
   const raw = exec(
-    `git log --since="${since}" --until="${until}" --format="%h%x00%an%x00%s%x00%ai" --all`,
+    `git log --since="${since}" --until="${until}" --format="%h|%an|%s|%ai" --all`,
     config.repoDir,
   );
   if (!raw) return [];
 
-  return raw.split("\x00").filter(Boolean).reduce<CommitEntry[]>((acc, _, i, arr) => {
-    if (i % 4 === 0 && i + 3 < arr.length) {
-      acc.push({
-        hash: arr[i],
-        author: arr[i + 1],
-        message: arr[i + 2],
-        date: arr[i + 3],
-      });
-    }
-    return acc;
-  }, []);
+  return raw.split("\n").filter(Boolean).map((line) => {
+    const [hash, author, message, date] = line.split("|");
+    return { hash, author, message, date };
+  });
 }
 
 export function gatherMergedPRs(config: DevlogConfig): PREntry[] {
@@ -97,27 +90,16 @@ export function gatherClosedIssues(config: DevlogConfig): IssueEntry[] {
 }
 
 export function gatherShippedCards(config: DevlogConfig): BoardCard[] {
-  const { since, until } = yesterdayDate(config.timezone);
   const raw = exec(`openclaw mc-board board --column done --json 2>/dev/null`);
   if (!raw) return [];
 
   try {
-    const cards = JSON.parse(raw) as Array<{ id: string; title: string; assignee?: string; movedAt?: string }>;
-    // Filter by movedAt date — only cards moved yesterday
-    const sinceTime = new Date(since + "T00:00:00").getTime();
-    const untilTime = new Date(until + "T00:00:00").getTime();
-    
-    return cards
-      .filter((c) => {
-        if (!c.movedAt) return false;
-        const movedTime = new Date(c.movedAt).getTime();
-        return movedTime >= sinceTime && movedTime < untilTime;
-      })
-      .map((c) => ({
-        id: c.id,
-        title: c.title,
-        assignee: c.assignee,
-      }));
+    const cards = JSON.parse(raw) as Array<{ id: string; title: string; assignee?: string }>;
+    return cards.map((c) => ({
+      id: c.id,
+      title: c.title,
+      assignee: c.assignee,
+    }));
   } catch {
     // Fallback: parse text output
     return [];

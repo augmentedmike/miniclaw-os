@@ -506,24 +506,6 @@
       "cli": true,
       "tools": [],
       "optional": true
-    },
-    {
-      "id": "mc-devlog",
-      "label": "Devlog",
-      "description": "Daily devlog cron — aggregates yesterday's git activity, credits contributors, publishes to GitHub Discussions, mc-blog, mc-substack, mc-reddit.",
-      "path": "plugins/mc-devlog",
-      "entry": "index.ts",
-      "cli": true,
-      "tools": ["devlog_run", "devlog_preview"],
-      "optional": true,
-      "config": {
-        "repoDir": "~/.openclaw/projects/miniclaw-os",
-        "githubRepo": "augmentedmike/miniclaw-os",
-        "discussionCategory": "Devlog",
-        "postsDir": "~/.openclaw/USER/blog/posts",
-        "substackEnabled": false,
-        "timezone": "America/Chicago"
-      }
     }
   ],
   "cli": [
@@ -597,29 +579,16 @@
       "optional": true
     },
     {
-      "name": "daily-devlog-cron",
-      "description": "Daily devlog: aggregates yesterday's git commits, PRs, issues, and shipped cards; credits contributors; publishes to GitHub Discussions, mc-blog, mc-substack, mc-reddit",
+      "name": "daily-devlog",
+      "description": "Daily devlog aggregator: gathers git commits, merged PRs, and closed issues from yesterday, aggregates by contributor, and posts to GitHub Discussions",
       "schedule": {
         "kind": "cron",
-        "expr": "0 8 * * *",
-        "tz": "America/Chicago"
+        "expr": "0 8 * * *"
       },
-      "timeoutSeconds": 900,
+      "timeoutSeconds": 300,
       "sessionTarget": "isolated",
       "requires": ["gh-token"],
-      "optional": true
-    },
-    {
-      "name": "pr-manager-cron",
-      "description": "Hourly PR review: checks security, merit, quality, usefulness, and harm on all open PRs; comments findings, approves/requests changes, merges when ready",
-      "schedule": {
-        "kind": "cron",
-        "expr": "0 * * * *"
-      },
-      "timeoutSeconds": 900,
-      "sessionTarget": "isolated",
-      "requires": ["gh-token"],
-      "optional": true
+      "optional": false
     }
   ],
   "launchAgents": [
