@@ -308,6 +308,203 @@
         "maxPerDay": 1,
         "windowWeeks": 4
       }
+    },
+    {
+      "id": "mc-slack",
+      "label": "Slack",
+      "description": "Slack workspace integration — send messages, read channels, react to threads.",
+      "path": "plugins/mc-slack",
+      "entry": "index.ts",
+      "cli": true,
+      "tools": [],
+      "optional": true,
+      "requires": ["slack-bot-token"]
+    },
+    {
+      "id": "mc-discord",
+      "label": "Discord",
+      "description": "Discord bot bridge — relay messages, moderate channels, respond to commands.",
+      "path": "plugins/mc-discord",
+      "entry": "index.ts",
+      "cli": true,
+      "tools": [],
+      "optional": true,
+      "requires": ["discord-bot-token"]
+    },
+    {
+      "id": "mc-twitter",
+      "label": "Twitter / X",
+      "description": "Post tweets, read timelines, engage with mentions and DMs on X.",
+      "path": "plugins/mc-twitter",
+      "entry": "index.ts",
+      "cli": true,
+      "tools": [],
+      "optional": true,
+      "requires": ["twitter-api-key"]
+    },
+    {
+      "id": "mc-github",
+      "label": "GitHub",
+      "description": "GitHub automation — open PRs, review code, manage issues, sync repos.",
+      "path": "plugins/mc-github",
+      "entry": "index.ts",
+      "cli": true,
+      "tools": [],
+      "optional": true,
+      "requires": ["gh-token"]
+    },
+    {
+      "id": "mc-calendar",
+      "label": "Calendar",
+      "description": "Google Calendar sync — read events, create meetings, check availability.",
+      "path": "plugins/mc-calendar",
+      "entry": "index.ts",
+      "cli": true,
+      "tools": [],
+      "optional": true,
+      "requires": ["google-calendar-token"]
+    },
+    {
+      "id": "mc-notes",
+      "label": "Notes",
+      "description": "Structured note-taking — daily journals, meeting notes, tagged snippets.",
+      "path": "plugins/mc-notes",
+      "entry": "index.ts",
+      "cli": true,
+      "tools": [],
+      "optional": true
+    },
+    {
+      "id": "mc-analytics",
+      "label": "Analytics",
+      "description": "Usage analytics dashboard — track agent runs, token spend, task completion rates.",
+      "path": "plugins/mc-analytics",
+      "entry": "index.ts",
+      "cli": true,
+      "tools": [],
+      "optional": true
+    },
+    {
+      "id": "mc-monitor",
+      "label": "Monitor",
+      "description": "Uptime and health monitoring — ping endpoints, alert on failures, track latency.",
+      "path": "plugins/mc-monitor",
+      "entry": "index.ts",
+      "cli": true,
+      "tools": [],
+      "optional": true
+    },
+    {
+      "id": "mc-deploy",
+      "label": "Deploy",
+      "description": "Deployment automation — push to Vercel, Fly.io, or custom SSH targets.",
+      "path": "plugins/mc-deploy",
+      "entry": "index.ts",
+      "cli": true,
+      "tools": [],
+      "optional": true
+    },
+    {
+      "id": "mc-test",
+      "label": "Test Runner",
+      "description": "Automated test execution — run suites, report coverage, flag regressions.",
+      "path": "plugins/mc-test",
+      "entry": "index.ts",
+      "cli": true,
+      "tools": [],
+      "optional": true
+    },
+    {
+      "id": "mc-translate",
+      "label": "Translate",
+      "description": "Multi-language translation — localize content, translate messages, detect language.",
+      "path": "plugins/mc-translate",
+      "entry": "index.ts",
+      "cli": true,
+      "tools": [],
+      "optional": true
+    },
+    {
+      "id": "mc-voice",
+      "label": "Voice",
+      "description": "Voice synthesis and transcription — text-to-speech, speech-to-text, voice memos.",
+      "path": "plugins/mc-voice",
+      "entry": "index.ts",
+      "cli": true,
+      "tools": [],
+      "optional": true,
+      "requires": ["openai-api-key"]
+    },
+    {
+      "id": "mc-search",
+      "label": "Web Search",
+      "description": "Web search integration — query search engines, summarize results, extract facts.",
+      "path": "plugins/mc-search",
+      "entry": "index.ts",
+      "cli": true,
+      "tools": [],
+      "optional": true
+    },
+    {
+      "id": "mc-notify",
+      "label": "Notify",
+      "description": "Push notifications — send alerts via Pushover, ntfy, or webhooks.",
+      "path": "plugins/mc-notify",
+      "entry": "index.ts",
+      "cli": true,
+      "tools": [],
+      "optional": true
+    },
+    {
+      "id": "mc-pdf",
+      "label": "PDF",
+      "description": "PDF generation and parsing — create invoices, extract text, merge documents.",
+      "path": "plugins/mc-pdf",
+      "entry": "index.ts",
+      "cli": true,
+      "tools": [],
+      "optional": true
+    },
+    {
+      "id": "mc-crm",
+      "label": "CRM",
+      "description": "Customer relationship management — track leads, log interactions, pipeline stages.",
+      "path": "plugins/mc-crm",
+      "entry": "index.ts",
+      "cli": true,
+      "tools": [],
+      "optional": true
+    },
+    {
+      "id": "mc-invoice",
+      "label": "Invoice",
+      "description": "Invoice generation — create, send, and track invoices with payment status.",
+      "path": "plugins/mc-invoice",
+      "entry": "index.ts",
+      "cli": true,
+      "tools": [],
+      "optional": true,
+      "requires": ["stripe-secret-key"]
+    },
+    {
+      "id": "mc-scraper",
+      "label": "Scraper",
+      "description": "Web scraping — extract structured data from websites, monitor page changes.",
+      "path": "plugins/mc-scraper",
+      "entry": "index.ts",
+      "cli": true,
+      "tools": [],
+      "optional": true
+    },
+    {
+      "id": "mc-forms",
+      "label": "Forms",
+      "description": "Form builder — create intake forms, surveys, and feedback collectors with webhooks.",
+      "path": "plugins/mc-forms",
+      "entry": "index.ts",
+      "cli": true,
+      "tools": [],
+      "optional": true
     }
   ],
   "cli": [
@@ -367,6 +564,18 @@
       },
       "timeoutSeconds": 600,
       "sessionTarget": "isolated"
+    },
+    {
+      "name": "email-triage-cron",
+      "description": "Email watch: checks IMAP inbox for new messages, classifies via Haiku, replies/archives/escalates",
+      "schedule": {
+        "kind": "cron",
+        "expr": "3-59/5 * * * *"
+      },
+      "timeoutSeconds": 600,
+      "sessionTarget": "isolated",
+      "requires": ["gmail-app-password"],
+      "optional": true
     }
   ],
   "launchAgents": [

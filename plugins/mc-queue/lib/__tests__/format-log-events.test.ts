@@ -5,6 +5,7 @@
  * Run with: npm test -- lib/__tests__/format-log-events.test.ts
  */
 
+import { describe, it, expect } from "vitest";
 import {
   formatBoardEvent,
   formatSignal,

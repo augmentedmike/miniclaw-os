@@ -215,12 +215,12 @@ export default function register(api: OpenClawPluginApi) {
   const tgLogChatId = cfg.tgLogChatId ?? "";
   const tgBotName = cfg.tgBotName ?? "";
 
-  // Board URL: env var → plugin config → gateway.externalUrl from openclaw.json
-  const gatewayExternalUrl =
+  // Board URL: env var → plugin config → miniclaw.externalUrl from openclaw.json
+  const minclawExternalUrl =
     (api.config as Record<string, unknown> & {
-      gateway?: { externalUrl?: string };
-    })?.gateway?.externalUrl ?? "";
-  const boardUrl = process.env.MINICLAW_BOARD_URL ?? cfg.boardUrl ?? gatewayExternalUrl;
+      miniclaw?: { externalUrl?: string };
+    })?.miniclaw?.externalUrl ?? "";
+  const boardUrl = process.env.MINICLAW_BOARD_URL ?? cfg.boardUrl ?? minclawExternalUrl;
 
   // Read bot token from OpenClaw's telegram channel config
   const tgBotToken =
