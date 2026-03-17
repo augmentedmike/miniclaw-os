@@ -39,13 +39,13 @@ function yesterdayDate(tz: string): { since: string; until: string; display: str
 export function gatherCommits(config: DevlogConfig): CommitEntry[] {
   const { since, until } = yesterdayDate(config.timezone);
   const raw = exec(
-    `git log --since="${since}" --until="${until}" --format="%h|%an|%s|%ai" --all`,
+    `git log --since="${since}" --until="${until}" --format="%h%x09%an%x09%s%x09%ai" --all`,
     config.repoDir,
   );
   if (!raw) return [];
 
   return raw.split("\n").filter(Boolean).map((line) => {
-    const [hash, author, message, date] = line.split("|");
+    const [hash, author, message, date] = line.split("\t");
     return { hash, author, message, date };
   });
 }
@@ -90,16 +90,27 @@ export function gatherClosedIssues(config: DevlogConfig): IssueEntry[] {
 }
 
 export function gatherShippedCards(config: DevlogConfig): BoardCard[] {
+  const { since, until } = yesterdayDate(config.timezone);
   const raw = exec(`openclaw mc-board board --column done --json 2>/dev/null`);
   if (!raw) return [];
 
   try {
-    const cards = JSON.parse(raw) as Array<{ id: string; title: string; assignee?: string }>;
-    return cards.map((c) => ({
-      id: c.id,
-      title: c.title,
-      assignee: c.assignee,
-    }));
+    const cards = JSON.parse(raw) as Array<{ id: string; title: string; assignee?: string; movedAt?: string; updatedAt?: string }>;
+    // Filter to cards moved/updated yesterday
+    const sinceDate = new Date(since + "T00:00:00");
+    const untilDate = new Date(until + "T00:00:00");
+    return cards
+      .filter((c) => {
+        const dateStr = c.movedAt ?? c.updatedAt;
+        if (!dateStr) return false;
+        const d = new Date(dateStr);
+        return d >= sinceDate && d < untilDate;
+      })
+      .map((c) => ({
+        id: c.id,
+        title: c.title,
+        assignee: c.assignee,
+      }));
   } catch {
     // Fallback: parse text output
     return [];

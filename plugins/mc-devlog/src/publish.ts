@@ -10,6 +10,7 @@
 
 import { execSync } from "node:child_process";
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 import type { DevlogConfig, DevlogPost } from "./types.js";
 
@@ -111,8 +112,11 @@ export function publishToSubstack(
     return { target: "mc-substack", success: true, url: "skipped (not configured)" };
   }
 
+  // Write body to temp file for Substack draft (avoids shell escaping issues)
+  const tmpBody = path.join(os.tmpdir(), `mc-devlog-substack-${post.date}.md`);
+  fs.writeFileSync(tmpBody, post.markdown);
   const result = exec(
-    `openclaw mc-substack create-draft --title '${post.title.replace(/'/g, "'\\''")}' 2>&1`,
+    `openclaw mc-substack create-draft --title '${post.title.replace(/'/g, "'\\''")}' --body-file '${tmpBody}' 2>&1`,
   );
 
   if (result.startsWith("ERROR:") || result.includes("error")) {

@@ -222,6 +222,30 @@
       "config": {}
     },
     {
+      "id": "mc-devlog",
+      "label": "Devlog",
+      "description": "Daily devlog aggregator — gathers git commits, merged PRs, closed issues, and shipped board cards from yesterday, aggregates by contributor, and publishes to GitHub Discussions, mc-blog, mc-substack, and mc-reddit weekly digest.",
+      "path": "plugins/mc-devlog",
+      "entry": "index.ts",
+      "cli": true,
+      "tools": [],
+      "optional": false,
+      "requires": ["gh-token"],
+      "config": {
+        "repoDir": "~/.openclaw/projects/miniclaw-os",
+        "githubRepo": "augmentedmike/miniclaw-os",
+        "discussionCategory": "Devlog",
+        "postsDir": "~/.openclaw/USER/blog/posts",
+        "contributorMap": {
+          "AugmentedMike": "Amelia",
+          "Michael ONeal": "Mike"
+        },
+        "substackEnabled": false,
+        "redditDigestDir": "~/.openclaw/USER/devlog/reddit-queue",
+        "timezone": "America/Chicago"
+      }
+    },
+    {
       "id": "mc-stripe",
       "label": "Stripe",
       "description": "Shared Stripe payment service \u2014 charge, refund, customer management. Other plugins consume via CLI or direct import.",
@@ -586,6 +610,18 @@
         "expr": "0 8 * * *"
       },
       "timeoutSeconds": 300,
+      "sessionTarget": "isolated",
+      "requires": ["gh-token"],
+      "optional": false
+    },
+    {
+      "name": "pr-manager",
+      "description": "PR review: lists open PRs on augmentedmike/miniclaw-os, runs security/merit/quality checks, comments, approves/requests-changes, merges if green",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 * * * *"
+      },
+      "timeoutSeconds": 900,
       "sessionTarget": "isolated",
       "requires": ["gh-token"],
       "optional": false
