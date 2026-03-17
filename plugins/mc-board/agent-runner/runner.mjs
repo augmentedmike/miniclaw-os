@@ -155,7 +155,7 @@ function claimPending(db) {
        LEFT JOIN cards c ON c.id = q.card_id
        WHERE q.status = 'pending'
          AND q.col = ?
-         AND (c.tags IS NULL OR c.tags NOT LIKE '%"hold"%')
+         AND (c.tags IS NULL OR (c.tags NOT LIKE '%"hold"%' AND c.tags NOT LIKE '%"blocked"%'))
        ORDER BY
          CASE WHEN c.tags LIKE '%"focus"%' THEN 0 ELSE 1 END ASC,
          CASE c.priority

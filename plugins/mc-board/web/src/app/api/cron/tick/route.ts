@@ -142,6 +142,7 @@ export async function GET(req: Request) {
       c.column === "backlog" &&
       c.depends_on.length > 0 &&
       c.depends_on.every(dep => shippedIds.has(dep)) &&
+      !c.tags.includes("blocked") &&
       !activeIds.has(c.id) &&
       !agentStillRunning(c.id, "backlog") &&
       !recentlyProcessed(c.id, "backlog", MIN_COOLDOWN_MS)
@@ -198,6 +199,7 @@ export async function GET(req: Request) {
         if (c.column !== column) return false;
         if (projectId && c.project_id !== projectId) return false;
         if (c.tags.includes("hold")) return false;
+        if (c.tags.includes("blocked")) return false;
         if (activeIds.has(c.id)) return false;
         if (agentStillRunning(c.id, column)) return false;
         if (recentlyProcessed(c.id, column, cooldownMs)) return false;

@@ -191,6 +191,39 @@ describe("brain list", () => {
     await run("mc-board", "list");
     expect(lastOut()).toContain("[foo, bar]");
   });
+
+  it("--skip-hold filters out cards tagged 'hold'", async () => {
+    const card1 = await createCard("Active card");
+    const card2 = await createCard("Held card");
+    store.update(card2.id, { tags: ["hold"] });
+    stdoutSpy.mockClear();
+    await run("mc-board", "list", "--skip-hold");
+    const out = allOut();
+    expect(out).toContain("Active card");
+    expect(out).not.toContain("Held card");
+  });
+
+  it("--skip-hold filters out cards tagged 'blocked'", async () => {
+    const card1 = await createCard("Active card");
+    const card2 = await createCard("Blocked card");
+    store.update(card2.id, { tags: ["blocked"] });
+    stdoutSpy.mockClear();
+    await run("mc-board", "list", "--skip-hold");
+    const out = allOut();
+    expect(out).toContain("Active card");
+    expect(out).not.toContain("Blocked card");
+  });
+
+  it("--skip-hold filters cards with both 'hold' and other tags", async () => {
+    const card1 = await createCard("Normal card");
+    const card2 = await createCard("Card with hold and tags");
+    store.update(card2.id, { tags: ["hold", "waiting"] });
+    stdoutSpy.mockClear();
+    await run("mc-board", "list", "--skip-hold");
+    const out = allOut();
+    expect(out).toContain("Normal card");
+    expect(out).not.toContain("Card with hold and tags");
+  });
 });
 
 // ---- brain show ----
