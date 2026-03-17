@@ -892,6 +892,25 @@ Useful for auditing which agent processed which ticket and when.
       }
     });
 
+  // ---- brain wip-limit ----
+  brain
+    .command("wip-limit <column>")
+    .description("Show the configured WIP limit for a column (reads from board-cron.json or default)")
+    .addHelpText("after", `
+Returns the max concurrent cards allowed in the given column.
+Reads from board-cron.json maxConcurrent field, falls back to default (3).
+
+  openclaw mc-board wip-limit in-progress
+  openclaw mc-board wip-limit in-review`)
+    .action((column: string) => {
+      if (!COLUMNS.includes(column as Column)) {
+        console.error(`Invalid column: ${column}. Valid: ${COLUMNS.join(", ")}`);
+        process.exit(1);
+      }
+      const limit = getWipLimit(column as Column, ctx.stateDir);
+      console.log(`${limit}`);
+    });
+
   // ---- brain check-dupes ----
   brain
     .command("check-dupes")
