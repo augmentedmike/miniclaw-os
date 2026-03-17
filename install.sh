@@ -1941,6 +1941,27 @@ with open(p, 'w') as f: json.dump(s, f, indent=2); f.write('\n')
   fi
 fi
 
+# ── Post-install: vault key migrations ────────────────────────────────────────
+VAULT_BIN="$SYSTEM_BIN/mc-vault"
+if [[ -x "$VAULT_BIN" ]]; then
+  # Migrate legacy gmail-app-password → email-app-password
+  if "$VAULT_BIN" get gmail-app-password &>/dev/null; then
+    LEGACY_PASS=$("$VAULT_BIN" get gmail-app-password 2>/dev/null)
+    if [[ -n "$LEGACY_PASS" ]] && ! "$VAULT_BIN" get email-app-password &>/dev/null; then
+      "$VAULT_BIN" set email-app-password "$LEGACY_PASS" &>/dev/null && \
+        ok "Migrated vault: gmail-app-password → email-app-password"
+    fi
+  fi
+  # Migrate legacy gmail-email → email-address
+  if "$VAULT_BIN" get gmail-email &>/dev/null; then
+    LEGACY_EMAIL=$("$VAULT_BIN" get gmail-email 2>/dev/null)
+    if [[ -n "$LEGACY_EMAIL" ]] && ! "$VAULT_BIN" get email-address &>/dev/null; then
+      "$VAULT_BIN" set email-address "$LEGACY_EMAIL" &>/dev/null && \
+        ok "Migrated vault: gmail-email → email-address"
+    fi
+  fi
+fi
+
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}${BOLD}miniclaw-os installed.${NC}"
