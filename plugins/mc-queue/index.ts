@@ -245,7 +245,7 @@ export default function register(api: OpenClawPluginApi) {
     const sessionKey = ctx.sessionKey ?? "";
     if (!isMessagingSession(sessionKey)) return;
 
-    // No model override — use the gateway's configured default model
+    return { model: haikuModel };
   });
 
   // ---- 2. Inject triage instructions into system prompt ----
