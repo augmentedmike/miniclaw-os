@@ -48,12 +48,15 @@ For each significant finding, take action:
 
 Tag reflection-created cards with `reflection` so they're trackable.
 
-### KB entries (via mc-kb tools)
-- **Lessons:** Things learned the hard way. Use `kb_add` with type=lesson.
-- **Decisions:** Important choices made and why. Use type=decision.
-- **Postmortems:** If something broke or went significantly wrong. Use type=postmortem.
+### KB entries (via mc-memory promotion)
+- **Lessons:** Things learned the hard way. Use `memory_promote` with type=lesson, source_type=episodic, source_ref=YYYY-MM-DD.
+- **Decisions:** Important choices made and why. Use `memory_promote` with type=fact.
+- **Postmortems:** If something broke or went significantly wrong. Use `memory_promote` with type=postmortem.
+- **Memo promotions:** Scan today's card memos for reusable knowledge. Use `memory_recall` to find promotable entries, then `memory_promote` to graduate them.
 
 Tag KB entries with `reflection` and the date.
+
+Note: `memory_promote` auto-tags entries with 'promoted' and 'from-memo'/'from-episodic'. You can add extra tags via the tags parameter.
 
 ### MEMORY.md update
 Read `~/.openclaw/workspace/MEMORY.md`. Distill today's important signal into it:
