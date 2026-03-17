@@ -160,6 +160,35 @@ git clone https://github.com/augmentedmike/miniclaw-os.git
 cd miniclaw-os
 ```
 
+### OpenClaw fork resolution
+
+MiniClaw plugins resolve `openclaw` from a **local fork** via `file:` references in
+`package.json`, not from the npm registry. This ensures you always run the same version
+of openclaw core that you're developing against.
+
+**Setup:**
+
+```bash
+# Clone the fork as a sibling of miniclaw-os under the same projects/ directory
+git clone https://github.com/augmentedmike/openclaw.git ../openclaw
+```
+
+Each plugin's `devDependencies` declares:
+
+```json
+"openclaw": "file:../../../openclaw"
+```
+
+After `npm install`, `node_modules/openclaw` will be a symlink to the fork directory.
+
+The `postinstall` script (`scripts/check-openclaw-fork.sh`) verifies the fork exists
+and warns if it's missing. If you see a warning, clone the fork as shown above.
+
+**Why not npm?** The published `@miniclaw_official/openclaw` package on npm may lag
+behind the fork. Using `file:` references guarantees plugins always resolve to the
+local fork — essential for testing patches, unreleased features, and keeping core +
+plugin versions in sync.
+
 The pre-commit hook (`scripts/security-check.sh`) runs automatically on every commit. It scans for hardcoded secrets, API keys, and PII. Do not bypass it.
 
 ## Pull request process

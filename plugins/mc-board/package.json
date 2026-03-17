@@ -14,7 +14,7 @@
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "commander": "^14.0.3",
-    "openclaw": "npm:@miniclaw_official/openclaw@^2026.3.8",
+    "openclaw": "file:../../../openclaw",
     "vitest": "^4.1.0"
   },
   "openclaw": {

@@ -6,7 +6,7 @@
   "description": "Engineered context windows for miniclaw channel sessions",
   "dependencies": {},
   "devDependencies": {
-    "openclaw": "npm:@miniclaw_official/openclaw@^2026.3.8"
+    "openclaw": "file:../../../openclaw"
   },
   "openclaw": {
     "extensions": [

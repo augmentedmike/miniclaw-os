@@ -3,12 +3,12 @@
   "version": "0.1.0",
   "type": "module",
   "main": "index.ts",
-  "description": "Substack publishing CLI \u2014 drafts, images, scheduling, EN/ES workflow",
+  "description": "Substack publishing CLI — drafts, images, scheduling, EN/ES workflow",
   "dependencies": {
     "node-fetch": "^3.3.0"
   },
   "devDependencies": {
-    "openclaw": "npm:@miniclaw_official/openclaw@^2026.3.8"
+    "openclaw": "file:../../../openclaw"
   },
   "openclaw": {
     "extensions": [

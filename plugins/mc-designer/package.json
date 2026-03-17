@@ -3,13 +3,13 @@
   "version": "0.1.0",
   "type": "module",
   "main": "index.ts",
-  "description": "Visual creation studio \u2014 the agent's occipital lobe",
+  "description": "Visual creation studio — the agent's occipital lobe",
   "dependencies": {
     "@google/genai": "^0.7.0",
     "sharp": "^0.33.0"
   },
   "devDependencies": {
-    "openclaw": "npm:@miniclaw_official/openclaw@^2026.3.8"
+    "openclaw": "file:../../../openclaw"
   },
   "openclaw": {
     "extensions": [
