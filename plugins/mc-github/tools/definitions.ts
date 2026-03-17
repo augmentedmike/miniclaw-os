@@ -370,6 +370,169 @@ export function createGithubTools(cfg: GithubConfig, logger: Logger): AnyAgentTo
       },
     } as AnyAgentTool,
 
+    // ── View PR details (diff, checks, reviews, files) ────────────────
+    {
+      name: "github_pr_view",
+      label: "github_pr_view",
+      description:
+        "View a GitHub pull request — shows diff, CI check status, review comments, and files changed.",
+      parameters: {
+        type: "object",
+        required: ["prNumber"],
+        properties: {
+          prNumber: { type: "number", description: "PR number" },
+          diff: { type: "boolean", description: "Include the full diff (default: false — omit for large PRs)" },
+          filesOnly: { type: "boolean", description: "Only list changed files (default: false)" },
+        },
+      },
+      async execute(_id: string, params: unknown) {
+        const p = params as Record<string, unknown>;
+        const repo = resolveRepo(cfg);
+        const num = String(p.prNumber);
+        const sections: string[] = [];
+
+        try {
+          // PR metadata + checks + reviews
+          const prJson = run("gh", [
+            "pr", "view", num, "--repo", repo,
+            "--json", "title,state,author,baseRefName,headRefName,body,additions,deletions,changedFiles,reviewDecision,statusCheckRollup,reviews,comments,mergeable,url",
+          ]);
+          const pr = JSON.parse(prJson) as Record<string, unknown>;
+          sections.push(`# PR #${num}: ${pr.title}\n`);
+          sections.push(`**State:** ${pr.state}  **Author:** ${(pr.author as Record<string, string>)?.login ?? "unknown"}`);
+          sections.push(`**Base:** ${pr.baseRefName} ← **Head:** ${pr.headRefName}`);
+          sections.push(`**Files changed:** ${pr.changedFiles}  (+${pr.additions} / -${pr.deletions})`);
+          sections.push(`**Review decision:** ${pr.reviewDecision || "NONE"}  **Mergeable:** ${pr.mergeable || "unknown"}`);
+          sections.push(`**URL:** ${pr.url}\n`);
+
+          // CI checks
+          const checks = pr.statusCheckRollup as Array<Record<string, string>> | null;
+          if (checks && checks.length > 0) {
+            sections.push("## CI Checks");
+            for (const c of checks) {
+              const status = c.conclusion || c.status || "pending";
+              const name = c.name || c.context || "unknown";
+              sections.push(`- ${status === "SUCCESS" || status === "success" ? "✅" : status === "FAILURE" || status === "failure" ? "❌" : "⏳"} ${name}: ${status}`);
+            }
+            sections.push("");
+          }
+
+          // Reviews
+          const reviews = pr.reviews as Array<Record<string, unknown>> | null;
+          if (reviews && reviews.length > 0) {
+            sections.push("## Reviews");
+            for (const r of reviews) {
+              const author = (r.author as Record<string, string>)?.login ?? "unknown";
+              sections.push(`- **${author}**: ${r.state} ${r.body ? `— ${(r.body as string).slice(0, 200)}` : ""}`);
+            }
+            sections.push("");
+          }
+
+          // Comments
+          const comments = pr.comments as Array<Record<string, unknown>> | null;
+          if (comments && comments.length > 0) {
+            sections.push("## Comments");
+            for (const c of comments) {
+              const author = (c.author as Record<string, string>)?.login ?? "unknown";
+              sections.push(`- **${author}**: ${(c.body as string || "").slice(0, 300)}`);
+            }
+            sections.push("");
+          }
+
+          // PR body
+          if (pr.body) {
+            sections.push("## Description");
+            sections.push((pr.body as string).slice(0, 2000));
+            sections.push("");
+          }
+
+          // Files list
+          if (p.filesOnly || !p.diff) {
+            try {
+              const filesJson = run("gh", [
+                "pr", "view", num, "--repo", repo, "--json", "files",
+              ]);
+              const filesData = JSON.parse(filesJson) as { files: Array<Record<string, unknown>> };
+              if (filesData.files && filesData.files.length > 0) {
+                sections.push("## Changed Files");
+                for (const f of filesData.files) {
+                  sections.push(`- ${f.path} (+${f.additions}/-${f.deletions})`);
+                }
+                sections.push("");
+              }
+            } catch {}
+          }
+
+          // Full diff
+          if (p.diff) {
+            try {
+              const diffOutput = run("gh", ["pr", "diff", num, "--repo", repo]);
+              sections.push("## Diff");
+              // Truncate very large diffs to avoid overwhelming context
+              const maxDiff = 15000;
+              if (diffOutput.length > maxDiff) {
+                sections.push(diffOutput.slice(0, maxDiff));
+                sections.push(`\n... (diff truncated at ${maxDiff} chars, ${diffOutput.length} total)`);
+              } else {
+                sections.push(diffOutput);
+              }
+            } catch (err: unknown) {
+              const e = err as { stderr?: string };
+              sections.push(`## Diff\nFailed to fetch diff: ${e.stderr || "unknown error"}`);
+            }
+          }
+
+          return ok(sections.join("\n"));
+        } catch (err: unknown) {
+          const e = err as { stderr?: string };
+          return ok(`Failed to view PR #${num}: ${e.stderr || "unknown error"}`);
+        }
+      },
+    } as AnyAgentTool,
+
+    // ── Review a PR (approve, request changes, comment) ─────────────
+    {
+      name: "github_pr_review",
+      label: "github_pr_review",
+      description:
+        "Submit a review on a GitHub pull request — approve, request changes, or leave a comment.",
+      parameters: {
+        type: "object",
+        required: ["prNumber", "action"],
+        properties: {
+          prNumber: { type: "number", description: "PR number" },
+          action: { type: "string", enum: ["approve", "request-changes", "comment"], description: "Review action" },
+          body: { type: "string", description: "Review comment body (required for request-changes and comment)" },
+        },
+      },
+      async execute(_id: string, params: unknown) {
+        const p = params as Record<string, unknown>;
+        const repo = resolveRepo(cfg);
+        const num = String(p.prNumber);
+        const action = p.action as string;
+
+        if ((action === "request-changes" || action === "comment") && !p.body) {
+          return ok(`Review body is required for ${action}`);
+        }
+
+        try {
+          const args = ["pr", "review", num, "--repo", repo, `--${action}`];
+          if (p.body) {
+            const result = ghWithBodyFile(["pr", "review", num], p.body as string, ["--repo", repo, `--${action}`]);
+            logger.info(`PR #${num} reviewed: ${action}`);
+            return ok(result || `PR #${num} reviewed: ${action}`);
+          } else {
+            const result = run("gh", args);
+            logger.info(`PR #${num} reviewed: ${action}`);
+            return ok(result || `PR #${num} reviewed: ${action}`);
+          }
+        } catch (err: unknown) {
+          const e = err as { stderr?: string };
+          return ok(`Failed to review PR #${num}: ${e.stderr || "unknown error"}`);
+        }
+      },
+    } as AnyAgentTool,
+
     // ── Trigger a workflow dispatch ─────────────────────────────────────
     {
       name: "github_actions_trigger",
