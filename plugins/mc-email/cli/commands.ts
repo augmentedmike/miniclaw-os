@@ -3,6 +3,7 @@ import { stdin as input, stdout as output } from "node:process";
 import { spawnSync } from "node:child_process";
 import * as path from "node:path";
 import * as os from "node:os";
+import { writeFile, mkdir } from "node:fs/promises";
 import type { Command } from "commander";
 import type { Logger } from "openclaw/plugin-sdk";
 import type { EmailConfig } from "../src/config.js";
@@ -78,7 +79,9 @@ export function registerEmailCommands(ctx: Ctx): void {
   sub
     .command("read <id>")
     .description("Read a single message by UID")
-    .action(async (id: string) => {
+    .option("--save-attachments <dir>", "Save all attachments to directory")
+    .option("--attachment <n>", "Save attachment N (1-based) to current directory")
+    .action(async (id: string, opts: { saveAttachments?: string; attachment?: string }) => {
       const client = getClient(cfg);
       const msg = await client.getMessage(id);
       if (!msg) {
@@ -97,6 +100,48 @@ export function registerEmailCommands(ctx: Ctx): void {
       } else if (msg.snippet) {
         console.log();
         console.log(msg.snippet);
+      }
+
+      if (msg.attachments?.length) {
+        console.log();
+        console.log(`Attachments (${msg.attachments.length}):`);
+        for (let i = 0; i < msg.attachments.length; i++) {
+          const a = msg.attachments[i];
+          const sizeStr = a.size < 1024 ? `${a.size} bytes` : `${Math.round(a.size / 1024)} KB`;
+          console.log(`  ${i + 1}. ${a.filename} (${a.contentType}, ${sizeStr})`);
+        }
+      }
+
+      const sanitize = (name: string): string => name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
+
+      if (opts.saveAttachments) {
+        if (!msg.attachments?.length) {
+          console.log("\nNo attachments to save.");
+          return;
+        }
+        const dir = opts.saveAttachments;
+        await mkdir(dir, { recursive: true });
+        for (const a of msg.attachments) {
+          const dest = path.join(dir, sanitize(a.filename));
+          await writeFile(dest, a.content);
+          console.log(`Saved: ${dest}`);
+        }
+      }
+
+      if (opts.attachment) {
+        if (!msg.attachments?.length) {
+          console.error("\nNo attachments on this message.");
+          process.exit(1);
+        }
+        const idx = parseInt(opts.attachment, 10) - 1;
+        if (idx < 0 || idx >= msg.attachments.length) {
+          console.error(`\nInvalid attachment number. Must be 1-${msg.attachments.length}.`);
+          process.exit(1);
+        }
+        const a = msg.attachments[idx];
+        const dest = path.join(process.cwd(), sanitize(a.filename));
+        await writeFile(dest, a.content);
+        console.log(`Saved: ${dest}`);
       }
     });
 

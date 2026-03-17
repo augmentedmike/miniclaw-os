@@ -1,6 +1,6 @@
 {
   "name": "miniclaw-os",
-  "version": "0.1.7",
+  "version": "0.1.6",
   "openclaw": {
     "npm": "@miniclaw_official/openclaw",
     "repo": "augmentedmike/openclaw",
@@ -172,12 +172,12 @@
     {
       "id": "mc-email",
       "label": "Email",
-      "description": "Autonomous Gmail triage — IMAP inbox polling, Haiku classification (6 categories), reply-as-AM, archive, and escalation to owner@example.com.",
+      "description": "Autonomous email triage — IMAP inbox polling, Haiku classification (6 categories), reply-as-AM, archive, and escalation. Supports Gmail and non-Gmail providers.",
       "path": "plugins/mc-email",
       "entry": "index.ts",
       "cli": true,
       "tools": [],
-      "requires": ["gmail-app-password"],
+      "requires": ["email-app-password"],
       "config": {
         "vaultBin": "~/.local/bin/mc-vault",
         "emailAddress": "owner@example.com"
@@ -265,6 +265,35 @@
       }
     },
     {
+      "id": "mc-oauth-guard",
+      "label": "OAuth Guard",
+      "description": "OAuth token refresh failure guard — detects retry storms, applies exponential backoff, auto-disables failing profiles, and attempts keychain recovery.",
+      "path": "plugins/mc-oauth-guard",
+      "entry": "index.ts",
+      "cli": false,
+      "tools": [],
+      "config": {
+        "enabled": true,
+        "maxConsecutiveFailures": 3,
+        "minBackoffMs": 300000,
+        "maxBackoffMs": 3600000,
+        "keychainRecovery": true
+      }
+    },
+    {
+      "id": "mc-browser",
+      "label": "Browser",
+      "description": "Chrome auto-setup with remote debugging and extension management for browser automation.",
+      "path": "plugins/mc-browser",
+      "entry": "index.ts",
+      "cli": true,
+      "tools": [],
+      "config": {
+        "cdpPort": 9222,
+        "extensionIds": ["fcoeoabgfenejglbffodgkkbkcdhcgfn"]
+      }
+    },
+    {
       "id": "mc-authenticator",
       "label": "Authenticator",
       "description": "TOTP 2FA code generation — Google Authenticator compatible. Gives the agent autonomous 2FA capability.",
@@ -320,6 +349,11 @@
       "name": "mc-vault",
       "path": "SYSTEM/bin/mc-vault",
       "description": "age-encrypted secret store \u2014 get/set/export/list/rm"
+    },
+    {
+      "name": "mc-chrome",
+      "path": "SYSTEM/bin/mc-chrome",
+      "description": "Launch Chrome with remote debugging enabled on port 9222 (configurable via MC_CHROME_DEBUG_PORT)"
     },
     {
       "name": "mc-smoke",
@@ -384,8 +418,8 @@
       "required": true
     },
     {
-      "key": "gmail-app-password",
-      "description": "Gmail app password for email integration",
+      "key": "email-app-password",
+      "description": "Email app password for IMAP/SMTP integration (supports Gmail and non-Gmail providers)",
       "required": false
     },
     {

@@ -88,6 +88,7 @@ export class GmailClient {
       )) {
         let body = "";
         let snippet = "";
+        let attachments: EmailMessage["attachments"];
 
         if (msg.source) {
           const parsed = await simpleParser(msg.source);
@@ -97,6 +98,15 @@ export class GmailClient {
             body = parsed.html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
           }
           snippet = body.substring(0, 500);
+
+          if (parsed.attachments?.length) {
+            attachments = parsed.attachments.map(a => ({
+              filename: a.filename ?? "attachment",
+              contentType: a.contentType ?? "application/octet-stream",
+              size: a.size ?? (a.content?.length ?? 0),
+              content: a.content ?? Buffer.alloc(0),
+            }));
+          }
         }
 
         found = {
@@ -110,6 +120,7 @@ export class GmailClient {
           date: msg.envelope?.date?.toISOString() ?? "",
           snippet,
           body,
+          attachments,
           labelIds: msg.flags ? Array.from(msg.flags) : [],
         };
         break;
