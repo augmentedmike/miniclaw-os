@@ -46,6 +46,7 @@ export interface Character {
   bubbleText: string | null;
   bubbleTimer: number;
   paletteIndex: number;
+  inactiveTimer?: number;
 }
 
 export interface PlacedFurniture {

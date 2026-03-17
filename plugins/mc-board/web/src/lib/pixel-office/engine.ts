@@ -83,6 +83,7 @@ const FURNITURE_DB: Record<string, SimpleFurniture> = {
   CACTUS: { footprintW: 1, footprintH: 1, isChair: false, isDesk: false },
   SOFA_FRONT: { footprintW: 2, footprintH: 1, isChair: false, isDesk: false },
   SOFA_SIDE: { footprintW: 1, footprintH: 2, isChair: false, isDesk: false },
+  "SOFA_SIDE:left": { footprintW: 1, footprintH: 2, isChair: false, isDesk: false },
   SOFA_BACK: { footprintW: 2, footprintH: 1, isChair: false, isDesk: false },
   BIN: { footprintW: 1, footprintH: 1, isChair: false, isDesk: false },
   COFFEE_TABLE: { footprintW: 1, footprintH: 1, isChair: false, isDesk: false },
@@ -676,8 +677,6 @@ export async function initOffice(
     // Determine image path from type
     const baseType = type.replace(/:left$/, "");
     const parts = baseType.split("_");
-    // Furniture folder naming: e.g., DESK/DESK_FRONT.png, PC/PC_FRONT_ON_1.png
-
     // Try to load with various folder guesses
     const folderGuesses = new Set<string>();
     // Single-word items: PLANT, CACTUS, BIN, COFFEE, POT
@@ -802,9 +801,26 @@ export function syncAgents(
     state.characters.push(ch);
   }
 
-  // Keep characters around indefinitely for wandering and presence visibility
-  // (Previously attempted to clean up idle characters > 60s, but the behavior
-  // of keeping them visible is more important for the office aesthetic)
+  // Clean up long-inactive characters (> 60 sync cycles idle)
+  state.characters = state.characters.filter((ch) => {
+    if (ch.isActive) {
+      ch.inactiveTimer = 0;
+      return true;
+    }
+    // Track how long this character has been inactive
+    ch.inactiveTimer = (ch.inactiveTimer ?? 0) + 1;
+    // Remove after ~60 sync cycles of being inactive and idle
+    if (ch.inactiveTimer > 60 && ch.state === CharacterState.IDLE) {
+      // Free the seat
+      const seat = state.seats.find((s) => s.assignedTo === ch.id);
+      if (seat) {
+        seat.assigned = false;
+        seat.assignedTo = null;
+      }
+      return false;
+    }
+    return true;
+  });
 }
 
 function truncate(s: string, maxLen: number): string {

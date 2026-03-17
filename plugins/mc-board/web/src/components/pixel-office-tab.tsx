@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useState, useCallback } from "react";
+import { useRef, useEffect, useState } from "react";
 import useSWR from "swr";
 import type { ActiveAgent, OfficeLayout } from "@/lib/pixel-office/types";
 import {
@@ -58,11 +58,7 @@ export function PixelOfficeTab() {
     }
 
     init();
-    return () => {
-      cancelled = true;
-      // Clean up sprite cache on component unmount
-      clearSpriteCache();
-    };
+    return () => { cancelled = true; };
   }, []);
 
   // Sync agents when data changes
@@ -77,6 +73,7 @@ export function PixelOfficeTab() {
   useEffect(() => {
     const state = stateRef.current;
     if (!state) return;
+    clearSpriteCache();
     state.zoom = zoom;
     const canvas = canvasRef.current;
     if (canvas) {
@@ -127,7 +124,10 @@ export function PixelOfficeTab() {
     };
 
     rafId = requestAnimationFrame(frame);
-    return () => cancelAnimationFrame(rafId);
+    return () => {
+      cancelAnimationFrame(rafId);
+      clearSpriteCache();
+    };
   }, [loaded]);
 
   // If no agents are active and we have no characters, add demo characters
@@ -146,18 +146,17 @@ export function PixelOfficeTab() {
     }
   }, [loaded, activeData]);
 
-  const handleWheel = useCallback((e: WheelEvent) => {
-    e.preventDefault();
-    setZoom((z) => Math.max(1, Math.min(6, z + (e.deltaY > 0 ? -0.5 : 0.5))));
-  }, []);
-
-  // Non-passive wheel listener for proper preventDefault
+  // Attach wheel listener with { passive: false } to allow preventDefault
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      setZoom((z) => Math.max(1, Math.min(6, z + (e.deltaY > 0 ? -0.5 : 0.5))));
+    };
     container.addEventListener("wheel", handleWheel, { passive: false });
     return () => container.removeEventListener("wheel", handleWheel);
-  }, [handleWheel]);
+  }, []);
 
   if (error) {
     return (
