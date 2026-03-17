@@ -830,7 +830,7 @@ else
   ok "Vault already initialised"
 fi
 
-# All secrets (gh-token, email-app-password, gemini-api-key) are collected
+# All secrets (gh-token, gmail-app-password, gemini-api-key) are collected
 # in the board web setup wizard (port 4220) — not in the terminal installer.
 
 
@@ -1008,9 +1008,11 @@ mkdir -p "$CRON_DIR"
 
 # Merge cron jobs from MANIFEST into jobs.json (preserves any existing jobs)
 python3 << PYEOF
-import json, uuid, os, sys
+import json, uuid, os, sys, subprocess
 
 cron_file = "$CRON_FILE"
+vault_bin = "$MC_VAULT"
+vault_root = "$VAULT_ROOT"
 
 # Load existing
 store = {"version": 1, "jobs": []}
@@ -1021,6 +1023,15 @@ except (FileNotFoundError, json.JSONDecodeError):
     pass
 
 existing_names = {j.get("name") for j in store.get("jobs", [])}
+
+def vault_has(key):
+    """Check if a vault secret exists."""
+    try:
+        env = dict(os.environ, OPENCLAW_VAULT_ROOT=vault_root)
+        r = subprocess.run([vault_bin, "get", key], capture_output=True, text=True, env=env)
+        return r.returncode == 0 and r.stdout.strip() != ""
+    except Exception:
+        return False
 
 # Read expected crons from MANIFEST.json
 manifest_path = os.path.join("$REPO_DIR", "MANIFEST.json")
@@ -1033,6 +1044,16 @@ except (FileNotFoundError, json.JSONDecodeError):
 
 workers = []
 for mc in manifest_crons:
+    # Check if this cron requires vault secrets
+    requires = mc.get("requires", [])
+    has_deps = all(vault_has(k) for k in requires) if requires else True
+    is_optional = mc.get("optional", False)
+
+    # Skip optional crons whose dependencies are missing
+    if is_optional and not has_deps:
+        print(f"  Skipping {mc['name']} (missing: {', '.join(requires)})")
+        continue
+
     w = {
         "name": mc["name"],
         "schedule": mc["schedule"],
@@ -1044,7 +1065,7 @@ for mc in manifest_crons:
             "messageFile": f"prompts/{mc['name']}.md"
         },
         "delivery": {"mode": "none"},
-        "enabled": True
+        "enabled": has_deps
     }
     workers.append(w)
 
@@ -1104,9 +1125,9 @@ with open(cron_file, "w") as f:
     json.dump(store, f, indent=2)
 
 if added:
-    print(f"  Added {added} board worker(s) to jobs.json")
+    print(f"  Added {added} cron worker(s) to jobs.json")
 else:
-    print("  Board workers already in jobs.json")
+    print("  All cron workers already in jobs.json")
 PYEOF
 ok "Cron workers written to $CRON_FILE"
 
@@ -1754,8 +1775,8 @@ if [[ -n "$CONFIG_FILE" && -f "$CONFIG_FILE" ]]; then
 
   vault_set "telegram-bot-token" "$TG_TOKEN"
   vault_set "gh-token" "$GH_TOKEN"
-  vault_set "email-app-password" "$EMAIL_PASS"
-  vault_set "email-address" "$EMAIL_ADDR"
+  vault_set "gmail-app-password" "$EMAIL_PASS"
+  vault_set "gmail-email" "$EMAIL_ADDR"
   [[ -n "$EMAIL_SMTP_HOST" ]] && vault_set "smtp-host" "$EMAIL_SMTP_HOST"
   [[ -n "$EMAIL_SMTP_PORT" ]] && vault_set "smtp-port" "$EMAIL_SMTP_PORT"
   vault_set "gemini-api-key" "$GEMINI_KEY"
@@ -1874,7 +1895,7 @@ except: existing_names = set()
 for job in store.get("jobs", []):
     if job["name"] in existing_names: continue
     expr = job.get("schedule", {}).get("expr", "*/5 * * * *")
-    args = ["openclaw", "cron", "add", "--name", job["name"], "--cron", expr, "--session", job.get("sessionTarget", "isolated")]
+    args = ["openclaw", "cron", "add", "--name", job["name"], "--cron", expr, "--session", job.get("sessionTarget", "isolated"), "--no-deliver"]
     if job.get("payload", {}).get("messageFile"):
         prompt_path = os.path.join(state_dir, "cron", job["payload"]["messageFile"])
         if os.path.exists(prompt_path):
@@ -1938,27 +1959,6 @@ with open(p, 'w') as f: json.dump(s, f, indent=2); f.write('\n')
     mc-smoke && ok "mc-smoke passed" || warn "mc-smoke had failures — check output above"
   else
     warn "mc-smoke not found on PATH (checked: $MINICLAW_DIR/SYSTEM/bin)"
-  fi
-fi
-
-# ── Post-install: vault key migrations ────────────────────────────────────────
-VAULT_BIN="$SYSTEM_BIN/mc-vault"
-if [[ -x "$VAULT_BIN" ]]; then
-  # Migrate legacy gmail-app-password → email-app-password
-  if "$VAULT_BIN" get gmail-app-password &>/dev/null; then
-    LEGACY_PASS=$("$VAULT_BIN" get gmail-app-password 2>/dev/null)
-    if [[ -n "$LEGACY_PASS" ]] && ! "$VAULT_BIN" get email-app-password &>/dev/null; then
-      "$VAULT_BIN" set email-app-password "$LEGACY_PASS" &>/dev/null && \
-        ok "Migrated vault: gmail-app-password → email-app-password"
-    fi
-  fi
-  # Migrate legacy gmail-email → email-address
-  if "$VAULT_BIN" get gmail-email &>/dev/null; then
-    LEGACY_EMAIL=$("$VAULT_BIN" get gmail-email 2>/dev/null)
-    if [[ -n "$LEGACY_EMAIL" ]] && ! "$VAULT_BIN" get email-address &>/dev/null; then
-      "$VAULT_BIN" set email-address "$LEGACY_EMAIL" &>/dev/null && \
-        ok "Migrated vault: gmail-email → email-address"
-    fi
   fi
 fi
 
