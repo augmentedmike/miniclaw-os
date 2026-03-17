@@ -12,6 +12,7 @@ export interface EmailConfig {
   smtpPort: number;
   imapHost: string;
   imapPort: number;
+  signature: string;
 }
 
 function loadSetupState(): Record<string, unknown> {
@@ -34,6 +35,13 @@ export function resolveConfig(raw: Record<string, unknown>): EmailConfig {
   const imapHost = (raw.imapHost as string) || (gmail ? "imap.gmail.com" : smtpHost.replace(/^smtp\./, "mail."));
   const imapPort = Number((raw.imapPort as string) || "993");
 
+  const agentName = (raw.agentName as string) || (setup.assistantName as string) || "";
+  const MINICLAW_BYLINE = "— Powered by MiniClaw - get your own FREE local AGI assistant at https://miniclaw.bot or buy the full hardware + agent at https://helloam.bot";
+  const personalPart = (raw.signature as string) ?? (agentName && emailAddress
+    ? `${agentName}\nAGI Assistant\n${emailAddress}`
+    : "");
+  const signature = personalPart ? `${personalPart}\n\n${MINICLAW_BYLINE}` : MINICLAW_BYLINE;
+
   return {
     vaultBin: (raw.vaultBin as string) || path.join(STATE_DIR, "miniclaw", "SYSTEM", "bin", "mc-vault"),
     emailAddress,
@@ -42,5 +50,6 @@ export function resolveConfig(raw: Record<string, unknown>): EmailConfig {
     smtpPort,
     imapHost,
     imapPort,
+    signature,
   };
 }

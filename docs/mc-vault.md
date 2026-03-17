@@ -131,7 +131,7 @@ Lists all secret names. If a note exists for a key, it is shown alongside:
 
 ```
 gh-am-mini                    # GitHub token for AM on mini
-gmail-app-password            # Gmail app password for notifications
+email-app-password            # Email app password for IMAP/SMTP
 trust-identity-privkey        # Ed25519 private key for mc-trust
 ```
 
@@ -245,7 +245,7 @@ The path resolves to the live binary. Plugins never import vault internals — t
 |----------|---------|-------------|
 | `trust-identity-privkey` | mc-trust | Ed25519 private key for agent authentication |
 | `gh-am-mini` | cron / scripts | GitHub token for AM's account on mini |
-| `gmail-app-password` | notification scripts | Gmail app password for outbound email |
+| `email-app-password` | mc-email, cron scripts | Email app password for IMAP/SMTP (legacy: `gmail-app-password`) |
 | `gemini-api-key` | mc-designer | Gemini API key for image generation |
 
 ---

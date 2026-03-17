@@ -1,12 +1,12 @@
-# mc-email — Gmail Integration
+# mc-email — Email Integration
 
-mc-email provides Gmail access via IMAP/SMTP for reading, sending, replying, archiving, and triaging email messages. Authentication uses a Gmail app password stored in the MiniClaw vault.
+mc-email provides email access via IMAP/SMTP for reading, sending, replying, archiving, and triaging email messages. Supports Gmail and non-Gmail providers (Outlook, Fastmail, custom domains). Authentication uses an app password stored in the MiniClaw vault.
 
 ---
 
 ## Overview
 
-The plugin connects to Gmail using IMAP (for reading) and SMTP (for sending) via `imapflow` and `nodemailer`. Credentials are stored securely in the vault under the `gmail-app-password` key. The triage command delegates to an external Python script for autonomous email classification and response.
+The plugin connects to an email account using IMAP (for reading) and SMTP (for sending) via `imapflow` and `nodemailer`. Credentials are stored securely in the vault under the `email-app-password` key (legacy `gmail-app-password` is also supported for backward compatibility). The triage command delegates to an external Python script for autonomous email classification and response.
 
 ---
 
@@ -108,11 +108,17 @@ mc-email does not currently register agent tools. All operations are CLI-only.
 
 ## Authentication
 
+### Gmail
 1. Enable 2-factor authentication on the Google account
 2. Generate a 16-character app password at https://myaccount.google.com/apppasswords
 3. Run `openclaw mc-email auth` and paste the password
-4. The password is stored in the vault under `gmail-app-password`
+4. The password is stored in the vault under `email-app-password`
 
-The plugin uses:
-- **IMAP** (`imap.gmail.com:993`, TLS) for reading
-- **SMTP** (`smtp.gmail.com:587`, STARTTLS) for sending
+Gmail defaults: IMAP `imap.gmail.com:993` (TLS), SMTP `smtp.gmail.com:465` (TLS).
+
+### Non-Gmail (Outlook, Fastmail, custom domains)
+1. Generate an app password from your provider's settings
+2. During setup, provide the SMTP host and port
+3. IMAP/SMTP hosts are stored in `setup-state.json` and read automatically by the triage script
+
+The vault key `email-app-password` is canonical. The legacy `gmail-app-password` key is still read as a fallback for existing installs.

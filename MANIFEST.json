@@ -172,12 +172,12 @@
     {
       "id": "mc-email",
       "label": "Email",
-      "description": "Autonomous Gmail triage — IMAP inbox polling, Haiku classification (6 categories), reply-as-AM, archive, and escalation to owner@example.com.",
+      "description": "Autonomous email triage — IMAP inbox polling, Haiku classification (6 categories), reply-as-AM, archive, and escalation. Supports Gmail and non-Gmail providers.",
       "path": "plugins/mc-email",
       "entry": "index.ts",
       "cli": true,
       "tools": [],
-      "requires": ["gmail-app-password"],
+      "requires": ["email-app-password"],
       "config": {
         "vaultBin": "~/.local/bin/mc-vault",
         "emailAddress": "owner@example.com"
@@ -402,8 +402,8 @@
       "required": true
     },
     {
-      "key": "gmail-app-password",
-      "description": "Gmail app password for email integration",
+      "key": "email-app-password",
+      "description": "Email app password for IMAP/SMTP integration (supports Gmail and non-Gmail providers)",
       "required": false
     },
     {

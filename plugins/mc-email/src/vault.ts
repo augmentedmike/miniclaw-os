@@ -20,10 +20,14 @@ export function vaultSet(vaultBin: string, key: string, value: string): void {
   execSync(`${vaultBin} set ${key} ${JSON.stringify(value)}`, { stdio: "inherit" });
 }
 
+const EMAIL_PASSWORD_KEY = "email-app-password";
+const LEGACY_KEY = "gmail-app-password";
+
 export function getAppPassword(vaultBin: string): string | null {
-  return vaultGet(vaultBin, "gmail-app-password");
+  // Try canonical key first, fall back to legacy gmail-app-password for existing installs
+  return vaultGet(vaultBin, EMAIL_PASSWORD_KEY) ?? vaultGet(vaultBin, LEGACY_KEY);
 }
 
 export function saveAppPassword(vaultBin: string, password: string): void {
-  vaultSet(vaultBin, "gmail-app-password", password);
+  vaultSet(vaultBin, EMAIL_PASSWORD_KEY, password);
 }

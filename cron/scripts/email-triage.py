@@ -2,8 +2,8 @@
 """
 email-triage.py — AM's autonomous email triage.
 
-Connects to Gmail via IMAP, fetches unread messages, classifies each via
-Claude Haiku, then executes the appropriate action:
+Connects to the configured email account via IMAP, fetches unread messages,
+classifies each via Claude Haiku, then executes the appropriate action:
   - press/support  → send reply + archive
   - spam/routine   → archive only
   - security-threat → log to mc-kb + archive
@@ -34,16 +34,58 @@ _STATE_DIR       = os.environ.get("OPENCLAW_STATE_DIR", os.path.expanduser("~/.o
 VAULT_BIN        = os.path.join(_STATE_DIR, "miniclaw", "system", "bin", "mc-vault")
 SEND_ALERT       = os.path.join(_STATE_DIR, "miniclaw", "system", "bin", "send-alert")
 MC_BIN           = "/opt/homebrew/bin/openclaw"
-FROM_EMAIL       = os.environ.get("AM_EMAIL", "owner@example.com")
-IMAP_HOST        = "imap.gmail.com"
-IMAP_PORT        = 993
-SMTP_HOST        = "smtp.gmail.com"
-SMTP_PORT        = 465
+SETUP_STATE_FILE = os.path.join(_STATE_DIR, "USER", "setup-state.json")
 PROMPT_FILE      = os.path.join(_STATE_DIR, "cron", "prompts", "email-triage.md")
 MODEL            = "haiku"  # openclaw model alias for haiku
 MAX_BODY_CHARS   = 2000
 # OpenClaw local gateway — exposes OpenAI-compatible endpoint
 OPENCLAW_BASE_URL   = "http://localhost:18789/v1"
+
+
+def _load_setup_state() -> dict:
+    """Load setup-state.json if it exists."""
+    try:
+        with open(SETUP_STATE_FILE) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def _is_gmail(email_addr: str) -> bool:
+    """Check if an email address is a Gmail/Google domain."""
+    domain = email_addr.split("@")[-1].lower() if "@" in email_addr else ""
+    return domain in ("gmail.com", "googlemail.com")
+
+
+def _derive_imap_host(smtp_host: str, email_addr: str) -> str:
+    """Derive IMAP host from SMTP host (smtp.X → imap.X) or email domain."""
+    import re
+    if smtp_host:
+        return re.sub(r"^smtp\.", "imap.", smtp_host)
+    domain = email_addr.split("@")[-1] if "@" in email_addr else ""
+    return f"imap.{domain}" if domain else ""
+
+
+def _resolve_email_config() -> dict:
+    """Resolve email address and IMAP/SMTP hosts from setup-state, env, or derivation."""
+    state = _load_setup_state()
+    email_addr = os.environ.get("AM_EMAIL") or state.get("emailAddress", "owner@example.com")
+    gmail = _is_gmail(email_addr)
+
+    smtp_host = state.get("emailSmtpHost") or ("smtp.gmail.com" if gmail else "")
+    smtp_port = int(state.get("emailSmtpPort") or (465 if gmail else 587))
+    imap_host = (state.get("emailImapHost")
+                 or ("imap.gmail.com" if gmail else _derive_imap_host(smtp_host, email_addr)))
+    imap_port = int(state.get("emailImapPort") or 993)
+
+    return {
+        "email": email_addr,
+        "imap_host": imap_host,
+        "imap_port": imap_port,
+        "smtp_host": smtp_host,
+        "smtp_port": smtp_port,
+        "is_gmail": gmail,
+    }
 
 
 def _vault_get(key: str) -> str:
@@ -87,14 +129,20 @@ INTERESTING_SCORES = {
 
 # ── Vault ───────────────────────────────────────────────────────────────
 def get_app_password() -> str:
-    result = subprocess.run(
-        [VAULT_BIN, "get", "gmail-app-password"],
-        capture_output=True, text=True, check=True,
-    )
-    raw = result.stdout.strip()
-    if " = " in raw:
-        return raw.split(" = ", 1)[1].strip()
-    return raw
+    """Read email app password from vault. Tries canonical key first, falls back to legacy."""
+    for key in ("email-app-password", "gmail-app-password"):
+        try:
+            result = subprocess.run(
+                [VAULT_BIN, "get", key],
+                capture_output=True, text=True, check=True,
+            )
+            raw = result.stdout.strip()
+            if " = " in raw:
+                return raw.split(" = ", 1)[1].strip()
+            return raw
+        except subprocess.CalledProcessError:
+            continue
+    raise RuntimeError("No email app password found in vault (tried email-app-password, gmail-app-password)")
 
 
 # ── Email parsing ────────────────────────────────────────────────────────
@@ -127,9 +175,9 @@ def get_body(msg: email.message.Message) -> str:
 
 
 # ── IMAP ─────────────────────────────────────────────────────────────────
-def imap_connect(password: str) -> imaplib.IMAP4_SSL:
-    conn = imaplib.IMAP4_SSL(IMAP_HOST, IMAP_PORT)
-    conn.login(FROM_EMAIL, password)
+def imap_connect(password: str, email_addr: str, imap_host: str, imap_port: int) -> imaplib.IMAP4_SSL:
+    conn = imaplib.IMAP4_SSL(imap_host, imap_port)
+    conn.login(email_addr, password)
     return conn
 
 
@@ -147,13 +195,13 @@ def fetch_unread(conn: imaplib.IMAP4_SSL, limit: int = 20):
             yield uid.decode(), msg
 
 
-def archive_message(conn: imaplib.IMAP4_SSL, uid: str) -> None:
-    """Remove INBOX label (Gmail's archive)."""
+def archive_message(conn: imaplib.IMAP4_SSL, uid: str, is_gmail: bool = True) -> None:
+    """Archive a message. Gmail: move to All Mail. Others: mark as read."""
     conn.uid("store", uid, "+FLAGS", "\\Seen")
-    # Move to [Gmail]/All Mail — this is how IMAP archive works on Gmail
-    conn.uid("copy", uid, "[Gmail]/All Mail")
-    conn.uid("store", uid, "+FLAGS", "\\Deleted")
-    conn.expunge()
+    if is_gmail:
+        conn.uid("copy", uid, "[Gmail]/All Mail")
+        conn.uid("store", uid, "+FLAGS", "\\Deleted")
+        conn.expunge()
 
 
 # ── Claude Haiku classification ─────────────────────────────────────────
@@ -205,7 +253,14 @@ Return ONLY the JSON object specified in the system prompt. No other text."""
 
 
 # ── Actions ──────────────────────────────────────────────────────────────
-def send_reply(password: str, original_msg: email.message.Message, reply_body: str) -> None:
+def send_reply(
+    password: str,
+    original_msg: email.message.Message,
+    reply_body: str,
+    from_email: str,
+    smtp_host: str,
+    smtp_port: int,
+) -> None:
     """Send a reply via SMTP using app password."""
     to_addr = decode_header_value(original_msg.get("From", ""))
     _, to_email = parseaddr(to_addr)
@@ -215,7 +270,7 @@ def send_reply(password: str, original_msg: email.message.Message, reply_body: s
     references = original_msg.get("References", "")
 
     msg = MIMEMultipart()
-    msg["From"] = f"AugmentedMike <{FROM_EMAIL}>"
+    msg["From"] = f"AugmentedMike <{from_email}>"
     msg["To"] = to_email
     msg["Subject"] = subject
     if message_id:
@@ -223,9 +278,15 @@ def send_reply(password: str, original_msg: email.message.Message, reply_body: s
         msg["References"] = f"{references} {message_id}".strip()
     msg.attach(MIMEText(reply_body, "plain"))
 
-    with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT) as server:
-        server.login(FROM_EMAIL, password)
-        server.send_message(msg)
+    if smtp_port == 465:
+        with smtplib.SMTP_SSL(smtp_host, smtp_port) as server:
+            server.login(from_email, password)
+            server.send_message(msg)
+    else:
+        with smtplib.SMTP(smtp_host, smtp_port) as server:
+            server.starttls()
+            server.login(from_email, password)
+            server.send_message(msg)
     print(f"  → Replied to {to_email}")
 
 
@@ -419,8 +480,20 @@ def run_test_set(system_prompt: str, dry_run: bool = True) -> bool:
 
 # ── Main triage loop ──────────────────────────────────────────────────────
 def triage_inbox(password: str, system_prompt: str, limit: int = 20, dry_run: bool = False) -> None:
+    cfg = _resolve_email_config()
     print(f"\n=== Email triage {'(DRY RUN) ' if dry_run else ''}===")
-    conn = imap_connect(password)
+    print(f"Account: {cfg['email']} | IMAP: {cfg['imap_host']}:{cfg['imap_port']} | SMTP: {cfg['smtp_host']}:{cfg['smtp_port']}")
+    if not cfg["imap_host"]:
+        raise RuntimeError(
+            f"Cannot determine IMAP host for {cfg['email']}. "
+            "Set emailImapHost or emailSmtpHost in setup-state.json."
+        )
+    if not cfg["smtp_host"]:
+        raise RuntimeError(
+            f"Cannot determine SMTP host for {cfg['email']}. "
+            "Set emailSmtpHost in setup-state.json."
+        )
+    conn = imap_connect(password, cfg["email"], cfg["imap_host"], cfg["imap_port"])
     try:
         messages = list(fetch_unread(conn, limit=limit))
         print(f"Fetched {len(messages)} unread messages")
@@ -454,8 +527,9 @@ def triage_inbox(password: str, system_prompt: str, limit: int = 20, dry_run: bo
                 tg_alerted = False
 
                 if action == "reply" and result.get("reply_body"):
-                    send_reply(password, msg, result["reply_body"])
-                    archive_message(conn, uid)
+                    send_reply(password, msg, result["reply_body"],
+                               from_email=cfg["email"], smtp_host=cfg["smtp_host"], smtp_port=cfg["smtp_port"])
+                    archive_message(conn, uid, is_gmail=cfg["is_gmail"])
                     record_event(sender, subject, category, "replied+archived")
 
                 elif action == "log-security":
@@ -469,7 +543,7 @@ def triage_inbox(password: str, system_prompt: str, limit: int = 20, dry_run: bo
                         threat_type=result.get("security_title", category),
                     )
                     tg_alerted = True
-                    archive_message(conn, uid)
+                    archive_message(conn, uid, is_gmail=cfg["is_gmail"])
                     record_event(sender, subject, category, "logged+archived", tg_alerted=True)
 
                 elif action == "escalate" and result.get("escalation_subject"):
@@ -477,12 +551,12 @@ def triage_inbox(password: str, system_prompt: str, limit: int = 20, dry_run: bo
                         subject=result["escalation_subject"],
                         body=result.get("escalation_body", f"From: {sender}\nSubject: {subject}\n\n{body[:1000]}"),
                     )
-                    archive_message(conn, uid)
+                    archive_message(conn, uid, is_gmail=cfg["is_gmail"])
                     record_event(sender, subject, category, "escalated+archived")
 
                 else:
                     # spam, routine, or any archive-only action
-                    archive_message(conn, uid)
+                    archive_message(conn, uid, is_gmail=cfg["is_gmail"])
                     record_event(sender, subject, category, "archived")
 
             except Exception as e:

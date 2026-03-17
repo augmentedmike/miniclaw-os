@@ -294,7 +294,7 @@ Non-fatal if QMD is not installed yet.
   `key.txt` does not exist (`mc-vault init`).
 - Prompts for secrets interactively (terminal required):
   - `gh-token` — GitHub personal access token
-  - `gmail-app-password` — Gmail app password
+  - `email-app-password` — Email app password (Gmail or other provider)
   - `gemini-api-key` — Google Gemini API key (optional, for mc-designer)
 - Secrets are encrypted with `age` and stored in the vault directory.
 - If run non-interactively (piped from curl), secret prompts are skipped with
@@ -453,7 +453,7 @@ bun install -g qmd
 ./install.sh
 # or set individual secrets:
 mc vault set gh-token
-mc vault set gmail-app-password
+mc vault set email-app-password
 mc vault set gemini-api-key
 ```
 

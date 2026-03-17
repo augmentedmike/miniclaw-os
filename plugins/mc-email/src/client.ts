@@ -159,11 +159,12 @@ export class GmailClient {
         pass: password,
       },
     });
+    const body = `${opts.body}\n\n--\n${this.cfg.signature}`;
     const info = await transport.sendMail({
       from: opts.from ?? this.cfg.emailAddress,
       to: opts.to,
       subject: opts.subject,
-      text: opts.body,
+      text: body,
     });
     return info.messageId ?? "";
   }

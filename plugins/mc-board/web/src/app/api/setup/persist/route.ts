@@ -29,9 +29,9 @@ export async function POST() {
   persist("ghToken", "gh-token");
 
   // Email
-  persist("emailAppPassword", "gmail-app-password");
+  persist("emailAppPassword", "email-app-password");
   if (state.emailAddress) {
-    vaultSet("gmail-email", state.emailAddress);
+    vaultSet("email-address", state.emailAddress);
   }
   if ((state as Record<string, string>).emailSmtpHost) {
     vaultSet("smtp-host", (state as Record<string, string>).emailSmtpHost);
