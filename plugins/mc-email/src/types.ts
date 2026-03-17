@@ -1,3 +1,10 @@
+export interface EmailAttachment {
+  filename: string;
+  contentType: string;
+  size: number;
+  content?: Buffer;
+}
+
 export interface EmailMessage {
   id: string;
   threadId: string;
@@ -7,6 +14,7 @@ export interface EmailMessage {
   date: string;
   snippet: string;
   body?: string;
+  attachments?: EmailAttachment[];
   labelIds: string[];
 }
 

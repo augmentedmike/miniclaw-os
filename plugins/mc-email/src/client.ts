@@ -3,7 +3,7 @@ import nodemailer from "nodemailer";
 import { simpleParser } from "mailparser";
 import type { EmailConfig } from "./config.js";
 import { getAppPassword } from "./vault.js";
-import type { EmailMessage, SendEmailOptions } from "./types.js";
+import type { EmailAttachment, EmailMessage, SendEmailOptions } from "./types.js";
 
 function createImapClient(cfg: EmailConfig): ImapFlow {
   const password = getAppPassword(cfg.vaultBin);
@@ -88,6 +88,7 @@ export class GmailClient {
       )) {
         let body = "";
         let snippet = "";
+        let attachments: EmailAttachment[] = [];
 
         if (msg.source) {
           const parsed = await simpleParser(msg.source);
@@ -97,6 +98,15 @@ export class GmailClient {
             body = parsed.html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
           }
           snippet = body.substring(0, 500);
+
+          if (parsed.attachments?.length) {
+            attachments = parsed.attachments.map((att) => ({
+              filename: att.filename ?? "untitled",
+              contentType: att.contentType ?? "application/octet-stream",
+              size: att.size,
+              content: Buffer.from(att.content),
+            }));
+          }
         }
 
         found = {
@@ -110,6 +120,7 @@ export class GmailClient {
           date: msg.envelope?.date?.toISOString() ?? "",
           snippet,
           body,
+          attachments: attachments.length ? attachments : undefined,
           labelIds: msg.flags ? Array.from(msg.flags) : [],
         };
         break;

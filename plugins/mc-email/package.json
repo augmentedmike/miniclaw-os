@@ -4,6 +4,10 @@
   "type": "module",
   "main": "index.ts",
   "description": "Gmail integration — read, triage, archive, send via Google OAuth2 + Gmail API",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
   "dependencies": {
     "google-auth-library": "^9.0.0",
     "googleapis": "^144.0.0",
@@ -12,7 +16,9 @@
     "nodemailer": "^8.0.1"
   },
   "devDependencies": {
-    "openclaw": "file:../../../openclaw"
+    "openclaw": "file:../../../openclaw",
+    "vitest": "^2.0.0",
+    "@vitest/ui": "^2.0.0"
   },
   "openclaw": {
     "extensions": [

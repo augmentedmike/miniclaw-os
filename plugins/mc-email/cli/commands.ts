@@ -78,19 +78,78 @@ export function registerEmailCommands(ctx: Ctx): void {
   sub
     .command("read <id>")
     .description("Read a single message by UID")
-    .action(async (id: string) => {
+    .option("--save-attachments <dir>", "Save all attachments to directory")
+    .option("--attachment <index>", "Extract specific attachment by 1-based index")
+    .action(async (id: string, opts: { saveAttachments?: string; attachment?: string }) => {
       const client = getClient(cfg);
       const msg = await client.getMessage(id);
       if (!msg) {
         console.error(`Message ${id} not found.`);
         process.exit(1);
       }
+
+      // Handle attachment extraction mode
+      if (opts.attachment) {
+        if (!msg.attachments || msg.attachments.length === 0) {
+          console.error("Message has no attachments.");
+          process.exit(1);
+        }
+        const idx = parseInt(opts.attachment, 10) - 1;
+        if (idx < 0 || idx >= msg.attachments.length) {
+          console.error(`Invalid attachment index: ${opts.attachment}. Message has ${msg.attachments.length} attachment(s).`);
+          process.exit(1);
+        }
+        const att = msg.attachments[idx];
+        const fs = await import("node:fs/promises");
+        const outPath = path.join(process.cwd(), att.filename);
+        if (att.content) {
+          await fs.writeFile(outPath, att.content);
+          console.log(`Extracted: ${outPath}`);
+        }
+        return;
+      }
+
+      // Handle save-all mode
+      if (opts.saveAttachments) {
+        if (!msg.attachments || msg.attachments.length === 0) {
+          console.log("Message has no attachments.");
+          return;
+        }
+        const fs = await import("node:fs/promises");
+        try {
+          await fs.mkdir(opts.saveAttachments, { recursive: true });
+          for (const att of msg.attachments) {
+            if (att.content) {
+              const outPath = path.join(opts.saveAttachments, att.filename);
+              await fs.writeFile(outPath, att.content);
+              console.log(`Saved: ${outPath}`);
+            }
+          }
+        } catch (err) {
+          console.error(`Error saving attachments: ${err}`);
+          process.exit(1);
+        }
+        return;
+      }
+
+      // Normal read mode: display message with attachments list
       console.log(`UID:     ${msg.id}`);
       console.log(`From:    ${msg.from}`);
       console.log(`To:      ${msg.to}`);
       console.log(`Date:    ${msg.date}`);
       console.log(`Subject: ${msg.subject}`);
       console.log(`Flags:   ${msg.labelIds.join(", ")}`);
+      
+      if (msg.attachments && msg.attachments.length > 0) {
+        console.log(`\nAttachments (${msg.attachments.length}):`);
+        for (let i = 0; i < msg.attachments.length; i++) {
+          const att = msg.attachments[i];
+          const sizeKB = Math.round(att.size / 1024);
+          console.log(`  [${i + 1}] ${att.filename} (${sizeKB}KB, ${att.contentType})`);
+        }
+        console.log(`\nUse --attachment <N> to extract specific file, or --save-attachments <dir> to save all.`);
+      }
+
       if (msg.body) {
         console.log();
         console.log(msg.body);
