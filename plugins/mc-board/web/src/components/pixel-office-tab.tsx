@@ -11,6 +11,7 @@ import {
   centerView,
   type OfficeState,
 } from "@/lib/pixel-office/engine";
+import { clearSpriteCache } from "@/lib/pixel-office/sprites";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -57,7 +58,11 @@ export function PixelOfficeTab() {
     }
 
     init();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      // Clean up sprite cache on component unmount
+      clearSpriteCache();
+    };
   }, []);
 
   // Sync agents when data changes
@@ -141,10 +146,18 @@ export function PixelOfficeTab() {
     }
   }, [loaded, activeData]);
 
-  const handleWheel = useCallback((e: React.WheelEvent) => {
+  const handleWheel = useCallback((e: WheelEvent) => {
     e.preventDefault();
     setZoom((z) => Math.max(1, Math.min(6, z + (e.deltaY > 0 ? -0.5 : 0.5))));
   }, []);
+
+  // Non-passive wheel listener for proper preventDefault
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    container.addEventListener("wheel", handleWheel, { passive: false });
+    return () => container.removeEventListener("wheel", handleWheel);
+  }, [handleWheel]);
 
   if (error) {
     return (
@@ -227,7 +240,6 @@ export function PixelOfficeTab() {
       {/* Canvas container */}
       <div
         ref={containerRef}
-        onWheel={handleWheel}
         style={{
           flex: 1,
           overflow: "hidden",

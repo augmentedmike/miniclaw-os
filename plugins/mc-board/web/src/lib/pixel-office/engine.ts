@@ -677,28 +677,6 @@ export async function initOffice(
     const baseType = type.replace(/:left$/, "");
     const parts = baseType.split("_");
     // Furniture folder naming: e.g., DESK/DESK_FRONT.png, PC/PC_FRONT_ON_1.png
-    let folder = "";
-    let filename = baseType;
-
-    // Try common patterns
-    const patterns = [
-      () => {
-        // Direct match: PLANT/PLANT.png
-        const f = baseType.split("_")[0];
-        return { folder: baseType, filename: baseType };
-      },
-      () => {
-        // Common pattern: take first word(s) as folder
-        // DESK_FRONT → DESK/DESK_FRONT.png
-        // PC_FRONT_ON_1 → PC/PC_FRONT_ON_1.png
-        // WOODEN_CHAIR_FRONT → WOODEN_CHAIR/WOODEN_CHAIR_FRONT.png
-        for (let i = parts.length - 1; i >= 1; i--) {
-          const f = parts.slice(0, i).join("_");
-          return { folder: f, filename: baseType };
-        }
-        return { folder: baseType, filename: baseType };
-      },
-    ];
 
     // Try to load with various folder guesses
     const folderGuesses = new Set<string>();
@@ -824,12 +802,9 @@ export function syncAgents(
     state.characters.push(ch);
   }
 
-  // Clean up long-inactive characters (> 60s idle without active)
-  state.characters = state.characters.filter((ch) => {
-    if (ch.isActive) return true;
-    // Keep idle characters around for wandering
-    return true;
-  });
+  // Keep characters around indefinitely for wandering and presence visibility
+  // (Previously attempted to clean up idle characters > 60s, but the behavior
+  // of keeping them visible is more important for the office aesthetic)
 }
 
 function truncate(s: string, maxLen: number): string {
