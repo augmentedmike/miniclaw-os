@@ -68,7 +68,9 @@ export const TRANSITIONS: Transition[] = [
   { from: "in-progress",  to: "in-review",   label: "submit",         trigger: "manual", gate: gateSubmit  },
   { from: "in-review",    to: "shipped",      label: "approve",        trigger: "manual", gate: gateApprove },
   { from: "in-review",    to: "in-progress",  label: "verify failed",  trigger: "system", gate: gateNone    },
+  { from: "in-review",    to: "in-progress",  label: "reject",         trigger: "manual", gate: gateNone    },
   { from: "shipped",      to: "backlog",      label: "fail back",      trigger: "manual", gate: gateNone    },
+  { from: "shipped",      to: "in-progress",  label: "reopen",         trigger: "manual", gate: gateNone    },
 ];
 
 export const COLUMNS: Column[] = ["backlog", "in-progress", "in-review", "shipped"];
