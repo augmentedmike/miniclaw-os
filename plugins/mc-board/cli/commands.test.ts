@@ -530,3 +530,112 @@ describe("brain archive-show", () => {
     expect(allErr()).toMatch(/not found/i);
   });
 });
+
+// ---- brain wip-limit ----
+
+describe("brain wip-limit", () => {
+  it("returns default WIP limit when no config exists", async () => {
+    await run("mc-board", "wip-limit", "in-progress");
+    expect(lastOut()).toBe("3");
+  });
+
+  it("returns configured WIP limit from board-cron.json", async () => {
+    const cronFile = path.join(tmpDir, "board-cron.json");
+    fs.writeFileSync(cronFile, JSON.stringify({
+      "board-in-progress-triage": { maxConcurrent: 5 },
+    }));
+    process.env.BOARD_CRON_JOBS = cronFile;
+    try {
+      await run("mc-board", "wip-limit", "in-progress");
+      expect(lastOut()).toBe("5");
+    } finally {
+      delete process.env.BOARD_CRON_JOBS;
+    }
+  });
+
+  it("falls back to default when column not in config", async () => {
+    const cronFile = path.join(tmpDir, "board-cron.json");
+    fs.writeFileSync(cronFile, JSON.stringify({
+      "board-in-progress-triage": { maxConcurrent: 5 },
+    }));
+    process.env.BOARD_CRON_JOBS = cronFile;
+    try {
+      await run("mc-board", "wip-limit", "in-review");
+      expect(lastOut()).toBe("3");
+    } finally {
+      delete process.env.BOARD_CRON_JOBS;
+    }
+  });
+
+  it("errors on invalid column", async () => {
+    await expect(run("mc-board", "wip-limit", "not-a-column")).rejects.toThrow();
+    expect(allErr()).toMatch(/invalid column/i);
+  });
+});
+
+// ---- brain move: WIP limit enforcement ----
+
+describe("brain move WIP limit", () => {
+  async function readyCard(title: string) {
+    const card = await createCard(title, "medium");
+    store.update(card.id, {
+      problem_description: "Problem",
+      implementation_plan: "Plan",
+      acceptance_criteria: "- [ ] done",
+    });
+    return store.findById(card.id);
+  }
+
+  it("blocks move to in-progress when column is at WIP limit", async () => {
+    // Fill in-progress to default limit (3)
+    for (let i = 0; i < 3; i++) {
+      const card = await readyCard(`Task ${i}`);
+      await run("mc-board", "move", card.id, "in-progress");
+    }
+    expect(store.countByColumn("in-progress")).toBe(3);
+
+    // Next move should be blocked
+    const overflow = await readyCard("Overflow task");
+    await expect(run("mc-board", "move", overflow.id, "in-progress")).rejects.toThrow();
+    // WIP error goes to process.stderr.write (not console.error), card must stay in backlog
+    expect(store.findById(overflow.id).column).toBe("backlog");
+  });
+
+  it("allows move to in-progress when below WIP limit", async () => {
+    const card = await readyCard("Task A");
+    await run("mc-board", "move", card.id, "in-progress");
+    expect(store.findById(card.id).column).toBe("in-progress");
+  });
+
+  it("respects configured WIP limit from board-cron.json", async () => {
+    // Set limit to 1
+    const cronFile = path.join(tmpDir, "board-cron.json");
+    fs.writeFileSync(cronFile, JSON.stringify({
+      "board-in-progress-triage": { maxConcurrent: 1 },
+    }));
+    process.env.BOARD_CRON_JOBS = cronFile;
+
+    const first = await readyCard("First");
+    await run("mc-board", "move", first.id, "in-progress");
+    expect(store.findById(first.id).column).toBe("in-progress");
+
+    const second = await readyCard("Second");
+    try {
+      await expect(run("mc-board", "move", second.id, "in-progress")).rejects.toThrow();
+      // WIP error goes to process.stderr.write (not console.error), card must stay in backlog
+      expect(store.findById(second.id).column).toBe("backlog");
+    } finally {
+      delete process.env.BOARD_CRON_JOBS;
+    }
+  });
+
+  it("--force bypasses WIP limit", async () => {
+    for (let i = 0; i < 3; i++) {
+      const card = await readyCard(`Task ${i}`);
+      await run("mc-board", "move", card.id, "in-progress");
+    }
+    const overflow = await readyCard("Force task");
+    await run("mc-board", "move", overflow.id, "in-progress", "--force");
+    expect(store.findById(overflow.id).column).toBe("in-progress");
+  });
+});
