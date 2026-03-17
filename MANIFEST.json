@@ -608,6 +608,18 @@
       "sessionTarget": "isolated",
       "requires": ["gh-token"],
       "optional": true
+    },
+    {
+      "name": "pr-manager-cron",
+      "description": "Hourly PR review: checks security, merit, quality, usefulness, and harm on all open PRs; comments findings, approves/requests changes, merges when ready",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 * * * *"
+      },
+      "timeoutSeconds": 900,
+      "sessionTarget": "isolated",
+      "requires": ["gh-token"],
+      "optional": true
     }
   ],
   "launchAgents": [
