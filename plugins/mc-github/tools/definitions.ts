@@ -370,6 +370,105 @@ export function createGithubTools(cfg: GithubConfig, logger: Logger): AnyAgentTo
       },
     } as AnyAgentTool,
 
+    // ── View a PR (diff + checks + review status) ───────────────────────
+    {
+      name: "github_pr_view",
+      label: "github_pr_view",
+      description:
+        "View a pull request — diff, CI check status, review comments, and files changed. Use before merging or reviewing any PR.",
+      parameters: {
+        type: "object",
+        required: ["prNumber"],
+        properties: {
+          prNumber: { type: "number", description: "PR number" },
+          repo: { type: "string", description: "Override repo (owner/name)" },
+          diff: { type: "boolean", description: "Include full diff (default: false — shows summary only)" },
+        },
+      },
+      async execute(_id: string, params: unknown) {
+        const p = params as Record<string, unknown>;
+        const repo = (p.repo as string) || resolveRepo(cfg);
+        const num = String(p.prNumber);
+        const parts: string[] = [];
+
+        try {
+          // PR metadata + review status
+          const meta = run("gh", ["pr", "view", num, "--repo", repo,
+            "--json", "title,state,author,baseRefName,headRefName,body,reviewDecision,statusCheckRollup,files,additions,deletions,changedFiles"]);
+          parts.push("## PR Metadata\n" + meta);
+
+          // CI checks
+          try {
+            const checks = run("gh", ["pr", "checks", num, "--repo", repo]);
+            parts.push("## CI Checks\n" + (checks || "No checks found"));
+          } catch { parts.push("## CI Checks\nUnable to fetch checks"); }
+
+          // Review comments
+          try {
+            const reviews = run("gh", ["pr", "view", num, "--repo", repo, "--json", "reviews,comments"]);
+            parts.push("## Reviews & Comments\n" + reviews);
+          } catch { /* skip */ }
+
+          // Full diff if requested
+          if (p.diff) {
+            try {
+              const diff = run("gh", ["pr", "diff", num, "--repo", repo]);
+              parts.push("## Diff\n" + diff);
+            } catch { parts.push("## Diff\nUnable to fetch diff"); }
+          }
+
+          return ok(parts.join("\n\n---\n\n"));
+        } catch (err: unknown) {
+          const e = err as { stderr?: string };
+          return ok(`Failed to view PR #${num}: ${e.stderr || "unknown error"}`);
+        }
+      },
+    } as AnyAgentTool,
+
+    // ── Review a PR (approve / request-changes / comment) ───────────────
+    {
+      name: "github_pr_review",
+      label: "github_pr_review",
+      description:
+        "Submit a review on a pull request — approve, request changes, or leave a comment.",
+      parameters: {
+        type: "object",
+        required: ["prNumber", "action"],
+        properties: {
+          prNumber: { type: "number", description: "PR number" },
+          action: { type: "string", enum: ["approve", "request-changes", "comment"], description: "Review action" },
+          body: { type: "string", description: "Review comment body (required for request-changes and comment)" },
+          repo: { type: "string", description: "Override repo (owner/name)" },
+        },
+      },
+      async execute(_id: string, params: unknown) {
+        const p = params as Record<string, unknown>;
+        const repo = (p.repo as string) || resolveRepo(cfg);
+        const num = String(p.prNumber);
+        const action = p.action as string;
+        const body = (p.body as string) || "";
+
+        if ((action === "request-changes" || action === "comment") && !body) {
+          return ok(`Error: body is required for action '${action}'`);
+        }
+
+        try {
+          const args = ["pr", "review", num, "--repo", repo, `--${action}`];
+          if (body) {
+            const result = ghWithBodyFile(["pr", "review", num], body, ["--repo", repo, `--${action}`]);
+            logger.info(`PR #${num} review submitted: ${action}`);
+            return ok(result || `PR #${num} review submitted: ${action}`);
+          }
+          const result = run("gh", args);
+          logger.info(`PR #${num} review submitted: ${action}`);
+          return ok(result || `PR #${num} review submitted: ${action}`);
+        } catch (err: unknown) {
+          const e = err as { stderr?: string };
+          return ok(`Failed to review PR #${num}: ${e.stderr || "unknown error"}`);
+        }
+      },
+    } as AnyAgentTool,
+
     // ── Trigger a workflow dispatch ─────────────────────────────────────
     {
       name: "github_actions_trigger",
