@@ -521,7 +521,7 @@ export function CardModal({ cardId, projects, activeIds, onClose, onOpenLog, onT
               <div key={field} onContextMenu={handleSectionContextMenu}>
                 <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-2">{label}</h3>
                 <div
-                  className="text-sm text-zinc-300 leading-relaxed space-y-1 font-mono"
+                  className="card-markdown text-sm text-zinc-300 leading-relaxed"
                   dangerouslySetInnerHTML={{ __html: renderMarkdown(val) }}
                   onClick={handleContentClick}
                 />

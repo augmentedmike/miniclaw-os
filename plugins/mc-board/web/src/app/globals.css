@@ -915,3 +915,27 @@ a { color: inherit; }
 
   .settings-content { padding: 16px; }
 }
+
+/* ── Card markdown typography ── */
+.card-markdown h1 { font-size: 1.25rem; font-weight: 700; color: #fafafa; margin: 1.25rem 0 0.5rem; }
+.card-markdown h2 { font-size: 1.1rem; font-weight: 600; color: #e4e4e7; margin: 1rem 0 0.4rem; }
+.card-markdown h3 { font-size: 0.95rem; font-weight: 600; color: #d4d4d8; margin: 0.75rem 0 0.3rem; }
+.card-markdown p { margin: 0.4rem 0; line-height: 1.65; }
+.card-markdown ul, .card-markdown ol { margin: 0.4rem 0 0.4rem 1.25rem; }
+.card-markdown ul { list-style: disc; }
+.card-markdown ol { list-style: decimal; }
+.card-markdown li { margin: 0.15rem 0; line-height: 1.55; }
+.card-markdown li::marker { color: #71717a; }
+.card-markdown strong { color: #fafafa; font-weight: 600; }
+.card-markdown em { color: #a1a1aa; font-style: italic; }
+.card-markdown a { color: #60a5fa; text-decoration: underline; text-decoration-style: dashed; }
+.card-markdown a:hover { color: #93c5fd; }
+.card-markdown code { font-family: ui-monospace, monospace; font-size: 0.85em; background: #27272a; color: #e4e4e7; padding: 0.15em 0.35em; border-radius: 4px; }
+.card-markdown pre { background: #18181b; border: 1px solid #27272a; border-radius: 6px; padding: 0.75rem; margin: 0.5rem 0; overflow-x: auto; }
+.card-markdown pre code { background: none; padding: 0; font-size: 0.8rem; line-height: 1.5; }
+.card-markdown blockquote { border-left: 3px solid #3f3f46; padding-left: 0.75rem; margin: 0.5rem 0; color: #a1a1aa; font-style: italic; }
+.card-markdown hr { border: none; border-top: 1px solid #27272a; margin: 0.75rem 0; }
+.card-markdown table { border-collapse: collapse; margin: 0.5rem 0; font-size: 0.85rem; }
+.card-markdown th, .card-markdown td { border: 1px solid #3f3f46; padding: 0.3rem 0.6rem; text-align: left; }
+.card-markdown th { background: #27272a; color: #e4e4e7; font-weight: 600; }
+.card-markdown img { max-width: 100%; border-radius: 6px; margin: 0.5rem 0; }
