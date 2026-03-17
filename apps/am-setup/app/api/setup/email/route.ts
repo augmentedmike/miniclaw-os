@@ -36,12 +36,12 @@ export async function POST(req: Request) {
   }
 
   // 2. Write to vault
-  const emailResult = vaultSet("gmail-email", email);
+  const emailResult = vaultSet("email-address", email);
   if (!emailResult.ok) {
     return NextResponse.json({ ok: false, error: `Vault error: ${emailResult.error}` }, { status: 500 });
   }
 
-  const pwResult = vaultSet("gmail-app-password", appPassword);
+  const pwResult = vaultSet("email-app-password", appPassword);
   if (!pwResult.ok) {
     return NextResponse.json({ ok: false, error: `Vault error: ${pwResult.error}` }, { status: 500 });
   }
