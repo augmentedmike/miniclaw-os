@@ -50,7 +50,9 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
   const [watchCardId, setWatchCardId] = useState<string | null>(null);
   const [logOpen, setLogOpen] = useState(false);
   const [shippedOpen, setShippedOpen] = useState(false);
-  const [showHeld, setShowHeld] = useState(false);
+  const [showHeld, setShowHeld] = useState(() => {
+    try { return localStorage.getItem("mc-board:show-held") === "true"; } catch { return false; }
+  });
   const [showSummary, setShowSummary] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -254,15 +256,28 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
               transition: "background 0.15s ease, border-color 0.15s ease",
             }}
           />
-          <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer", fontSize: 12, color: showHeld ? "#a8a29e" : "#52525b", userSelect: "none", whiteSpace: "nowrap" }}>
-            <input
-              type="checkbox"
-              checked={showHeld}
-              onChange={e => setShowHeld(e.target.checked)}
-              style={{ accentColor: "#d97706", cursor: "pointer" }}
-            />
-            show held
-          </label>
+          <button
+            onClick={() => {
+              setShowHeld(on => {
+                const next = !on;
+                try { localStorage.setItem("mc-board:show-held", next ? "true" : "false"); } catch {}
+                return next;
+              });
+            }}
+            style={{
+              fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 6,
+              background: showHeld ? "#1c1917" : "transparent",
+              border: showHeld ? "1px solid #d97706" : "1px solid #2a2a33",
+              color: showHeld ? "#fbbf24" : "#52525b",
+              cursor: "pointer", whiteSpace: "nowrap",
+              transition: "background 0.1s, border-color 0.1s, color 0.1s",
+            }}
+            onMouseEnter={e => { if (!showHeld) { e.currentTarget.style.borderColor = "#3f3f46"; e.currentTarget.style.color = "#a1a1aa"; } }}
+            onMouseLeave={e => { if (!showHeld) { e.currentTarget.style.borderColor = "#2a2a33"; e.currentTarget.style.color = "#52525b"; } }}
+            title={showHeld ? "Hide held/blocked cards" : "Show held/blocked cards"}
+          >
+            {showHeld ? "Hide held" : "Show held"}
+          </button>
           <button
             onClick={() => setShowSummary(true)}
             style={{

@@ -10,6 +10,8 @@
       "applyToChannels":     { "type": "boolean" },
       "applyToDMs":          { "type": "boolean" },
       "haikuModel":          { "type": "string" },
+      "sonnetModel":         { "type": "string" },
+      "opusModel":           { "type": "string" },
       "maxToolCallsPerTurn": { "type": "number" },
       "tgLogChatId":         { "type": "string" },
       "tgBotName":           { "type": "string" },
