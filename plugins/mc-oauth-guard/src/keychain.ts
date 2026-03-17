@@ -66,33 +66,35 @@ export function readAnthropicKeychainCredentials(): KeychainCredential | null {
     }
   }
 
-  // Try macOS keychain via security command
+  // Try macOS keychain — Claude Code stores credentials here
   try {
     const result = execSync(
-      'security find-generic-password -s "claude.ai" -w 2>/dev/null || ' +
-        'security find-generic-password -s "com.anthropic.claude-code" -w 2>/dev/null',
+      'security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null',
       { encoding: "utf-8", timeout: 5000 },
     ).trim();
 
     if (result) {
       try {
         const parsed = JSON.parse(result);
-        if (parsed.access_token && parsed.refresh_token) {
+        // Claude Code stores under claudeAiOauth
+        const oauth = parsed.claudeAiOauth ?? parsed;
+        if (oauth.accessToken && oauth.refreshToken) {
           return {
-            accessToken: parsed.access_token,
-            refreshToken: parsed.refresh_token,
-            expiresAt: parsed.expires_at ?? Date.now() + 3600_000,
+            accessToken: oauth.accessToken,
+            refreshToken: oauth.refreshToken,
+            expiresAt: oauth.expiresAt ?? Date.now() + 3600_000,
+          };
+        }
+        // Fallback: snake_case format
+        if (oauth.access_token && oauth.refresh_token) {
+          return {
+            accessToken: oauth.access_token,
+            refreshToken: oauth.refresh_token,
+            expiresAt: oauth.expires_at ?? Date.now() + 3600_000,
           };
         }
       } catch {
-        // Keychain value wasn't JSON — might be just a token string
-        if (result.startsWith("sk-ant-")) {
-          return {
-            accessToken: result,
-            refreshToken: "",
-            expiresAt: Date.now() + 3600_000,
-          };
-        }
+        // Keychain value wasn't JSON
       }
     }
   } catch {

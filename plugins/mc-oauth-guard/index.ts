@@ -133,10 +133,6 @@ export default function register(api: OpenClawPluginApi): void {
     if (provider !== "anthropic") return false;
     if (os.platform() !== "darwin") return false;
 
-    const profileState = guard.getProfileState(profileId);
-    if (profileState?.recoveryAttempted) return false;
-
-    guard.markRecoveryAttempted(profileId);
     appendLog(
       "INFO",
       `Attempting keychain recovery for ${profileId} (${provider})`,
@@ -186,27 +182,22 @@ export default function register(api: OpenClawPluginApi): void {
         return;
       }
 
-      // Record the failure
+      // Attempt keychain recovery IMMEDIATELY on first failure
+      const recovered = attemptKeychainRecovery(profileId, provider);
+      if (recovered) {
+        api.logger.info(
+          `mc-oauth-guard: recovered ${profileId} from keychain — fresh token imported`,
+        );
+        return;
+      }
+
+      // Record the failure only if recovery didn't work
       const state = guard.recordFailure(profileId, provider);
       appendLog(
         "WARN",
         `OAuth refresh failure #${state.consecutiveFailures} for ${profileId} (${provider}). ` +
           `Next retry at ${new Date(state.nextRetryAt).toISOString()}`,
       );
-
-      // Attempt keychain recovery before disabling
-      if (
-        state.consecutiveFailures >= guardConfig.maxConsecutiveFailures &&
-        !state.recoveryAttempted
-      ) {
-        const recovered = attemptKeychainRecovery(profileId, provider);
-        if (recovered) {
-          api.logger.info(
-            `mc-oauth-guard: recovered ${profileId} from keychain — reset failure count`,
-          );
-          return;
-        }
-      }
 
       // Auto-disable if threshold reached
       if (state.disabled) {
