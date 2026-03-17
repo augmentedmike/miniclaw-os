@@ -449,9 +449,10 @@ export function CardModal({ cardId, projects, activeIds, onClose, onOpenLog, onT
                     onClick={() => onHold(card.id)}
                     title={held ? "Remove hold" : "Put on hold"}
                     style={{
-                      fontSize: 11, padding: "3px 10px", borderRadius: 6,
-                      background: "#1c1917", border: `1px solid ${held ? "#d97706" : "#78716c"}`,
-                      color: held ? "#fbbf24" : "#a8a29e", cursor: "pointer",
+                      fontSize: 11, padding: "3px 10px", borderRadius: 6, fontWeight: 600,
+                      background: held ? "#fbbf24" : "#1c1917",
+                      border: `1px solid ${held ? "#f59e0b" : "#78716c"}`,
+                      color: held ? "#1c1917" : "#a8a29e", cursor: "pointer",
                     }}
                   >
                     {held ? "↩ Unhold" : "⏸ Hold"}

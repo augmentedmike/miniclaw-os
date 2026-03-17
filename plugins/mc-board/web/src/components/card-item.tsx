@@ -9,9 +9,9 @@ function HoldBadge({ held, onToggle }: { held: boolean; onToggle?: (e: React.Mou
     fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
     padding: "2px 6px", borderRadius: 3, cursor: onToggle ? "pointer" : "default",
     transition: "background 0.1s, color 0.1s",
-    background: held ? "#1c1917" : hovered ? "#1c1917" : "#27272a",
-    color: held ? "#fbbf24" : hovered ? "#a8a29e" : "#52525b",
-    border: held ? "1px solid #d97706" : hovered ? "1px solid #78716c" : "1px solid transparent",
+    background: held ? "#fbbf24" : hovered ? "#1c1917" : "#27272a",
+    color: held ? "#1c1917" : hovered ? "#a8a29e" : "#52525b",
+    border: held ? "1px solid #f59e0b" : hovered ? "1px solid #78716c" : "1px solid transparent",
   };
   return (
     <span style={style} onClick={onToggle}
