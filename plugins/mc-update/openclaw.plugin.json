@@ -1,0 +1,42 @@
+{
+  "id": "mc-update",
+  "name": "Miniclaw Update",
+  "description": "Nightly self-update system. Checks for new stable-tagged versions of miniclaw-os fork, all plugins, and core. Updates everything EXCEPT workspace/ and USER/ directories.",
+  "version": "0.1.0",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "updateTime": {
+        "type": "string",
+        "description": "Cron expression for scheduled update checks. Default: '0 3 * * *' (3 AM daily)"
+      },
+      "autoRollback": {
+        "type": "boolean",
+        "description": "Automatically rollback if mc-smoke fails after update. Default: true"
+      },
+      "notifyOnUpdate": {
+        "type": "boolean",
+        "description": "Log a notification when updates are applied. Default: true"
+      },
+      "smokeTimeout": {
+        "type": "number",
+        "description": "Timeout in milliseconds for mc-smoke verification. Default: 60000 (60s)"
+      },
+      "repos": {
+        "type": "array",
+        "description": "Repositories to check for updates. Defaults to miniclaw-os and openclaw fork.",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "path": { "type": "string" },
+            "remote": { "type": "string" },
+            "stableTag": { "type": "string" }
+          },
+          "required": ["name", "path"]
+        }
+      }
+    }
+  }
+}
