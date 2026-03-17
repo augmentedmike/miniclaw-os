@@ -171,7 +171,7 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
         cards: current.cards.map(c => {
           if (c.id !== cardId) return c;
           const newTags = setFocused
-            ? [...c.tags.filter(t => t !== "focus"), "focus"]
+            ? [...c.tags.filter(t => t !== "focus" && t !== "hold"), "focus"]
             : c.tags.filter(t => t !== "focus");
           return { ...c, tags: newTags };
         }),
@@ -180,7 +180,7 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
 
     // Use add-tags/remove-tags for atomic CLI operation (avoids full tag replacement from stale cache)
     const updateBody = setFocused
-      ? { action: "update", cardId, "add-tags": "focus" }
+      ? { action: "update", cardId, "add-tags": "focus", "remove-tags": "hold" }
       : { action: "update", cardId, "remove-tags": "focus" };
 
     fetch("/api/board/action", {
@@ -201,7 +201,7 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
           if (c.id !== cardId) return c;
           const isHeld = c.tags.includes("hold");
           wasHeld = isHeld;
-          const newTags = isHeld ? c.tags.filter(t => t !== "hold") : [...c.tags.filter(t => t !== "hold"), "hold"];
+          const newTags = isHeld ? c.tags.filter(t => t !== "hold") : [...c.tags.filter(t => t !== "hold" && t !== "focus"), "hold"];
           return { ...c, tags: newTags };
         }),
       };
@@ -210,7 +210,9 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
     fetch("/api/board/action", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "update", cardId, [wasHeld ? "remove-tags" : "add-tags"]: "hold" }),
+      body: JSON.stringify(wasHeld
+        ? { action: "update", cardId, "remove-tags": "hold" }
+        : { action: "update", cardId, "add-tags": "hold", "remove-tags": "focus" }),
     }).then(() => mutate()).catch(() => mutate());
   }, [mutate]);
 
