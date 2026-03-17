@@ -452,6 +452,12 @@ function registerCronJobs() {
  * Seed the rolodex with the human owner and agent contacts.
  * Writes contacts.json so the rolodex SQLite migration picks them up on first open.
  * Only seeds if contacts.json doesn't exist yet or is empty.
+ *
+ * IMPORTANT identity rules:
+ * - The wizard's emailAddress field is the AGENT's email, NOT the human's.
+ * - Human contact is seeded with NO email (emails: []).
+ *   The agent should later ask the human for their real name & email via the
+ *   onboarding seed card created by seedOnboardingCard().
  */
 function seedRolodexContacts() {
   const setupState = readSetupState();
@@ -470,7 +476,8 @@ function seedRolodexContacts() {
 
   const contacts = [];
 
-  // Human owner contact — we don't collect the human's name during setup
+  // Human owner contact — NO email, NO real name yet.
+  // The onboarding seed card will prompt the agent to ask the human for these.
   contacts.push({
     id: crypto.randomUUID(),
     name: "My Human",
@@ -480,10 +487,11 @@ function seedRolodexContacts() {
     tags: ["owner", "human"],
     trustStatus: "verified",
     lastVerified: new Date().toISOString(),
-    notes: "Human owner — added during setup.",
+    notes: "Human owner — added during setup. Name and email TBD (agent will ask).",
   });
 
-  // Agent contact — all wizard fields are the AGENT's info
+  // Agent contact — emailAddress from the wizard is the AGENT's own email.
+  // Do NOT put the human's email here.
   const agentName = setupState.assistantName || "MiniClaw";
   const agentShort = setupState.shortName || agentName;
   const agentEmail = setupState.emailAddress || "";
@@ -501,6 +509,46 @@ function seedRolodexContacts() {
   });
 
   fs.writeFileSync(contactsPath, JSON.stringify(contacts, null, 2) + "\n", "utf-8");
+}
+
+/**
+ * Seed an onboarding card that prompts the agent to ask the human their real
+ * name and preferred email address, then update the rolodex accordingly.
+ * This runs after seedRolodexContacts() so the human contact exists as "My Human"
+ * with no email — the agent's first task is to fix that.
+ */
+function seedOnboardingCard() {
+  const dbPath = path.join(STATE_DIR, "USER", "brain", "board.db");
+  if (!fs.existsSync(dbPath)) return;
+
+  const script = `import sqlite3
+conn = sqlite3.connect("${dbPath}")
+conn.execute("""INSERT OR IGNORE INTO cards (id, title, col, priority, tags, project_id, created_at, updated_at, problem_description, implementation_plan, acceptance_criteria)
+VALUES (
+  'crd_seed_onboarding',
+  'Onboarding: ask human their name and email',
+  'backlog',
+  'high',
+  '["setup","onboarding"]',
+  'prj_setup',
+  datetime('now'),
+  datetime('now'),
+  'The rolodex has a placeholder contact for the human owner (name="My Human", no email). The agent needs to ask the human for their real name and preferred email address, then update the rolodex so all future communications use the correct identity.',
+  '1. Send the human a friendly message asking for their preferred name and email address.\\n2. Once the human replies, run: mc-rolodex update <human-contact-id> --name "<real name>" --email "<real email>"\\n3. Verify the rolodex contact was updated correctly with mc-rolodex list.',
+  '- [ ] Human contact in rolodex has their real name (not "My Human")\\n- [ ] Human contact has their real email address\\n- [ ] Agent confirmed the update via mc-rolodex list'
+)""")
+conn.commit()
+conn.close()
+`;
+  const tmpScript = path.join(os.tmpdir(), `miniclaw-onboarding-seed-${process.pid}.py`);
+  fs.writeFileSync(tmpScript, script, "utf-8");
+  try {
+    execSync(`python3 "${tmpScript}"`, { stdio: "pipe" });
+  } catch (e) {
+    console.error("Onboarding seed card creation failed:", e);
+  } finally {
+    try { fs.unlinkSync(tmpScript); } catch { /* ignore */ }
+  }
 }
 
 /**
@@ -643,7 +691,11 @@ export async function POST() {
   personalizeWorkspace();
 
   // Seed rolodex with human owner and agent contacts
+  // NOTE: human gets NO email here — the onboarding card asks the agent to collect it
   seedRolodexContacts();
+
+  // Seed onboarding card so the agent asks the human their real name & email
+  seedOnboardingCard();
 
   // Install and start the openclaw gateway
   const gw = ensureGatewayRunning();
