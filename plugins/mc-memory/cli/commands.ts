@@ -189,6 +189,7 @@ export function registerMemoryCommands(
       }
     });
 
+
   // ---- promote ----
   ctx.program
     .command("promote")
