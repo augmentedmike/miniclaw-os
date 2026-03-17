@@ -2,15 +2,17 @@ import * as tls from "node:tls";
 import * as net from "node:net";
 
 /**
- * Quick IMAP auth check against Gmail.
+ * Quick IMAP auth check. Defaults to Gmail IMAP server if no host/port given.
  */
-export async function checkGmailAuth(
+export async function checkImapAuth(
   email: string,
-  appPassword: string
+  appPassword: string,
+  imapHost: string = "imap.gmail.com",
+  imapPort: number = 993
 ): Promise<{ ok: boolean; error?: string }> {
   return new Promise((resolve) => {
     const socket = tls.connect(
-      { host: "imap.gmail.com", port: 993, servername: "imap.gmail.com" },
+      { host: imapHost, port: imapPort, servername: imapHost },
       () => {
         let buffer = "";
         let greeted = false;

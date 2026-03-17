@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { checkGmailAuth, checkSmtpAuth } from "@/lib/email-check";
+import { checkImapAuth, checkSmtpAuth } from "@/lib/email-check";
 import { writeSetupState } from "@/lib/setup-state";
 
 function isGmail(email: string): boolean {
@@ -21,7 +21,7 @@ export async function POST(req: Request) {
   let authCheck: { ok: boolean; error?: string };
 
   if (gmail) {
-    authCheck = await checkGmailAuth(email, appPassword);
+    authCheck = await checkImapAuth(email, appPassword);
   } else {
     if (!smtpHost) {
       return NextResponse.json({ ok: false, error: "SMTP host is required for non-Gmail accounts" }, { status: 400 });

@@ -830,7 +830,7 @@ else
   ok "Vault already initialised"
 fi
 
-# All secrets (gh-token, gmail-app-password, gemini-api-key) are collected
+# All secrets (gh-token, email-app-password, gemini-api-key) are collected
 # in the board web setup wizard (port 4220) — not in the terminal installer.
 
 
@@ -1750,8 +1750,8 @@ if [[ -n "$CONFIG_FILE" && -f "$CONFIG_FILE" ]]; then
 
   vault_set "telegram-bot-token" "$TG_TOKEN"
   vault_set "gh-token" "$GH_TOKEN"
-  vault_set "gmail-app-password" "$EMAIL_PASS"
-  vault_set "gmail-email" "$EMAIL_ADDR"
+  vault_set "email-app-password" "$EMAIL_PASS"
+  vault_set "email-address" "$EMAIL_ADDR"
   [[ -n "$EMAIL_SMTP_HOST" ]] && vault_set "smtp-host" "$EMAIL_SMTP_HOST"
   [[ -n "$EMAIL_SMTP_PORT" ]] && vault_set "smtp-port" "$EMAIL_SMTP_PORT"
   vault_set "gemini-api-key" "$GEMINI_KEY"
