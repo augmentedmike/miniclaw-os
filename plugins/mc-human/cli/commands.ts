@@ -16,6 +16,7 @@ import * as child_process from "node:child_process";
 import { startSession } from "../src/session-manager.js";
 import { sendTelegramMessage } from "../src/tg-notify.js";
 import { enableMacOsVnc } from "../src/macos-vnc.js";
+import { setupMacOsSystem, verifyMacOsSetup } from "../src/macos-system-setup.js";
 
 const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
 const SEND_ALERT_BIN = path.join(STATE_DIR, "miniclaw", "SYSTEM", "bin", "send-alert");
@@ -168,6 +169,74 @@ export function registerHumanCommands(ctx: CliContext, cfg: HumanConfig): void {
         process.exit(0);
       } catch (err) {
         console.error(`mc-human: ${err instanceof Error ? err.message : err}`);
+        process.exit(1);
+      }
+    });
+
+  // Setup subcommand
+  cmd
+    .command("setup")
+    .description("Configure macOS system settings for headless OpenClaw (Screen Sharing, power management, etc.)")
+    .action(async () => {
+      console.log("macOS System Setup for OpenClaw");
+      console.log("====================================");
+      console.log("This will configure:");
+      console.log("  - Screen Sharing (VNC) — requires sudo");
+      console.log("  - Disable system sleep — requires sudo");
+      console.log("  - Configure display sleep (30 min)");
+      console.log("  - Disable login window screensaver");
+      console.log("  - Auto-update settings");
+      console.log("");
+
+      try {
+        const result = await setupMacOsSystem(logger);
+        console.log("");
+        console.log(result.summary);
+        console.log("");
+
+        if (result.success) {
+          console.log("macOS setup complete. System is ready for headless OpenClaw.");
+          process.exit(0);
+        } else {
+          const hasSudoErrors = result.steps.filter((s) => s.error?.includes("terminal is required")).length > 0;
+          if (hasSudoErrors) {
+            console.log("Some steps require sudo. Run from a terminal with sudo access.");
+          } else {
+            console.log("Some steps failed. Check the errors above and try again.");
+          }
+          process.exit(1);
+        }
+      } catch (err) {
+        console.error(`Setup failed: ${err instanceof Error ? err.message : err}`);
+        process.exit(1);
+      }
+    });
+
+  // Verify subcommand
+  cmd
+    .command("verify")
+    .description("Verify that macOS system settings are correctly configured")
+    .action(async () => {
+      console.log("Verifying macOS system setup...");
+      try {
+        const results = await verifyMacOsSetup(logger);
+        console.log("");
+        console.log("Verification results:");
+        console.log(`  ${results.vnc_reachable ? "OK" : "FAIL"} VNC reachable at 127.0.0.1:5900`);
+        console.log(`  ${results.system_sleep_disabled ? "OK" : "FAIL"} System sleep disabled (pmset sleep=0)`);
+        console.log(`  ${results.display_sleep_configured ? "OK" : "FAIL"} Display sleep configured`);
+        console.log(`  ${results.screensaver_disabled ? "OK" : "FAIL"} Login window screensaver disabled`);
+        console.log("");
+
+        if (results.all_ok) {
+          console.log("All system settings verified — ready for headless operation.");
+          process.exit(0);
+        } else {
+          console.log("Some settings are not configured. Run 'mc-human setup' to configure.");
+          process.exit(1);
+        }
+      } catch (err) {
+        console.error(`Verification failed: ${err instanceof Error ? err.message : err}`);
         process.exit(1);
       }
     });
