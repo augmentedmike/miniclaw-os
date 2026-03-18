@@ -62,7 +62,9 @@ export function PixelOfficeTab({ onSwitchToBoard }: Props) {
     ? boardData.cards.filter((c) => c.column !== "shipped").length
     : -1;
 
-  // Initialize office
+  const [reloadKey, setReloadKey] = useState(0);
+
+  // Initialize office (re-runs when reloadKey changes)
   useEffect(() => {
     let cancelled = false;
     async function init() {
@@ -73,9 +75,12 @@ export function PixelOfficeTab({ onSwitchToBoard }: Props) {
           const ar = await fetch("/api/office/layouts/active");
           if (ar.ok) {
             const ad = await ar.json();
-            if (ad.active && ad.active !== "default") {
+            if (ad.active) {
               const lr = await fetch(`/api/office/layouts/${encodeURIComponent(ad.active)}`);
-              if (lr.ok) layout = await lr.json();
+              if (lr.ok) {
+                const ld = await lr.json();
+                layout = ld.layout ?? ld; // unwrap if nested
+              }
             }
           }
         } catch {}
@@ -106,7 +111,7 @@ export function PixelOfficeTab({ onSwitchToBoard }: Props) {
     }
     init();
     return () => { cancelled = true; };
-  }, []);
+  }, [reloadKey]);
 
   // Sync board cards → characters
   useEffect(() => {
@@ -211,7 +216,7 @@ export function PixelOfficeTab({ onSwitchToBoard }: Props) {
   }
 
   if (showPlanner) {
-    return <OfficePlanner onClose={() => setShowPlanner(false)} />;
+    return <OfficePlanner onClose={() => { setShowPlanner(false); setReloadKey(k => k + 1); }} />;
   }
 
   if (error) {

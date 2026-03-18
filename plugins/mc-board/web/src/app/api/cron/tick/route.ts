@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
-import { listCronJobs, updateCronJob } from "@/lib/cron";
+import { listCronJobs, updateCronJob, syncManifestCrons } from "@/lib/cron";
 import { listCards, getActiveWork, getRunningByCol } from "@/lib/data";
 import { releaseCard } from "@/lib/actions";
 import { sortCards } from "@/lib/sort";
@@ -112,6 +112,7 @@ function recentlyProcessed(cardId: string, column: string, cooldownMs: number): 
 }
 
 export async function GET(req: Request) {
+  syncManifestCrons(); // Sync MANIFEST crons on first tick
   const base = new URL(req.url).origin;
   const now = Date.now();
   const jobs = listCronJobs();
