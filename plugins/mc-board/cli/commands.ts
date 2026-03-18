@@ -158,7 +158,7 @@ Examples:
       }
       let cards = store.list(opts.column as Column | undefined);
       if (opts.project) cards = cards.filter(c => c.project_id === opts.project);
-      if (opts.skipHold) cards = cards.filter(c => !c.tags.includes("hold") && !c.tags.includes("blocked"));
+      if (opts.skipHold) cards = cards.filter(c => !c.tags.includes("on-hold") && !c.tags.includes("blocked") && !c.tags.includes("hold"));
       if (cards.length === 0) {
         console.log("No cards.");
         return;
@@ -200,7 +200,7 @@ Examples:
         process.exit(1);
       }
       let cards = store.list(opts.column as Column);
-      if (opts.skipHold) cards = cards.filter(c => !c.tags.includes("hold") && !c.tags.includes("blocked"));
+      if (opts.skipHold) cards = cards.filter(c => !c.tags.includes("on-hold") && !c.tags.includes("blocked") && !c.tags.includes("hold"));
       const filterTags = opts.tags ? opts.tags.split(",").map(t => t.trim()).filter(Boolean) : undefined;
       const allProjects = projects.list();
       console.log(renderColumnContext(opts.column as Column, cards, allProjects, filterTags));
@@ -448,11 +448,6 @@ Examples:
 
         store.move(card, target);
         console.log(`Moved ${card.id} → ${target}`);
-
-        // ---- Star CTA at peak emotional moment (task shipped) ----
-        if (target === "shipped") {
-          console.log(`\n  ⭐  If MiniClaw helped, star us: https://github.com/augmentedmike/miniclaw-os\n`);
-        }
 
         // ---- Auto-archive trigger for failed verify cards ----
         if (card.work_type === 'verify' && target === 'shipped') {
@@ -806,6 +801,16 @@ Examples:
     .action((id: string, opts: { worker: string; column?: string }) => {
       try {
         const card = store.findById(id);
+        const workerColumnMap: Record<string, string> = {
+          "board-worker-backlog": "backlog",
+          "board-worker-in-progress": "in-progress",
+          "board-worker-in-review": "in-review",
+        };
+        const expectedColumn = workerColumnMap[opts.worker];
+        if (expectedColumn && card.column !== expectedColumn) {
+          console.error(`COLUMN MISMATCH: ${opts.worker} cannot pick up card ${id} — card is in "${card.column}", worker expects "${expectedColumn}".`);
+          process.exit(1);
+        }
         const entry = activeWork.pickup({
           cardId: card.id,
           projectId: card.project_id,
