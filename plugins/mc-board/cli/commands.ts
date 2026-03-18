@@ -158,7 +158,7 @@ Examples:
       }
       let cards = store.list(opts.column as Column | undefined);
       if (opts.project) cards = cards.filter(c => c.project_id === opts.project);
-      if (opts.skipHold) cards = cards.filter(c => !c.tags.includes("on-hold") && !c.tags.includes("blocked") && !c.tags.includes("hold"));
+      if (opts.skipHold) cards = cards.filter(c => !c.tags.includes("on-hold"));
       if (cards.length === 0) {
         console.log("No cards.");
         return;
@@ -200,7 +200,7 @@ Examples:
         process.exit(1);
       }
       let cards = store.list(opts.column as Column);
-      if (opts.skipHold) cards = cards.filter(c => !c.tags.includes("on-hold") && !c.tags.includes("blocked") && !c.tags.includes("hold"));
+      if (opts.skipHold) cards = cards.filter(c => !c.tags.includes("on-hold"));
       const filterTags = opts.tags ? opts.tags.split(",").map(t => t.trim()).filter(Boolean) : undefined;
       const allProjects = projects.list();
       console.log(renderColumnContext(opts.column as Column, cards, allProjects, filterTags));
@@ -448,6 +448,11 @@ Examples:
 
         store.move(card, target);
         console.log(`Moved ${card.id} → ${target}`);
+
+        // ---- Star CTA at peak emotional moment (task shipped) ----
+        if (target === "shipped") {
+          console.log(`\n  ⭐  If MiniClaw helped, star us: https://github.com/augmentedmike/miniclaw-os\n`);
+        }
 
         // ---- Auto-archive trigger for failed verify cards ----
         if (card.work_type === 'verify' && target === 'shipped') {
@@ -801,16 +806,6 @@ Examples:
     .action((id: string, opts: { worker: string; column?: string }) => {
       try {
         const card = store.findById(id);
-        const workerColumnMap: Record<string, string> = {
-          "board-worker-backlog": "backlog",
-          "board-worker-in-progress": "in-progress",
-          "board-worker-in-review": "in-review",
-        };
-        const expectedColumn = workerColumnMap[opts.worker];
-        if (expectedColumn && card.column !== expectedColumn) {
-          console.error(`COLUMN MISMATCH: ${opts.worker} cannot pick up card ${id} — card is in "${card.column}", worker expects "${expectedColumn}".`);
-          process.exit(1);
-        }
         const entry = activeWork.pickup({
           cardId: card.id,
           projectId: card.project_id,
@@ -895,25 +890,6 @@ Useful for auditing which agent processed which ticket and when.
         const proj = e.projectId ? ` [${e.projectId}]` : "";
         console.log(`${icon} ${e.at}  ${e.worker}${proj}  ${e.cardId}${e.title ? " — " + e.title : ""}  (${e.action})`);
       }
-    });
-
-  // ---- brain wip-limit ----
-  brain
-    .command("wip-limit <column>")
-    .description("Show the configured WIP limit for a column (reads from board-cron.json or default)")
-    .addHelpText("after", `
-Returns the max concurrent cards allowed in the given column.
-Reads from board-cron.json maxConcurrent field, falls back to default (3).
-
-  openclaw mc-board wip-limit in-progress
-  openclaw mc-board wip-limit in-review`)
-    .action((column: string) => {
-      if (!COLUMNS.includes(column as Column)) {
-        console.error(`Invalid column: ${column}. Valid: ${COLUMNS.join(", ")}`);
-        process.exit(1);
-      }
-      const limit = getWipLimit(column as Column, ctx.stateDir);
-      console.log(`${limit}`);
     });
 
   // ---- brain check-dupes ----
@@ -1139,13 +1115,6 @@ Rules:
                   const gate = checkGate(currentCard, "in-progress");
                   if (!gate.ok) {
                     throw new Error(formatGateError("backlog", "in-progress", gate.failures));
-                  }
-                  // WIP limit check — same enforcement as `brain move` CLI command
-                  const wipLimit = getWipLimit("in-progress", ctx.stateDir);
-                  const wipCount = store.countByColumn("in-progress");
-                  const wip = checkWipLimit(wipCount, wipLimit);
-                  if (!wip.ok) {
-                    throw new Error(`WIP LIMIT: "in-progress" already has ${wip.current}/${wip.max} cards. Card left in backlog.`);
                   }
                   store.move(currentCard, "in-progress");
                   log(`[${ts()}] moved to in-progress\n`);

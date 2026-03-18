@@ -14,8 +14,34 @@ import {
 } from "@/lib/pixel-office/engine";
 import { getCachedSprite } from "@/lib/pixel-office/sprites";
 
-type EditorMode = "tile" | "furniture" | "erase" | "hand" | "select" | "component";
-type Layer = "floor" | "walls" | "furniture" | "objects";
+type EditorMode = "tile" | "furniture" | "erase" | "hand" | "select" | "component" | "spawn" | "zone";
+type Layer = "floor" | "walls" | "furniture" | "objects" | "zones";
+type ZoneType = "in-progress" | "backlog" | "in-review";
+type Facing = "up" | "down" | "left" | "right";
+type SpotAction = "sit" | "stand";
+
+interface ZoneSpot {
+  col: number;
+  row: number;
+  facing: Facing;
+  action: SpotAction;
+}
+
+const ZONE_COLORS: Record<ZoneType, string> = {
+  "in-progress": "rgba(96, 165, 250, 0.45)",
+  "backlog": "rgba(192, 132, 252, 0.45)",
+  "in-review": "rgba(251, 146, 60, 0.45)",
+};
+
+const ZONE_DEFAULT_ACTION: Record<ZoneType, SpotAction> = {
+  "in-progress": "sit",
+  "backlog": "sit",
+  "in-review": "stand",
+};
+
+const FACING_ARROWS: Record<Facing, string> = {
+  up: "↑", down: "↓", left: "←", right: "→",
+};
 
 interface FurnitureComponent {
   name: string;
@@ -169,6 +195,13 @@ export function OfficePlanner({ onClose }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stateRef = useRef<OfficeState | null>(null);
 
+  const spawnPaintAdding = useRef(true);
+  const [zoneMap, setZoneMap] = useState<Record<string, ZoneType>>({});
+  const [zoneSpots, setZoneSpots] = useState<ZoneSpot[]>([]);
+  const [spawnPoints, setSpawnPoints] = useState<{ col: number; row: number }[]>([]);
+  const [activeZoneType, setActiveZoneType] = useState<ZoneType>("in-progress");
+  const [pendingSeat, setPendingSeat] = useState<{ col: number; row: number } | null>(null);
+  const pendingSeatRef = useRef<{ col: number; row: number } | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [layer, setLayer] = useState<Layer>("floor");
   const [mode, setMode] = useState<EditorMode>("tile");
@@ -178,6 +211,7 @@ export function OfficePlanner({ onClose }: Props) {
   const [saving, setSaving] = useState(false);
   const [layoutName, setLayoutName] = useState("Office-1");
   const [layouts, setLayouts] = useState<string[]>([]);
+  const [reloadKey, setReloadKey] = useState(0);
   const [hoveredTile, setHoveredTile] = useState<{ col: number; row: number } | null>(null);
   const [rectStart, setRectStart] = useState<{ col: number; row: number } | null>(null);
   const [renaming, setRenaming] = useState(false);
@@ -214,6 +248,7 @@ export function OfficePlanner({ onClose }: Props) {
       switch (e.key.toLowerCase()) {
         case "e": setMode("erase"); break;
         case "h": setMode("hand"); break;
+        case "p": setMode("spawn"); break;
         case "s": if (!e.ctrlKey && !e.metaKey) { setMode("select"); setSelectedUids(new Set()); } break;
         case "g":
           // Group selected furniture into a component
@@ -260,6 +295,7 @@ export function OfficePlanner({ onClose }: Props) {
         case "2": setLayer("walls"); setMode("tile"); setSelectedTile(TileType.WALL); break;
         case "3": setLayer("furniture"); setMode("furniture"); break;
         case "4": setLayer("objects"); setMode("furniture"); break;
+        case "5": setLayer("zones"); setMode("zone"); break;
         case "v": setMode("tile"); setSelectedTile(TileType.VOID); break;
       }
     }
@@ -267,7 +303,7 @@ export function OfficePlanner({ onClose }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [selectedFurniture]);
 
-  // Load layout list
+  // Load layout list + default to active layout
   useEffect(() => {
     async function loadLayouts() {
       try {
@@ -276,9 +312,14 @@ export function OfficePlanner({ onClose }: Props) {
           const data = await resp.json();
           setLayouts((data.layouts ?? []).map((l: { name: string }) => l.name));
         }
-      } catch {
-        // no layouts endpoint yet
-      }
+      } catch {}
+      try {
+        const ar = await fetch("/api/office/layouts/active");
+        if (ar.ok) {
+          const ad = await ar.json();
+          if (ad.active) setLayoutName(ad.active);
+        }
+      } catch {}
     }
     loadLayouts();
   }, []);
@@ -332,12 +373,22 @@ export function OfficePlanner({ onClose }: Props) {
       if (cancelled) return;
       stateRef.current = state;
       setLayout({ ...state.layout });
+      // Load zones
+      try {
+        const zr = await fetch("/api/office/zones");
+        if (zr.ok) {
+          const zd = await zr.json();
+          if (zd.zones) setZoneMap(zd.zones);
+          if (zd.spots) setZoneSpots(zd.spots);
+          if (zd.spawnPoints) setSpawnPoints(zd.spawnPoints);
+        }
+      } catch {}
       setLoaded(true);
     }
     setLoaded(false);
     loadLayout();
     return () => { cancelled = true; };
-  }, [layoutName]);
+  }, [layoutName, reloadKey]);
 
   // Resize observer
   useEffect(() => {
@@ -369,6 +420,65 @@ export function OfficePlanner({ onClose }: Props) {
           const { zoom, offsetX, offsetY } = state;
           const currentLayout = state.layout;
           const sz = TILE_SIZE * zoom;
+
+          // Spawn point overlay (editor only)
+          for (const sp of spawnPoints) {
+            ctx.fillStyle = "rgba(34, 197, 94, 0.3)";
+            ctx.fillRect(offsetX + sp.col * sz, offsetY + sp.row * sz, sz, sz);
+          }
+
+          // Zone overlays (always visible in editor)
+          for (const [key, zone] of Object.entries(zoneMap)) {
+            const [zc, zr] = key.split(",").map(Number);
+            ctx.fillStyle = ZONE_COLORS[zone] ?? "rgba(255,255,255,0.2)";
+            ctx.fillRect(offsetX + zc * sz, offsetY + zr * sz, sz, sz);
+          }
+
+          // Seat markers — colored by zone
+          const SEAT_COLORS: Record<string, string> = {
+            "in-progress": "#60a5fa",
+            "backlog": "#c084fc",
+            "in-review": "#fb923c",
+          };
+          for (const spot of zoneSpots) {
+            const sx = offsetX + spot.col * sz;
+            const sy = offsetY + spot.row * sz;
+            const spotZone = zoneMap[`${spot.col},${spot.row}`];
+            const color = SEAT_COLORS[spotZone] ?? "#facc15";
+            ctx.fillStyle = color.replace(")", ", 0.3)").replace("rgb", "rgba");
+            ctx.fillRect(sx + 1, sy + 1, sz - 2, sz - 2);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = Math.max(2, zoom);
+            ctx.strokeRect(sx + 2, sy + 2, sz - 4, sz - 4);
+            ctx.fillStyle = "#fff";
+            const fs = Math.max(12, Math.round(12 * zoom));
+            ctx.font = `bold ${fs}px sans-serif`;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(FACING_ARROWS[spot.facing], sx + sz / 2, sy + sz / 2);
+          }
+
+          // Pending seat — pulsing highlight
+          if (pendingSeat) {
+            const px = offsetX + pendingSeat.col * sz;
+            const py = offsetY + pendingSeat.row * sz;
+            const alpha = 0.5 + 0.4 * Math.sin(Date.now() / 150);
+            ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+            ctx.lineWidth = 3;
+            ctx.strokeRect(px, py, sz, sz);
+            const dirs: [number, number, Facing][] = [[0, -1, "up"], [0, 1, "down"], [-1, 0, "left"], [1, 0, "right"]];
+            ctx.font = `bold ${Math.max(16, Math.round(14 * zoom))}px sans-serif`;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            for (const [dc, dr, facing] of dirs) {
+              const nc = pendingSeat.col + dc;
+              const nr = pendingSeat.row + dr;
+              if (nc >= 0 && nr >= 0 && nc < currentLayout.cols && nr < currentLayout.rows) {
+                ctx.fillStyle = `rgba(255, 255, 100, ${alpha})`;
+                ctx.fillText(FACING_ARROWS[facing], offsetX + nc * sz + sz / 2, offsetY + nr * sz + sz / 2);
+              }
+            }
+          }
 
           // Grid overlay
           ctx.strokeStyle = "rgba(255,255,255,0.08)";
@@ -492,7 +602,7 @@ export function OfficePlanner({ onClose }: Props) {
     };
     rafId = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(rafId);
-  }, [loaded, hoveredTile, mode, selectedTile, selectedFurniture]);
+  }, [loaded, hoveredTile, mode, selectedTile, selectedFurniture, zoneMap, zoneSpots, pendingSeat, spawnPoints]);
 
   const canvasToTile = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>): { col: number; row: number } | null => {
@@ -630,6 +740,30 @@ export function OfficePlanner({ onClose }: Props) {
       }
 
       const tile = canvasToTile(e);
+
+      // Handle pending seat facing (allow clicking any tile including walls for direction)
+      if (pendingSeatRef.current && mode === "zone" && tile) {
+        const ps = pendingSeatRef.current;
+        const dc = tile.col - ps.col;
+        const dr = tile.row - ps.row;
+        if (Math.abs(dc) + Math.abs(dr) === 1) {
+          const facing: Facing = dr === -1 ? "up" : dr === 1 ? "down" : dc === -1 ? "left" : "right";
+          const zone = zoneMap[`${ps.col},${ps.row}`];
+          const action: SpotAction = zone ? ZONE_DEFAULT_ACTION[zone] : "sit";
+          setZoneSpots((prev) => [
+            ...prev.filter((s) => !(s.col === ps.col && s.row === ps.row)),
+            { col: ps.col, row: ps.row, facing, action },
+          ]);
+          setDirty(true);
+          pendingSeatRef.current = null;
+          pendingSeatRef.current = null; setPendingSeat(null);
+          return;
+        }
+        // Non-adjacent: cancel pending and fall through to paint new zone
+        pendingSeatRef.current = null;
+        pendingSeatRef.current = null; setPendingSeat(null);
+      }
+
       if (!tile) return;
 
       if (mode === "tile") {
@@ -643,7 +777,15 @@ export function OfficePlanner({ onClose }: Props) {
       } else if (mode === "furniture") {
         placeFurniture(tile.col, tile.row);
       } else if (mode === "erase") {
-        eraseTile(tile.col, tile.row);
+        if (layer === "zones") {
+          const key = `${tile.col},${tile.row}`;
+          setZoneMap((prev) => { const n = { ...prev }; delete n[key]; return n; });
+          setZoneSpots((prev) => prev.filter((s) => !(s.col === tile.col && s.row === tile.row)));
+          setSpawnPoints((prev) => prev.filter((sp) => !(sp.col === tile.col && sp.row === tile.row)));
+          setDirty(true);
+        } else {
+          eraseTile(tile.col, tile.row);
+        }
         setPainting(true);
       } else if (mode === "select") {
         // Toggle selection of furniture at click position
@@ -662,6 +804,25 @@ export function OfficePlanner({ onClose }: Props) {
             });
           }
         }
+      } else if (mode === "spawn") {
+        const exists = spawnPoints.some((sp) => sp.col === tile.col && sp.row === tile.row);
+        spawnPaintAdding.current = !exists;
+        if (exists) {
+          setSpawnPoints((prev) => prev.filter((sp) => !(sp.col === tile.col && sp.row === tile.row)));
+        } else {
+          setSpawnPoints((prev) => [...prev, { col: tile.col, row: tile.row }]);
+        }
+        setDirty(true);
+        setPainting(true);
+      } else if (mode === "zone") {
+        // Paint zone + start pending seat
+        const key = `${tile.col},${tile.row}`;
+        setZoneMap((prev) => ({ ...prev, [key]: activeZoneType }));
+        const ps = { col: tile.col, row: tile.row };
+        pendingSeatRef.current = ps;
+        setPendingSeat(ps);
+        setDirty(true);
+        // Don't set painting=true — next click should be for facing, not drag-painting
       } else if (mode === "component" && activeComponent) {
         // Place all items in the component
         const state = stateRef.current;
@@ -684,7 +845,7 @@ export function OfficePlanner({ onClose }: Props) {
         }
       }
     },
-    [mode, canvasToTile, applyTilePaint, placeFurniture, eraseTile, removeFurnitureAt, activeComponent]
+    [mode, canvasToTile, applyTilePaint, placeFurniture, eraseTile, removeFurnitureAt, activeComponent, activeZoneType, zoneMap, spawnPoints, layer]
   );
 
   const handleMouseMove = useCallback(
@@ -706,10 +867,31 @@ export function OfficePlanner({ onClose }: Props) {
       if (mode === "tile") {
         applyTilePaint(tile.col, tile.row);
       } else if (mode === "erase") {
-        eraseTile(tile.col, tile.row);
+        if (layer === "zones") {
+          const key = `${tile.col},${tile.row}`;
+          setZoneMap((prev) => { const n = { ...prev }; delete n[key]; return n; });
+          setZoneSpots((prev) => prev.filter((s) => !(s.col === tile.col && s.row === tile.row)));
+          setDirty(true);
+        } else {
+          eraseTile(tile.col, tile.row);
+        }
+      } else if (mode === "spawn") {
+        if (spawnPaintAdding.current) {
+          setSpawnPoints((prev) => {
+            if (prev.some((sp) => sp.col === tile.col && sp.row === tile.row)) return prev;
+            return [...prev, { col: tile.col, row: tile.row }];
+          });
+        } else {
+          setSpawnPoints((prev) => prev.filter((sp) => !(sp.col === tile.col && sp.row === tile.row)));
+        }
+        setDirty(true);
+      } else if (mode === "zone") {
+        const key = `${tile.col},${tile.row}`;
+        setZoneMap((prev) => ({ ...prev, [key]: activeZoneType }));
+        setDirty(true);
       }
     },
-    [painting, panning, canvasToTile, mode, applyTilePaint, eraseTile]
+    [painting, panning, canvasToTile, mode, applyTilePaint, eraseTile, activeZoneType, layer]
   );
 
   const handleMouseUp = useCallback((e?: React.MouseEvent<HTMLCanvasElement>) => {
@@ -762,6 +944,12 @@ export function OfficePlanner({ onClose }: Props) {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ layout: state.layout }),
+      });
+      // Save zones alongside layout
+      await fetch("/api/office/zones", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ zones: zoneMap, spots: zoneSpots, spawnPoints }),
       });
       setDirty(false);
       // Refresh layout list
@@ -887,12 +1075,12 @@ export function OfficePlanner({ onClose }: Props) {
         <div style={{ width: 1, height: 20, background: "#3f3f46", margin: "0 4px" }} />
 
         {/* Layer tabs — z-index order */}
-        {(["floor", "walls", "furniture", "objects"] as Layer[]).map((l, i) => {
-          const labels: Record<Layer, string> = { floor: "Floor", walls: "Walls", furniture: "Furniture", objects: "Objects" };
+        {(["floor", "walls", "furniture", "objects", "zones"] as Layer[]).map((l, i) => {
+          const labels: Record<Layer, string> = { floor: "Floor", walls: "Walls", furniture: "Furniture", objects: "Objects", zones: "Zones" };
           const active = layer === l;
           return (
             <button key={l}
-              onClick={() => { setLayer(l); setMode(l === "furniture" || l === "objects" ? "furniture" : "tile"); }}
+              onClick={() => { setLayer(l); setMode(l === "furniture" || l === "objects" ? "furniture" : l === "zones" ? "zone" : "tile"); pendingSeatRef.current = null; setPendingSeat(null); }}
               style={{
                 ...toolbarBtnStyle(active),
                 borderBottom: active ? "2px solid #60a5fa" : "2px solid transparent",
@@ -902,6 +1090,12 @@ export function OfficePlanner({ onClose }: Props) {
           );
         })}
         <div style={{ width: 1, height: 20, background: "#3f3f46", margin: "0 2px" }} />
+        <button onClick={() => setMode("spawn")} style={{
+          ...toolbarBtnStyle(mode === "spawn"),
+          ...(mode === "spawn" ? { background: "#22c55e33", borderColor: "#22c55e", color: "#22c55e" } : {}),
+        }}>
+          Spawn [P]
+        </button>
         <button onClick={() => setMode("erase")} style={toolbarBtnStyle(mode === "erase")}>
           Erase {layer} [E]
         </button>
@@ -929,6 +1123,21 @@ export function OfficePlanner({ onClose }: Props) {
           }}
         >
           {saving ? "Saving..." : "Save"}
+        </button>
+        <button
+          onClick={() => setReloadKey((k) => k + 1)}
+          disabled={!dirty}
+          style={{
+            background: dirty ? "#27272a" : "#1a1a1a",
+            border: "1px solid #3f3f46",
+            color: dirty ? "#f87171" : "#52525b",
+            borderRadius: 4,
+            padding: "4px 10px",
+            cursor: dirty ? "pointer" : "default",
+            fontSize: 12,
+          }}
+        >
+          Reset
         </button>
         <button
           onClick={onClose}
@@ -1054,7 +1263,31 @@ export function OfficePlanner({ onClose }: Props) {
             </>
           )}
 
-          {mode === "erase" && (
+          {mode === "erase" && layer === "zones" && (
+            <div style={{ color: "#71717a", padding: 8 }}>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>Eraser — Zones</div>
+              <div style={{ fontSize: 10, color: "#52525b", marginBottom: 12 }}>
+                Click to erase zones, seats, and spawn points.
+              </div>
+              <button
+                onClick={() => {
+                  if (!confirm("Clear ALL zones, seats, and spawn points?")) return;
+                  setZoneMap({});
+                  setZoneSpots([]);
+                  setSpawnPoints([]);
+                  pendingSeatRef.current = null; setPendingSeat(null);
+                  setDirty(true);
+                }}
+                style={{
+                  background: "#450a0a", border: "1px solid #7f1d1d", color: "#fca5a5",
+                  borderRadius: 4, padding: "6px 12px", cursor: "pointer", fontSize: 11, width: "100%",
+                }}>
+                Clear All Zones
+              </button>
+            </div>
+          )}
+
+          {mode === "erase" && layer !== "zones" && (
             <div style={{ color: "#71717a", padding: 8 }}>
               <div style={{ fontWeight: 600, marginBottom: 6 }}>Eraser</div>
               <div style={{ fontSize: 10, color: "#52525b", marginBottom: 12 }}>
@@ -1080,6 +1313,74 @@ export function OfficePlanner({ onClose }: Props) {
                   borderRadius: 4, padding: "6px 12px", cursor: "pointer", fontSize: 11, width: "100%",
                 }}>
                 Erase All
+              </button>
+            </div>
+          )}
+
+          {(mode === "zone" || (layer === "zones" && mode === "spawn")) && (
+            <div style={{ color: "#a1a1aa", padding: 8 }}>
+              <div style={{ fontWeight: 600, marginBottom: 8, color: "#e4e4e7" }}>Zones & Seats</div>
+
+              {/* Zone type buttons */}
+              <div style={{ fontSize: 10, color: "#71717a", marginBottom: 4 }}>ZONE TYPE</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 12 }}>
+                {(["in-progress", "backlog", "in-review"] as ZoneType[]).map((z) => (
+                  <button key={z} onClick={() => { setActiveZoneType(z); setMode("zone"); }}
+                    style={{
+                      background: activeZoneType === z && mode === "zone" ? ZONE_COLORS[z].replace("0.45", "0.7") : "#27272a",
+                      border: activeZoneType === z && mode === "zone" ? "2px solid #fff" : "1px solid #3f3f46",
+                      color: "#e4e4e7", borderRadius: 4, padding: "6px 8px", cursor: "pointer", fontSize: 11, textAlign: "left",
+                    }}>
+                    {z === "in-progress" ? "In Progress" : z === "backlog" ? "Backlog" : "In Review"}
+                  </button>
+                ))}
+              </div>
+
+              {/* Spawn points */}
+              <div style={{ fontSize: 10, color: "#71717a", marginBottom: 4 }}>SPAWN POINTS</div>
+              <button onClick={() => setMode("spawn")}
+                style={{
+                  background: mode === "spawn" ? "#22c55e33" : "#27272a",
+                  border: mode === "spawn" ? "2px solid #22c55e" : "1px solid #3f3f46",
+                  color: mode === "spawn" ? "#22c55e" : "#e4e4e7", borderRadius: 4,
+                  padding: "6px 8px", cursor: "pointer", fontSize: 11, width: "100%", textAlign: "left", marginBottom: 12,
+                }}>
+                Paint Spawn Points
+              </button>
+
+              {/* Info */}
+              <div style={{ fontSize: 10, color: "#52525b", marginBottom: 12 }}>
+                {mode === "zone" ? "Click to paint zone, then click adjacent tile to set seat facing. Esc to skip."
+                  : mode === "spawn" ? "Click/drag to paint spawn points (green). Click again to remove."
+                  : ""}
+              </div>
+
+              {/* Stats */}
+              <div style={{ fontSize: 10, color: "#52525b", display: "flex", flexDirection: "column", gap: 2, marginBottom: 12 }}>
+                {(["in-progress", "backlog", "in-review"] as ZoneType[]).map((z) => (
+                  <span key={z} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 2, background: ZONE_COLORS[z].replace("0.45", "0.8") }} />
+                    {Object.values(zoneMap).filter((v) => v === z).length} tiles
+                  </span>
+                ))}
+                <span>{zoneSpots.length} seats</span>
+              </div>
+
+              {/* Clear all */}
+              <button
+                onClick={() => {
+                  if (!confirm("Clear ALL zones, seats, and spawn points?")) return;
+                  setZoneMap({});
+                  setZoneSpots([]);
+                  setSpawnPoints([]);
+                  pendingSeatRef.current = null; setPendingSeat(null);
+                  setDirty(true);
+                }}
+                style={{
+                  background: "#450a0a", border: "1px solid #7f1d1d", color: "#fca5a5",
+                  borderRadius: 4, padding: "6px 12px", cursor: "pointer", fontSize: 11, width: "100%",
+                }}>
+                Clear All Zones
               </button>
             </div>
           )}

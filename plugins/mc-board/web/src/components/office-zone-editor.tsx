@@ -94,10 +94,27 @@ export function OfficeZoneEditor({ onClose }: Props) {
         }
       } catch {}
       let layout: OfficeLayout | null = null;
+      // Try active saved layout first
       try {
-        const resp = await fetch("/pixel-office/assets/default-layout-1.json");
-        if (resp.ok) layout = await resp.json();
+        const ar = await fetch("/api/office/layouts/active");
+        if (ar.ok) {
+          const ad = await ar.json();
+          if (ad.active) {
+            const lr = await fetch(`/api/office/layouts/${encodeURIComponent(ad.active)}`);
+            if (lr.ok) {
+              const ld = await lr.json();
+              layout = ld.layout ?? ld;
+            }
+          }
+        }
       } catch {}
+      // Fallback to default
+      if (!layout) {
+        try {
+          const resp = await fetch("/pixel-office/assets/default-layout-1.json");
+          if (resp.ok) layout = await resp.json();
+        } catch {}
+      }
       const state = await initOffice(layout);
       if (cancelled) return;
       stateRef.current = state;

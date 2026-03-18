@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import type { FormEvent } from "react";
 
 /* ── Types ── */
-type Category = "general" | "telegram" | "github" | "email" | "gemini" | "anthropic";
+type Category = "general" | "telegram" | "github" | "email" | "gemini" | "anthropic" | "vpn";
 
 interface NavItem {
   key: Category;
@@ -19,6 +19,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: "email", icon: "📧", label: "Email" },
   { key: "gemini", icon: "🎨", label: "Gemini" },
   { key: "anthropic", icon: "🧠", label: "Claude" },
+  { key: "vpn", icon: "🔒", label: "VPN" },
 ];
 
 /* ── Password Confirmation Modal ── */
@@ -657,6 +658,134 @@ function AnthropicPanel() {
   );
 }
 
+/* ── VPN Panel ── */
+function VpnPanel() {
+  const [info, setInfo] = useState<{
+    installed: boolean; bin: string; version: string;
+    connected: boolean; country: string; city: string; ip: string;
+    autoConnect: boolean; defaultCountry: string;
+  } | null>(null);
+  const [autoConnect, setAutoConnect] = useState(false);
+  const [defaultCountry, setDefaultCountry] = useState("");
+  const [status, setStatus] = useState<SaveStatus>("idle");
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(() => {
+    fetch("/api/setup/vpn")
+      .then((r) => r.json())
+      .then((data) => {
+        setInfo(data);
+        setAutoConnect(data.autoConnect);
+        setDefaultCountry(data.defaultCountry);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  const save = async () => {
+    setStatus("saving");
+    try {
+      const res = await fetch("/api/setup/vpn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ autoConnect, defaultCountry }),
+      });
+      if (res.ok) {
+        setStatus("saved");
+        setTimeout(() => setStatus("idle"), 2000);
+      } else {
+        setStatus("error");
+      }
+    } catch {
+      setStatus("error");
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="settings-panel">
+        <div className="settings-panel-header">
+          <h2 className="settings-panel-title">VPN</h2>
+          <p className="settings-panel-desc">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="settings-panel">
+      <div className="settings-panel-header">
+        <h2 className="settings-panel-title">VPN</h2>
+        <p className="settings-panel-desc">Mullvad VPN connection and privacy</p>
+        {info?.installed && (
+          <span className={`settings-status-badge ${info.connected ? "configured" : ""}`}>
+            {info.connected ? "Connected" : "Disconnected"}
+          </span>
+        )}
+      </div>
+      <div className="settings-panel-body">
+        {!info?.installed ? (
+          <div style={{ padding: "16px 0", color: "#f87171" }}>
+            Mullvad binary not found. Install with: <code style={{ background: "#27272a", padding: "2px 6px", borderRadius: 4 }}>brew install --cask mullvad-vpn</code>
+          </div>
+        ) : (
+          <>
+            <SettingsField label="Status">
+              <div style={{ display: "flex", gap: 16, fontSize: 13 }}>
+                <span style={{ color: info.connected ? "#4ade80" : "#a1a1aa" }}>
+                  {info.connected ? "Connected" : "Disconnected"}
+                </span>
+                {info.connected && info.country && (
+                  <span style={{ color: "#a1a1aa" }}>{info.country}{info.city ? `, ${info.city}` : ""}</span>
+                )}
+                {info.connected && info.ip && (
+                  <span style={{ fontFamily: "monospace", color: "#71717a" }}>{info.ip}</span>
+                )}
+              </div>
+            </SettingsField>
+            <SettingsField label="Version">
+              <span style={{ fontSize: 13, color: "#a1a1aa", fontFamily: "monospace" }}>{info.version || "Unknown"}</span>
+            </SettingsField>
+            <SettingsField label="Binary">
+              <span style={{ fontSize: 13, color: "#71717a", fontFamily: "monospace" }}>{info.bin}</span>
+            </SettingsField>
+            <SettingsField label="Auto-Connect" description="Connect VPN automatically when the agent starts">
+              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={autoConnect}
+                  onChange={(e) => setAutoConnect(e.target.checked)}
+                  style={{ width: 16, height: 16 }}
+                />
+                <span style={{ fontSize: 13, color: autoConnect ? "#4ade80" : "#a1a1aa" }}>
+                  {autoConnect ? "Enabled" : "Disabled"}
+                </span>
+              </label>
+            </SettingsField>
+            <SettingsField label="Default Country" description="Country code for relay (e.g. us, se, de)">
+              <input
+                className="form-input"
+                value={defaultCountry}
+                onChange={(e) => setDefaultCountry(e.target.value)}
+                placeholder="e.g. us"
+                style={{ maxWidth: 120, fontFamily: "monospace" }}
+              />
+            </SettingsField>
+          </>
+        )}
+      </div>
+      {info?.installed && (
+        <div className="settings-panel-footer">
+          {status === "error" && <span style={{ fontSize: 12, color: "#f87171" }}>Save failed</span>}
+          <SaveButton status={status} onClick={save} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Panel Router ── */
 const PANELS: Record<Category, React.FC> = {
   general: GeneralPanel,
@@ -665,6 +794,7 @@ const PANELS: Record<Category, React.FC> = {
   email: EmailPanel,
   gemini: GeminiPanel,
   anthropic: AnthropicPanel,
+  vpn: VpnPanel,
 };
 
 /* ── Main Settings Page ── */

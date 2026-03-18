@@ -99,7 +99,9 @@ export function PixelOfficeTab({ onSwitchToBoard }: Props) {
           if (zr.ok) {
             const zd = await zr.json();
             if (zd.zones && Object.keys(zd.zones).length > 0) {
-              applyZoneMap(state, zd.zones, zd.spots);
+              applyZoneMap(state, zd.zones, zd.spots, zd.spawnPoints);
+            } else if (zd.spawnPoints?.length > 0) {
+              applyZoneMap(state, {}, [], zd.spawnPoints);
             }
           }
         } catch {}
@@ -216,7 +218,7 @@ export function PixelOfficeTab({ onSwitchToBoard }: Props) {
   }
 
   if (showPlanner) {
-    return <OfficePlanner onClose={() => { setShowPlanner(false); setReloadKey(k => k + 1); }} />;
+    return <OfficePlanner onClose={() => { setShowPlanner(false); setZoom(3); setReloadKey(k => k + 1); }} />;
   }
 
   if (error) {
@@ -252,14 +254,6 @@ export function PixelOfficeTab({ onSwitchToBoard }: Props) {
             padding: "4px 10px", cursor: "pointer", fontSize: 12,
           }}>
           Edit Layout
-        </button>
-        <button
-          onClick={() => setShowEditor(true)}
-          style={{
-            background: "#27272a", border: "1px solid #3f3f46", color: "#a1a1aa", borderRadius: 4,
-            padding: "4px 10px", cursor: "pointer", fontSize: 12,
-          }}>
-          Edit Zones
         </button>
         <button
           onClick={() => setShowNewWork(true)}
