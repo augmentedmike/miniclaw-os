@@ -17,6 +17,7 @@ import {
 import { clearSpriteCache } from "@/lib/pixel-office/sprites";
 import { CardModal } from "./card-modal";
 import { OfficeZoneEditor } from "./office-zone-editor";
+import { OfficePlanner } from "./office-planner";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -49,6 +50,7 @@ export function PixelOfficeTab({ onSwitchToBoard }: Props) {
   const [newWorkDesc, setNewWorkDesc] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [showEditor, setShowEditor] = useState(false);
+  const [showPlanner, setShowPlanner] = useState(false);
 
   const { data: boardData, mutate: mutateBoardData } = useSWR<{
     cards: Card[];
@@ -194,6 +196,10 @@ export function PixelOfficeTab({ onSwitchToBoard }: Props) {
     return <OfficeZoneEditor onClose={() => setShowEditor(false)} />;
   }
 
+  if (showPlanner) {
+    return <OfficePlanner onClose={() => setShowPlanner(false)} />;
+  }
+
   if (error) {
     return (
       <div style={{ padding: 32, color: "#f87171", fontFamily: "monospace" }}>
@@ -220,6 +226,14 @@ export function PixelOfficeTab({ onSwitchToBoard }: Props) {
           {agentCount} active
         </span>
         <div style={{ flex: 1 }} />
+        <button
+          onClick={() => setShowPlanner(true)}
+          style={{
+            background: "#27272a", border: "1px solid #3f3f46", color: "#a1a1aa", borderRadius: 4,
+            padding: "4px 10px", cursor: "pointer", fontSize: 12,
+          }}>
+          Edit Layout
+        </button>
         <button
           onClick={() => setShowEditor(true)}
           style={{

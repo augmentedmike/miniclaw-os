@@ -57,13 +57,14 @@ interface SimpleFurniture {
   backgroundTiles?: number;
 }
 
-const FURNITURE_DB: Record<string, SimpleFurniture> = {
+export const FURNITURE_DB: Record<string, SimpleFurniture> = {
   DESK_FRONT: { footprintW: 2, footprintH: 1, isChair: false, isDesk: true },
   DESK_SIDE: { footprintW: 1, footprintH: 2, isChair: false, isDesk: true },
   PC_FRONT_ON_1: { footprintW: 1, footprintH: 1, isChair: false, isDesk: false },
   PC_FRONT_ON_2: { footprintW: 1, footprintH: 1, isChair: false, isDesk: false },
   PC_FRONT_ON_3: { footprintW: 1, footprintH: 1, isChair: false, isDesk: false },
   PC_FRONT_OFF: { footprintW: 1, footprintH: 1, isChair: false, isDesk: false },
+  PC_BACK: { footprintW: 1, footprintH: 1, isChair: false, isDesk: false },
   PC_SIDE: { footprintW: 1, footprintH: 1, isChair: false, isDesk: false },
   "PC_SIDE:left": { footprintW: 1, footprintH: 1, isChair: false, isDesk: false },
   WOODEN_CHAIR_FRONT: { footprintW: 1, footprintH: 1, isChair: true, isDesk: false, orientation: "front" },
@@ -75,7 +76,11 @@ const FURNITURE_DB: Record<string, SimpleFurniture> = {
   CUSHIONED_CHAIR_SIDE: { footprintW: 1, footprintH: 1, isChair: true, isDesk: false, orientation: "right" },
   "CUSHIONED_CHAIR_SIDE:left": { footprintW: 1, footprintH: 1, isChair: true, isDesk: false, orientation: "left" },
   BOOKSHELF: { footprintW: 1, footprintH: 1, isChair: false, isDesk: false, backgroundTiles: 1 },
+  BOOKSHELF_SIDE: { footprintW: 1, footprintH: 1, isChair: false, isDesk: false, backgroundTiles: 1 },
+  "BOOKSHELF_SIDE:left": { footprintW: 1, footprintH: 1, isChair: false, isDesk: false, backgroundTiles: 1 },
   DOUBLE_BOOKSHELF: { footprintW: 2, footprintH: 1, isChair: false, isDesk: false, backgroundTiles: 1 },
+  DOUBLE_BOOKSHELF_SIDE: { footprintW: 1, footprintH: 2, isChair: false, isDesk: false, backgroundTiles: 1 },
+  "DOUBLE_BOOKSHELF_SIDE:left": { footprintW: 1, footprintH: 2, isChair: false, isDesk: false, backgroundTiles: 1 },
   WHITEBOARD: { footprintW: 2, footprintH: 1, isChair: false, isDesk: false, backgroundTiles: 1 },
   PLANT: { footprintW: 1, footprintH: 1, isChair: false, isDesk: false },
   PLANT_2: { footprintW: 1, footprintH: 1, isChair: false, isDesk: false },
@@ -101,7 +106,7 @@ const FURNITURE_DB: Record<string, SimpleFurniture> = {
   POT: { footprintW: 1, footprintH: 1, isChair: false, isDesk: false },
 };
 
-function getFurnitureInfo(type: string): SimpleFurniture {
+export function getFurnitureInfo(type: string): SimpleFurniture {
   return FURNITURE_DB[type] ?? { footprintW: 1, footprintH: 1, isChair: false, isDesk: false };
 }
 
@@ -501,54 +506,46 @@ export function renderOffice(
     }
   }
 
-  // Build draw queue: furniture + characters, sorted by zY
-  interface Drawable {
-    zY: number;
-    draw: () => void;
-  }
-  const drawQueue: Drawable[] = [];
+  // Object types that render on top of furniture
+  const OBJECT_SET = new Set([
+    "PC_FRONT_ON_1","PC_FRONT_ON_2","PC_FRONT_ON_3","PC_FRONT_OFF",
+    "PC_SIDE","PC_SIDE:left","PC_BACK",
+    "PLANT","PLANT_2","LARGE_PLANT","CACTUS","HANGING_PLANT",
+    "BIN","COFFEE","POT",
+    "SMALL_PAINTING","SMALL_PAINTING_2","LARGE_PAINTING",
+    "CLOCK","WHITEBOARD",
+  ]);
 
-  // Furniture
-  for (const item of layout.furniture) {
-    const img = state.furnitureImages.get(item.type);
+  function drawFurnitureItem(item: PlacedFurniture) {
     const sprite = state.furnitureSprites.get(item.type);
+    const img = state.furnitureImages.get(item.type);
     const info = getFurnitureInfo(item.type);
     const x = offsetX + item.col * TILE_SIZE * zoom;
     const y = offsetY + item.row * TILE_SIZE * zoom;
-    const zY = (item.row + info.footprintH) * TILE_SIZE;
-
     if (sprite) {
-      const cached = getCachedSprite(sprite, zoom);
-      drawQueue.push({
-        zY,
-        draw: () => {
-          ctx.drawImage(cached, x, y);
-        },
-      });
+      ctx.drawImage(getCachedSprite(sprite, zoom), x, y);
     } else if (img) {
-      const w = info.footprintW * TILE_SIZE * zoom;
-      const h = info.footprintH * TILE_SIZE * zoom;
-      drawQueue.push({
-        zY,
-        draw: () => ctx.drawImage(img, x, y, w, h),
-      });
+      ctx.drawImage(img, x, y, info.footprintW * TILE_SIZE * zoom, info.footprintH * TILE_SIZE * zoom);
     }
   }
 
-  // Characters
-  for (const ch of characters) {
-    // Seated/standing characters render above furniture at their row
-    const seated = ch.state === CharacterState.TYPE || ch.state === CharacterState.READ || ch.state === CharacterState.SIT_IDLE;
-    const zY = seated ? 99999 : ch.y + TILE_SIZE / 2 + 0.5;
-    drawQueue.push({
-      zY,
-      draw: () => renderCharacter(ctx, ch, state),
-    });
-  }
+  // Layer 3: Furniture (sorted by row for depth)
+  const furnitureItems = layout.furniture.filter(f => !OBJECT_SET.has(f.type));
+  furnitureItems.sort((a, b) => (a.row + getFurnitureInfo(a.type).footprintH) - (b.row + getFurnitureInfo(b.type).footprintH));
+  for (const item of furnitureItems) drawFurnitureItem(item);
 
-  // Sort and draw
-  drawQueue.sort((a, b) => a.zY - b.zY);
-  for (const d of drawQueue) d.draw();
+  // Layer 4: Objects on top (sorted by row)
+  const objectItems = layout.furniture.filter(f => OBJECT_SET.has(f.type));
+  objectItems.sort((a, b) => (a.row + getFurnitureInfo(a.type).footprintH) - (b.row + getFurnitureInfo(b.type).footprintH));
+  for (const item of objectItems) drawFurnitureItem(item);
+
+  // Layer 5: Characters on top of everything
+  const charQueue = characters.map(ch => ({
+    zY: ch.y + TILE_SIZE / 2,
+    ch,
+  }));
+  charQueue.sort((a, b) => a.zY - b.zY);
+  for (const { ch } of charQueue) renderCharacter(ctx, ch, state);
 
   // Speech bubbles (always on top)
   for (const ch of characters) {
@@ -568,11 +565,7 @@ function getCharacterSprite(ch: Character): SpriteData | null {
   if (!dirSprites || dirSprites.length === 0) return null;
 
   if (ch.state === CharacterState.SIT_IDLE) {
-    // Use dedicated sit idle sprites (direction-independent)
-    if (ch.sprites.sitIdle && ch.sprites.sitIdle.length > 0) {
-      return ch.sprites.sitIdle[ch.frame % ch.sprites.sitIdle.length] ?? ch.sprites.sitIdle[0];
-    }
-    // Fallback to first type frame if no sit idle sprites
+    // Use first type frame (seated pose) from the correct direction
     return dirSprites[3] ?? dirSprites[0];
   }
   if (ch.state === CharacterState.TYPE) {
@@ -1036,7 +1029,53 @@ function truncate(s: string, maxLen: number): string {
   return s.slice(0, maxLen - 1) + "…";
 }
 
-// Auto-fit the visible content to fill the canvas
+/** Rotate sprite data 90° clockwise */
+function rotateSpriteData90(sd: SpriteData): SpriteData {
+  const h = sd.length;
+  const w = sd[0]?.length ?? 0;
+  const result: SpriteData = [];
+  for (let c = 0; c < w; c++) {
+    const row: string[] = [];
+    for (let r = h - 1; r >= 0; r--) {
+      row.push(sd[r][c] ?? "");
+    }
+    result.push(row);
+  }
+  return result;
+}
+
+/** Load a furniture sprite into the state if not already loaded. */
+export async function ensureFurnitureLoaded(state: OfficeState, type: string): Promise<void> {
+  if (state.furnitureSprites.has(type)) return;
+  const baseType = type.replace(/:left$/, "");
+  // Bookshelf SIDE variants reuse the front image
+  const imgType = (baseType === "BOOKSHELF_SIDE" || baseType === "DOUBLE_BOOKSHELF_SIDE")
+    ? baseType.replace(/_SIDE$/, "") : baseType;
+  const parts = imgType.split("_");
+  const folderGuesses = new Set<string>();
+  folderGuesses.add(imgType);
+  if (parts.length >= 3) folderGuesses.add(parts.slice(0, 2).join("_"));
+  folderGuesses.add(parts[0]);
+
+  for (const fg of folderGuesses) {
+    try {
+      const p = `/pixel-office/assets/furniture/${fg}/${imgType}.png`;
+      const img = await loadTileImage(p);
+      state.furnitureImages.set(type, img);
+      let sd = extractSpriteData(img, 0, 0, img.naturalWidth, img.naturalHeight);
+      // Rotate 90° for SIDE variants, flip for :left
+      if (baseType !== imgType) {
+        sd = rotateSpriteData90(sd);
+      }
+      if (type.endsWith(":left")) {
+        sd = sd.map((row) => [...row].reverse());
+      }
+      state.furnitureSprites.set(type, sd);
+      return;
+    } catch { continue; }
+  }
+}
+
 export function centerView(
   state: OfficeState,
   canvasWidth: number,

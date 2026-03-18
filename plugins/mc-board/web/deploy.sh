@@ -10,9 +10,12 @@ echo "→ Building..."
 cd "$SCRIPT_DIR"
 npm run build
 
-echo "→ Deploying to $DEPLOY_DIR..."
-rm -rf "$DEPLOY_DIR/.next"
-cp -r .next "$DEPLOY_DIR/.next"
+# Symlink .next so no copy needed
+if [ ! -L "$DEPLOY_DIR/.next" ]; then
+  echo "→ Symlinking .next..."
+  rm -rf "$DEPLOY_DIR/.next"
+  ln -s "$SCRIPT_DIR/.next" "$DEPLOY_DIR/.next"
+fi
 
 echo "→ Restarting $SERVICE..."
 launchctl kickstart -k "gui/$(id -u)/$SERVICE"
