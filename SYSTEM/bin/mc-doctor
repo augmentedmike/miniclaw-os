@@ -351,31 +351,138 @@ PYEOF
   fi
 fi
 
-# ── agent-assisted repair ────────────────────────────────────────────────────
-# For failures that simple bash fixes can't handle, dispatch to the openclaw
-# agent loop which has full tool access (filesystem, git, vault, plugins).
+# ── self-healing: create fix cards for remaining failures ────────────────
 if [[ $FAILED -gt 0 ]] && command -v openclaw &>/dev/null; then
-  section "agent-assisted repair"
+  section "self-healing"
+
+  SMOKE_OUTPUT=$(mc-smoke 2>&1 || true)
+  HEAL_CREATED=0
+
+  while IFS= read -r fail_line; do
+    [[ -z "$fail_line" ]] && continue
+    label=$(echo "$fail_line" | sed 's/.*✗[[:space:]]*//' | sed 's/[[:space:]]*→.*//' | xargs)
+    fix_hint=$(echo "$fail_line" | sed -n 's/.*→[[:space:]]*//p' | xargs)
+    [[ -z "$label" ]] && continue
+
+    component="system"
+    plan="Investigate: $label. Suggested fix: ${fix_hint:-none provided}."
+
+    # Map failure to known component + remediation
+    combined="${label,,} ${fix_hint,,}"
+    case "$combined" in
+      *vault*init*)     component="mc-vault"; plan="Run: mc-vault init — creates age key and vault directory." ;;
+      *encrypt*decrypt*) component="mc-vault"; plan="Check age binaries (brew install age) and vault key at SYSTEM/vault/key.txt." ;;
+      *age*key*roundtrip*) component="age"; plan="Vault key may be corrupt. Regenerate: age-keygen -o ~/.openclaw/miniclaw/SYSTEM/vault/key.txt" ;;
+      *age*recipient*)  component="age"; plan="Key file missing public key. Regenerate: age-keygen." ;;
+      */opt/homebrew/bin/age*) component="age"; plan="Install age: brew install age." ;;
+      *inbox*cli*)      component="inbox"; plan="Re-run installer to create ~/.claude-inbox/msg." ;;
+      *openclaw.json*)  component="openclaw config"; plan="Re-run setup wizard or create openclaw.json." ;;
+      *prj_miniclaw*)   component="board DB"; plan="Seed required project: re-run setup wizard complete step." ;;
+      *board.db*cannot*) component="board DB"; plan="Board DB corrupt. Delete and re-seed via setup wizard." ;;
+      *board.db*not*found*) component="board DB"; plan="Re-run setup wizard completion step." ;;
+      *backup*corrupt*) component="backups"; plan="Delete corrupt archive and run: openclaw mc-backup now." ;;
+      *secret*missing*) component="plugin secrets"; plan="Set missing vault secret: mc-vault set <key> <value>." ;;
+      *not*on*path*)    component="plugin CLI"; plan="Add SYSTEM/bin to PATH in shell profile." ;;
+      *not*executable*) component="plugin CLI"; plan="Fix permissions: chmod +x on the binary." ;;
+      *missing*from*system*) component="plugin CLI"; plan="Re-run install.sh to generate CLI wrappers." ;;
+      *gateway*plist*missing*) component="gateway"; plan="Run: openclaw gateway install --force." ;;
+      *gateway*not*loaded*) component="gateway"; plan="Run: launchctl load ~/Library/LaunchAgents/ai.openclaw.gateway.plist" ;;
+      *gateway*not*running*) component="gateway"; plan="Run: openclaw gateway start." ;;
+      *telegram*not*in*) component="telegram"; plan="Re-run setup wizard or add channels.telegram to openclaw.json." ;;
+      *telegram*disabled*) component="telegram"; plan="Set channels.telegram.enabled = true in openclaw.json." ;;
+      *telegram*token*) component="telegram"; plan="Add channels.telegram.botToken in openclaw.json." ;;
+      *plist*missing*)  component="LaunchAgents"; plan="Re-install plist via install.sh." ;;
+      *not*loaded*)     component="LaunchAgents"; plan="Run: launchctl load ~/Library/LaunchAgents/<label>.plist" ;;
+      *jobs.json*missing*) component="cron jobs"; plan="Re-run install.sh to sync cron/jobs.json from MANIFEST." ;;
+      *cron*job*missing*) component="cron jobs"; plan="Re-run install.sh or add missing job to jobs.json." ;;
+      *duplicate*cron*) component="cron jobs"; plan="Run: openclaw cron list, then openclaw cron rm <duplicate-id>." ;;
+      *placeholder*)    component="workspace"; plan="Re-run install.sh to personalize workspace files." ;;
+      *soul.md*missing*) component="workspace"; plan="Re-run workspace personalization via setup wizard." ;;
+      *identity.md*missing*) component="workspace"; plan="Re-run workspace personalization via setup wizard." ;;
+      *gateway.mode*)   component="openclaw config"; plan="Set gateway.mode = local in openclaw.json." ;;
+      *provider*prefix*) component="openclaw config"; plan="Update model to use provider prefix (e.g. anthropic/claude-sonnet-4-5-20250514)." ;;
+      *chrome*not*installed*) component="browser"; plan="Run: brew install --cask google-chrome." ;;
+      *mc-chrome*missing*) component="browser"; plan="Re-run install.sh to create mc-chrome launcher." ;;
+      *gh*cli*not*) component="GitHub CLI"; plan="Run: brew install gh && gh auth login." ;;
+      *claude*code*not*) component="Claude Code"; plan="Run: npm install -g @anthropic-ai/claude-code." ;;
+      *disksleep*)      component="power"; plan="Run: sudo pmset -a disksleep 0." ;;
+      *autorestart*)    component="power"; plan="Run: sudo pmset -a autorestart 1." ;;
+    esac
+
+    title="Fix: $component — $label"
+
+    # Skip if a card already exists for this failure
+    has_dup=$(openclaw mc-board board --json 2>/dev/null | python3 -c "
+import json, sys
+try:
+    cards = json.load(sys.stdin)
+    if not isinstance(cards, list): cards = cards.get('cards', [])
+    t = '''$title'''.lower()
+    for c in cards:
+        tags = c.get('tags', [])
+        if 'smoke-fix' in tags and c.get('col') not in ('done','archived','shipped'):
+            if c.get('title','').lower() == t:
+                print('DUP'); break
+except: pass
+" 2>/dev/null || true)
+
+    if [[ "$has_dup" == "DUP" ]]; then
+      ok "card exists: $component — $label"
+      continue
+    fi
+
+    if $AUTO || ask "Create fix card for: $component — $label?"; then
+      openclaw mc-board create \
+        --title "$title" \
+        --priority high \
+        --tags "setup,smoke-fix,self-healing" \
+        --problem "Smoke test failure:\n\n**Check:** $label\n**Suggested fix:** $fix_hint\n\nAuto-detected by mc-doctor." \
+        --plan "1. $plan\n2. Verify: mc-smoke\n3. If user action needed, add hold tag." \
+        --criteria "- [ ] \"$label\" passes\n- [ ] No regressions" \
+        --notes "Auto-created by mc-doctor on $(date -Iseconds)" \
+        &>/dev/null && { fixed "created card: $title"; HEAL_CREATED=$(( HEAL_CREATED + 1 )); } \
+        || broke "failed to create card for: $label"
+    else
+      skip "card for: $label"
+    fi
+
+  done <<< "$(echo "$SMOKE_OUTPUT" | grep '✗')"
+
+  if [[ $HEAL_CREATED -gt 0 ]]; then
+    echo -e "\n  ${GREEN}Created $HEAL_CREATED fix card(s) — board worker will pick them up.${NC}"
+
+    # Notify via Telegram if configured
+    if command -v python3 &>/dev/null && [[ -f "$OPENCLAW_DIR/USER/setup-state.json" ]]; then
+      python3 - "$OPENCLAW_DIR/USER/setup-state.json" "$HEAL_CREATED" <<'TGEOF' 2>/dev/null || true
+import json, sys, urllib.request
+with open(sys.argv[1]) as f: state = json.load(f)
+token, chat = state.get("telegramBotToken", ""), state.get("telegramChatId", "")
+if not token or not chat: sys.exit(0)
+msg = f"🔧 mc-doctor created {sys.argv[2]} fix card(s) on the board backlog."
+data = json.dumps({"chat_id": chat, "text": msg}).encode()
+req = urllib.request.Request(f"https://api.telegram.org/bot{token}/sendMessage",
+    data=data, headers={"Content-Type": "application/json"})
+urllib.request.urlopen(req, timeout=10)
+TGEOF
+    fi
+  fi
+fi
+
+# ── agent-assisted repair ────────────────────────────────────────────────────
+# For failures cards can't solve, dispatch to the agent loop.
+if [[ $FAILED -gt 0 ]] && command -v openclaw &>/dev/null; then
   GW_STATUS=$(openclaw gateway status 2>&1 || true)
   if echo "$GW_STATUS" | grep -qi "running\|listening\|connected\|uptime"; then
-    if ask "Dispatch remaining $FAILED failure(s) to the openclaw agent loop for repair?"; then
-      # Build a summary of what failed
-      SMOKE_OUTPUT=$(mc-smoke 2>&1 || true)
+    if ask "Dispatch remaining failure(s) to the openclaw agent for repair?"; then
       FAILURES=$(echo "$SMOKE_OUTPUT" | grep '✗' | sed 's/^  ✗  /- /' || true)
-      AGENT_MSG="mc-doctor found $FAILED failure(s) that need repair. Here are the failing checks from mc-smoke:
-
+      openclaw agent --local --message "mc-doctor found failures:
 $FAILURES
-
-Please diagnose and fix each issue. You have access to the filesystem, vault, and all miniclaw tools. After fixing, run mc-smoke to verify."
-
-      openclaw agent --local --message "$AGENT_MSG" --timeout 300 2>&1 \
-        && fixed "agent repair completed — run mc-smoke to verify" \
+Please diagnose and fix each. Run mc-smoke to verify." --timeout 300 2>&1 \
+        && fixed "agent repair completed" \
         || broke "agent repair failed or timed out"
     else
       skip "agent-assisted repair"
     fi
-  else
-    broke "gateway not running — cannot use agent loop for repair (fix gateway first)"
   fi
 fi
 
