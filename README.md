@@ -17,8 +17,7 @@
 </p>
 
 <p align="center">
-  <strong>If this is the future you want to build, give us a star.</strong><br />
-  <a href="https://github.com/augmentedmike/miniclaw-os/stargazers"><img src="https://img.shields.io/github/stars/augmentedmike/miniclaw-os?style=social&label=Star%20miniclaw-os" alt="Star miniclaw-os"></a>
+  📦 Listed on <a href="https://compareclaw.com/wrappers/miniclaw">CompareClaw</a> · Built on <a href="https://openclaw.ai">OpenClaw</a>
 </p>
 
 ---
@@ -30,7 +29,7 @@ AI agents don't fail because of the model. They fail because they have **no memo
 - **Long-term memory** — vector + keyword hybrid search across everything the agent has ever learned
 - **Autonomous planning** — a kanban brain that picks tasks, executes them, and ships results without human prompting
 - **Session continuity** — memos, reflections, and identity that persist across restarts
-- **Self-repair** — agents that debug, diagnose, and fix themselves
+- **Self-repair** — agents file their own GitHub issues and PRs when they find bugs
 
 One line to install. Runs on your Mac. Your data never leaves your machine.
 
@@ -38,9 +37,19 @@ One line to install. Runs on your Mac. Your data never leaves your machine.
 curl -fsSL https://raw.githubusercontent.com/augmentedmike/miniclaw-os/main/bootstrap.sh | bash
 ```
 
-<p align="center">
-  <a href="https://github.com/augmentedmike/miniclaw-os"><strong>Star us on GitHub</strong></a> if this is the future you want to build.
-</p>
+> ⭐ **If MiniClaw looks useful, [starring the repo](https://github.com/augmentedmike/miniclaw-os) takes one click and helps us reach more builders.**
+
+> 🔧 **MiniClaw agents file their own GitHub issues.** When the agent hits a bug, `mc-contribute` automatically opens an issue with full context, then works to fix it. The repo's commit history is part human, part agent — [see for yourself](https://github.com/augmentedmike/miniclaw-os/issues).
+
+---
+
+## What's New
+
+- **mc-web-chat** — Browser-based chat panel powered by Claude Code
+- **mc-x** — X/Twitter plugin with auth, post, timeline, and reply tools
+- **mc-email** — Snippet support in inbox check, improved HTML-to-text for multipart emails
+- **Pixel Office** — Improved sprite occlusion and bubble positioning
+- **Self-update** — FUNDING.yml and GitHub Sponsors CTA
 
 ---
 
@@ -67,7 +76,7 @@ Every agent framework gives you **tool calling**. None of them give you a **brai
 |---|---|---|---|---|
 | Memory across sessions | No | No | Partial | **Yes — hybrid vector + keyword** |
 | Autonomous task planning | No | Partial | Partial | **Yes — full kanban lifecycle** |
-| Self-repair | No | No | No | **Yes — agents fix themselves** |
+| Self-repair | No | No | No | **Yes — agents file issues and PRs** |
 | Identity & personality | No | No | No | **Yes — persistent soul** |
 | Runs locally | Depends | Depends | Depends | **Yes — your Mac, your data** |
 | Nightly self-reflection | No | No | No | **Yes — learns from its own day** |
