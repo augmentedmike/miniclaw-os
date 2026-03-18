@@ -45,6 +45,8 @@ echo "  ✓ Clean"
 
 # 2. Pull
 echo "[2/8] Pulling latest main..."
+git -C "$REPO_DIR" clean -fd
+git -C "$REPO_DIR" checkout -- .
 git -C "$REPO_DIR" checkout main
 git -C "$REPO_DIR" pull --rebase origin main
 echo "  ✓ Up to date"

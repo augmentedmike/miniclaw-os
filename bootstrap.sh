@@ -85,7 +85,7 @@ BUNDLED_WEB="$EXTRACT_TMP/miniclaw-installer.app/Contents/Resources/miniclaw-web
 BUNDLED_PLUGINS="$EXTRACT_TMP/miniclaw-installer.app/Contents/Resources/plugins-prebuilt"
 if [[ -d "$BUNDLED_WEB" && -f "$BUNDLED_WEB/server.js" ]]; then
   rm -rf "$WEB_DIR"
-  mkdir -p "$STATE_DIR"
+  mkdir -p "$(dirname "$WEB_DIR")"
   mv "$BUNDLED_WEB" "$WEB_DIR"
 else
   echo "  ERROR: Pre-built app not in zip. Try again or use the .app installer."
