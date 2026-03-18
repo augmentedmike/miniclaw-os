@@ -20,7 +20,10 @@ export class SearchEngine implements ContactStore {
       if (fs.existsSync(this.storagePath)) {
         const data = fs.readFileSync(this.storagePath, 'utf8');
         const contacts: Contact[] = JSON.parse(data);
+        this.contacts.clear();
         contacts.forEach(c => this.contacts.set(c.id, c));
+      } else {
+        this.contacts.clear();
       }
     } catch (err) {
       console.error(`Failed to load contacts from ${this.storagePath}:`, err);
