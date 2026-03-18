@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Modal } from "./modal";
 
 interface KbEntry { id: string; key: string; value: string; updated_at?: string; created_at?: string; }
@@ -20,7 +20,7 @@ function getMeta(e: AnyEntry)  { return isKb(e) ? fmtDate(e.updated_at ?? e.crea
 function getBody(e: AnyEntry)  { return isKb(e) ? e.value : e.preview; }
 
 function MemoryList({
-  label, entries, loading, query, onQueryChange, onSelect, placeholder,
+  label, entries, loading, query, onQueryChange, onSelect, placeholder, scrollRef,
 }: {
   label: string;
   entries: AnyEntry[];
@@ -29,6 +29,7 @@ function MemoryList({
   onQueryChange: (q: string) => void;
   onSelect: (e: AnyEntry) => void;
   placeholder: string;
+  scrollRef?: React.RefObject<HTMLDivElement | null>;
 }) {
   return (
     <div className="flex-1 flex flex-col min-w-0 border-r border-zinc-800/70 last:border-r-0 overflow-hidden">
@@ -41,7 +42,7 @@ function MemoryList({
           placeholder={placeholder}
         />
       </div>
-      <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-zinc-700">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-zinc-700">
         {loading && <div className="text-zinc-600 text-xs italic text-center p-8">Loading...</div>}
         {!loading && entries.length === 0 && <div className="text-zinc-700 text-xs italic text-center p-8">No entries</div>}
         {!loading && entries.map((item, i) => (
@@ -71,23 +72,53 @@ export function MemoryTab() {
   const [modal, setModal] = useState<AnyEntry | null>(null);
   const [prunePreview, setPrunePreview] = useState<DeadEntry[] | null>(null);
   const [pruning, setPruning] = useState(false);
+  const [refreshTick, setRefreshTick] = useState(0);
+  const prevStatsRef = useRef<{ memoryFiles: number; kbEntries: number } | null>(null);
+  const scrollRefQmd = useRef<HTMLDivElement | null>(null);
+  const scrollRefKb = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => { const t = setTimeout(() => setDQmd(qmdQuery), 300); return () => clearTimeout(t); }, [qmdQuery]);
   useEffect(() => { const t = setTimeout(() => setDKb(kbQuery), 300); return () => clearTimeout(t); }, [kbQuery]);
 
+  // Background polling: check /api/memory/stats every 10s, bump refreshTick on change
   useEffect(() => {
-    setLoadingQmd(true);
+    const interval = setInterval(() => {
+      fetch("/api/memory/stats")
+        .then(r => r.json())
+        .then((stats: { memoryFiles: number; kbEntries: number }) => {
+          const prev = prevStatsRef.current;
+          if (prev && (prev.memoryFiles !== stats.memoryFiles || prev.kbEntries !== stats.kbEntries)) {
+            setRefreshTick(t => t + 1);
+          }
+          prevStatsRef.current = stats;
+        })
+        .catch(() => {});
+    }, 10_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchQmd = useCallback((silent = false) => {
+    if (!silent) setLoadingQmd(true);
     fetch(`/api/qmd${dQmd ? `?q=${encodeURIComponent(dQmd)}` : ""}`)
       .then(r => r.json()).then(d => setQmdEntries(d.entries ?? []))
-      .catch(() => {}).finally(() => setLoadingQmd(false));
+      .catch(() => {}).finally(() => { if (!silent) setLoadingQmd(false); });
   }, [dQmd]);
 
-  useEffect(() => {
-    setLoadingKb(true);
+  const fetchKb = useCallback((silent = false) => {
+    if (!silent) setLoadingKb(true);
     fetch(`/api/kb${dKb ? `?q=${encodeURIComponent(dKb)}` : ""}`)
       .then(r => r.json()).then(d => setKbEntries(d.entries ?? []))
-      .catch(() => {}).finally(() => setLoadingKb(false));
+      .catch(() => {}).finally(() => { if (!silent) setLoadingKb(false); });
   }, [dKb]);
+
+  // Initial fetch + search-driven refetch
+  useEffect(() => { fetchQmd(); }, [dQmd]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchKb(); }, [dKb]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Silent refetch on background polling tick
+  useEffect(() => {
+    if (refreshTick > 0) { fetchQmd(true); fetchKb(true); }
+  }, [refreshTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handlePrunePreview = () => {
     fetch("/api/kb", { method: "DELETE" })
@@ -112,11 +143,13 @@ export function MemoryTab() {
       <MemoryList
         label="Short Term" entries={qmdEntries} loading={loadingQmd}
         query={qmdQuery} onQueryChange={setQmdQuery} onSelect={setModal} placeholder="Search memory..."
+        scrollRef={scrollRefQmd}
       />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
       <MemoryList
         label="Long Term" entries={kbEntries} loading={loadingKb}
         query={kbQuery} onQueryChange={setKbQuery} onSelect={setModal} placeholder="Search KB..."
+        scrollRef={scrollRefKb}
       />
       <div className="border-t border-zinc-800/70 px-4 py-2.5 flex gap-2 flex-shrink-0" style={{ background: "rgba(24,24,27,0.4)" }}>
         <button
