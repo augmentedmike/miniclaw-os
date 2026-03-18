@@ -106,6 +106,65 @@ This is a simple email without attachments.
     expect(parsed.attachments).toHaveLength(0);
   });
 
+  test("Snippet is populated from email source", async () => {
+    const email = `From: sender@example.com
+To: recipient@example.com
+Subject: Snippet test
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Hello, this is a test email body that should appear as a snippet in listMessages output.
+`;
+
+    const parsed = await simpleParser(email);
+    const text =
+      parsed.text ??
+      (parsed.html
+        ? parsed.html
+            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+            .replace(/<[^>]+>/g, " ")
+            .replace(/\s+/g, " ")
+            .trim()
+        : "");
+    const snippet = text.substring(0, 200);
+
+    expect(snippet).toBeTruthy();
+    expect(snippet.length).toBeGreaterThan(0);
+    expect(snippet.length).toBeLessThanOrEqual(200);
+    expect(snippet).toContain("Hello, this is a test email body");
+  });
+
+  test("Snippet from HTML-only email strips tags", async () => {
+    const htmlOnlyEmail = `From: sender@example.com
+To: recipient@example.com
+Subject: HTML only
+MIME-Version: 1.0
+Content-Type: text/html; charset=utf-8
+
+<html><body><style>body{color:red}</style><p>Important message here</p><script>alert(1)</script></body></html>
+`;
+
+    const parsed = await simpleParser(htmlOnlyEmail);
+    const text =
+      parsed.text ??
+      (parsed.html
+        ? parsed.html
+            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+            .replace(/<[^>]+>/g, " ")
+            .replace(/\s+/g, " ")
+            .trim()
+        : "");
+    const snippet = text.substring(0, 200);
+
+    expect(snippet).toBeTruthy();
+    expect(snippet).toContain("Important message here");
+    expect(snippet).not.toContain("<style");
+    expect(snippet).not.toContain("<script");
+    expect(snippet).not.toContain("<p>");
+  });
+
   test("Multiple attachments handling", async () => {
     const multipleAttachments = `From: sender@example.com
 To: recipient@example.com

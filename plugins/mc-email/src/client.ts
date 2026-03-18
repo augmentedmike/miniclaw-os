@@ -47,9 +47,24 @@ export class GmailClient {
 
       for await (const msg of client.fetch(
         limited,
-        { uid: true, envelope: true, flags: true },
+        { uid: true, envelope: true, flags: true, source: true },
         { uid: true }
       )) {
+        let snippet = "";
+        if (msg.source) {
+          const parsed = await simpleParser(msg.source);
+          const text =
+            parsed.text ??
+            (parsed.html
+              ? parsed.html
+                  .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+                  .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+                  .replace(/<[^>]+>/g, " ")
+                  .replace(/\s+/g, " ")
+                  .trim()
+              : "");
+          snippet = text.substring(0, 200);
+        }
         messages.push({
           id: String(msg.uid),
           threadId: String(msg.uid),
@@ -59,7 +74,7 @@ export class GmailClient {
             : "",
           to: msg.envelope?.to?.[0]?.address ?? "",
           date: msg.envelope?.date?.toISOString() ?? "",
-          snippet: "",
+          snippet,
           labelIds: msg.flags ? Array.from(msg.flags) : [],
         });
       }
