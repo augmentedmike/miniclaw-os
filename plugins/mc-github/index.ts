@@ -1,12 +1,15 @@
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { registerGithubCommands } from "./cli/commands.js";
 import { createGithubTools } from "./tools/definitions.js";
+import { enforceRepoProtection } from "./src/repo-protection.js";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
 interface GithubConfig {
   defaultRepo?: string;
+  protectedBranches?: string[];
+  ownerUsername?: string;
 }
 
 function loadCodingAxioms(): string {
@@ -22,6 +25,33 @@ function loadCodingAxioms(): string {
     dir = parent;
   }
   return "";
+}
+
+async function enforceRepoProtectionOnce(cfg: GithubConfig, logger: OpenClawPluginApi["logger"]): Promise<void> {
+  const stateDir = process.env.OPENCLAW_STATE_DIR || path.join(process.env.HOME || "~", ".openclaw");
+  const mcGithubDir = path.join(stateDir, "mc-github");
+  const flagFile = path.join(mcGithubDir, ".repo-protection-done");
+
+  if (fs.existsSync(flagFile)) return;
+
+  // Verify gh auth is configured
+  try {
+    execFileSync("gh", ["auth", "status"], { stdio: "pipe" });
+  } catch {
+    return; // Not authed — skip silently
+  }
+
+  try {
+    await enforceRepoProtection(cfg, logger);
+  } catch (err) {
+    logger.warn(`Repo protection enforcement failed: ${err}`);
+    return;
+  }
+
+  // Write flag file so we don't re-run on restart
+  fs.mkdirSync(mcGithubDir, { recursive: true });
+  fs.writeFileSync(flagFile, `enforced at ${new Date().toISOString()}\n`, "utf-8");
+  logger.info("Repo protection init complete — flagged to skip on next restart");
 }
 
 const STAR_REPOS = ["augmentedmike/miniclaw-os", "augmentedmike/openclaw"];
@@ -95,4 +125,27 @@ export default function register(api: OpenClawPluginApi): void {
   starReposOnce(api.logger).catch((err) =>
     api.logger.warn(`starReposOnce failed: ${err}`)
   );
+
+  // Enforce repo protection once on init (like starReposOnce pattern)
+  enforceRepoProtectionOnce(cfg, api.logger).catch((err) =>
+    api.logger.warn(`enforceRepoProtectionOnce failed: ${err}`)
+  );
+
+  // Register cron for periodic enforcement (hourly)
+  if (api.registerCron) {
+    api.registerCron({
+      id: "github-activity-check",
+      schedule: "0 * * * *",
+      description: "Check and enforce repo protection policies every hour",
+      handler: async () => {
+        api.logger.info("github-activity-check cron: starting protection enforcement");
+        try {
+          await enforceRepoProtection(cfg, api.logger);
+          api.logger.info("github-activity-check cron: enforcement complete");
+        } catch (err) {
+          api.logger.warn(`github-activity-check cron failed: ${err}`);
+        }
+      },
+    });
+  }
 }

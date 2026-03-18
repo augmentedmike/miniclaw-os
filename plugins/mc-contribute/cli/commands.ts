@@ -10,6 +10,7 @@ import {
   validateRepo,
   validateRemote,
 } from "../src/sanitize.js";
+import { ensureForkRemote, validatePushTarget } from "../src/fork-detect.js";
 import { execFileSync } from "child_process";
 import fs from "fs";
 import path from "path";
@@ -241,11 +242,24 @@ export function register${cap}Commands(
         process.exit(1);
       }
 
+      // Detect fork ownership — auto-fork if origin is not user-owned
+      const forkResult = ensureForkRemote(repoRoot, upstreamRepo, forkRemote, logger);
+      const pushRemote = forkResult.pushRemote;
+      logger.info(`Fork detection: ${forkResult.message}`);
+
+      // Validate we're not pushing directly to upstream when we don't own it
+      const pushError = validatePushTarget(repoRoot, pushRemote, upstreamRepo, logger);
+      if (pushError) {
+        console.error(`PR blocked — ${pushError}`);
+        process.exit(1);
+      }
+
+      // Push branch to the correct remote (fork or origin)
       const branch = run("git", ["branch", "--show-current"], repoRoot);
       try {
-        run("git", ["push", "-u", forkRemote, branch], repoRoot);
+        run("git", ["push", "-u", pushRemote, branch], repoRoot);
       } catch {
-        console.error(`Failed to push branch ${branch}. Check your fork remote.`);
+        console.error(`Failed to push branch ${branch} to '${pushRemote}'. ${forkResult.isFork ? "Check your fork remote." : "Make sure your remote is set up."}`);
         process.exit(1);
       }
 

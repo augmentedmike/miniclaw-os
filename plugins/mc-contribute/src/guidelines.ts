@@ -40,6 +40,16 @@ plugins/mc-<name>/
 - Never commit real names, emails, phone numbers, or personal data
 - Use example.com for placeholder emails, generic names for placeholder contacts
 
+### Fork-and-PR Only (MANDATORY)
+- **Never add external contributors as collaborators** — they fork and PR.
+- If you do not own the origin repo, you MUST work in a fork.
+- Direct push to upstream is never allowed for non-owners.
+- mc-contribute auto-detects ownership: if origin is not yours, it auto-forks
+  via \`gh repo fork\` and pushes to your fork remote.
+- All PRs are submitted from fork branches to the upstream repo.
+- Repository protection enforces: no direct collaborator access, enforce_admins=true,
+  required_approving_review_count=1, no force push.
+
 ### Branch Naming
 - contrib/<plugin-name> for new plugins
 - contrib/fix-<description> for bug fixes
@@ -51,6 +61,7 @@ plugins/mc-<name>/
 - List affected plugins
 - Security checklist must be checked
 - Run ./scripts/security-check.sh --all before submitting
+- PRs must come from a fork — direct pushes to upstream are blocked
 
 ### Bug Reports
 - Use the Bug Report issue template
