@@ -806,6 +806,16 @@ Examples:
     .action((id: string, opts: { worker: string; column?: string }) => {
       try {
         const card = store.findById(id);
+        const workerColumnMap: Record<string, string> = {
+          "board-worker-backlog": "backlog",
+          "board-worker-in-progress": "in-progress",
+          "board-worker-in-review": "in-review",
+        };
+        const expectedColumn = workerColumnMap[opts.worker];
+        if (expectedColumn && card.column !== expectedColumn) {
+          console.error(`COLUMN MISMATCH: ${opts.worker} cannot pick up card ${id} — card is in "${card.column}", worker expects "${expectedColumn}".`);
+          process.exit(1);
+        }
         const entry = activeWork.pickup({
           cardId: card.id,
           projectId: card.project_id,
