@@ -35,7 +35,7 @@ const SEAT_REST_MIN = 30; // shorter than original for demo appeal
 const SEAT_REST_MAX = 60;
 const SITTING_OFFSET = 6;
 const MAX_DELTA = 0.1;
-const BUBBLE_OFFSET_Y = 24;
+const BUBBLE_OFFSET_Y = 8;
 
 // Character hue shifts for variety
 const HUE_SHIFTS = [0, 60, 120, 180, 240, 300, 45, 135, 225, 315];
