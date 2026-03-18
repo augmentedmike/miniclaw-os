@@ -96,7 +96,7 @@ export function Column({ column, cards, globalShippedIds, projects, activeIds, a
   const colCards = useMemo(
     () => cards
       .filter(c => c.column === column)
-      .filter(c => showHeld || !c.tags?.includes("hold"))
+      .filter(c => showHeld || !c.tags?.some(t => t === "hold" || t === "on-hold" || t === "blocked"))
       .sort((a, b) => {
         const aFocused = a.tags?.includes("focus") ? 0 : 1;
         const bFocused = b.tags?.includes("focus") ? 0 : 1;
