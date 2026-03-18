@@ -5,6 +5,21 @@ import type { EmailConfig } from "./config.js";
 import { getAppPassword } from "./vault.js";
 import type { EmailAttachment, EmailMessage, SendEmailOptions } from "./types.js";
 
+export function htmlToText(html: string): string {
+  return html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function createImapClient(cfg: EmailConfig): ImapFlow {
   const password = getAppPassword(cfg.vaultBin);
   if (!password) {
@@ -94,8 +109,8 @@ export class GmailClient {
           const parsed = await simpleParser(msg.source);
           body = parsed.text ?? "";
           if (!body && parsed.html) {
-            // Strip HTML tags as fallback when no plain-text part exists
-            body = parsed.html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+            // Strip HTML as fallback when no plain-text part exists
+            body = htmlToText(parsed.html);
           }
           snippet = body.substring(0, 500);
 

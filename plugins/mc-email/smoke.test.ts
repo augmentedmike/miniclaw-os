@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveConfig } from "./src/config.ts";
+import { htmlToText } from "./src/client.ts";
 import type { EmailAttachment, EmailMessage } from "./src/types.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -81,6 +82,29 @@ test("EmailMessage without attachments", () => {
   };
   
   expect(message.attachments).toBeUndefined();
+});
+
+test("htmlToText strips style, script, tags, and decodes entities", () => {
+  const html = `
+    <html>
+      <head><style>body { font-family: Arial; } .header { color: red; }</style></head>
+      <body>
+        <script>alert("xss")</script>
+        <p>Hello &amp; welcome</p>
+        <p>Use &lt;b&gt; for <b>bold</b></p>
+        <p>She said &quot;hi&quot; &amp; it&#39;s&nbsp;fine</p>
+      </body>
+    </html>`;
+  const text = htmlToText(html);
+  expect(text).not.toContain("<style");
+  expect(text).not.toContain("font-family");
+  expect(text).not.toContain("<script");
+  expect(text).not.toContain("alert");
+  expect(text).not.toContain("<p>");
+  expect(text).not.toContain("&amp;");
+  expect(text).not.toContain("&nbsp;");
+  expect(text).toContain("Hello & welcome");
+  expect(text).toContain('She said "hi" & it\'s fine');
 });
 
 test("Attachment size formatting", () => {
