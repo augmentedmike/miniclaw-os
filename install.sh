@@ -160,15 +160,16 @@ for label in com.miniclaw.board-web; do
   fi
 done
 
-# Check for system crontab entries referencing .openclaw or miniclaw
+# Remove stale system crontab entries referencing .openclaw or miniclaw
+# MiniClaw uses its own cron worker — system crontab entries are leftover from old installs
 CRONTAB_HITS=$(crontab -l 2>/dev/null | grep -c 'openclaw\|miniclaw' || true)
 if [[ "$CRONTAB_HITS" -gt 0 ]]; then
-  warn "Found $CRONTAB_HITS crontab entries referencing openclaw/miniclaw"
-  warn "  (MiniClaw uses its own cron worker, not system crontab — these may be stale)"
+  info "Removing $CRONTAB_HITS stale crontab entries referencing openclaw/miniclaw"
   crontab -l 2>/dev/null | grep 'openclaw\|miniclaw' | while read -r line; do
-    warn "    $line"
+    info "  Removing: $line"
   done
-  COLLISIONS=$((COLLISIONS + 1))
+  crontab -l 2>/dev/null | grep -v 'openclaw\|miniclaw' | crontab -
+  ok "Cleaned $CRONTAB_HITS stale crontab entries"
 fi
 
 # Check for other LaunchAgents/daemons that reference .openclaw
@@ -375,35 +376,10 @@ step "Step 2a: whisper.cpp (local speech-to-text)"
 
 brew_install sox sox
 
-WHISPER_BIN="$MINICLAW_DIR/SYSTEM/bin/whisper-cpp"
 WHISPER_MODELS_DIR="$MINICLAW_DIR/SYSTEM/whisper-models"
 mkdir -p "$WHISPER_MODELS_DIR"
 
-if [[ -x "$WHISPER_BIN" ]]; then
-  ok "whisper-cpp already built"
-elif [[ "$CHECK_ONLY" == true ]]; then
-  warn "whisper-cpp not found at $WHISPER_BIN"
-else
-  info "Building whisper.cpp from source..."
-  WHISPER_BUILD_DIR="/tmp/whisper-cpp-build-$$"
-  rm -rf "$WHISPER_BUILD_DIR"
-  if git clone --depth 1 https://github.com/ggerganov/whisper.cpp.git "$WHISPER_BUILD_DIR" >>"$LOG_FILE" 2>&1; then
-    if (cd "$WHISPER_BUILD_DIR" && cmake -B build -DCMAKE_BUILD_TYPE=Release >>"$LOG_FILE" 2>&1 \
-       && cmake --build build --config Release -j "$(sysctl -n hw.ncpu)" >>"$LOG_FILE" 2>&1); then
-      # Copy the main binary
-      cp "$WHISPER_BUILD_DIR/build/bin/whisper-cli" "$WHISPER_BIN" 2>/dev/null \
-        || cp "$WHISPER_BUILD_DIR/build/bin/main" "$WHISPER_BIN" 2>/dev/null \
-        || cp "$WHISPER_BUILD_DIR/build/main" "$WHISPER_BIN" 2>/dev/null
-      chmod +x "$WHISPER_BIN"
-      ok "whisper-cpp built and installed"
-    else
-      warn "whisper.cpp build failed — check $LOG_FILE"
-    fi
-    rm -rf "$WHISPER_BUILD_DIR"
-  else
-    warn "whisper.cpp clone failed — check network"
-  fi
-fi
+brew_install whisper-cpp whisper-cpp
 
 # Download default base.en model (~142MB)
 BASE_MODEL="$WHISPER_MODELS_DIR/ggml-base.en.bin"
