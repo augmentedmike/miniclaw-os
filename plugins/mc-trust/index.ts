@@ -27,7 +27,7 @@ function resolveConfig(api: OpenClawPluginApi): TrustConfig {
   return {
     agentId:      raw.agentId ?? "am",
     trustDir:     resolvePath(raw.trustDir ?? "~/.openclaw/trust"),
-    vaultBin:     resolvePath(raw.vaultBin ?? "~/.openclaw/miniclaw/SYSTEM/bin/miniclaw-vault"),
+    vaultBin:     resolvePath(raw.vaultBin ?? "~/.openclaw/miniclaw/SYSTEM/bin/mc-vault"),
     sessionTtlMs: raw.sessionTtlMs ?? 3_600_000, // 1 hour default
   };
 }
