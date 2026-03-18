@@ -101,7 +101,7 @@ export function registerEmailCommands(ctx: Ctx): void {
         }
         const att = msg.attachments[idx];
         const fs = await import("node:fs/promises");
-        const outPath = path.join(process.cwd(), att.filename);
+        const outPath = path.join(process.cwd(), path.basename(att.filename));
         if (att.content) {
           await fs.writeFile(outPath, att.content);
           console.log(`Extracted: ${outPath}`);
@@ -120,7 +120,7 @@ export function registerEmailCommands(ctx: Ctx): void {
           await fs.mkdir(opts.saveAttachments, { recursive: true });
           for (const att of msg.attachments) {
             if (att.content) {
-              const outPath = path.join(opts.saveAttachments, att.filename);
+              const outPath = path.join(opts.saveAttachments, path.basename(att.filename));
               await fs.writeFile(outPath, att.content);
               console.log(`Saved: ${outPath}`);
             }
