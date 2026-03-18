@@ -1115,7 +1115,7 @@ export function centerView(
 
   const scaledW = contentW * state.zoom;
   const scaledH = contentH * state.zoom;
-  const TOP_MARGIN = 60;
+  const TOP_MARGIN = 120;
   state.offsetX = Math.round((canvasWidth - scaledW) / 2) - minC * TILE_SIZE * state.zoom;
   state.offsetY = Math.max(TOP_MARGIN, Math.round((canvasHeight - scaledH) / 2)) - minR * TILE_SIZE * state.zoom;
 }

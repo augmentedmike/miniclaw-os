@@ -104,3 +104,42 @@ export function listCronRuns(limit = 20): CronRun[] {
     }));
   } catch { return []; }
 }
+
+/** Sync MANIFEST.json crons into board-cron.json if missing. Called once on first tick. */
+let _manifestSynced = false;
+export function syncManifestCrons(): void {
+  if (_manifestSynced) return;
+  _manifestSynced = true;
+
+  const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(require("node:os").homedir(), ".openclaw", "miniclaw");
+  const manifestPath = path.join(stateDir, "MANIFEST.json");
+  if (!fs.existsSync(manifestPath)) return;
+
+  try {
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+    const existingIds = new Set(listCronJobs().map(j => j.id));
+
+    for (const cron of manifest.crons ?? []) {
+      if (existingIds.has(cron.name)) continue;
+      const schedule = typeof cron.schedule === "string" ? cron.schedule : cron.schedule?.expr;
+      if (!schedule) continue;
+
+      // Check requires — skip if vault secret missing
+      if (cron.requires?.length) {
+        const vaultDir = path.join(stateDir, "SYSTEM", "vault", "secrets");
+        const missing = (cron.requires as string[]).some((r: string) => !fs.existsSync(path.join(vaultDir, `${r}.age`)));
+        if (missing) continue;
+      }
+
+      upsertCronJob({
+        id: cron.name,
+        name: cron.description ?? cron.name,
+        schedule,
+        enabled: !cron.optional,
+        payload: { messageFile: `cron/prompts/${cron.name}.md` },
+      });
+    }
+  } catch (e) {
+    console.warn("[cron] MANIFEST sync failed:", e);
+  }
+}
