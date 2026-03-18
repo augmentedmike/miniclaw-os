@@ -16,6 +16,7 @@ export type WizardState = {
   telegramBotUsername: string;
   telegramBotToken: string;
   telegramChatId: string;
+  updateTime: string;
 };
 
 const DEFAULTS: WizardState = {
@@ -32,6 +33,7 @@ const DEFAULTS: WizardState = {
   telegramBotUsername: "",
   telegramBotToken: "",
   telegramChatId: "",
+  updateTime: "03:00",
 };
 
 const STORAGE_KEY = "mc-wizard-state";

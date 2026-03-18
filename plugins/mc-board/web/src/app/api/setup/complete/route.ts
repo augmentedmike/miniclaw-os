@@ -283,6 +283,39 @@ function ensureProjectsFolder(): { ok: boolean; path: string; symlink: string } 
 }
 
 /**
+ * Persist the user's chosen update time to the mc-update plugin config in openclaw.json.
+ * Converts HH:MM to a cron expression (e.g. "03:00" → "0 3 * * *").
+ */
+function persistUpdateTime() {
+  const state = readSetupState();
+  const updateTime = (state as Record<string, string>).updateTime;
+  if (!updateTime) return;
+
+  const [hh, mm] = updateTime.split(":").map(Number);
+  const cronExpr = `${mm || 0} ${hh || 3} * * *`;
+
+  const configPath = path.join(STATE_DIR, "openclaw.json");
+  let cfg: Record<string, unknown> = {};
+  try {
+    if (fs.existsSync(configPath)) {
+      cfg = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+    }
+  } catch { /* start fresh */ }
+
+  const plugins = (cfg.plugins ?? {}) as Record<string, unknown>;
+  const installs = (plugins.installs ?? {}) as Record<string, Record<string, unknown>>;
+  const mcUpdate = installs["mc-update"] ?? {};
+  const mcUpdateConfig = (mcUpdate.config ?? {}) as Record<string, unknown>;
+  mcUpdateConfig.updateTime = cronExpr;
+  mcUpdate.config = mcUpdateConfig;
+  installs["mc-update"] = mcUpdate;
+  plugins.installs = installs;
+  cfg.plugins = plugins;
+
+  fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2) + "\n", "utf-8");
+}
+
+/**
  * Run mc-smoke and return the output.
  */
 function runSmoke(): { output: string; passed: boolean } {
@@ -705,6 +738,9 @@ export async function POST() {
 
   // Register email watch cron if email is configured
   ensureEmailWatchCron();
+
+  // Persist the user's chosen nightly update time to mc-update plugin config
+  persistUpdateTime();
 
   // Send welcome email from the agent
   sendWelcomeEmail();

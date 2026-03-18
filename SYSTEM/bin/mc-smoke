@@ -300,6 +300,7 @@ section "plugin loading"
 
 if ! command -v node &>/dev/null; then
   warn "node not found" "cannot verify plugin exports"
+else
 # Test from extensions/ (where pre-built deps live), fall back to miniclaw/plugins/
 LOAD_TEST_DIR="$STATE_DIR/extensions"
 [[ ! -d "$LOAD_TEST_DIR" ]] && LOAD_TEST_DIR="$MINICLAW_PLUGINS_DIR"
@@ -330,6 +331,7 @@ else
       fail "$plugin_name load failed" "$err_line"
     fi
   done
+fi
 fi
 
 # ── plugin tests ──────────────────────────────────────────────────────────────

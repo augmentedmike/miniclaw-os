@@ -12,7 +12,7 @@ export interface VerifyResult {
  */
 export function runSmoke(timeoutMs: number = 60_000): VerifyResult {
   try {
-    const output = execFileSync("openclaw", ["mc-smoke"], {
+    const output = execFileSync("mc-smoke", [], {
       encoding: "utf-8",
       timeout: timeoutMs,
       env: { ...process.env },
