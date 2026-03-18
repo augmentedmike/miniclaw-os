@@ -725,12 +725,14 @@ export function getDefaultLayout(): OfficeLayout {
       { uid: "c6", type: "WOODEN_CHAIR_FRONT", col: 10, row: 8 },
       { uid: "p6", type: "PC_FRONT_ON_3", col: 11, row: 7 },
 
-      // Right room decor
+      // Right room decor + bookshelves (in-review zone)
       { uid: "pl2", type: "LARGE_PLANT", col: 14, row: 9 },
       { uid: "ct1", type: "COFFEE_TABLE", col: 12, row: 5 },
       { uid: "cf1", type: "COFFEE", col: 13, row: 5 },
       { uid: "wb1", type: "WHITEBOARD", col: 10, row: 1 },
       { uid: "cl1", type: "CLOCK", col: 14, row: 1 },
+      { uid: "bs2", type: "DOUBLE_BOOKSHELF", col: 12, row: 1 },
+      { uid: "bs3", type: "BOOKSHELF", col: 9, row: 1 },
     ],
   };
 }
@@ -862,6 +864,34 @@ export async function initOffice(
     zoneWaypoints.desk.push(...nearbyWalkable(seat.col, seat.row, 1));
   }
 
+  // Auto-generate stand spots near bookshelves for the "books" zone
+  const autoBookSpots: Seat[] = [];
+  for (const item of layout.furniture) {
+    const t = item.type;
+    if (!t.startsWith("BOOKSHELF") && !t.startsWith("DOUBLE_BOOKSHELF")) continue;
+    // Find a walkable tile directly in front of (below) the bookshelf
+    const candidates = [
+      { col: item.col, row: item.row + 1 },
+      { col: item.col + 1, row: item.row + 1 },
+      { col: item.col, row: item.row + 2 },
+    ];
+    for (const c of candidates) {
+      if (walkableSet.has(`${c.col},${c.row}`)) {
+        autoBookSpots.push({
+          uid: `auto-book-${item.uid}-${c.col}-${c.row}`,
+          col: c.col,
+          row: c.row,
+          facingDir: Direction.UP,
+          action: "stand",
+          assigned: false,
+          assignedTo: null,
+        });
+        break;
+      }
+    }
+  }
+  seats.push(...autoBookSpots);
+
   // Deduplicate
   for (const zone of Object.keys(zoneWaypoints) as Zone[]) {
     const seen = new Set<string>();
@@ -982,12 +1012,14 @@ export function syncAgents(
     // Use character sprites as-is — each char file has unique art, no hue shift needed
     const sprites = state.baseSprites[baseIdx];
 
-    // Spawn in the appropriate zone
+    // Spawn in the appropriate zone (never on void/wall tiles)
     const zoneWps = state.zoneWaypoints[zone];
     const spawnPool = zoneWps.length > 0 ? zoneWps : state.walkable;
     const spawn = spawnPool.length > 0
       ? spawnPool[Math.floor(Math.random() * spawnPool.length)]
-      : { col: 5, row: 14 };
+      : state.walkable.length > 0
+        ? state.walkable[Math.floor(Math.random() * state.walkable.length)]
+        : { col: 1, row: 1 };
 
     const ch = createCharacter(
       agent.worker,
