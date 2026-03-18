@@ -1,0 +1,136 @@
+#!/usr/bin/env node
+/**
+ * mc-cron-sync — Reads MANIFEST.json crons, checks requires[] against mc-vault,
+ * and ensures all valid crons exist in jobs.json.
+ *
+ * Usage: mc-cron-sync [--dry-run]
+ */
+
+const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
+const crypto = require('crypto');
+
+const STATE_DIR = process.env.OPENCLAW_STATE_DIR || path.join(process.env.HOME, '.openclaw');
+const MANIFEST_PATH = path.join(STATE_DIR, 'miniclaw', 'MANIFEST.json');
+const JOBS_PATH = path.join(STATE_DIR, 'cron', 'jobs.json');
+const PROMPTS_DIR = path.join(STATE_DIR, 'cron', 'prompts');
+const MINICLAW_OS_PROMPTS = path.join(STATE_DIR, 'projects', 'miniclaw-os', 'cron', 'prompts');
+const VAULT_BIN = path.join(process.env.HOME, '.local', 'bin', 'mc-vault');
+
+const dryRun = process.argv.includes('--dry-run');
+
+function log(msg) {
+  const ts = new Date().toISOString();
+  console.log(`[${ts}] ${msg}`);
+}
+
+function vaultHas(key) {
+  try {
+    execSync(`"${VAULT_BIN}" get ${key} 2>/dev/null`, { stdio: 'pipe' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function loadJSON(p) {
+  return JSON.parse(fs.readFileSync(p, 'utf8'));
+}
+
+function saveJSON(p, data) {
+  fs.writeFileSync(p, JSON.stringify(data, null, 2) + '\n');
+}
+
+// --- Main ---
+try {
+  const manifest = loadJSON(MANIFEST_PATH);
+  const crons = manifest.crons || [];
+  if (!crons.length) {
+    log('No crons in MANIFEST.json');
+    process.exit(0);
+  }
+
+  let jobs;
+  try {
+    jobs = loadJSON(JOBS_PATH);
+  } catch {
+    jobs = { version: 1, jobs: [] };
+  }
+
+  const existingNames = new Set(jobs.jobs.map(j => j.name));
+  let added = 0;
+  let skipped = 0;
+
+  for (const cron of crons) {
+    if (existingNames.has(cron.name)) {
+      log(`EXISTS: ${cron.name}`);
+      continue;
+    }
+
+    // Check requires
+    const requires = cron.requires || [];
+    let satisfied = true;
+    for (const req of requires) {
+      if (!vaultHas(req)) {
+        if (cron.optional) {
+          log(`SKIP (optional, missing ${req}): ${cron.name}`);
+        } else {
+          log(`WARN (missing ${req}, not optional): ${cron.name} — skipping`);
+        }
+        satisfied = false;
+        break;
+      }
+    }
+    if (!satisfied) {
+      skipped++;
+      continue;
+    }
+
+    // Check prompt file exists, copy from miniclaw-os if needed
+    const promptFile = `prompts/${cron.name}.md`;
+    const promptPath = path.join(PROMPTS_DIR, `${cron.name}.md`);
+    if (!fs.existsSync(promptPath)) {
+      const srcPrompt = path.join(MINICLAW_OS_PROMPTS, `${cron.name}.md`);
+      if (fs.existsSync(srcPrompt)) {
+        if (!dryRun) {
+          fs.copyFileSync(srcPrompt, promptPath);
+        }
+        log(`COPY prompt: ${cron.name}.md`);
+      } else {
+        log(`WARN: no prompt file for ${cron.name} — creating job anyway`);
+      }
+    }
+
+    const job = {
+      name: cron.name,
+      schedule: cron.schedule,
+      sessionTarget: cron.sessionTarget || 'isolated',
+      payload: {
+        kind: 'agentTurn',
+        timeoutSeconds: cron.timeoutSeconds || 600,
+        messageFile: promptFile,
+        model: 'claude-haiku-4-5-20251001'
+      },
+      delivery: { mode: 'none' },
+      enabled: true,
+      wakeMode: 'now',
+      id: crypto.randomUUID()
+    };
+
+    if (!dryRun) {
+      jobs.jobs.push(job);
+    }
+    log(`ADD: ${cron.name} (schedule: ${cron.schedule.expr})`);
+    added++;
+  }
+
+  if (!dryRun && added > 0) {
+    saveJSON(JOBS_PATH, jobs);
+  }
+
+  log(`Done. Added: ${added}, Skipped: ${skipped}, Existing: ${existingNames.size}`);
+} catch (err) {
+  console.error('mc-cron-sync error:', err.message);
+  process.exit(1);
+}
