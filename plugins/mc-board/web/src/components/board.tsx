@@ -258,6 +258,35 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
               transition: "background 0.15s ease, border-color 0.15s ease",
             }}
           />
+<<<<<<< ours
+          <button
+            onClick={() => setShowHeld(prev => {
+              const next = !prev;
+              try { localStorage.setItem("mc-board:show-held", String(next)); } catch {}
+              return next;
+            })}
+            style={{
+              fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 6,
+              background: showHeld ? "#451a03" : "transparent",
+              border: showHeld ? "1px solid #d97706" : "1px solid #3f3f46",
+              color: showHeld ? "#fbbf24" : "#52525b",
+              cursor: "pointer", whiteSpace: "nowrap",
+              transition: "background 0.15s, border-color 0.15s, color 0.15s",
+            }}
+          >
+            {showHeld ? "Hide held" : "Show held"}
+          </button>
+||||||| ancestor
+          <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer", fontSize: 12, color: showHeld ? "#a8a29e" : "#52525b", userSelect: "none", whiteSpace: "nowrap" }}>
+            <input
+              type="checkbox"
+              checked={showHeld}
+              onChange={e => setShowHeld(e.target.checked)}
+              style={{ accentColor: "#d97706", cursor: "pointer" }}
+            />
+            show held
+          </label>
+=======
           <button
             onClick={() => {
               setShowHeld(on => {
@@ -280,6 +309,7 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
           >
             {showHeld ? "Hide held" : "Show held"}
           </button>
+>>>>>>> theirs
           <button
             onClick={() => setShowSummary(true)}
             style={{

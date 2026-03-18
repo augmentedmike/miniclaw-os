@@ -96,7 +96,14 @@ export const CardItem = memo(function CardItem({ card, projectName, isActive, wo
       data-card-id={card.id}
       onClick={() => onClick(card.id)}
       onContextMenu={handleContextMenu}
+<<<<<<< ours
+      className={`card${isActive ? " card--active" : ""}`}
+      style={held ? { opacity: 0.5, filter: "saturate(0.3)", borderColor: "#3f3f46" } : undefined}
+||||||| ancestor
+      className={`card${isActive ? " card--active" : ""}`}
+=======
       className={`card${isActive ? " card--active" : ""}${held ? " card--held" : ""}`}
+>>>>>>> theirs
     >
       {/* Worker strip — click opens live log */}
       <div
