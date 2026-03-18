@@ -1,8 +1,6 @@
 export const dynamic = "force-dynamic";
 
 import { spawn } from "node:child_process";
-import { readSetupState } from "@/lib/setup-state";
-import { healSmokeFailures } from "@/lib/smoke-heal";
 
 /**
  * GET /api/setup/smoke
@@ -80,23 +78,22 @@ export async function GET() {
         }
         send({ type: "done", code: code ?? 1, passed, failed, warned });
 
-        // Self-healing: auto-create fix cards for failures
+        // Self-healing: run mc-doctor --auto to create fix cards
         if (failed > 0) {
           try {
-            const state = readSetupState();
-            const result = await healSmokeFailures(
-              fullOutput,
-              state.telegramBotToken,
-              state.telegramChatId,
-            );
-            send({
-              type: "healing",
-              failures: result.failures.length,
-              cardsCreated: result.cards.length,
-              skippedDuplicates: result.skippedDuplicates,
-              notified: result.notified,
-              cards: result.cards,
+            const doctorProc = spawn("bash", ["-c", "mc-doctor --auto"], {
+              env: {
+                ...process.env,
+                PATH: `${stateDir}/miniclaw/SYSTEM/bin:${home}/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${process.env.PATH || ""}`,
+              },
+              stdio: ["pipe", "pipe", "pipe"],
             });
+            let doctorOut = "";
+            doctorProc.stdout?.on("data", (d: Buffer) => { doctorOut += d.toString(); });
+            doctorProc.stderr?.on("data", (d: Buffer) => { doctorOut += d.toString(); });
+            await new Promise<void>((resolve) => doctorProc.on("close", () => resolve()));
+            const cardsCreated = (doctorOut.match(/created card:/g) || []).length;
+            send({ type: "healing", cardsCreated });
           } catch (e) {
             send({ type: "healing", error: e instanceof Error ? e.message : "unknown" });
           }

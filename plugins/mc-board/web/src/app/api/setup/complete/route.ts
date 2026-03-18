@@ -3,7 +3,6 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { readSetupState, writeSetupState } from "@/lib/setup-state";
 import { vaultSet } from "@/lib/vault";
-import { healSmokeFailures } from "@/lib/smoke-heal";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
@@ -748,12 +747,21 @@ export async function POST() {
   // Run mc-smoke to verify everything is healthy
   const smoke = runSmoke();
 
-  // Self-healing: auto-create fix cards for any smoke test failures
-  const healResult = await healSmokeFailures(
-    smoke.output,
-    setupState.telegramBotToken,
-    setupState.telegramChatId,
-  );
+  // Self-healing: run mc-doctor --auto to create fix cards for failures
+  let healCardsCreated = 0;
+  if (!smoke.passed) {
+    try {
+      const doctorOut = execSync("mc-doctor --auto", {
+        encoding: "utf-8",
+        timeout: 120_000,
+        env: {
+          ...process.env,
+          PATH: `${STATE_DIR}/miniclaw/SYSTEM/bin:${os.homedir()}/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${process.env.PATH || ""}`,
+        },
+      });
+      healCardsCreated = (doctorOut.match(/created card:/g) || []).length;
+    } catch { /* mc-doctor may exit non-zero if failures remain */ }
+  }
 
   const state = writeSetupState({
     complete: true,
@@ -769,13 +777,7 @@ export async function POST() {
     smoke: {
       output: smoke.output,
       passed: smoke.passed,
-      healing: {
-        failures: healResult.failures.length,
-        cardsCreated: healResult.cards.length,
-        skippedDuplicates: healResult.skippedDuplicates,
-        notified: healResult.notified,
-        cards: healResult.cards,
-      },
+      healing: { cardsCreated: healCardsCreated },
     },
   });
 }
