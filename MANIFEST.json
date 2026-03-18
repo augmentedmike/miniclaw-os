@@ -1,11 +1,11 @@
 {
   "name": "miniclaw-os",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "openclaw": {
     "npm": "@miniclaw_official/openclaw",
     "npmVersion": "2026.3.12",
     "repo": "augmentedmike/openclaw",
-    "tag": "v0.1.7"
+    "tag": "v0.1.8"
   },
   "description": "AugmentedMike's AI operating system \u2014 plugins, tools, and infrastructure for OpenClaw",
   "dependencies": {
