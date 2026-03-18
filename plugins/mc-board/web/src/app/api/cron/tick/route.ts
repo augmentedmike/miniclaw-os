@@ -3,9 +3,32 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
 import { listCronJobs, updateCronJob } from "@/lib/cron";
-import { listCards, getActiveWork, getRunningByCol } from "@/lib/data";
+import { listCards, getActiveWork, getRunningByCol, getDb } from "@/lib/data";
 import { releaseCard } from "@/lib/actions";
 import { sortCards } from "@/lib/sort";
+
+/**
+ * Clear stale agent_queue entries: running entries for cards that have
+ * moved to a different column or entries older than STALE_MS.
+ */
+function cleanStaleRunning(column: string): void {
+  const db = getDb();
+  if (!db) return;
+  try {
+    // Mark as done: entries where the card is no longer in the expected column
+    db.prepare(`
+      UPDATE agent_queue SET status = 'done'
+      WHERE status = 'running' AND col = ?
+      AND card_id NOT IN (SELECT id FROM cards WHERE column = ?)
+    `).run(column, column);
+    // Mark as done: entries older than 20 minutes (stale agents)
+    const cutoff = new Date(Date.now() - STALE_MS).toISOString();
+    db.prepare(`
+      UPDATE agent_queue SET status = 'done'
+      WHERE status = 'running' AND col = ? AND started_at < ?
+    `).run(column, cutoff);
+  } catch { /* best effort */ }
+}
 
 export const dynamic = "force-dynamic";
 
@@ -179,6 +202,9 @@ export async function GET(req: Request) {
     if (!prompt) { skipped.push(`${job.id}: no prompt`); continue; }
 
     const maxConcurrent = job.maxConcurrent ?? 3;
+
+    // Clean up stale running entries (cards that shipped or agents that died)
+    cleanStaleRunning(column);
 
     // Subtract already-running agents from the available slots
     const runningByCol = getRunningByCol();
