@@ -36,6 +36,11 @@ if [[ -d "$HOME/.openclaw" ]]; then
     echo "  Deleting ~/.openclaw..."
     rm -rf "$HOME/.openclaw"
   else
+    # Delete projects/ before backup — repo clones are huge and re-cloned on install
+    if [[ -d "$HOME/.openclaw/projects" ]]; then
+      echo "  Removing projects/ before backup..."
+      rm -rf "$HOME/.openclaw/projects"
+    fi
     BACKUP="$HOME/.openclaw-backup-$(date +%Y%m%d-%H%M%S)"
     echo "  Moving ~/.openclaw → $BACKUP"
     mv "$HOME/.openclaw" "$BACKUP"
