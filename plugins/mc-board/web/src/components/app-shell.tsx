@@ -157,7 +157,7 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
           <div className="brand">MiniClaw Brain</div>
           <div className="tab-bar">
             {(["office", "board", "memory", "rolodex", "settings"] as Tab[]).map(t => {
-              const activeCount = t === "board" && counts ? counts.inProgress : 0;
+              const activeCount = t === "board" && counts ? counts.backlog + counts.inProgress + counts.inReview : 0;
               const memoryCount = t === "memory" && memoryStats ? memoryStats.total : 0;
               const badgeCount = t === "rolodex" && rolodexCount ? rolodexCount.count : t === "memory" ? memoryCount : activeCount;
               return (
