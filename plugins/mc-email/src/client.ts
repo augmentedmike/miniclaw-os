@@ -5,6 +5,56 @@ import type { EmailConfig } from "./config.js";
 import { getAppPassword } from "./vault.js";
 import type { EmailAttachment, EmailMessage, SendEmailOptions } from "./types.js";
 
+const HTML_ENTITY_MAP: Record<string, string> = {
+  "&amp;": "&",
+  "&lt;": "<",
+  "&gt;": ">",
+  "&quot;": '"',
+  "&#39;": "'",
+  "&apos;": "'",
+  "&nbsp;": " ",
+  "&ndash;": "–",
+  "&mdash;": "—",
+  "&hellip;": "…",
+  "&copy;": "©",
+  "&reg;": "®",
+  "&trade;": "™",
+};
+
+/**
+ * Convert HTML to readable plain text.
+ * 1. Strip <style> and <script> blocks (including contents)
+ * 2. Strip remaining HTML tags
+ * 3. Decode common HTML entities + numeric character references
+ * 4. Collapse whitespace
+ */
+export function htmlToText(html: string): string {
+  let text = html;
+  // Remove style blocks
+  text = text.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "");
+  // Remove script blocks
+  text = text.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "");
+  // Strip all HTML tags
+  text = text.replace(/<[^>]+>/g, " ");
+  // Decode named HTML entities
+  text = text.replace(/&[a-z#0-9]+;/gi, (entity) => {
+    const lower = entity.toLowerCase();
+    if (HTML_ENTITY_MAP[lower]) return HTML_ENTITY_MAP[lower];
+    // Numeric character references: &#123; or &#x1a;
+    const numMatch = lower.match(/^&#x?([0-9a-f]+);$/);
+    if (numMatch) {
+      const code = lower.startsWith("&#x")
+        ? parseInt(numMatch[1], 16)
+        : parseInt(numMatch[1], 10);
+      return String.fromCharCode(code);
+    }
+    return entity;
+  });
+  // Collapse whitespace
+  text = text.replace(/\s+/g, " ").trim();
+  return text;
+}
+
 function createImapClient(cfg: EmailConfig): ImapFlow {
   const password = getAppPassword(cfg.vaultBin);
   if (!password) {
@@ -109,8 +159,7 @@ export class GmailClient {
           const parsed = await simpleParser(msg.source);
           body = parsed.text ?? "";
           if (!body && parsed.html) {
-            // Strip HTML tags as fallback when no plain-text part exists
-            body = parsed.html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+            body = htmlToText(parsed.html);
           }
           snippet = body.substring(0, 500);
 
