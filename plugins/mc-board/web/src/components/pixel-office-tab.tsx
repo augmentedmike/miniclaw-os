@@ -106,6 +106,15 @@ export function PixelOfficeTab({ onSwitchToBoard }: Props) {
           }
         } catch {}
         stateRef.current = state;
+        // Set canvas size from container so first frame renders correctly
+        const container = containerRef.current;
+        const canvas = canvasRef.current;
+        if (container && canvas) {
+          const rect = container.getBoundingClientRect();
+          canvas.width = Math.floor(rect.width);
+          canvas.height = Math.floor(rect.height);
+          centerView(state, canvas.width, canvas.height);
+        }
         setLoaded(true);
       } catch (e) {
         if (!cancelled) setError(String(e));
