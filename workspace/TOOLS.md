@@ -1,6 +1,6 @@
 # TOOLS.md — Local Tool Reference
 
-All tools are accessed via `openclaw mc-<plugin> <command>` or the standalone CLI `mc-<plugin>`. Never call underlying tools (himalaya, qmd, etc.) directly — always use the mc-plugin wrapper.
+All tools are accessed via `openclaw mc-<plugin> <command>`. Never call underlying tools directly — always use the mc-plugin wrapper.
 
 ## Git / Projects
 
@@ -24,10 +24,13 @@ openclaw mc-board context --column backlog
 
 ## Memory (mc-memory)
 
+Short-term goes into markdown files. Long-term goes into KB vectors.
+
 ```bash
-openclaw mc-memory recall "what did we decide about X"
-openclaw mc-memory search "exact term"
-openclaw mc-memory write "learned something new" --type episodic
+openclaw mc-memory write "learned something"   # short-term (markdown)
+openclaw mc-memory recall "what did we decide"  # search across all memory
+openclaw mc-memory list                         # list recent entries
+openclaw mc-memory promote                      # promote short-term → long-term KB
 ```
 
 ---
@@ -122,6 +125,8 @@ openclaw mc-github pr-view <number>
 openclaw mc-github pr-review <number>
 ```
 
+Also: `gh` CLI is available for full GitHub operations.
+
 ---
 
 ## Backup (mc-backup)
@@ -131,3 +136,12 @@ openclaw mc-backup now
 openclaw mc-backup list
 ```
 
+---
+
+## Reflection (mc-reflection)
+
+```bash
+openclaw mc-reflection run
+openclaw mc-reflection list
+openclaw mc-reflection show <date>
+```
