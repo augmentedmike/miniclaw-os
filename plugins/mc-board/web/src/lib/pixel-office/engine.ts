@@ -118,6 +118,7 @@ export interface OfficeState {
   seats: Seat[];
   blocked: Set<string>;
   walkable: { col: number; row: number }[];
+  spawnTiles: { col: number; row: number }[];
   zoneWaypoints: Record<Zone, { col: number; row: number }[]>;
   floorImages: Map<number, HTMLImageElement>;
   wallImage: HTMLImageElement | null;
@@ -532,17 +533,19 @@ export function renderOffice(
     }
   }
 
-  // Layer 3: All furniture + objects EXCEPT _BACK items
+  // Layer 3: All non-BACK furniture (rendered behind characters)
   for (const item of layout.furniture) {
     if (item.type.includes("BACK")) continue;
     drawFurnitureItem(item);
   }
 
-  // Layer 4: Characters sorted by Y (lower on screen = drawn last = on top)
+  // Layer 4: Characters (rendered on top of non-BACK furniture)
   const sortedChars = [...characters].sort((a, b) => a.y - b.y);
-  for (const ch of sortedChars) renderCharacter(ctx, ch, state);
+  for (const ch of sortedChars) {
+    renderCharacter(ctx, ch, state);
+  }
 
-  // Layer 5: _BACK furniture only (the only things that occlude characters)
+  // Layer 5: BACK furniture only (occludes characters)
   for (const item of layout.furniture) {
     if (!item.type.includes("BACK")) continue;
     drawFurnitureItem(item);
@@ -737,11 +740,19 @@ export function getDefaultLayout(): OfficeLayout {
   };
 }
 
+
 // Load all assets
 export async function initOffice(
   layoutOrNull?: OfficeLayout | null
 ): Promise<OfficeState> {
   const layout = layoutOrNull ?? getDefaultLayout();
+  // Sanitize: convert any old SPAWN_ZONE (10) or unknown tile values back to FLOOR_1
+  const KNOWN_TILES = new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 255]);
+  for (let i = 0; i < layout.tiles.length; i++) {
+    if (!KNOWN_TILES.has(layout.tiles[i])) {
+      layout.tiles[i] = TileType.FLOOR_1;
+    }
+  }
   const blocked = buildBlockedTiles(layout.furniture);
   const seats = buildSeats(layout.furniture);
   const walkable = getWalkableTiles(
@@ -909,6 +920,7 @@ export async function initOffice(
     seats,
     blocked,
     walkable,
+    spawnTiles: [],  // populated later via setSpawnPoints()
     zoneWaypoints,
     floorImages,
     wallImage,
@@ -923,21 +935,31 @@ export async function initOffice(
   };
 }
 
-/** Determine which zone a seat belongs to based on zoneWaypoints */
+/** Determine which zone a seat belongs to based on proximity to zoneWaypoints */
 function seatZone(state: OfficeState, seatId: string): Zone | null {
   const seat = state.seats.find(s => s.uid === seatId);
   if (!seat) return null;
-  const key = `${seat.col},${seat.row}`;
+  // Check exact match first, then proximity (within 2 tiles)
   for (const [zone, wps] of Object.entries(state.zoneWaypoints) as [Zone, { col: number; row: number }[]][]) {
-    if (wps.some(w => `${w.col},${w.row}` === key)) return zone;
+    if (wps.some(w => w.col === seat.col && w.row === seat.row)) return zone;
+  }
+  for (const [zone, wps] of Object.entries(state.zoneWaypoints) as [Zone, { col: number; row: number }[]][]) {
+    if (wps.some(w => Math.abs(w.col - seat.col) + Math.abs(w.row - seat.row) <= 2)) return zone;
   }
   return null;
 }
 
-/** Find a free seat within a specific zone */
+/** Find a free seat within a specific zone (exact or nearby) */
 function findFreeSeatInZone(state: OfficeState, zone: Zone, charCol?: number, charRow?: number): Seat | undefined {
-  const zoneKeys = new Set(state.zoneWaypoints[zone].map(w => `${w.col},${w.row}`));
-  const candidates = state.seats.filter(s => !s.assigned && zoneKeys.has(`${s.col},${s.row}`));
+  const wps = state.zoneWaypoints[zone];
+  const candidates = state.seats.filter(s => {
+    if (s.assigned) return false;
+    // Exact match
+    if (wps.some(w => w.col === s.col && w.row === s.row)) return true;
+    // Proximity (within 2 tiles of any zone waypoint)
+    if (wps.some(w => Math.abs(w.col - s.col) + Math.abs(w.row - s.row) <= 2)) return true;
+    return false;
+  });
   if (candidates.length === 0) {
     // Fallback: any free seat
     return state.seats.find(s => !s.assigned);
@@ -1012,14 +1034,19 @@ export function syncAgents(
     // Use character sprites as-is — each char file has unique art, no hue shift needed
     const sprites = state.baseSprites[baseIdx];
 
-    // Spawn in the appropriate zone (never on void/wall tiles)
+    // Spawn priority: painted spawn zones > zone waypoints > all walkable
     const zoneWps = state.zoneWaypoints[zone];
-    const spawnPool = zoneWps.length > 0 ? zoneWps : state.walkable;
+    const spawnPool = state.spawnTiles.length > 0
+      ? state.spawnTiles
+      : zoneWps.length > 0
+        ? zoneWps
+        : state.walkable;
+    const fallback = state.walkable.length > 0
+      ? state.walkable[Math.floor(Math.random() * state.walkable.length)]
+      : { col: 5, row: 5 };
     const spawn = spawnPool.length > 0
       ? spawnPool[Math.floor(Math.random() * spawnPool.length)]
-      : state.walkable.length > 0
-        ? state.walkable[Math.floor(Math.random() * state.walkable.length)]
-        : { col: 1, row: 1 };
+      : fallback;
 
     const ch = createCharacter(
       agent.worker,
@@ -1163,7 +1190,8 @@ interface SpotData {
 export function applyZoneMap(
   state: OfficeState,
   zoneMap: Record<string, string>,
-  spotsData?: SpotData[]
+  spotsData?: SpotData[],
+  spawnPoints?: { col: number; row: number }[]
 ): void {
   const COLUMN_TO_ZONE: Record<string, Zone> = {
     "in-progress": "desk",
@@ -1186,7 +1214,7 @@ export function applyZoneMap(
     const zone = COLUMN_TO_ZONE[column];
     if (!zone) continue;
     const [col, row] = key.split(",").map(Number);
-    zoneWaypoints[zone].push({ col, row: row - 1 });
+    zoneWaypoints[zone].push({ col, row });
   }
   if (Object.keys(zoneMap).length > 0) {
     state.zoneWaypoints = zoneWaypoints;
@@ -1202,7 +1230,7 @@ export function applyZoneMap(
     state.seats = spotsData.map((s, i) => ({
       uid: `user-spot-${i}`,
       col: s.col,
-      row: s.row - 1,
+      row: s.row - 1,  // Character tileRow is top of 2-tile sprite; shift up 1 so body aligns with chair
       facingDir: FACING_TO_DIR[s.facing] ?? Direction.DOWN,
       action: (s.action === "stand" ? "stand" : "sit") as "sit" | "stand",
       assigned: false,
@@ -1213,6 +1241,14 @@ export function applyZoneMap(
       ch.seatId = null;
       ch.state = CharacterState.IDLE;
     }
+  }
+
+  // Apply spawn points (filter to walkable only)
+  if (spawnPoints && spawnPoints.length > 0) {
+    state.spawnTiles = spawnPoints.filter((sp) =>
+      !state.blocked.has(`${sp.col},${sp.row}`) &&
+      state.walkable.some((w) => w.col === sp.col && w.row === sp.row)
+    );
   }
 }
 

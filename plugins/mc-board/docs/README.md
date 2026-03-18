@@ -27,10 +27,6 @@ mc board move <id> in-review
 mc board move <id> shipped
 mc board next                     # what should I work on next?
 mc board archive <id>
-
-# WIP limit
-mc board wip-limit in-progress    # print configured max for a column
-mc board wip-limit in-review
 ```
 
 ## Column flow
@@ -38,15 +34,6 @@ mc board wip-limit in-review
 ```
 backlog → in-progress → in-review → shipped
 ```
-
-## WIP limits
-
-Each column has a configurable max concurrent cards (`maxConcurrent` in `board-cron.json`, default: 3). The limit is enforced in two places:
-
-- **`brain move`** — blocks the move and exits non-zero if the target column is at capacity. Use `--force` to override for recovery.
-- **`brain triage`** — the auto-move step that fires when Haiku marks a card ready also checks the WIP limit. Cards exceeding the limit stay in backlog; the error is written to card notes.
-
-Cron worker prompts call `mc board wip-limit <column>` at runtime to read the configured value — no hardcoded numbers.
 
 ## Config
 

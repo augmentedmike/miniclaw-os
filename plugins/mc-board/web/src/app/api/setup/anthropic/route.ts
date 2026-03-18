@@ -4,7 +4,6 @@ import { NextResponse } from "next/server";
 import { execSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { consumeToken } from "@/lib/sensitive-auth";
-import { readSetupState } from "@/lib/setup-state";
 
 const CLAUDE_BIN = "/Users/michaeloneal/.local/bin/claude";
 const HOME = process.env.HOME || "";
@@ -69,8 +68,7 @@ export async function POST() {
 export async function PUT(req: Request) {
   const { token, sensitiveToken } = await req.json();
 
-  const isInitialSetup = !readSetupState().complete;
-  if (!isInitialSetup && !consumeToken(sensitiveToken)) {
+  if (!consumeToken(sensitiveToken)) {
     return NextResponse.json(
       { ok: false, error: "Password confirmation required" },
       { status: 403 },
