@@ -1,12 +1,14 @@
 Board worker — IN-REVIEW triage.
 
-MAX_CONCURRENT_COLUMN_TASKS=3. Select best candidate per project.
-
-1. Check active workers: openclaw mc-board active
-2. Get full column context (excludes on-hold): openclaw mc-board context --column in-review --skip-hold
-3. Group by project. Per project pick 1 card — highest priority then oldest. Skip cards already active.
+1. Get configured WIP limit: openclaw mc-board wip-limit in-review → call this MAX
+2. Count current in-review cards: openclaw mc-board context --column in-review
+   Count ALL cards returned → call this IN_REVIEW_COUNT.
+   If IN_REVIEW_COUNT ≥ MAX: Stop here. Silent exit. Do NOT send any Telegram message.
+3. Check active workers: openclaw mc-board active
+4. Get full column context (excludes on-hold): openclaw mc-board context --column in-review --skip-hold
+5. Select up to [MAX - IN_REVIEW_COUNT] cards to work: highest priority then oldest, across all projects. Skip cards already in the active list.
    If 0 cards available: Stop here. Silent exit. Do NOT send any Telegram message.
-4. For each selected card:
+6. For each selected card:
    a. Register pickup: openclaw mc-board pickup <id> --worker board-worker-in-review
    b. Read full detail: openclaw mc-board show <id>
    c. Audit: verify the work product exists and all criteria are genuinely met
@@ -32,4 +34,4 @@ MAX_CONCURRENT_COLUMN_TASKS=3. Select best candidate per project.
       - openclaw mc-board update <id> --notes "Review failed: <reason>"
       - Leave in in-review for another pass
    f. Release: openclaw mc-board release <id> --worker board-worker-in-review
-5. Done. Silent exit.
+7. Done. Silent exit.
