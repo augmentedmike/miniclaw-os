@@ -625,6 +625,17 @@
       "sessionTarget": "isolated",
       "requires": ["gh-token"],
       "optional": false
+    },
+    {
+      "name": "github-activity-check",
+      "description": "Checks open PRs and issues hourly: merges own PRs when ready, responds to review comments on upstream PRs, updates board cards with requested changes",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 * * * *"
+      },
+      "timeoutSeconds": 120,
+      "sessionTarget": "isolated",
+      "requires": ["gh-token"]
     }
   ],
   "launchAgents": [
