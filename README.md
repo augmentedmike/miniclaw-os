@@ -227,6 +227,16 @@ mc-doctor         # Full diagnosis & auto-repair
 
 ---
 
+## Support
+
+**Free support:** [miniclaw.bot/#support](https://miniclaw.bot/#support) — community forums, knowledge base, and async help.
+
+**Paid consulting:** Setup assistance, custom plugin development, architecture reviews, and ongoing support via Amelia's sponsor program. [Learn more →](https://helloam.bot/#support)
+
+**Report a bug or suggest a feature:** Use the [GitHub Issues](https://github.com/augmentedmike/miniclaw-os/issues) or [GitHub Discussions](https://github.com/augmentedmike/miniclaw-os/discussions) — your agent can file these for you.
+
+---
+
 ## Contributing
 
 Your agent handles contributions autonomously via **[mc-contribute](./docs/mc-contribute.md)**. Tell it what you want — file a bug, request a feature, submit a fix — and it does the work.
