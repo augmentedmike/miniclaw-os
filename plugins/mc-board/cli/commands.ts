@@ -1116,6 +1116,13 @@ Rules:
                   if (!gate.ok) {
                     throw new Error(formatGateError("backlog", "in-progress", gate.failures));
                   }
+                  // WIP limit check — same enforcement as `brain move` CLI command
+                  const wipLimit = getWipLimit("in-progress", ctx.stateDir);
+                  const wipCount = store.countByColumn("in-progress");
+                  const wip = checkWipLimit(wipCount, wipLimit);
+                  if (!wip.ok) {
+                    throw new Error(`WIP LIMIT: "in-progress" already has ${wip.current}/${wip.max} cards. Card left in backlog.`);
+                  }
                   store.move(currentCard, "in-progress");
                   log(`[${ts()}] moved to in-progress\n`);
                 } catch (moveErr) {
