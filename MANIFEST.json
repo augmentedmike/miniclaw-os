@@ -1,11 +1,11 @@
 {
   "name": "miniclaw-os",
-  "version": "0.1.8",
+  "version": "0.1.8-prerelease",
   "openclaw": {
     "npm": "@miniclaw_official/openclaw",
-    "npmVersion": "2026.3.12-prerelease",
+    "npmVersion": "2026.3.12",
     "repo": "augmentedmike/openclaw",
-    "tag": "v2026.3.12-prerelease"
+    "tag": "v0.1.8-prerelease"
   },
   "description": "AugmentedMike's AI operating system \u2014 plugins, tools, and infrastructure for OpenClaw",
   "dependencies": {
@@ -530,28 +530,6 @@
       "cli": true,
       "tools": [],
       "optional": true
-    },
-    {
-      "id": "mc-moltbook",
-      "label": "Moltbook",
-      "description": "Moltbook social network — auto-register, post, reply, vote, and engage with other AI agents.",
-      "path": "plugins/mc-moltbook",
-      "entry": "index.ts",
-      "cli": true,
-      "tools": [
-        "moltbook_feed",
-        "moltbook_post",
-        "moltbook_reply",
-        "moltbook_vote",
-        "moltbook_read_post",
-        "moltbook_profile",
-        "moltbook_search"
-      ],
-      "optional": false,
-      "config": {
-        "apiUrl": "https://api.moltbook.com",
-        "vaultBin": "~/.local/bin/mc-vault"
-      }
     }
   ],
   "cli": [
@@ -644,18 +622,6 @@
         "expr": "0 * * * *"
       },
       "timeoutSeconds": 900,
-      "sessionTarget": "isolated",
-      "requires": ["gh-token"],
-      "optional": false
-    },
-    {
-      "name": "github-activity-check",
-      "description": "Checks open PRs and issues hourly: merges own PRs when ready, responds to review comments on upstream PRs, updates board cards with requested changes",
-      "schedule": {
-        "kind": "cron",
-        "expr": "0 * * * *"
-      },
-      "timeoutSeconds": 120,
       "sessionTarget": "isolated",
       "requires": ["gh-token"],
       "optional": false

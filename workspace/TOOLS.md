@@ -1,5 +1,22 @@
 # TOOLS.md — Local Tool Reference
 
+## Git / Projects
+
+All cloned repositories MUST go in `~/.openclaw/miniclaw/USER/projects/`. Never clone repos anywhere else (`workspace/`, `projects/`, home dir, etc.).
+
+```bash
+# Clone a repo
+cd ~/.openclaw/miniclaw/USER/projects
+git clone https://github.com/augmentedmike/miniclaw-os.git
+
+# OpenClaw fork (sibling)
+git clone https://github.com/augmentedmike/openclaw.git
+```
+
+This is the human's project space. System processes must never write here — only the agent (you) when explicitly working on code tasks.
+
+---
+
 ## Memory Search
 
 ```bash

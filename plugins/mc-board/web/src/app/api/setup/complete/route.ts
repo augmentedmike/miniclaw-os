@@ -567,7 +567,7 @@ VALUES (
   datetime('now'),
   datetime('now'),
   'The rolodex has a placeholder contact for the human owner (name="My Human", no email). The agent needs to ask the human for their real name and preferred email address, then update the rolodex so all future communications use the correct identity.',
-  '1. Send the human a friendly message asking for their preferred name and email address.\\n2. Once the human replies, run: mc-rolodex update <human-contact-id> --name "<real name>" --email "<real email>"\\n3. Verify the rolodex contact was updated correctly with mc-rolodex list.',
+  '1. Send the human a Telegram message (use the inbox CLI, NOT mc-human) asking for their preferred name and email address.\\n2. Once the human replies in Telegram, find the human contact id with: openclaw mc-rolodex list --tag owner\\n3. Update the contact: openclaw mc-rolodex update <human-contact-id> --name "<real name>" --email "<real email>"\\n4. Verify the rolodex contact was updated correctly with: openclaw mc-rolodex list',
   '- [ ] Human contact in rolodex has their real name (not "My Human")\\n- [ ] Human contact has their real email address\\n- [ ] Agent confirmed the update via mc-rolodex list'
 )""")
 conn.commit()

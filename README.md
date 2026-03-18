@@ -12,7 +12,7 @@
   <a href="#install"><img src="https://img.shields.io/badge/Install_in_60s-FF6D00?style=for-the-badge&logo=apple&logoColor=white" alt="Install in 60s"></a>
   <a href="https://github.com/augmentedmike/miniclaw-os/stargazers"><img src="https://img.shields.io/github/stars/augmentedmike/miniclaw-os?style=for-the-badge&color=yellow" alt="GitHub Stars"></a>
   <a href="https://github.com/augmentedmike/miniclaw-os/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=for-the-badge" alt="Apache 2.0 License"></a>
-  <a href="https://github.com/augmentedmike/miniclaw-os/releases"><img src="https://img.shields.io/badge/version-v0.1.8-blue?style=for-the-badge" alt="v0.1.8"></a>
+  <a href="https://github.com/augmentedmike/miniclaw-os/releases"><img src="https://img.shields.io/badge/version-v0.1.8-prerelease-blue?style=for-the-badge" alt="v0.1.8-prerelease"></a>
   <a href="https://github.com/augmentedmike/miniclaw-os/actions/workflows/test.yml"><img src="https://img.shields.io/github/actions/workflow/status/augmentedmike/miniclaw-os/test.yml?branch=stable&style=for-the-badge&label=tests" alt="Tests"></a>
 </p>
 
@@ -91,29 +91,34 @@ MiniClaw OS isn't another wrapper around an LLM. It's the **operating system** f
 
 ## The Plugin Brain
 
-34+ plugins. Each one is a cognitive region — modular, composable, replaceable.
+36 plugins. Each one is a cognitive region — modular, composable, replaceable.
 
 ### Core Cognition
 
 | Plugin | What it does |
 |--------|-------------|
-| **[mc-board](./docs/mc-board.md)** | Kanban brain — autonomous task lifecycle, priority queue, gate system |
+| **[mc-board](./docs/mc-board.md)** | Kanban brain — autonomous task lifecycle, priority queue, WIP limits, pixel office |
 | **[mc-kb](./docs/mc-kb.md)** | Long-term memory — vector + keyword search, facts, lessons, postmortems |
+| **[mc-memory](./docs/mc-memory.md)** | Unified memory gateway — smart routing, recall, memo-to-KB promotion |
 | **[mc-reflection](./docs/mc-reflection.md)** | Nightly self-reflection — reviews memories, board, transcripts; extracts lessons |
 | **[mc-memo](./docs/mc-memo.md)** | Working memory — per-task scratchpad to avoid repeating failed approaches |
 | **[mc-soul](./docs/mc-soul.md)** | Identity — personality traits, values, voice; loaded into every conversation |
 | **[mc-context](./docs/mc-context.md)** | Context window — sliding window management, automatic pruning |
-| **[mc-queue](./docs/mc-queue.md)** | Async routing — non-blocking message dispatch for all input channels |
+| **[mc-queue](./docs/mc-queue.md)** | Async routing — model selection by session type (Haiku/Sonnet/Opus) |
+| **[mc-jobs](./docs/mc-jobs.md)** | Role templates — role-specific prompts, procedures, and review gates |
+| **[mc-guardian](./docs/mc-guardian.md)** | Crash guard — absorbs non-fatal exceptions to keep the gateway alive |
 
-### Communication
+### Communication & Social
 
 | Plugin | What it does |
 |--------|-------------|
-| **[mc-email](./docs/mc-email.md)** | Gmail — IMAP polling, Haiku-based classification, auto-reply |
-| **[mc-rolodex](./docs/mc-rolodex.md)** | Contacts — fuzzy search by name, email, domain, or tag |
+| **[mc-email](./docs/mc-email.md)** | Email — IMAP polling, auto-classification, signature generation, attachment download |
+| **[mc-rolodex](./docs/mc-rolodex.md)** | Contacts — fuzzy search, update, trust status tracking |
 | **[mc-trust](./docs/mc-trust.md)** | Agent identity — cryptographic verification and signed messages |
-| **[mc-human](./docs/mc-human.md)** | Human-in-the-loop — noVNC browser handoff for CAPTCHAs |
+| **[mc-human](./docs/mc-human.md)** | Human-in-the-loop — noVNC browser handoff for CAPTCHAs and login flows |
 | **[mc-reddit](./docs/mc-reddit.md)** | Reddit — posts, comments, voting, subreddit moderation |
+| **[mc-social](./docs/mc-social.md)** | GitHub social — track repos, find contribution opportunities, log engagement |
+| **[mc-fan](./docs/mc-fan.md)** | Fan engagement — follow and engage with people, agents, and projects the agent admires |
 
 ### Content & Publishing
 
@@ -122,19 +127,32 @@ MiniClaw OS isn't another wrapper around an LLM. It's the **operating system** f
 | **[mc-designer](./docs/mc-designer.md)** | Visual studio — Gemini-backed image generation, compositing, blend modes |
 | **[mc-blog](./docs/mc-blog.md)** | Blog engine — first-person journal entries from the agent's perspective |
 | **[mc-substack](./docs/mc-substack.md)** | Substack — draft, schedule, publish with bilingual support |
+| **[mc-devlog](./docs/mc-devlog.md)** | Daily devlog — aggregates git activity, credits contributors, cross-posts |
 | **[mc-youtube](./docs/mc-youtube.md)** | Video analysis — keyframe extraction and multimodal understanding |
 | **[mc-seo](./docs/mc-seo.md)** | SEO — site audits, keyword tracking, sitemap submission |
+| **[mc-docs](./docs/mc-docs.md)** | Document authoring — versioning and linked document management |
+| **[mc-voice](./docs/mc-voice.md)** | Speech-to-text — local transcription via whisper.cpp |
 
-### Commerce & Operations
+### Infrastructure & Operations
+
+| Plugin | What it does |
+|--------|-------------|
+| **[mc-github](./docs/mc-github.md)** | GitHub — issues, PRs, reviews, releases, Actions via gh CLI |
+| **[mc-vpn](./docs/mc-vpn.md)** | VPN — Mullvad connection management, country switching, auto-connect |
+| **[mc-tailscale](./docs/mc-tailscale.md)** | Tailscale — diagnostics, status, Serve/Funnel, custom domains |
+| **[mc-authenticator](./docs/mc-authenticator.md)** | 2FA — TOTP codes for autonomous login |
+| **[mc-backup](./docs/mc-backup.md)** | Backups — daily tgz snapshots with tiered retention |
+| **[mc-update](./docs/mc-update.md)** | Self-update — nightly version checks, smoke verification, rollback |
+| **[mc-calendar](./docs/mc-calendar.md)** | Apple Calendar — create, update, delete, search events via EventKit |
+| **[mc-contribute](./docs/mc-contribute.md)** | Self-improvement — scaffold plugins, file bugs, submit PRs |
+
+### Commerce
 
 | Plugin | What it does |
 |--------|-------------|
 | **[mc-stripe](./docs/mc-stripe.md)** | Stripe — charges, refunds, customer management |
 | **[mc-square](./docs/mc-square.md)** | Square — payments, refunds, payment links |
 | **[mc-booking](./docs/mc-booking.md)** | Scheduling — bookable slots, payment integration |
-| **[mc-authenticator](./docs/mc-authenticator.md)** | 2FA — TOTP codes for autonomous login |
-| **[mc-backup](./docs/mc-backup.md)** | Backups — daily tgz snapshots with tiered retention |
-| **[mc-contribute](./docs/mc-contribute.md)** | Self-improvement — scaffold plugins, file bugs, submit PRs |
 
 ---
 

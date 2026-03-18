@@ -11,8 +11,7 @@ import chalk from 'chalk';
 import * as fs from 'fs';
 
 const program = new Command();
-const storagePath = `${process.env.OPENCLAW_STATE_DIR || process.env.HOME + "/.openclaw"}/USER/rolodex/contacts.json`;
-const engine = new SearchEngine(storagePath);
+const engine = new SearchEngine();
 
 program
   .name('mc-rolodex')
@@ -175,6 +174,59 @@ program
       console.error(chalk.red(`Error: ${(err as Error).message}`));
       process.exit(1);
     }
+  });
+
+/**
+ * update <contact_id> - Update a contact's fields
+ */
+program
+  .command('update <id>')
+  .description('Update a contact (individual flags or JSON)')
+  .option('--name <name>', 'Set contact name')
+  .option('--email <email>', 'Set emails (comma-separated)')
+  .option('--phone <phone>', 'Set phones (comma-separated)')
+  .option('--tag <tag>', 'Set tags (comma-separated)')
+  .option('--notes <notes>', 'Set notes')
+  .option('--trust <status>', 'Set trust status: verified|untrusted|pending|unknown')
+  .option('--json <data>', 'Merge arbitrary JSON fields')
+  .action((id: string, opts: { name?: string; email?: string; phone?: string; tag?: string; notes?: string; trust?: string; json?: string }) => {
+    const contact = engine.getById(id);
+    if (!contact) {
+      console.error(chalk.red(`Contact not found: ${id}`));
+      process.exit(1);
+    }
+
+    const updates: Record<string, unknown> = {};
+
+    if (opts.name) updates.name = opts.name;
+    if (opts.email) updates.emails = opts.email.split(',').map(s => s.trim());
+    if (opts.phone) updates.phones = opts.phone.split(',').map(s => s.trim());
+    if (opts.tag) updates.tags = opts.tag.split(',').map(s => s.trim());
+    if (opts.notes) updates.notes = opts.notes;
+    if (opts.trust) updates.trustStatus = opts.trust;
+
+    if (opts.json) {
+      try {
+        let parsed;
+        if (fs.existsSync(opts.json)) {
+          parsed = JSON.parse(fs.readFileSync(opts.json, 'utf8'));
+        } else {
+          parsed = JSON.parse(opts.json);
+        }
+        Object.assign(updates, parsed);
+      } catch (err) {
+        console.error(chalk.red(`Invalid JSON: ${(err as Error).message}`));
+        process.exit(1);
+      }
+    }
+
+    if (Object.keys(updates).length === 0) {
+      console.error(chalk.red('No updates provided. Use --name, --email, --tag, --notes, --trust, or --json.'));
+      process.exit(1);
+    }
+
+    engine.update(id, updates as Parameters<typeof engine.update>[1]);
+    console.log(chalk.green(`Updated: ${engine.getById(id)?.name ?? id}`));
   });
 
 /**

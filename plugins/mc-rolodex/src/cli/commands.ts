@@ -180,6 +180,57 @@ Examples:
       }
     });
 
+  // ---- mc-rolodex update ----
+  rolodex
+    .command('update <id>')
+    .description('Update a contact (merge fields from JSON string or file)')
+    .option('--name <name>', 'Set contact name')
+    .option('--email <email>', 'Add or replace email (comma-separated for multiple)')
+    .option('--phone <phone>', 'Add or replace phone (comma-separated for multiple)')
+    .option('--tag <tag>', 'Add or replace tags (comma-separated for multiple)')
+    .option('--notes <notes>', 'Set notes')
+    .option('--trust <status>', 'Set trust status: verified|untrusted|pending|unknown')
+    .option('--json <data>', 'Merge arbitrary JSON fields')
+    .action((id: string, opts: { name?: string; email?: string; phone?: string; tag?: string; notes?: string; trust?: string; json?: string }) => {
+      const contact = engine.getById(id);
+      if (!contact) {
+        console.error(chalk.red(`Contact not found: ${id}`));
+        process.exit(1);
+      }
+
+      const updates: Record<string, unknown> = {};
+
+      if (opts.name) updates.name = opts.name;
+      if (opts.email) updates.emails = opts.email.split(',').map(s => s.trim());
+      if (opts.phone) updates.phones = opts.phone.split(',').map(s => s.trim());
+      if (opts.tag) updates.tags = opts.tag.split(',').map(s => s.trim());
+      if (opts.notes) updates.notes = opts.notes;
+      if (opts.trust) updates.trustStatus = opts.trust;
+
+      if (opts.json) {
+        try {
+          let parsed: Record<string, unknown>;
+          if (fs.existsSync(opts.json)) {
+            parsed = JSON.parse(fs.readFileSync(opts.json, 'utf8')) as Record<string, unknown>;
+          } else {
+            parsed = JSON.parse(opts.json) as Record<string, unknown>;
+          }
+          Object.assign(updates, parsed);
+        } catch (err) {
+          console.error(chalk.red(`Invalid JSON: ${(err as Error).message}`));
+          process.exit(1);
+        }
+      }
+
+      if (Object.keys(updates).length === 0) {
+        console.error(chalk.red('No updates provided. Use --name, --email, --tag, --notes, --trust, or --json.'));
+        process.exit(1);
+      }
+
+      engine.update(id, updates as Parameters<typeof engine.update>[1]);
+      console.log(chalk.green(`Updated: ${engine.getById(id)?.name ?? id}`));
+    });
+
   // ---- mc-rolodex delete ----
   rolodex
     .command('delete <id>')

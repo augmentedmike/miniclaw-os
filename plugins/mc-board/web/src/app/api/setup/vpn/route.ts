@@ -92,13 +92,46 @@ export async function GET() {
   });
 }
 
-/** POST — update autoConnect and/or defaultCountry */
+/** POST — save account to vault, update autoConnect and defaultCountry */
 export async function POST(req: Request) {
   const body = await req.json();
   const updates: { enabled?: boolean; defaultCountry?: string } = {};
 
+  // Store account number in vault if provided
+  if (typeof body.account === "string" && body.account.trim()) {
+    const account = body.account.replace(/\s+/g, "").trim();
+    const vaultRoot = path.join(STATE_DIR, "miniclaw", "SYSTEM", "vault");
+    const vaultBin = ["/usr/local/bin/mc-vault", path.join(STATE_DIR, "miniclaw", "SYSTEM", "bin", "mc-vault")]
+      .find((p) => fs.existsSync(p));
+    if (vaultBin) {
+      try {
+        execFileSync(vaultBin, ["set", "mullvad-account", account], {
+          timeout: 10_000,
+          encoding: "utf-8",
+          env: { ...process.env, OPENCLAW_VAULT_ROOT: vaultRoot },
+        });
+      } catch (e) {
+        return NextResponse.json({ ok: false, error: `Failed to store account in vault: ${e}` }, { status: 500 });
+      }
+    }
+
+    // Also set account number in mullvad CLI if installed
+    const bin = findBin();
+    if (bin) {
+      runSafe(bin, ["account", "login", account]);
+    }
+  }
+
   if (typeof body.autoConnect === "boolean") updates.enabled = body.autoConnect;
   if (typeof body.defaultCountry === "string") updates.defaultCountry = body.defaultCountry;
+
+  // Set relay country in mullvad if provided
+  if (body.defaultCountry) {
+    const bin = findBin();
+    if (bin) {
+      runSafe(bin, ["relay", "set", "location", body.defaultCountry]);
+    }
+  }
 
   const next = writeAutoconnect(updates);
 

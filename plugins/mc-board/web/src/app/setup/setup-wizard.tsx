@@ -11,6 +11,7 @@ import StepGithub from "./steps/step-github";
 import StepAnthropic from "./steps/step-anthropic";
 import StepEmail from "./steps/step-email";
 import StepGemini from "./steps/step-gemini";
+import StepVpn from "./steps/step-vpn";
 import StepUpdateTime from "./steps/step-update-time";
 import StepInstalling from "./steps/step-installing";
 import StepDone from "./steps/step-done";
@@ -23,6 +24,7 @@ const STEPS = [
   "telegram",
   "github",
   "email",
+  "vpn",
   "gemini",
   "anthropic",
   "update-time",
@@ -31,7 +33,7 @@ const STEPS = [
 ] as const;
 type Step = (typeof STEPS)[number];
 
-const NUMBERED_STEPS = ["meet", "telegram", "github", "email", "gemini", "anthropic", "update-time"] as const;
+const NUMBERED_STEPS = ["meet", "telegram", "github", "email", "vpn", "gemini", "anthropic", "update-time"] as const;
 
 function stepFromPath(pathname: string): Step {
   const seg = pathname.split("/").pop() || "";
@@ -147,6 +149,7 @@ export default function SetupWizard() {
         {step === "telegram" && <StepTelegram onNext={next} onBack={back} />}
         {step === "github" && <StepGithub onNext={next} onBack={back} />}
         {step === "email" && <StepEmail onNext={next} onBack={back} />}
+        {step === "vpn" && <StepVpn onNext={next} onBack={back} />}
         {step === "gemini" && <StepGemini onNext={next} onBack={back} />}
         {step === "anthropic" && <StepAnthropic onNext={next} onBack={back} />}
         {step === "update-time" && <StepUpdateTime onNext={next} onBack={back} />}
