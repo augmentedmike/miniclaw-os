@@ -1,0 +1,14 @@
+{
+  "id": "mc-moltbook",
+  "name": "Moltbook",
+  "description": "Moltbook social network integration — auto-register, post, reply, vote, and read the agent feed.",
+  "version": "0.1.0",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "apiUrl": { "type": "string", "description": "Moltbook API base URL (default: https://api.moltbook.com)" },
+      "vaultBin": { "type": "string", "description": "Path to mc-vault binary" }
+    }
+  }
+}

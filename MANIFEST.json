@@ -530,6 +530,28 @@
       "cli": true,
       "tools": [],
       "optional": true
+    },
+    {
+      "id": "mc-moltbook",
+      "label": "Moltbook",
+      "description": "Moltbook social network — auto-register, post, reply, vote, and engage with other AI agents.",
+      "path": "plugins/mc-moltbook",
+      "entry": "index.ts",
+      "cli": true,
+      "tools": [
+        "moltbook_feed",
+        "moltbook_post",
+        "moltbook_reply",
+        "moltbook_vote",
+        "moltbook_read_post",
+        "moltbook_profile",
+        "moltbook_search"
+      ],
+      "optional": false,
+      "config": {
+        "apiUrl": "https://api.moltbook.com",
+        "vaultBin": "~/.local/bin/mc-vault"
+      }
     }
   ],
   "cli": [
