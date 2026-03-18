@@ -143,7 +143,7 @@ COLLISIONS=0
 ok "Port collision checks skipped (web app may be running install)"
 
 # Check for existing com.miniclaw.* LaunchAgents from a different install
-for label in com.miniclaw.board-web; do
+for label in com.miniclaw.board-web com.miniclaw.web-chat; do
   plist="$HOME/Library/LaunchAgents/$label.plist"
   if [[ -f "$plist" ]]; then
     PLIST_STATE_DIR=$(grep -A1 'OPENCLAW_STATE_DIR' "$plist" 2>/dev/null | tail -1 | sed 's/.*<string>//;s|</string>.*||' || true)
@@ -1285,6 +1285,65 @@ if [[ "$BOARD_RUNNING" == true ]]; then
 else
   launchctl load "$BOARD_PLIST" 2>/dev/null && ok "Board web LaunchAgent loaded (port 4220)" \
     || warn "LaunchAgent created — run: launchctl load $BOARD_PLIST"
+fi
+
+# ── Step 15b: mc-web-chat WebSocket server ─────────────────────────────────────
+step "Step 15b: Web chat server"
+
+CHAT_DIR="$MINICLAW_DIR/plugins/mc-web-chat"
+CHAT_PLIST="$HOME/Library/LaunchAgents/com.miniclaw.web-chat.plist"
+CHAT_EXT_DIR="$STATE_DIR/extensions/mc-web-chat"
+
+if [[ -f "$CHAT_DIR/server.ts" ]]; then
+  # Copy to extensions
+  mkdir -p "$CHAT_EXT_DIR"
+  cp "$CHAT_DIR/server.ts" "$CHAT_DIR/run.ts" "$CHAT_DIR/package.json" "$CHAT_DIR/openclaw.plugin.json" "$CHAT_EXT_DIR/" 2>/dev/null
+  (cd "$CHAT_EXT_DIR" && run_quiet npm install --production 2>/dev/null) || true
+
+  launchctl unload "$CHAT_PLIST" 2>/dev/null || true
+  cat > "$CHAT_PLIST" << CHATPLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.miniclaw.web-chat</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>$NODE_BIN</string>
+    <string>--import</string>
+    <string>tsx</string>
+    <string>$CHAT_EXT_DIR/run.ts</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>$CHAT_EXT_DIR</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>5</integer>
+  <key>StandardOutPath</key>
+  <string>$STATE_DIR/logs/mc-web-chat.log</string>
+  <key>StandardErrorPath</key>
+  <string>$STATE_DIR/logs/mc-web-chat.log</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>
+    <string>$HOME</string>
+    <key>PATH</key>
+    <string>$HOME/.local/bin:$NODE_DIR:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>OPENCLAW_STATE_DIR</key>
+    <string>$STATE_DIR</string>
+  </dict>
+</dict>
+</plist>
+CHATPLIST
+  mkdir -p "$STATE_DIR/logs"
+  launchctl load "$CHAT_PLIST" 2>/dev/null && ok "Web chat LaunchAgent loaded (port 4221)" \
+    || warn "LaunchAgent created — run: launchctl load $CHAT_PLIST"
+else
+  info "mc-web-chat plugin not found — skipping"
 fi
 
 # ── Step 14a2: Agent runner LaunchAgent ────────────────────────────────────────

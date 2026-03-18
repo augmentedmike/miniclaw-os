@@ -1,0 +1,11 @@
+{
+  "name": "mc-web-chat",
+  "version": "0.1.0",
+  "private": true,
+  "openclaw": {
+    "extensions": ["./index.ts"]
+  },
+  "dependencies": {
+    "ws": "^8.19.0"
+  }
+}

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.miniclaw.web-chat</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/michaeloneal/.nvm/versions/node/v24.9.0/bin/node</string>
+        <string>--import</string>
+        <string>tsx</string>
+        <string>/Users/michaeloneal/.openclaw/extensions/mc-web-chat/run.ts</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/michaeloneal/.openclaw/extensions/mc-web-chat</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/michaeloneal/.openclaw/logs/mc-web-chat.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/michaeloneal/.openclaw/logs/mc-web-chat.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>/Users/michaeloneal</string>
+        <key>PATH</key>
+        <string>/Users/michaeloneal/.local/bin:/Users/michaeloneal/.nvm/versions/node/v24.9.0/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+</dict>
+</plist>

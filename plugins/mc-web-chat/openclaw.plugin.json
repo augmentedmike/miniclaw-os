@@ -1,0 +1,14 @@
+{
+  "id": "mc-web-chat",
+  "name": "MiniClaw Web Chat",
+  "description": "WebSocket server for browser-based Claude Code chat. Powers the board's chat panel.",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "port": { "type": "number", "description": "WebSocket server port", "default": 4221 },
+      "claudeBin": { "type": "string", "description": "Path to claude binary" },
+      "workspaceDir": { "type": "string", "description": "Path to workspace .md files for context injection" }
+    },
+    "required": []
+  }
+}
