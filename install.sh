@@ -1063,6 +1063,7 @@ for mc in manifest_crons:
 
     w = {
         "name": mc["name"],
+        "agentId": "cron",
         "schedule": mc["schedule"],
         "sessionTarget": mc.get("sessionTarget", "isolated"),
         "model": mc.get("model", "claude-haiku-4-5-20251001"),
@@ -1081,6 +1082,7 @@ if not workers:
     workers = [
         {
             "name": "board-worker-backlog",
+            "agentId": "cron",
             "schedule": {"kind": "cron", "expr": "*/5 * * * *"},
             "sessionTarget": "isolated",
             "model": "claude-haiku-4-5-20251001",
@@ -1094,6 +1096,7 @@ if not workers:
         },
         {
             "name": "board-worker-in-progress",
+            "agentId": "cron",
             "schedule": {"kind": "cron", "expr": "1-59/5 * * * *"},
             "sessionTarget": "isolated",
             "model": "claude-haiku-4-5-20251001",
@@ -1107,6 +1110,7 @@ if not workers:
         },
         {
             "name": "board-worker-in-review",
+            "agentId": "cron",
             "schedule": {"kind": "cron", "expr": "2-59/5 * * * *"},
             "sessionTarget": "isolated",
             "model": "claude-haiku-4-5-20251001",
@@ -1907,7 +1911,7 @@ except: existing_names = set()
 for job in store.get("jobs", []):
     if job["name"] in existing_names: continue
     expr = job.get("schedule", {}).get("expr", "*/5 * * * *")
-    args = ["openclaw", "cron", "add", "--name", job["name"], "--cron", expr, "--session", job.get("sessionTarget", "isolated")]
+    args = ["openclaw", "cron", "add", "--name", job["name"], "--cron", expr, "--session", job.get("sessionTarget", "isolated"), "--agent", job.get("agentId", "cron")]
     if job.get("payload", {}).get("messageFile"):
         prompt_path = os.path.join(state_dir, "cron", job["payload"]["messageFile"])
         if os.path.exists(prompt_path):

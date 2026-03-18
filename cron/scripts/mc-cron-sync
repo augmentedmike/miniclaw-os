@@ -104,6 +104,7 @@ try {
 
     const job = {
       name: cron.name,
+      agentId: 'cron',
       schedule: cron.schedule,
       sessionTarget: cron.sessionTarget || 'isolated',
       payload: {
@@ -125,11 +126,22 @@ try {
     added++;
   }
 
-  if (!dryRun && added > 0) {
+  // Backfill agentId on existing cron jobs that are missing it.
+  // This ensures cron sessions use a separate session store from chat.
+  let backfilled = 0;
+  for (const job of jobs.jobs) {
+    if (!job.agentId && job.sessionTarget === 'isolated') {
+      job.agentId = 'cron';
+      backfilled++;
+      log(`BACKFILL agentId=cron: ${job.name}`);
+    }
+  }
+
+  if (!dryRun && (added > 0 || backfilled > 0)) {
     saveJSON(JOBS_PATH, jobs);
   }
 
-  log(`Done. Added: ${added}, Skipped: ${skipped}, Existing: ${existingNames.size}`);
+  log(`Done. Added: ${added}, Skipped: ${skipped}, Existing: ${existingNames.size}, Backfilled: ${backfilled}`);
 } catch (err) {
   console.error('mc-cron-sync error:', err.message);
   process.exit(1);
