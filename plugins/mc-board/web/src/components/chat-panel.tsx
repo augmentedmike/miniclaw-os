@@ -15,9 +15,10 @@ interface Props {
   onContextConsumed: () => void;
   projectId?: string;
   activeCardId?: string;
+  agentName?: string;
 }
 
-export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, projectId, activeCardId }: Props) {
+export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, projectId, activeCardId, agentName = "AM" }: Props) {
   const [messages, setMessages] = useState<Message[]>(() => {
     if (typeof window === "undefined") return [];
     try { return JSON.parse(localStorage.getItem("mc-chat-messages") || "[]"); } catch { return []; }
@@ -197,7 +198,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 12, fontWeight: 700, color: "#a1a1aa", letterSpacing: "0.06em", textTransform: "uppercase" }}>
-            Amelia
+            {agentName}
           </span>
           <span style={{
             fontSize: 10, padding: "1px 6px", borderRadius: 3,
@@ -241,7 +242,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
       <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 12 }}>
         {messages.length === 0 && !streaming && (
           <div style={{ color: "#3f3f46", fontSize: 12, textAlign: "center", marginTop: 40, lineHeight: 1.6 }}>
-            Chat with Amelia.<br />Right-click any card to inject context.
+            Chat with {agentName}.<br />Right-click any card to inject context.
           </div>
         )}
         {messages.length > visibleCount && (
@@ -333,7 +334,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
           value={draft}
           onChange={e => setDraft(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Message Amelia… (Enter to send)"
+          placeholder={`Message ${agentName}… (Enter to send)`}
           rows={3}
           style={{
             width: "100%", background: "#18181b", border: "1px solid #3f3f46",
