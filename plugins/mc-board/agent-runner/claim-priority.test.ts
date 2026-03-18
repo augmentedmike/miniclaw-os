@@ -14,7 +14,7 @@ const CLAIM_SQL = `
   LEFT JOIN cards c ON c.id = q.card_id
   WHERE q.status = 'pending'
     AND q.col = ?
-    AND (c.tags IS NULL OR c.tags NOT LIKE '%"hold"%')
+    AND (c.tags IS NULL OR (c.tags NOT LIKE '%"hold"%' AND c.tags NOT LIKE '%"blocked"%'))
   ORDER BY
     CASE WHEN c.tags LIKE '%"focus"%' THEN 0 ELSE 1 END ASC,
     CASE c.priority
@@ -124,6 +124,42 @@ describe("claimPending priority ordering", () => {
   it("hold-tagged cards are excluded", () => {
     insertCard(db, "crd_hold", "critical", ["focus", "hold"]);
     insertQueue(db, "q1", "crd_hold", "in-progress", "2026-01-01T00:00:00Z");
+
+    insertCard(db, "crd_ok", "low", []);
+    insertQueue(db, "q2", "crd_ok", "in-progress", "2026-01-02T00:00:00Z");
+
+    const rows = db.prepare(CLAIM_SQL).all("in-progress", 10) as { id: string }[];
+    expect(rows.length).toBe(1);
+    expect(rows[0].id).toBe("q2");
+  });
+
+  it("blocked-tagged cards are excluded", () => {
+    insertCard(db, "crd_blocked", "critical", ["blocked"]);
+    insertQueue(db, "q1", "crd_blocked", "in-progress", "2026-01-01T00:00:00Z");
+
+    insertCard(db, "crd_ok", "low", []);
+    insertQueue(db, "q2", "crd_ok", "in-progress", "2026-01-02T00:00:00Z");
+
+    const rows = db.prepare(CLAIM_SQL).all("in-progress", 10) as { id: string }[];
+    expect(rows.length).toBe(1);
+    expect(rows[0].id).toBe("q2");
+  });
+
+  it("cards with both hold and blocked tags are excluded", () => {
+    insertCard(db, "crd_both", "critical", ["focus", "hold", "blocked"]);
+    insertQueue(db, "q1", "crd_both", "in-progress", "2026-01-01T00:00:00Z");
+
+    insertCard(db, "crd_ok", "medium", []);
+    insertQueue(db, "q2", "crd_ok", "in-progress", "2026-01-02T00:00:00Z");
+
+    const rows = db.prepare(CLAIM_SQL).all("in-progress", 10) as { id: string }[];
+    expect(rows.length).toBe(1);
+    expect(rows[0].id).toBe("q2");
+  });
+
+  it("blocked card with focus tag is still excluded", () => {
+    insertCard(db, "crd_fb", "critical", ["focus", "blocked"]);
+    insertQueue(db, "q1", "crd_fb", "in-progress", "2026-01-01T00:00:00Z");
 
     insertCard(db, "crd_ok", "low", []);
     insertQueue(db, "q2", "crd_ok", "in-progress", "2026-01-02T00:00:00Z");

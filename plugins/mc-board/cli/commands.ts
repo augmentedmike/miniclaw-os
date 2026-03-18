@@ -158,7 +158,7 @@ Examples:
       }
       let cards = store.list(opts.column as Column | undefined);
       if (opts.project) cards = cards.filter(c => c.project_id === opts.project);
-      if (opts.skipHold) cards = cards.filter(c => !c.tags.includes("on-hold"));
+      if (opts.skipHold) cards = cards.filter(c => !c.tags.includes("on-hold") && !c.tags.includes("blocked"));
       if (cards.length === 0) {
         console.log("No cards.");
         return;
@@ -200,7 +200,7 @@ Examples:
         process.exit(1);
       }
       let cards = store.list(opts.column as Column);
-      if (opts.skipHold) cards = cards.filter(c => !c.tags.includes("on-hold"));
+      if (opts.skipHold) cards = cards.filter(c => !c.tags.includes("on-hold") && !c.tags.includes("blocked"));
       const filterTags = opts.tags ? opts.tags.split(",").map(t => t.trim()).filter(Boolean) : undefined;
       const allProjects = projects.list();
       console.log(renderColumnContext(opts.column as Column, cards, allProjects, filterTags));
