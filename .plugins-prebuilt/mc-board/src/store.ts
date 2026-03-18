@@ -1,0 +1,254 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
+import * as os from "node:os";
+import type { Database } from "./db.js";
+import type { Card, Column, Priority, WorkLogEntry } from "./card.js";
+import { generateId, sortCards } from "./card.js";
+import { type TitleConflict, findTitleConflict } from "./dedup.js";
+
+const COL_TO_JOB: Record<string, string> = {
+  "backlog": "board-backlog-triage",
+  "in-progress": "board-in-progress-triage",
+  "in-review": "board-in-review-triage",
+};
+
+const DEFAULT_WIP_LIMIT = 3;
+
+/**
+ * Read the WIP limit (maxConcurrent) for a column from board-cron.json.
+ * Falls back to DEFAULT_WIP_LIMIT if not configured.
+ */
+export function getWipLimit(column: Column, stateDir?: string): number {
+  const dir = stateDir ?? process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
+  const jobsFile = process.env.BOARD_CRON_JOBS ?? path.join(dir, "USER", "brain", "board-cron.json");
+  const jobId = COL_TO_JOB[column];
+  if (!jobId) return DEFAULT_WIP_LIMIT;
+  try {
+    const raw = JSON.parse(fs.readFileSync(jobsFile, "utf8"));
+    const job = raw[jobId];
+    if (job && typeof job.maxConcurrent === "number" && job.maxConcurrent > 0) {
+      return job.maxConcurrent;
+    }
+  } catch {}
+  return DEFAULT_WIP_LIMIT;
+}
+
+type WorkType = "work" | "verify";
+
+interface CardRow {
+  id: string;
+  title: string;
+  col: string;
+  priority: string;
+  tags: string;
+  project_id: string | null;
+  work_type: string | null;
+  linked_card_id: string | null;
+  depends_on: string;
+  created_at: string;
+  updated_at: string;
+  problem_description: string;
+  implementation_plan: string;
+  acceptance_criteria: string;
+  notes: string;
+  review_notes: string;
+  research: string;
+  verify_url: string;
+  work_log: string;
+}
+
+interface HistoryRow {
+  card_id: string;
+  col: string;
+  moved_at: string;
+}
+
+function rowToCard(row: CardRow, history: HistoryRow[]): Card {
+  const dependsOn = (() => { try { const v = JSON.parse(row.depends_on || "[]"); return Array.isArray(v) ? v as string[] : []; } catch { return []; } })();
+  return {
+    id: row.id,
+    title: row.title,
+    column: row.col as Column,
+    priority: row.priority as Priority,
+    tags: JSON.parse(row.tags) as string[],
+    ...(row.project_id ? { project_id: row.project_id } : {}),
+    ...(row.work_type ? { work_type: row.work_type as WorkType } : {}),
+    ...(row.linked_card_id ? { linked_card_id: row.linked_card_id } : {}),
+    ...(dependsOn.length > 0 ? { depends_on: dependsOn } : {}),
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    history: history.map(h => ({ column: h.col as Column, moved_at: h.moved_at })),
+    problem_description: row.problem_description,
+    implementation_plan: row.implementation_plan,
+    acceptance_criteria: row.acceptance_criteria,
+    notes: row.notes,
+    review_notes: row.review_notes,
+    research: row.research,
+    verify_url: row.verify_url ?? "",
+    work_log: (() => { try { return JSON.parse(row.work_log || "[]"); } catch { return []; } })(),
+  };
+}
+
+export class CardStore {
+  private readonly db: Database;
+
+  // Compat shim — kept so any remaining archive CLI code that reads
+  // store.cardsDir doesn't blow up before fully migrated away.
+  readonly cardsDir: string = "";
+
+  constructor(db: Database) {
+    this.db = db;
+  }
+
+  create(opts: {
+    title: string;
+    priority?: Priority;
+    tags?: string[];
+    project_id?: string;
+    work_type?: WorkType;
+    linked_card_id?: string;
+    depends_on?: string[];
+    problem_description?: string;
+    implementation_plan?: string;
+    acceptance_criteria?: string;
+    notes?: string;
+    research?: string;
+    verify_url?: string;
+    work_log?: WorkLogEntry[];
+  }): Card {
+    const now = new Date().toISOString();
+    const id = generateId();
+    this.db.prepare(
+      `INSERT INTO cards
+         (id, title, col, priority, tags, project_id, work_type, linked_card_id, depends_on,
+          created_at, updated_at,
+          problem_description, implementation_plan, acceptance_criteria, notes, review_notes, research, verify_url, work_log)
+       VALUES (?, ?, 'backlog', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?)`,
+    ).run(
+      id,
+      opts.title,
+      opts.priority ?? "medium",
+      JSON.stringify(opts.tags ?? []),
+      opts.project_id ?? null,
+      opts.work_type ?? null,
+      opts.linked_card_id ?? null,
+      JSON.stringify(opts.depends_on ?? []),
+      now,
+      now,
+      opts.problem_description ?? "",
+      opts.implementation_plan ?? "",
+      opts.acceptance_criteria ?? "",
+      opts.notes ?? "",
+      opts.research ?? "",
+      opts.verify_url ?? "",
+      JSON.stringify(opts.work_log ?? []),
+    );
+    this.db.prepare(
+      `INSERT INTO card_history (card_id, col, moved_at) VALUES (?, 'backlog', ?)`,
+    ).run(id, now);
+    return this.findById(id);
+  }
+
+  findById(id: string): Card {
+    const row = this.db.prepare(`SELECT * FROM cards WHERE id = ?`).get(id) as CardRow | undefined;
+    if (!row) throw new Error(`Card not found: ${id}`);
+    return this._withHistory(row);
+  }
+
+  list(column?: Column): Card[] {
+    const rows = column
+      ? (this.db.prepare(`SELECT * FROM cards WHERE col = ?`).all(column) as CardRow[])
+      : (this.db.prepare(`SELECT * FROM cards`).all() as CardRow[]);
+    return sortCards(rows.map(r => this._withHistory(r)));
+  }
+
+  listByProject(projectId: string): Card[] {
+    const rows = this.db.prepare(`SELECT * FROM cards WHERE project_id = ?`).all(projectId) as CardRow[];
+    return rows.map(r => this._withHistory(r));
+  }
+
+  update(
+    id: string,
+    updates: Partial<Pick<Card,
+      | "title" | "priority" | "tags" | "project_id" | "work_type" | "linked_card_id" | "depends_on"
+      | "problem_description" | "implementation_plan" | "acceptance_criteria"
+      | "notes" | "review_notes" | "research" | "verify_url" | "work_log"
+    >>,
+  ): Card {
+    const card = this.findById(id);
+    const now = new Date().toISOString();
+    const m = { ...card, ...updates };
+    this.db.prepare(
+      `UPDATE cards
+       SET title=?, priority=?, tags=?, project_id=?, work_type=?, linked_card_id=?, depends_on=?,
+           problem_description=?, implementation_plan=?, acceptance_criteria=?,
+           notes=?, review_notes=?, research=?, verify_url=?, work_log=?, updated_at=?
+       WHERE id=?`,
+    ).run(
+      m.title,
+      m.priority,
+      JSON.stringify(m.tags),
+      m.project_id ?? null,
+      m.work_type ?? null,
+      m.linked_card_id ?? null,
+      JSON.stringify(m.depends_on ?? []),
+      m.problem_description,
+      m.implementation_plan,
+      m.acceptance_criteria,
+      m.notes,
+      m.review_notes,
+      m.research,
+      m.verify_url ?? "",
+      JSON.stringify(m.work_log ?? []),
+      now,
+      id,
+    );
+    return this.findById(id);
+  }
+
+  appendWorkLog(id: string, entry: Omit<WorkLogEntry, "at"> & { at?: string }): Card {
+    const card = this.findById(id);
+    const log = [...(card.work_log ?? []), { at: new Date().toISOString(), ...entry }];
+    const now = new Date().toISOString();
+    this.db.prepare(`UPDATE cards SET work_log=?, updated_at=? WHERE id=?`).run(JSON.stringify(log), now, id);
+    return this.findById(id);
+  }
+
+  move(card: Card, target: Column): Card {
+    const now = new Date().toISOString();
+    this.db.prepare(`UPDATE cards SET col=?, updated_at=? WHERE id=?`).run(target, now, card.id);
+    this.db.prepare(
+      `INSERT INTO card_history (card_id, col, moved_at) VALUES (?, ?, ?)`,
+    ).run(card.id, target, now);
+    return this.findById(card.id);
+  }
+
+  countByColumn(column: Column): number {
+    const row = this.db.prepare(`SELECT COUNT(*) as cnt FROM cards WHERE col = ?`).get(column) as { cnt: number };
+    return row.cnt;
+  }
+
+  delete(id: string): void {
+    const exists = this.db.prepare(`SELECT id FROM cards WHERE id = ?`).get(id);
+    if (!exists) throw new Error(`Card not found: ${id}`);
+    this.db.prepare(`DELETE FROM cards WHERE id = ?`).run(id);
+  }
+
+  checkTitleConflict(title: string, opts?: { projectId?: string; excludeId?: string }): TitleConflict | null {
+    let candidates = this.list().filter(c => c.column !== "shipped");
+    if (opts?.projectId) candidates = candidates.filter(c => c.project_id === opts.projectId);
+    return findTitleConflict(title, candidates, opts?.excludeId);
+  }
+
+  // SQLite PRIMARY KEY guarantees no duplicates — always returns empty map.
+  detectDuplicates(): Map<string, string[]> {
+    return new Map();
+  }
+
+  private _withHistory(row: CardRow): Card {
+    const history = this.db.prepare(
+      `SELECT card_id, col, moved_at FROM card_history WHERE card_id = ? ORDER BY id ASC`,
+    ).all(row.id) as HistoryRow[];
+    return rowToCard(row, history);
+  }
+}

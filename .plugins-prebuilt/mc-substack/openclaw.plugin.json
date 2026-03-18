@@ -1,0 +1,27 @@
+{
+  "id": "mc-substack",
+  "name": "Miniclaw Substack",
+  "description": "Substack publishing — drafts, images, scheduling, EN/ES post workflow.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "subdomain": { "type": "string" },
+      "vaultBin":  { "type": "string" },
+      "publications": {
+        "type": "object",
+        "description": "Named publications beyond the default. Keys are publication names (e.g. 'inner-thoughts').",
+        "additionalProperties": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "subdomain": { "type": "string" },
+            "vaultKey":  { "type": "string" }
+          },
+          "required": ["subdomain", "vaultKey"]
+        }
+      }
+    },
+    "required": []
+  }
+}

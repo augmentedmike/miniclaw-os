@@ -1,0 +1,27 @@
+{
+  "id": "mc-seo",
+  "name": "Miniclaw SEO",
+  "description": "SEO automation — crawl sites, score every page, on-page audit checklist, sitemap submission, outreach/backlink tracking.",
+  "version": "0.1.0",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "stateDir": { "type": "string", "description": "Directory for seo.db (default: ~/.openclaw/USER/seo)" },
+      "indexNowKey": { "type": "string", "description": "IndexNow API key for instant Bing/Yandex indexing pings" },
+      "domains": {
+        "type": "object",
+        "description": "Registered domains with sitemap URLs and target keywords",
+        "additionalProperties": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "sitemapUrl": { "type": "string" },
+            "targetKeywords": { "type": "array", "items": { "type": "string" } },
+            "devUrl": { "type": "string", "description": "Local dev server URL for crawling (e.g. http://localhost:3000)" }
+          }
+        }
+      }
+    }
+  }
+}

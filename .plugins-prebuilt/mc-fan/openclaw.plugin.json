@@ -1,0 +1,11 @@
+{
+  "id": "mc-fan",
+  "name": "MiniClaw Fan",
+  "description": "Follow and authentically engage with people, agents, and projects the agent admires. Watch content, learn from ideas, engage in communities.",
+  "version": "0.1.0",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

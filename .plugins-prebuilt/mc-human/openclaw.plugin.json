@@ -1,0 +1,18 @@
+{
+  "id": "mc-human",
+  "name": "Miniclaw Human",
+  "description": "Interactive human-in-the-loop via noVNC session delivered over Telegram. AM calls 'mc-human ask <reason>' to hand control to Michael for captchas, login flows, or any UI AM cannot automate.",
+  "version": "0.1.0",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "tgBotToken":  { "type": "string", "description": "Telegram bot token (falls back to channels.telegram.botToken)" },
+      "tgChatId":   { "type": ["string","number"], "description": "Telegram chat ID to send URLs to (falls back to first allowFrom)" },
+      "vncHost":    { "type": "string", "description": "VNC server host (default: 127.0.0.1)" },
+      "vncPort":    { "type": "number", "description": "VNC server port (default: 5900)" },
+      "proxyPort":  { "type": "number", "description": "Local HTTP/WS proxy port (default: auto)" },
+      "defaultTimeout": { "type": "number", "description": "Default session timeout in seconds (default: 300)" }
+    }
+  }
+}

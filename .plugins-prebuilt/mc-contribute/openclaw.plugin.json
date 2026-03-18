@@ -1,0 +1,22 @@
+{
+  "id": "mc-contribute",
+  "name": "MiniClaw Contribute",
+  "description": "Help contributors build plugins and submit PRs to miniclaw-os using their own MiniClaw agent.",
+  "version": "0.1.0",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "upstreamRepo": {
+        "type": "string",
+        "description": "Upstream GitHub repo (owner/name)",
+        "default": "augmentedmike/miniclaw-os"
+      },
+      "forkRemote": {
+        "type": "string",
+        "description": "Git remote name for your fork",
+        "default": "origin"
+      }
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "mc-blog",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "index.ts",
+  "description": "Persona-driven blog writing — journal, self-reflection, storytelling from the agent's perspective",
+  "devDependencies": {
+    "openclaw": "file:../../../openclaw"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

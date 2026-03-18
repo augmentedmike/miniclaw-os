@@ -1,0 +1,10 @@
+{
+  "id": "mc-docs",
+  "name": "Miniclaw Docs",
+  "description": "Document authoring, versioning, and linked document management for MiniClaw",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": true,
+    "properties": {}
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "id": "mc-memo",
+  "name": "Miniclaw Memo",
+  "description": "Short-term working memory for agent runs — per-card append-only scratchpad to avoid repeating failed approaches.",
+  "version": "0.1.0",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "memoDir": { "type": "string", "description": "Directory for per-card memo files" }
+    }
+  }
+}

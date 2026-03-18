@@ -1,0 +1,12 @@
+{
+  "name": "mc-memo",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "index.ts",
+  "description": "Short-term working memory for agent runs \u2014 per-card scratchpad, append-only markdown files",
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

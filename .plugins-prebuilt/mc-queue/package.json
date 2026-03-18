@@ -1,0 +1,16 @@
+{
+  "name": "mc-queue",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "index.ts",
+  "description": "Queue triage enforcement for miniclaw channel sessions",
+  "dependencies": {},
+  "devDependencies": {
+    "openclaw": "file:../../../openclaw"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}
