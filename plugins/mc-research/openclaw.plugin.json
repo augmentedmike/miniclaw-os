@@ -1,0 +1,16 @@
+{
+  "id": "mc-research",
+  "name": "Miniclaw Research",
+  "description": "Competitive intelligence and deep research — query Perplexity, search the web, track competitors, detect changes, generate reports.",
+  "version": "0.1.0",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "stateDir": { "type": "string", "description": "Directory for research.db (default: ~/.openclaw/USER/research)" },
+      "perplexityModel": { "type": "string", "description": "Perplexity model to use (default: sonar)" },
+      "searchProvider": { "type": "string", "description": "Preferred search provider: serp | google | bing (default: google)" },
+      "maxSnapshotPages": { "type": "number", "description": "Max pages to scrape per competitor snapshot (default: 5)" }
+    }
+  }
+}

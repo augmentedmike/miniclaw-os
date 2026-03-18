@@ -105,7 +105,7 @@ MiniClaw OS isn't another wrapper around an LLM. It's the **operating system** f
 
 ## The Plugin Brain
 
-36 plugins. Each one is a cognitive region — modular, composable, replaceable.
+40 plugins + 4 standalone tools. Each one is a cognitive region — modular, composable, replaceable.
 
 ### Core Cognition
 
@@ -113,52 +113,56 @@ MiniClaw OS isn't another wrapper around an LLM. It's the **operating system** f
 |--------|-------------|
 | **[mc-board](./docs/mc-board.md)** | Kanban brain — autonomous task lifecycle, priority queue, WIP limits, pixel office |
 | **[mc-kb](./docs/mc-kb.md)** | Long-term memory — vector + keyword search, facts, lessons, postmortems |
-| **[mc-memory](./docs/mc-memory.md)** | Unified memory gateway — smart routing, recall, memo-to-KB promotion |
+| **[mc-memory](./plugins/mc-memory)** | Unified memory gateway — smart routing, recall, memo-to-KB promotion |
 | **[mc-reflection](./docs/mc-reflection.md)** | Nightly self-reflection — reviews memories, board, transcripts; extracts lessons |
 | **[mc-memo](./docs/mc-memo.md)** | Working memory — per-task scratchpad to avoid repeating failed approaches |
 | **[mc-soul](./docs/mc-soul.md)** | Identity — personality traits, values, voice; loaded into every conversation |
-| **[mc-context](./docs/mc-context.md)** | Context window — sliding window management, automatic pruning |
+| **[mc-context](./docs/mc-context.md)** | Context window — sliding window management, image pruning, QMD injection |
 | **[mc-queue](./docs/mc-queue.md)** | Async routing — model selection by session type (Haiku/Sonnet/Opus) |
 | **[mc-jobs](./docs/mc-jobs.md)** | Role templates — role-specific prompts, procedures, and review gates |
-| **[mc-guardian](./docs/mc-guardian.md)** | Crash guard — absorbs non-fatal exceptions to keep the gateway alive |
+| **[mc-guardian](./plugins/mc-guardian)** | Crash guard — absorbs non-fatal exceptions to keep the gateway alive |
 
 ### Communication & Social
 
 | Plugin | What it does |
 |--------|-------------|
-| **[mc-email](./docs/mc-email.md)** | Email — IMAP polling, auto-classification, signature generation, attachment download |
-| **[mc-rolodex](./docs/mc-rolodex.md)** | Contacts — fuzzy search, update, trust status tracking |
-| **[mc-trust](./docs/mc-trust.md)** | Agent identity — cryptographic verification and signed messages |
+| **[mc-email](./docs/mc-email.md)** | Email — IMAP/SMTP, read, send, reply, triage, attachment download |
+| **[mc-rolodex](./docs/mc-rolodex.md)** | Contacts — fuzzy search, trust status tracking, TUI browser |
+| **[mc-trust](./docs/mc-trust.md)** | Agent identity — Ed25519 keypairs, cryptographic verification, signed messages |
 | **[mc-human](./docs/mc-human.md)** | Human-in-the-loop — noVNC browser handoff for CAPTCHAs and login flows |
+| **[mc-web-chat](./plugins/mc-web-chat)** | Web chat — browser-based chat panel powered by Claude Code |
 | **[mc-reddit](./docs/mc-reddit.md)** | Reddit — posts, comments, voting, subreddit moderation |
-| **[mc-social](./docs/mc-social.md)** | GitHub social — track repos, find contribution opportunities, log engagement |
-| **[mc-fan](./docs/mc-fan.md)** | Fan engagement — follow and engage with people, agents, and projects the agent admires |
+| **[mc-x](./plugins/mc-x)** | X/Twitter — auth, post, timeline, reply |
+| **[mc-moltbook](./plugins/mc-moltbook)** | Moltbook — social network for AI agents (post, reply, vote, follow) |
+| **[mc-social](./plugins/mc-social)** | GitHub social — track repos, find contribution opportunities, log engagement |
+| **[mc-fan](./plugins/mc-fan)** | Fan engagement — follow and engage with people, agents, and projects the agent admires |
 
 ### Content & Publishing
 
 | Plugin | What it does |
 |--------|-------------|
-| **[mc-designer](./docs/mc-designer.md)** | Visual studio — Gemini-backed image generation, compositing, blend modes |
+| **[mc-designer](./docs/mc-designer.md)** | Visual studio — Gemini-backed image generation, layers, compositing, blend modes |
 | **[mc-blog](./docs/mc-blog.md)** | Blog engine — first-person journal entries from the agent's perspective |
 | **[mc-substack](./docs/mc-substack.md)** | Substack — draft, schedule, publish with bilingual support |
-| **[mc-devlog](./docs/mc-devlog.md)** | Daily devlog — aggregates git activity, credits contributors, cross-posts |
+| **[mc-devlog](./plugins/mc-devlog)** | Daily devlog — aggregates git activity, credits contributors, cross-posts |
 | **[mc-youtube](./docs/mc-youtube.md)** | Video analysis — keyframe extraction and multimodal understanding |
 | **[mc-seo](./docs/mc-seo.md)** | SEO — site audits, keyword tracking, sitemap submission |
 | **[mc-docs](./docs/mc-docs.md)** | Document authoring — versioning and linked document management |
-| **[mc-voice](./docs/mc-voice.md)** | Speech-to-text — local transcription via whisper.cpp |
+| **[mc-voice](./plugins/mc-voice)** | Speech-to-text — local transcription via whisper.cpp |
 
 ### Infrastructure & Operations
 
 | Plugin | What it does |
 |--------|-------------|
-| **[mc-github](./docs/mc-github.md)** | GitHub — issues, PRs, reviews, releases, Actions via gh CLI |
-| **[mc-vpn](./docs/mc-vpn.md)** | VPN — Mullvad connection management, country switching, auto-connect |
-| **[mc-tailscale](./docs/mc-tailscale.md)** | Tailscale — diagnostics, status, Serve/Funnel, custom domains |
+| **[mc-github](./plugins/mc-github)** | GitHub — issues, PRs, reviews, releases, Actions via gh CLI |
+| **[mc-vpn](./plugins/mc-vpn)** | VPN — Mullvad connection management, country switching, auto-connect |
+| **[mc-tailscale](./plugins/mc-tailscale)** | Tailscale — diagnostics, status, Serve/Funnel, custom domains |
 | **[mc-authenticator](./docs/mc-authenticator.md)** | 2FA — TOTP codes for autonomous login |
 | **[mc-backup](./docs/mc-backup.md)** | Backups — daily tgz snapshots with tiered retention |
-| **[mc-update](./docs/mc-update.md)** | Self-update — nightly version checks, smoke verification, rollback |
-| **[mc-calendar](./docs/mc-calendar.md)** | Apple Calendar — create, update, delete, search events via EventKit |
+| **[mc-update](./plugins/mc-update)** | Self-update — nightly version checks, smoke verification, rollback |
+| **[mc-calendar](./plugins/mc-calendar)** | Apple Calendar — create, update, delete, search events via EventKit |
 | **[mc-contribute](./docs/mc-contribute.md)** | Self-improvement — scaffold plugins, file bugs, submit PRs |
+| **[mc-oauth-guard](./plugins/mc-oauth-guard)** | OAuth guard — detects refresh failures, exponential backoff, auto-recovery |
 
 ### Commerce
 
@@ -167,6 +171,15 @@ MiniClaw OS isn't another wrapper around an LLM. It's the **operating system** f
 | **[mc-stripe](./docs/mc-stripe.md)** | Stripe — charges, refunds, customer management |
 | **[mc-square](./docs/mc-square.md)** | Square — payments, refunds, payment links |
 | **[mc-booking](./docs/mc-booking.md)** | Scheduling — bookable slots, payment integration |
+
+### Standalone Tools
+
+| Tool | What it does |
+|------|-------------|
+| **[mc-vault](./docs/mc-vault.md)** | Secure secrets — age-encrypted key-value store for API keys and credentials |
+| **mc-doctor** | Full diagnosis — automated health checks and auto-repair |
+| **mc-smoke** | Quick health check — fast pre-flight verification |
+| **mc-chrome** | Browser automation — Chrome control for web interactions |
 
 ---
 

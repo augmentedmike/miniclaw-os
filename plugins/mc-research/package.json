@@ -1,0 +1,20 @@
+{
+  "name": "mc-research",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "index.ts",
+  "description": "Competitive intelligence and deep research — Perplexity queries, web search, competitor tracking, change detection, reports",
+  "dependencies": {
+    "better-sqlite3": "^11.9.0",
+    "cheerio": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "openclaw": "file:../../../openclaw"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}
