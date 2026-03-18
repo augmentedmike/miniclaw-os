@@ -1,0 +1,20 @@
+{
+  "name": "mc-seo",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "index.ts",
+  "description": "SEO automation — site crawl, on-page audit with scoring, sitemap submission, outreach tracking",
+  "dependencies": {
+    "better-sqlite3": "^11.9.0",
+    "node-html-parser": "^6.1.13"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "openclaw": "file:../../../openclaw"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "mc-authenticator",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "index.ts",
+  "description": "TOTP 2FA code generation — Google Authenticator compatible",
+  "devDependencies": {
+    "openclaw": "file:../../../openclaw"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "id": "mc-stripe",
+  "name": "Miniclaw Stripe",
+  "description": "Shared Stripe payment service — charge, refund, customer management.",
+  "version": "0.1.0",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "vaultBin": { "type": "string" },
+      "testMode": { "type": "boolean" }
+    }
+  }
+}

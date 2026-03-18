@@ -1,0 +1,13 @@
+{
+  "id": "mc-email",
+  "name": "Miniclaw Email",
+  "description": "Gmail integration — read, triage, archive, send via Google OAuth2 + Gmail API.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "vaultBin": { "type": "string" },
+      "emailAddress": { "type": "string" }
+    }
+  }
+}

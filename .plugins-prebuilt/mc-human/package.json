@@ -1,0 +1,15 @@
+{
+  "name": "mc-human",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "index.ts",
+  "description": "Ask-a-human \u2014 deliver interactive noVNC session to Michael via Telegram when AM hits captchas or login flows",
+  "dependencies": {
+    "@novnc/novnc": "^1.6.0"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

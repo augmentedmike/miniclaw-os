@@ -1,0 +1,10 @@
+{
+  "id": "mc-youtube",
+  "name": "Miniclaw YouTube",
+  "description": "YouTube video processing — download, extract keyframes, and summarise video content.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": true,
+    "properties": {}
+  }
+}

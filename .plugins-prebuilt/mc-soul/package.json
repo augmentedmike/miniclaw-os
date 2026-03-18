@@ -1,0 +1,15 @@
+{
+  "name": "mc-soul",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "index.ts",
+  "description": "Soul backup and restore — workspace snapshots",
+  "devDependencies": {
+    "openclaw": "file:../../../openclaw"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

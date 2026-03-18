@@ -1,0 +1,16 @@
+{
+  "id": "mc-soul",
+  "name": "Miniclaw Soul",
+  "description": "Workspace snapshot and restore — backup and recover soul files (SOUL.md, IDENTITY.md, BOND.md, etc.).",
+  "version": "0.1.0",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "stateDir": {
+        "type": "string",
+        "description": "State directory. Defaults to OPENCLAW_STATE_DIR env var or ~/.openclaw."
+      }
+    }
+  }
+}

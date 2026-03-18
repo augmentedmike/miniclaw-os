@@ -1,0 +1,19 @@
+{
+  "name": "mc-reflection",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "index.ts",
+  "description": "Nightly self-reflection — postmortem, lessons, and action items from the day's work",
+  "dependencies": {
+    "better-sqlite3": "^11.9.0"
+  },
+  "devDependencies": {
+    "openclaw": "file:../../../openclaw",
+    "@types/better-sqlite3": "^7.6.13"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

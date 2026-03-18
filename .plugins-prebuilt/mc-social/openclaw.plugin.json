@@ -1,0 +1,17 @@
+{
+  "id": "mc-social",
+  "name": "MiniClaw Social",
+  "description": "Outbound GitHub social engagement — track target repos, find contribution opportunities, log engagement activity, and track metrics.",
+  "version": "0.1.0",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "targetListKbId": {
+        "type": "string",
+        "description": "KB article ID for the target repo list",
+        "default": "github-social-targets"
+      }
+    }
+  }
+}

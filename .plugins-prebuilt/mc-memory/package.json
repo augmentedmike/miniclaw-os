@@ -1,0 +1,19 @@
+{
+  "name": "mc-memory",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "index.ts",
+  "description": "Unified memory gateway — routes writes, searches all stores, promotes memos to KB",
+  "dependencies": {
+    "better-sqlite3": "^11.9.0"
+  },
+  "devDependencies": {
+    "openclaw": "npm:@miniclaw_official/openclaw@^2026.3.8",
+    "@types/better-sqlite3": "^7.6.13"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}
