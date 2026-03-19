@@ -1,0 +1,14 @@
+{
+  "id": "mc-vending-bench",
+  "label": "VendingBench",
+  "description": "Run MiniClaw against the VendingBench 2 autonomous agent benchmark. Simulates running a vending machine business for 1 year, scored on final bank balance.",
+  "version": "0.1.0",
+  "config": {
+    "model": "anthropic/claude-sonnet-4-6",
+    "maxSteps": 500,
+    "contextWindow": 30000,
+    "outputDir": "~/.openclaw/USER/benchmarks/vending-bench"
+  },
+  "requires": [],
+  "optional": true
+}
