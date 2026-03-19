@@ -184,15 +184,12 @@ MiniClaw OS isn't another wrapper around an LLM. It's the **operating system** f
 
 ## Install
 
-> **v0.1.8 release is being prepared (2026-03-19 ~3:30pm CT).** The installer will be available shortly.
-
-<!--
 ```bash
 curl -fsSL https://raw.githubusercontent.com/augmentedmike/miniclaw-os/main/bootstrap.sh | bash
 ```
 
 That's it. The **setup wizard** walks you through API key configuration, plugin selection, and identity setup — then installs Homebrew, Node.js, the web dashboard, all plugins, and a LaunchAgent to keep it running. Your browser opens when ready.
--->
+
 
 ### Requirements
 
