@@ -1,11 +1,11 @@
 {
   "name": "miniclaw-os",
-  "version": "0.1.8-prerelease",
+  "version": "0.1.8",
   "openclaw": {
     "npm": "@miniclaw_official/openclaw",
     "npmVersion": "2026.3.12",
     "repo": "augmentedmike/openclaw",
-    "tag": "v0.1.8-prerelease"
+    "tag": "v0.1.8"
   },
   "description": "AugmentedMike's AI operating system \u2014 plugins, tools, and infrastructure for OpenClaw",
   "dependencies": {
@@ -173,12 +173,14 @@
     {
       "id": "mc-email",
       "label": "Email",
-      "description": "Autonomous email triage — IMAP inbox polling, Haiku classification (6 categories), reply-as-AM, archive, and escalation. Supports Gmail and non-Gmail providers.",
+      "description": "Autonomous email triage \u2014 IMAP inbox polling, Haiku classification (6 categories), reply-as-AM, archive, and escalation. Supports Gmail and non-Gmail providers.",
       "path": "plugins/mc-email",
       "entry": "index.ts",
       "cli": true,
       "tools": [],
-      "requires": ["email-app-password"],
+      "requires": [
+        "email-app-password"
+      ],
       "config": {
         "vaultBin": "~/.local/bin/mc-vault",
         "emailAddress": "owner@example.com"
@@ -200,7 +202,7 @@
     {
       "id": "mc-substack",
       "label": "Substack",
-      "description": "Substack publishing — drafts, images, scheduling, EN/ES post workflow.",
+      "description": "Substack publishing \u2014 drafts, images, scheduling, EN/ES post workflow.",
       "path": "plugins/mc-substack",
       "entry": "index.ts",
       "cli": true,
@@ -224,13 +226,15 @@
     {
       "id": "mc-devlog",
       "label": "Devlog",
-      "description": "Daily devlog aggregator — gathers git commits, merged PRs, closed issues, and shipped board cards from yesterday, aggregates by contributor, and publishes to GitHub Discussions, mc-blog, mc-substack, and mc-reddit weekly digest.",
+      "description": "Daily devlog aggregator \u2014 gathers git commits, merged PRs, closed issues, and shipped board cards from yesterday, aggregates by contributor, and publishes to GitHub Discussions, mc-blog, mc-substack, and mc-reddit weekly digest.",
       "path": "plugins/mc-devlog",
       "entry": "index.ts",
       "cli": true,
       "tools": [],
       "optional": false,
-      "requires": ["gh-token"],
+      "requires": [
+        "gh-token"
+      ],
       "config": {
         "repoDir": "~/.openclaw/projects/miniclaw-os",
         "githubRepo": "augmentedmike/miniclaw-os",
@@ -260,7 +264,9 @@
         "stripe_customer_find"
       ],
       "optional": true,
-      "requires": ["stripe-secret-key"],
+      "requires": [
+        "stripe-secret-key"
+      ],
       "config": {
         "vaultBin": "~/.local/bin/mc-vault",
         "testMode": false
@@ -281,7 +287,9 @@
         "square_payment_link"
       ],
       "optional": true,
-      "requires": ["square-access-token"],
+      "requires": [
+        "square-access-token"
+      ],
       "config": {
         "vaultBin": "~/.local/bin/mc-vault",
         "environment": "sandbox",
@@ -292,11 +300,15 @@
     {
       "id": "mc-authenticator",
       "label": "Authenticator",
-      "description": "TOTP 2FA code generation — Google Authenticator compatible. Gives the agent autonomous 2FA capability.",
+      "description": "TOTP 2FA code generation \u2014 Google Authenticator compatible. Gives the agent autonomous 2FA capability.",
       "path": "plugins/mc-authenticator",
       "entry": "index.ts",
       "cli": true,
-      "tools": ["auth_code", "auth_list", "auth_time_remaining"],
+      "tools": [
+        "auth_code",
+        "auth_list",
+        "auth_time_remaining"
+      ],
       "optional": true,
       "config": {
         "vaultBin": "~/.local/bin/mc-vault"
@@ -317,7 +329,9 @@
         "booking_reschedule"
       ],
       "optional": true,
-      "requires": ["turso-booking-url"],
+      "requires": [
+        "turso-booking-url"
+      ],
       "web": {
         "port": 4221
       },
@@ -325,9 +339,20 @@
         "vaultBin": "~/.local/bin/mc-vault",
         "paymentProvider": "stripe",
         "port": 4221,
-        "origins": ["https://miniclaw.bot", "https://augmentedmike.com"],
-        "availableDays": [1, 2, 3],
-        "timeSlots": [17, 18, 19],
+        "origins": [
+          "https://miniclaw.bot",
+          "https://augmentedmike.com"
+        ],
+        "availableDays": [
+          1,
+          2,
+          3
+        ],
+        "timeSlots": [
+          17,
+          18,
+          19
+        ],
         "durationMinutes": 90,
         "priceCents": 19900,
         "maxPerDay": 1,
@@ -337,24 +362,28 @@
     {
       "id": "mc-slack",
       "label": "Slack",
-      "description": "Slack workspace integration — send messages, read channels, react to threads.",
+      "description": "Slack workspace integration \u2014 send messages, read channels, react to threads.",
       "path": "plugins/mc-slack",
       "entry": "index.ts",
       "cli": true,
       "tools": [],
       "optional": true,
-      "requires": ["slack-bot-token"]
+      "requires": [
+        "slack-bot-token"
+      ]
     },
     {
       "id": "mc-discord",
       "label": "Discord",
-      "description": "Discord bot bridge — relay messages, moderate channels, respond to commands.",
+      "description": "Discord bot bridge \u2014 relay messages, moderate channels, respond to commands.",
       "path": "plugins/mc-discord",
       "entry": "index.ts",
       "cli": true,
       "tools": [],
       "optional": true,
-      "requires": ["discord-bot-token"]
+      "requires": [
+        "discord-bot-token"
+      ]
     },
     {
       "id": "mc-twitter",
@@ -365,34 +394,40 @@
       "cli": true,
       "tools": [],
       "optional": true,
-      "requires": ["twitter-api-key"]
+      "requires": [
+        "twitter-api-key"
+      ]
     },
     {
       "id": "mc-github",
       "label": "GitHub",
-      "description": "GitHub automation — open PRs, review code, manage issues, sync repos.",
+      "description": "GitHub automation \u2014 open PRs, review code, manage issues, sync repos.",
       "path": "plugins/mc-github",
       "entry": "index.ts",
       "cli": true,
       "tools": [],
       "optional": true,
-      "requires": ["gh-token"]
+      "requires": [
+        "gh-token"
+      ]
     },
     {
       "id": "mc-calendar",
       "label": "Calendar",
-      "description": "Google Calendar sync — read events, create meetings, check availability.",
+      "description": "Google Calendar sync \u2014 read events, create meetings, check availability.",
       "path": "plugins/mc-calendar",
       "entry": "index.ts",
       "cli": true,
       "tools": [],
       "optional": true,
-      "requires": ["google-calendar-token"]
+      "requires": [
+        "google-calendar-token"
+      ]
     },
     {
       "id": "mc-notes",
       "label": "Notes",
-      "description": "Structured note-taking — daily journals, meeting notes, tagged snippets.",
+      "description": "Structured note-taking \u2014 daily journals, meeting notes, tagged snippets.",
       "path": "plugins/mc-notes",
       "entry": "index.ts",
       "cli": true,
@@ -402,7 +437,7 @@
     {
       "id": "mc-analytics",
       "label": "Analytics",
-      "description": "Usage analytics dashboard — track agent runs, token spend, task completion rates.",
+      "description": "Usage analytics dashboard \u2014 track agent runs, token spend, task completion rates.",
       "path": "plugins/mc-analytics",
       "entry": "index.ts",
       "cli": true,
@@ -412,7 +447,7 @@
     {
       "id": "mc-monitor",
       "label": "Monitor",
-      "description": "Uptime and health monitoring — ping endpoints, alert on failures, track latency.",
+      "description": "Uptime and health monitoring \u2014 ping endpoints, alert on failures, track latency.",
       "path": "plugins/mc-monitor",
       "entry": "index.ts",
       "cli": true,
@@ -422,7 +457,7 @@
     {
       "id": "mc-deploy",
       "label": "Deploy",
-      "description": "Deployment automation — push to Vercel, Fly.io, or custom SSH targets.",
+      "description": "Deployment automation \u2014 push to Vercel, Fly.io, or custom SSH targets.",
       "path": "plugins/mc-deploy",
       "entry": "index.ts",
       "cli": true,
@@ -432,7 +467,7 @@
     {
       "id": "mc-test",
       "label": "Test Runner",
-      "description": "Automated test execution — run suites, report coverage, flag regressions.",
+      "description": "Automated test execution \u2014 run suites, report coverage, flag regressions.",
       "path": "plugins/mc-test",
       "entry": "index.ts",
       "cli": true,
@@ -442,7 +477,7 @@
     {
       "id": "mc-translate",
       "label": "Translate",
-      "description": "Multi-language translation — localize content, translate messages, detect language.",
+      "description": "Multi-language translation \u2014 localize content, translate messages, detect language.",
       "path": "plugins/mc-translate",
       "entry": "index.ts",
       "cli": true,
@@ -452,18 +487,20 @@
     {
       "id": "mc-voice",
       "label": "Voice",
-      "description": "Voice synthesis and transcription — text-to-speech, speech-to-text, voice memos.",
+      "description": "Voice synthesis and transcription \u2014 text-to-speech, speech-to-text, voice memos.",
       "path": "plugins/mc-voice",
       "entry": "index.ts",
       "cli": true,
       "tools": [],
       "optional": true,
-      "requires": ["openai-api-key"]
+      "requires": [
+        "openai-api-key"
+      ]
     },
     {
       "id": "mc-search",
       "label": "Web Search",
-      "description": "Web search integration — query search engines, summarize results, extract facts.",
+      "description": "Web search integration \u2014 query search engines, summarize results, extract facts.",
       "path": "plugins/mc-search",
       "entry": "index.ts",
       "cli": true,
@@ -473,7 +510,7 @@
     {
       "id": "mc-notify",
       "label": "Notify",
-      "description": "Push notifications — send alerts via Pushover, ntfy, or webhooks.",
+      "description": "Push notifications \u2014 send alerts via Pushover, ntfy, or webhooks.",
       "path": "plugins/mc-notify",
       "entry": "index.ts",
       "cli": true,
@@ -483,7 +520,7 @@
     {
       "id": "mc-pdf",
       "label": "PDF",
-      "description": "PDF generation and parsing — create invoices, extract text, merge documents.",
+      "description": "PDF generation and parsing \u2014 create invoices, extract text, merge documents.",
       "path": "plugins/mc-pdf",
       "entry": "index.ts",
       "cli": true,
@@ -493,7 +530,7 @@
     {
       "id": "mc-crm",
       "label": "CRM",
-      "description": "Customer relationship management — track leads, log interactions, pipeline stages.",
+      "description": "Customer relationship management \u2014 track leads, log interactions, pipeline stages.",
       "path": "plugins/mc-crm",
       "entry": "index.ts",
       "cli": true,
@@ -503,18 +540,20 @@
     {
       "id": "mc-invoice",
       "label": "Invoice",
-      "description": "Invoice generation — create, send, and track invoices with payment status.",
+      "description": "Invoice generation \u2014 create, send, and track invoices with payment status.",
       "path": "plugins/mc-invoice",
       "entry": "index.ts",
       "cli": true,
       "tools": [],
       "optional": true,
-      "requires": ["stripe-secret-key"]
+      "requires": [
+        "stripe-secret-key"
+      ]
     },
     {
       "id": "mc-scraper",
       "label": "Scraper",
-      "description": "Web scraping — extract structured data from websites, monitor page changes.",
+      "description": "Web scraping \u2014 extract structured data from websites, monitor page changes.",
       "path": "plugins/mc-scraper",
       "entry": "index.ts",
       "cli": true,
@@ -524,7 +563,7 @@
     {
       "id": "mc-forms",
       "label": "Forms",
-      "description": "Form builder — create intake forms, surveys, and feedback collectors with webhooks.",
+      "description": "Form builder \u2014 create intake forms, surveys, and feedback collectors with webhooks.",
       "path": "plugins/mc-forms",
       "entry": "index.ts",
       "cli": true,
@@ -599,7 +638,9 @@
       },
       "timeoutSeconds": 600,
       "sessionTarget": "isolated",
-      "requires": ["gmail-app-password"],
+      "requires": [
+        "gmail-app-password"
+      ],
       "optional": true
     },
     {
@@ -611,7 +652,9 @@
       },
       "timeoutSeconds": 300,
       "sessionTarget": "isolated",
-      "requires": ["gh-token"],
+      "requires": [
+        "gh-token"
+      ],
       "optional": false
     },
     {
@@ -623,7 +666,9 @@
       },
       "timeoutSeconds": 900,
       "sessionTarget": "isolated",
-      "requires": ["gh-token"],
+      "requires": [
+        "gh-token"
+      ],
       "optional": false
     }
   ],

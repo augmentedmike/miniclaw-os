@@ -7,7 +7,7 @@ STATE_DIR="${HOME}/.openclaw"
 WEB_DIR="$STATE_DIR/miniclaw/web"
 APP_PORT=4220
 LOG_FILE="/tmp/miniclaw-bootstrap.log"
-ZIP_URL="https://github.com/augmentedmike/miniclaw-os/releases/download/v0.1.8-prerelease/MiniClaw-Installer-v0.1.8-prerelease.zip"
+ZIP_URL="https://github.com/augmentedmike/miniclaw-os/releases/download/v0.1.8/MiniClaw-Installer-v0.1.8.zip"
 
 # Detect if running from .app bundle vs curl|bash
 IS_APP=false
