@@ -800,6 +800,37 @@ else
   warn "qmd not found — skipping collection setup"
 fi
 
+# ── Step 11b: Embedding model ─────────────────────────────────────────────────
+step "Step 11b: Embedding model (EmbeddingGemma-300M)"
+
+EMBED_MODEL_DIR="$HOME/.cache/qmd/models"
+EMBED_MODEL_FILE="hf_ggml-org_embeddinggemma-300M-Q8_0.gguf"
+EMBED_MODEL_PATH="$EMBED_MODEL_DIR/$EMBED_MODEL_FILE"
+EMBED_MODEL_URL="https://huggingface.co/ggml-org/embeddinggemma-300M-GGUF/resolve/main/embeddinggemma-300M-Q8_0.gguf"
+EMBED_MIN_SIZE=300000000  # ~300MB
+
+if [[ -f "$EMBED_MODEL_PATH" ]] && [[ "$(stat -f%z "$EMBED_MODEL_PATH" 2>/dev/null || stat -c%s "$EMBED_MODEL_PATH" 2>/dev/null)" -gt "$EMBED_MIN_SIZE" ]]; then
+  ok "Embedding model already present"
+elif [[ "$CHECK_ONLY" == true ]]; then
+  warn "Embedding model not found at $EMBED_MODEL_PATH"
+else
+  mkdir -p "$EMBED_MODEL_DIR"
+  info "Downloading EmbeddingGemma-300M Q8_0 (~313MB)..."
+  if curl -fSL --progress-bar -o "$EMBED_MODEL_PATH" "$EMBED_MODEL_URL"; then
+    FILE_SIZE="$(stat -f%z "$EMBED_MODEL_PATH" 2>/dev/null || stat -c%s "$EMBED_MODEL_PATH" 2>/dev/null)"
+    if [[ "$FILE_SIZE" -gt "$EMBED_MIN_SIZE" ]]; then
+      ok "Embedding model downloaded ($(( FILE_SIZE / 1048576 ))MB)"
+    else
+      rm -f "$EMBED_MODEL_PATH"
+      warn "Download too small — vector search will be disabled"
+    fi
+  else
+    rm -f "$EMBED_MODEL_PATH"
+    warn "Download failed — vector search will be disabled"
+    info "Manual fix: curl -fSL -o \"$EMBED_MODEL_PATH\" \"$EMBED_MODEL_URL\""
+  fi
+fi
+
 # ── Step 12: Vault ────────────────────────────────────────────────────────────
 step "Step 12: Vault"
 
