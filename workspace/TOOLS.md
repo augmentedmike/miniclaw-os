@@ -2,6 +2,14 @@
 
 All tools are accessed via `openclaw mc-<plugin> <command>`. Never call underlying tools directly — always use the mc-plugin wrapper.
 
+## File Paths
+
+- **Projects/repos:** `~/.openclaw/miniclaw/USER/projects/`
+- **Research/docs/playbooks:** `~/.openclaw/miniclaw/USER/docs/`
+- **Memory (short-term):** `~/.openclaw/USER/memory/`
+- **Blog posts:** `~/.openclaw/USER/blog/posts/`
+- **Media/attachments:** `~/.openclaw/USER/bin/media/`
+
 ## Git / Projects
 
 All cloned repositories MUST go in `~/.openclaw/miniclaw/USER/projects/`.
