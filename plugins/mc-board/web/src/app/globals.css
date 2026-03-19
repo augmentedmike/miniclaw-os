@@ -185,6 +185,7 @@ a { color: inherit; }
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
+  container-type: inline-size;
 }
 .column-header {
   display: flex;
@@ -192,6 +193,8 @@ a { color: inherit; }
   justify-content: space-between;
   margin-bottom: 14px;
   flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 .column-badge {
   font-size: 11px;
@@ -935,6 +938,34 @@ a { color: inherit; }
   .settings-content { padding: 16px; }
 }
 
+/* ── Column header actions (container-query responsive) ── */
+.column-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 1;
+  flex-wrap: wrap;
+  min-width: 0;
+  margin-left: auto;
+}
+@container (max-width: 400px) {
+  .column-header-actions {
+    flex-basis: 100%;
+    margin-left: 0;
+  }
+}
+@container (max-width: 280px) {
+  .triage-btn, .triage-select {
+    font-size: 9px;
+    padding: 2px 5px;
+  }
+}
+@container (max-width: 220px) {
+  .triage-btn .triage-label {
+    display: none;
+  }
+}
+
 /* ── Triage controls ── */
 .triage-controls {
   display: flex;
@@ -953,7 +984,6 @@ a { color: inherit; }
   line-height: 1.6;
   font-family: inherit;
   white-space: nowrap;
-  flex-shrink: 0;
 }
 .triage-btn--toggle {
   background: #27272a;
@@ -978,15 +1008,14 @@ a { color: inherit; }
   -webkit-appearance: none;
   font-family: inherit;
   white-space: nowrap;
-  flex-shrink: 0;
 }
 
 /* ── Responsive: compact medium breakpoint ── */
-@media (max-width: 1200px) {
+@media (max-width: 1200px) and (min-width: 601px) {
   .board-tab { padding: 14px 16px; }
   .board { gap: 8px; }
   .column-cards { gap: 8px; }
-  .card { padding: 12px 14px; }
+  .card { padding: 10px; }
   .card-title { font-size: 13px; }
   .filter-panel { width: 120px; padding: 10px 6px; }
   .modal-header, .modal-body, .modal-footer { padding-left: 18px; padding-right: 18px; }
