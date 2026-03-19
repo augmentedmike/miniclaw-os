@@ -8,6 +8,13 @@ import type { Logger } from "openclaw/plugin-sdk";
 import type { EmailConfig } from "../src/config.js";
 import { GmailClient } from "../src/client.js";
 import { getAppPassword, saveAppPassword } from "../src/vault.js";
+import {
+  loadTriageState,
+  saveTriageState,
+  filterNewUids,
+  markAllProcessed,
+  pruneState,
+} from "../src/triage-state.js";
 
 interface Ctx {
   program: Command;
@@ -204,19 +211,70 @@ export function registerEmailCommands(ctx: Ctx): void {
     .option("--dry-run", "Classify but do not send replies or archive")
     .option("-n, --limit <n>", "Max unread messages to process", "20")
     .option("--test-set", "Run classification test suite only (no inbox access)")
-    .action((opts: { dryRun?: boolean; limit: string; testSet?: boolean }) => {
+    .option("--no-state", "Disable state tracking (process all unread messages)")
+    .action(async (opts: { dryRun?: boolean; limit: string; testSet?: boolean; state?: boolean }) => {
       const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
+      const useState = opts.state !== false;
+
+      // If --test-set, skip state tracking entirely
+      if (opts.testSet) {
+        const scriptPath = path.join(stateDir, "miniclaw/cron/scripts/email-triage.py");
+        const args = ["python3", scriptPath, "--test-set", "--limit", opts.limit];
+        const result = spawnSync(args[0], args.slice(1), {
+          stdio: "inherit",
+          env: { ...process.env },
+        });
+        if (result.status !== 0) process.exit(result.status ?? 1);
+        return;
+      }
+
+      // Load triage state to filter already-processed UIDs
+      let triageState = useState ? pruneState(loadTriageState()) : loadTriageState();
+      let skipUids: string[] = [];
+      if (useState) {
+        skipUids = Object.keys(triageState.processedUids);
+      }
+
+      // Fetch current unread messages to identify which UIDs will be processed
+      let processedUids: string[] = [];
+      if (useState) {
+        try {
+          const client = getClient(cfg);
+          const messages = await client.listMessages("in:inbox is:unread", parseInt(opts.limit, 10));
+          const newMessages = messages.filter((m) => !skipUids.includes(m.id));
+          if (!newMessages.length) {
+            console.log("No new unread messages to triage (all already processed).");
+            return;
+          }
+          processedUids = newMessages.map((m) => m.id);
+          console.log(`Triaging ${newMessages.length} new message(s) (${skipUids.length} already processed, skipped).`);
+        } catch (err) {
+          console.error("Warning: could not pre-check messages for state tracking, proceeding without filter.", err);
+        }
+      }
+
+      // Build skip-uids arg for the triage script
       const scriptPath = path.join(stateDir, "miniclaw/cron/scripts/email-triage.py");
       const args = ["python3", scriptPath];
       if (opts.dryRun) args.push("--dry-run");
-      if (opts.testSet) args.push("--test-set");
       args.push("--limit", opts.limit);
+      if (useState && skipUids.length > 0) {
+        args.push("--skip-uids", skipUids.join(","));
+      }
 
       const result = spawnSync(args[0], args.slice(1), {
         stdio: "inherit",
         env: { ...process.env },
       });
-      if (result.status !== 0) {
+
+      // Record processed UIDs on success (or dry-run)
+      if (useState && processedUids.length > 0 && (result.status === 0 || opts.dryRun)) {
+        triageState = markAllProcessed(processedUids, triageState);
+        saveTriageState(triageState);
+        console.log(`State updated: marked ${processedUids.length} UID(s) as processed.`);
+      }
+
+      if (result.status !== 0 && !opts.dryRun) {
         process.exit(result.status ?? 1);
       }
     });
