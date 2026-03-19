@@ -6,10 +6,17 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
+import * as os from "node:os";
+import * as net from "node:net";
+import { execSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import type { Command } from "commander";
 import type { KBStore } from "../src/store.js";
 import type { Embedder } from "../src/embedder.js";
 import { hybridSearch } from "../src/search.js";
+
+const __filename_cli = fileURLToPath(import.meta.url);
+const __dirname_cli = path.dirname(__filename_cli);
 import { validateType, VALID_TYPES, type KBEntryCreate, entryToMarkdown } from "../src/entry.js";
 
 export interface CliContext {
@@ -295,6 +302,130 @@ Examples:
         }
       }
       console.log(`  Vector search: ${store.isVecLoaded() ? "enabled" : "disabled (FTS5-only)"}`);
+    });
+
+  // ---- mc-kb embedder ----
+  const embedderCmd = kb
+    .command("embedder")
+    .description("Manage the embedding daemon (LaunchAgent)");
+
+  const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
+  const SOCK_PATH = path.join(STATE_DIR, "run", "embedder.sock");
+  const PID_PATH = path.join(STATE_DIR, "run", "embedder.pid");
+  const PLIST_NAME = "com.miniclaw.embedder";
+  const PLIST_SRC = path.join(__dirname_cli, "..", "com.miniclaw.embedder.plist");
+  const PLIST_DEST = path.join(os.homedir(), "Library", "LaunchAgents", `${PLIST_NAME}.plist`);
+  const GUI_DOMAIN = `gui/${process.getuid?.() ?? 501}`;
+
+  embedderCmd
+    .command("start")
+    .description("Install and start the embedding daemon via LaunchAgent")
+    .action(() => {
+      try {
+        // Copy plist to LaunchAgents
+        if (!fs.existsSync(PLIST_SRC)) {
+          console.error(`Plist not found: ${PLIST_SRC}`);
+          process.exit(1);
+        }
+        fs.mkdirSync(path.dirname(PLIST_DEST), { recursive: true });
+        fs.copyFileSync(PLIST_SRC, PLIST_DEST);
+        console.log(`Installed ${PLIST_DEST}`);
+
+        // Load the LaunchAgent
+        try {
+          execSync(`launchctl bootout ${GUI_DOMAIN} ${PLIST_DEST} 2>/dev/null`, { stdio: "ignore" });
+        } catch {}
+        execSync(`launchctl bootstrap ${GUI_DOMAIN} ${PLIST_DEST}`, { stdio: "inherit" });
+        console.log("Embedding daemon started.");
+      } catch (err) {
+        console.error(`Failed to start daemon: ${(err as Error).message}`);
+        process.exit(1);
+      }
+    });
+
+  embedderCmd
+    .command("stop")
+    .description("Stop and unload the embedding daemon")
+    .action(() => {
+      try {
+        execSync(`launchctl bootout gui/$(id -u) ${PLIST_DEST}`, { stdio: "inherit" });
+        console.log("Embedding daemon stopped.");
+      } catch (err) {
+        console.error(`Failed to stop daemon: ${(err as Error).message}`);
+      }
+      // Clean up socket and pid
+      try { fs.unlinkSync(SOCK_PATH); } catch {}
+      try { fs.unlinkSync(PID_PATH); } catch {}
+    });
+
+  embedderCmd
+    .command("status")
+    .description("Check embedding daemon status")
+    .action(async () => {
+      // Check PID file
+      let pid: string | null = null;
+      try {
+        pid = fs.readFileSync(PID_PATH, "utf-8").trim();
+      } catch {}
+
+      // Check if process is alive
+      let processAlive = false;
+      if (pid) {
+        try {
+          process.kill(Number(pid), 0);
+          processAlive = true;
+        } catch {}
+      }
+
+      // Check socket
+      const socketExists = fs.existsSync(SOCK_PATH);
+
+      // Ping daemon
+      let pingOk = false;
+      if (socketExists) {
+        try {
+          pingOk = await new Promise<boolean>((resolve) => {
+            const conn = net.createConnection(SOCK_PATH);
+            const timer = setTimeout(() => { conn.destroy(); resolve(false); }, 2000);
+            conn.on("connect", () => {
+              conn.write(JSON.stringify({ id: "status-check", ping: true }) + "\n");
+            });
+            conn.on("data", (chunk) => {
+              clearTimeout(timer);
+              conn.destroy();
+              try {
+                const resp = JSON.parse(chunk.toString().trim());
+                resolve(resp.pong === true);
+              } catch {
+                resolve(false);
+              }
+            });
+            conn.on("error", () => { clearTimeout(timer); resolve(false); });
+          });
+        } catch {}
+      }
+
+      // Check LaunchAgent
+      let launchAgentLoaded = false;
+      try {
+        const out = execSync(`launchctl print ${GUI_DOMAIN}/${PLIST_NAME} 2>&1`, { encoding: "utf-8" });
+        launchAgentLoaded = out.includes("state =");
+      } catch {}
+
+      console.log("\nEmbedding Daemon Status:");
+      console.log(`  PID:          ${pid ?? "none"} ${processAlive ? "(alive)" : pid ? "(dead)" : ""}`);
+      console.log(`  Socket:       ${socketExists ? SOCK_PATH : "not found"}`);
+      console.log(`  Ping:         ${pingOk ? "OK ✓" : "no response ✗"}`);
+      console.log(`  LaunchAgent:  ${launchAgentLoaded ? "loaded ✓" : "not loaded ✗"}`);
+      console.log();
+
+      if (pingOk) {
+        console.log("  Daemon is running and healthy.");
+      } else if (processAlive) {
+        console.log("  Daemon process exists but not responding — may still be loading model.");
+      } else {
+        console.log("  Daemon is not running. Start with: openclaw mc-kb embedder start");
+      }
     });
 }
 

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.miniclaw.embedder</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/michaeloneal/.nvm/versions/node/v24.9.0/bin/node</string>
+    <string>--import</string>
+    <string>tsx</string>
+    <string>/Users/michaeloneal/.openclaw/miniclaw/plugins/mc-kb/src/embed-daemon.ts</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/michaeloneal/.openclaw/miniclaw/plugins/mc-kb</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>
+    <string>/Users/michaeloneal</string>
+    <key>PATH</key>
+    <string>/Users/michaeloneal/.local/bin:/Users/michaeloneal/.nvm/versions/node/v24.9.0/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>NODE_PATH</key>
+    <string>/Users/michaeloneal/.openclaw/miniclaw/plugins/mc-kb/node_modules:/Users/michaeloneal/.nvm/versions/node/v24.9.0/lib/node_modules/@miniclaw_official/openclaw/node_modules:/Users/michaeloneal/.openclaw/extensions/node_modules</string>
+    <key>OPENCLAW_STATE_DIR</key>
+    <string>/Users/michaeloneal/.openclaw</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/michaeloneal/.openclaw/logs/embedder.stdout.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/michaeloneal/.openclaw/logs/embedder.stderr.log</string>
+</dict>
+</plist>
