@@ -5,7 +5,43 @@ import { useState, useRef, useEffect, useCallback } from "react";
 interface Message {
   role: "user" | "assistant" | "system";
   content: string;
+  images?: string[]; // base64 data URLs for display
   error?: boolean;
+}
+
+interface PendingImage {
+  file: File;
+  preview: string;
+  base64: string;
+  mediaType: string;
+}
+
+const ALLOWED_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
+const LOCAL_STORAGE_MAX_BYTES = 4 * 1024 * 1024; // 4MB safe threshold
+
+/** Strip base64 image data URLs from messages before localStorage persist */
+function stripImagesForStorage(messages: Message[]): Message[] {
+  return messages.map(msg => {
+    if (!msg.images || msg.images.length === 0) return msg;
+    return {
+      ...msg,
+      images: msg.images.map(src =>
+        src.startsWith("data:") ? "[image]" : src
+      ),
+    };
+  });
+}
+
+/** Prune oldest messages until JSON fits within maxBytes */
+function pruneToFit(messages: Message[], maxBytes: number): Message[] {
+  let pruned = [...messages];
+  while (pruned.length > 0) {
+    const json = JSON.stringify(stripImagesForStorage(pruned));
+    if (json.length * 2 <= maxBytes) return pruned; // JS strings are ~2 bytes/char in localStorage
+    pruned = pruned.slice(1); // drop oldest
+  }
+  return [];
 }
 
 interface Props {
@@ -29,82 +65,253 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
   const [streamingText, setStreamingText] = useState("");
   const [streamingTools, setStreamingTools] = useState<{ name: string }[]>([]);
   const [connected, setConnected] = useState(false);
+  const [reconnecting, setReconnecting] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
     return localStorage.getItem("mc-chat-session") || null;
   });
   const [visibleCount, setVisibleCount] = useState(20);
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
+  const [dragOver, setDragOver] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [storageWarning, setStorageWarning] = useState<string | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const streamingInsertIndexRef = useRef<number | null>(null);
 
-  // Persist
+  // Persist messages to localStorage — strip images, prune if needed, surface errors
   useEffect(() => {
-    try { localStorage.setItem("mc-chat-messages", JSON.stringify(messages)); } catch {}
+    const stripped = stripImagesForStorage(messages);
+    const json = JSON.stringify(stripped);
+    // Check size before attempting to write
+    if (json.length * 2 > LOCAL_STORAGE_MAX_BYTES) {
+      const pruned = pruneToFit(messages, LOCAL_STORAGE_MAX_BYTES);
+      const prunedJson = JSON.stringify(stripImagesForStorage(pruned));
+      const dropped = messages.length - pruned.length;
+      try {
+        localStorage.setItem("mc-chat-messages", prunedJson);
+        if (dropped > 0) {
+          setStorageWarning(`Chat history too large — oldest ${dropped} message${dropped > 1 ? "s" : ""} pruned from local storage.`);
+        }
+      } catch (e) {
+        if (e instanceof DOMException && e.name === "QuotaExceededError") {
+          setStorageWarning("Storage quota exceeded — chat history could not be saved locally. Messages are preserved on the server.");
+        }
+      }
+    } else {
+      try {
+        localStorage.setItem("mc-chat-messages", json);
+        setStorageWarning(null);
+      } catch (e) {
+        if (e instanceof DOMException && e.name === "QuotaExceededError") {
+          // Try pruning as fallback
+          const pruned = pruneToFit(messages, LOCAL_STORAGE_MAX_BYTES);
+          try {
+            localStorage.setItem("mc-chat-messages", JSON.stringify(stripImagesForStorage(pruned)));
+            const dropped = messages.length - pruned.length;
+            setStorageWarning(`Storage full — oldest ${dropped} message${dropped > 1 ? "s" : ""} pruned.`);
+          } catch {
+            setStorageWarning("Storage quota exceeded — chat history could not be saved locally.");
+          }
+        }
+      }
+    }
   }, [messages]);
+
   useEffect(() => {
     if (sessionId) localStorage.setItem("mc-chat-session", sessionId);
     else localStorage.removeItem("mc-chat-session");
   }, [sessionId]);
 
-  // WebSocket connection
-  useEffect(() => {
-    const wsHost = window.location.hostname;
-    const wsProto = window.location.protocol === "https:" ? "wss" : "ws";
-    const ws = new WebSocket(`${wsProto}://${wsHost}:4221`);
-    wsRef.current = ws;
+  // Image processing helpers
+  const processFile = useCallback((file: File) => {
+    setImageError(null);
+    if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
+      setImageError(`Unsupported file type: ${file.type}. Use PNG, JPEG, GIF, or WebP.`);
+      return;
+    }
+    if (file.size > MAX_IMAGE_SIZE) {
+      setImageError(`Image too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Max 5MB.`);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const commaIdx = dataUrl.indexOf(",");
+      const base64 = dataUrl.slice(commaIdx + 1);
+      const mediaType = file.type;
+      setPendingImages(prev => [...prev, { file, preview: dataUrl, base64, mediaType }]);
+    };
+    reader.readAsDataURL(file);
+  }, []);
 
-    ws.onopen = () => {
-      setConnected(true);
-      const sid = localStorage.getItem("mc-chat-session");
-      ws.send(JSON.stringify({ type: "join", sessionId: sid }));
+  const removeImage = useCallback((index: number) => {
+    setPendingImages(prev => prev.filter((_, i) => i !== index));
+  }, []);
+
+  // Drag-and-drop handlers
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+    const files = Array.from(e.dataTransfer.files);
+    files.forEach(f => {
+      if (f.type.startsWith("image/")) processFile(f);
+    });
+  }, [processFile]);
+
+  // Paste handler for images
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const items = Array.from(e.clipboardData.items);
+    const imageItems = items.filter(item => item.type.startsWith("image/"));
+    if (imageItems.length === 0) return; // let normal text paste through
+    e.preventDefault();
+    imageItems.forEach(item => {
+      const file = item.getAsFile();
+      if (file) processFile(file);
+    });
+  }, [processFile]);
+
+  // WebSocket connection with auto-reconnect
+  useEffect(() => {
+    let didUnmount = false;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let reconnectAttempt = 0;
+    let isTabVisible = true;
+
+    const getBackoffDelay = () => {
+      const base = Math.min(1000 * Math.pow(2, reconnectAttempt), 30000);
+      const jitter = Math.random() * base * 0.3; // up to 30% jitter
+      return base + jitter;
     };
 
-    ws.onclose = () => { setConnected(false); setStreaming(false); };
+    const scheduleReconnect = () => {
+      if (didUnmount || !isTabVisible) return;
+      const delay = getBackoffDelay();
+      reconnectAttempt++;
+      setReconnecting(true);
+      reconnectTimer = setTimeout(() => {
+        if (!didUnmount && isTabVisible) connectWs();
+      }, delay);
+    };
 
-    ws.onmessage = (event) => {
-      const d = JSON.parse(event.data);
-      switch (d.type) {
-        case "joined":
-          setSessionId(d.sessionId);
-          if (d.processing) setStreaming(true);
-          break;
-        case "streaming":
-          setStreaming(true);
-          if (d.text) setStreamingText(d.text);
-          if (d.tools?.length) setStreamingTools(d.tools);
-          break;
-        case "result":
-          setStreaming(false); setStreamingText(""); setStreamingTools([]);
-          if (d.text) {
-            const insertIdx = streamingInsertIndexRef.current;
-            if (insertIdx !== null) {
-              setMessages(prev => [
-                ...prev.slice(0, insertIdx),
-                { role: "assistant", content: d.text },
-                ...prev.slice(insertIdx),
-              ]);
-            } else {
-              setMessages(prev => [...prev, { role: "assistant", content: d.text }]);
+    const connectWs = () => {
+      if (didUnmount) return;
+      const wsHost = window.location.hostname;
+      const wsProto = window.location.protocol === "https:" ? "wss" : "ws";
+      const ws = new WebSocket(`${wsProto}://${wsHost}:4221`);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        if (didUnmount) { ws.close(); return; }
+        reconnectAttempt = 0;
+        setConnected(true);
+        setReconnecting(false);
+        const sid = localStorage.getItem("mc-chat-session");
+        ws.send(JSON.stringify({ type: "join", sessionId: sid }));
+      };
+
+      ws.onclose = () => {
+        if (didUnmount) return;
+        setConnected(false);
+        setStreaming(false);
+        wsRef.current = null;
+        scheduleReconnect();
+      };
+
+      ws.onerror = () => {
+        // onclose will fire after onerror, so reconnect is handled there
+      };
+
+      ws.onmessage = (event) => {
+        const d = JSON.parse(event.data);
+        switch (d.type) {
+          case "joined":
+            setSessionId(d.sessionId);
+            if (d.processing) setStreaming(true);
+            // If server sent message history on reconnect, merge it
+            if (d.resumed && d.history && Array.isArray(d.history) && d.history.length > 0) {
+              setMessages(prev => {
+                if (prev.length === 0) return d.history;
+                if (d.history.length >= prev.length) return d.history;
+                return prev;
+              });
             }
-          }
-          streamingInsertIndexRef.current = null;
-          break;
-        case "done": case "process_exit":
-          setStreaming(false); setStreamingText(""); setStreamingTools([]);
-          streamingInsertIndexRef.current = null;
-          break;
-        case "error":
-          setMessages(prev => [...prev, { role: "system", content: d.message, error: true }]);
-          setStreaming(false);
-          streamingInsertIndexRef.current = null;
-          break;
+            break;
+          case "streaming":
+            setStreaming(true);
+            if (d.text) setStreamingText(d.text);
+            if (d.tools?.length) setStreamingTools(d.tools);
+            break;
+          case "result":
+            setStreaming(false); setStreamingText(""); setStreamingTools([]);
+            if (d.text) {
+              const insertIdx = streamingInsertIndexRef.current;
+              if (insertIdx !== null) {
+                setMessages(prev => [
+                  ...prev.slice(0, insertIdx),
+                  { role: "assistant", content: d.text },
+                  ...prev.slice(insertIdx),
+                ]);
+              } else {
+                setMessages(prev => [...prev, { role: "assistant", content: d.text }]);
+              }
+            }
+            streamingInsertIndexRef.current = null;
+            break;
+          case "done": case "process_exit":
+            setStreaming(false); setStreamingText(""); setStreamingTools([]);
+            streamingInsertIndexRef.current = null;
+            break;
+          case "error":
+            setMessages(prev => [...prev, { role: "system", content: d.message, error: true }]);
+            setStreaming(false);
+            streamingInsertIndexRef.current = null;
+            break;
+        }
+      };
+    };
+
+    // Visibility change: pause reconnect when hidden, resume when visible
+    const handleVisibility = () => {
+      isTabVisible = document.visibilityState === "visible";
+      if (isTabVisible) {
+        // Tab became visible — if disconnected and not already reconnecting, try now
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+          if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+          reconnectAttempt = 0;
+          connectWs();
+        }
+      } else {
+        // Tab hidden — cancel any pending reconnect to save resources
+        if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
       }
     };
+    document.addEventListener("visibilitychange", handleVisibility);
 
-    return () => ws.close();
+    connectWs();
+
+    return () => {
+      didUnmount = true;
+      document.removeEventListener("visibilitychange", handleVisibility);
+      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+      if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
+    };
   }, []);
 
   // Consume injected context
@@ -123,7 +330,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
 
   const send = useCallback(() => {
     const text = draft.trim();
-    if (!text || !wsRef.current || !connected) return;
+    if ((!text && pendingImages.length === 0) || !wsRef.current || !connected) return;
 
     if (text === "/clear") {
       wsRef.current.send(JSON.stringify({ type: "new_chat" }));
@@ -132,18 +339,27 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
       setVisibleCount(20);
       setDraft("");
       setContext(null);
+      setPendingImages([]);
+      setImageError(null);
+      setStorageWarning(null);
       streamingInsertIndexRef.current = null;
       return;
     }
 
-    let content = text;
+    let content = text || "(see attached image)";
     if (context) {
-      content = `[Context: ${context}]\n\n${text}`;
+      content = `[Context: ${context}]\n\n${content}`;
       setContext(null);
     }
 
+    // Build user message with image previews for display
+    const imagePreviews = pendingImages.map(img => img.preview);
     setMessages(prev => {
-      const next = [...prev, { role: "user" as const, content: text }];
+      const next = [...prev, {
+        role: "user" as const,
+        content: text || "(image)",
+        images: imagePreviews.length > 0 ? imagePreviews : undefined,
+      }];
       // Track where the streaming assistant response should be inserted.
       // Only set on the FIRST send that starts streaming — subsequent sends
       // during the same streaming session must NOT overwrite the index,
@@ -153,10 +369,22 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
       }
       return next;
     });
-    wsRef.current.send(JSON.stringify({ type: "chat", content }));
+
+    // Send via WS with image data
+    const wsMsg: Record<string, unknown> = { type: "chat", content };
+    if (pendingImages.length > 0) {
+      wsMsg.images = pendingImages.map(img => ({
+        base64: img.base64,
+        mediaType: img.mediaType,
+      }));
+    }
+    wsRef.current.send(JSON.stringify(wsMsg));
+
     setDraft("");
+    setPendingImages([]);
+    setImageError(null);
     setStreaming(true);
-  }, [draft, context, connected, streaming]);
+  }, [draft, context, connected, pendingImages, streaming]);
 
   const stopResponse = useCallback(() => {
     wsRef.current?.send(JSON.stringify({ type: "stop" }));
@@ -198,7 +426,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
           fontSize: 11,
           fontWeight: 700,
           letterSpacing: "0.15em",
-          color: connected ? "#4ade80" : "#52525b",
+          color: connected ? "#4ade80" : reconnecting ? "#fbbf24" : "#52525b",
           textTransform: "uppercase",
         }}>
           CHAT
@@ -209,16 +437,34 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
 
   // Open state
   return (
-    <div style={{
-      width: 380,
-      flexShrink: 0,
-      borderLeft: "1px solid #27272a",
-      background: "#0c0c0e",
-      display: "flex",
-      flexDirection: "column",
-      overflow: "hidden",
-      transition: "width 0.2s ease",
-    }}>
+    <div
+      onDragOver={handleDragOver}
+      onDragEnter={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      style={{
+        width: 380,
+        flexShrink: 0,
+        borderLeft: dragOver ? "2px solid #818cf8" : "1px solid #27272a",
+        background: dragOver ? "#0c0c1a" : "#0c0c0e",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        transition: "width 0.2s ease, background 0.15s, border-color 0.15s",
+        position: "relative",
+      }}>
+      {/* Drop overlay */}
+      {dragOver && (
+        <div style={{
+          position: "absolute", inset: 0, zIndex: 10,
+          background: "rgba(99, 102, 241, 0.08)",
+          border: "2px dashed #818cf8", borderRadius: 8,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          pointerEvents: "none",
+        }}>
+          <span style={{ color: "#818cf8", fontSize: 14, fontWeight: 600 }}>Drop images here</span>
+        </div>
+      )}
       {/* Header */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -230,10 +476,10 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
           </span>
           <span style={{
             fontSize: 10, padding: "1px 6px", borderRadius: 3,
-            background: connected ? "#1a2a1a" : "#2a1a1a",
-            color: connected ? "#4ade80" : "#f87171",
+            background: connected ? "#1a2a1a" : reconnecting ? "#2a2a1a" : "#2a1a1a",
+            color: connected ? "#4ade80" : reconnecting ? "#fbbf24" : "#f87171",
             fontWeight: 600,
-          }}>{connected ? "connected" : "offline"}</span>
+          }}>{connected ? "connected" : reconnecting ? "reconnecting…" : "offline"}</span>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {streaming && (
@@ -247,7 +493,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
           )}
           {messages.length > 0 && (
             <button
-              onClick={() => { setMessages([]); wsRef.current?.send(JSON.stringify({ type: "new_chat" })); }}
+              onClick={() => { setMessages([]); setStorageWarning(null); wsRef.current?.send(JSON.stringify({ type: "new_chat" })); }}
               title="New chat"
               style={{
                 background: "none", border: "none", color: "#52525b", cursor: "pointer",
@@ -265,6 +511,21 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
           >✕</button>
         </div>
       </div>
+
+      {/* Storage warning banner */}
+      {storageWarning && (
+        <div style={{
+          margin: "0", padding: "6px 14px", flexShrink: 0,
+          background: "#2a2a1a", borderBottom: "1px solid #854d0e",
+          fontSize: 11, color: "#fbbf24", display: "flex", alignItems: "center", gap: 8,
+        }}>
+          <span style={{ flex: 1 }}>{storageWarning}</span>
+          <button
+            onClick={() => setStorageWarning(null)}
+            style={{ background: "none", border: "none", color: "#854d0e", cursor: "pointer", fontSize: 13, lineHeight: 1, padding: 0 }}
+          >×</button>
+        </div>
+      )}
 
       {/* Messages */}
       <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 12 }}>
@@ -311,6 +572,24 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
                   fontSize: 13, color: msg.error ? "#f87171" : msg.role === "user" ? "#bbf7d0" : "#d4d4d8",
                   lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-word",
                 }}>
+                  {msg.images && msg.images.length > 0 && msg.images[0] !== "[image]" && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6 }}>
+                      {msg.images.map((src, imgIdx) => (
+                        src !== "[image]" ? (
+                          <img key={imgIdx} src={src} alt="" style={{
+                            width: 64, height: 64, objectFit: "cover", borderRadius: 4,
+                            border: "1px solid #27272a",
+                          }} />
+                        ) : (
+                          <span key={imgIdx} style={{
+                            width: 64, height: 64, display: "flex", alignItems: "center", justifyContent: "center",
+                            borderRadius: 4, border: "1px solid #27272a", background: "#27272a",
+                            fontSize: 10, color: "#71717a",
+                          }}>image</span>
+                        )
+                      ))}
+                    </div>
+                  )}
                   {msg.content}
                 </div>
               )}
@@ -373,11 +652,68 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
         }}>
           <span style={{ fontSize: 10, color: "#818cf8", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", flexShrink: 0, marginTop: 1 }}>ctx</span>
           <span style={{ fontSize: 11, color: "#a5b4fc", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {context.slice(0, 80)}{context.length > 80 ? "…" : ""}
+            {context.slice(0, 80)}{context.length > 80 ? "..." : ""}
           </span>
-          <button onClick={clearContext} style={{ background: "none", border: "none", color: "#52525b", cursor: "pointer", fontSize: 13, lineHeight: 1, padding: 0, flexShrink: 0 }}>×</button>
+          <button onClick={clearContext} style={{ background: "none", border: "none", color: "#52525b", cursor: "pointer", fontSize: 13, lineHeight: 1, padding: 0, flexShrink: 0 }}>x</button>
         </div>
       )}
+
+      {/* Image preview strip */}
+      {pendingImages.length > 0 && (
+        <div style={{
+          margin: "0 10px", padding: "6px 8px", flexShrink: 0,
+          display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center",
+          background: "#18181b", borderRadius: 6, border: "1px solid #27272a",
+        }}>
+          {pendingImages.map((img, idx) => (
+            <div key={idx} style={{ position: "relative", width: 48, height: 48 }}>
+              <img src={img.preview} alt="" style={{
+                width: 48, height: 48, objectFit: "cover", borderRadius: 4,
+                border: "1px solid #3f3f46",
+              }} />
+              <button
+                onClick={() => removeImage(idx)}
+                style={{
+                  position: "absolute", top: -4, right: -4,
+                  width: 16, height: 16, borderRadius: "50%",
+                  background: "#ef4444", border: "none", color: "#fff",
+                  fontSize: 10, lineHeight: 1, cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  padding: 0,
+                }}
+              >x</button>
+            </div>
+          ))}
+          <span style={{ fontSize: 10, color: "#71717a" }}>
+            {pendingImages.length} image{pendingImages.length > 1 ? "s" : ""}
+          </span>
+        </div>
+      )}
+
+      {/* Image error */}
+      {imageError && (
+        <div style={{
+          margin: "0 10px", padding: "4px 10px", borderRadius: 4,
+          background: "#2a1a1a", border: "1px solid #7c2d12",
+          fontSize: 11, color: "#f87171", flexShrink: 0,
+        }}>
+          {imageError}
+        </div>
+      )}
+
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/gif,image/webp"
+        multiple
+        style={{ display: "none" }}
+        onChange={e => {
+          const files = Array.from(e.target.files || []);
+          files.forEach(f => processFile(f));
+          e.target.value = "";
+        }}
+      />
 
       {/* Compose */}
       <div style={{
@@ -389,7 +725,8 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
           value={draft}
           onChange={e => setDraft(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={`Message ${agentName}…`}
+          onPaste={handlePaste}
+          placeholder={`Message ${agentName}...`}
           rows={3}
           style={{
             width: "100%", background: "#18181b", border: "1px solid #3f3f46",
@@ -400,7 +737,18 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
           onFocus={e => { e.currentTarget.style.borderColor = "#52525b"; }}
           onBlur={e => { e.currentTarget.style.borderColor = "#3f3f46"; }}
         />
-        <span style={{ fontSize: 10, color: "#3f3f46" }}>Shift+Enter to send</span>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ fontSize: 10, color: "#3f3f46" }}>Shift+Enter to send</span>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              background: "none", border: "1px solid #3f3f46", borderRadius: 4,
+              color: "#71717a", fontSize: 11, padding: "2px 8px", cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+            title="Attach image"
+          >attach</button>
+        </div>
       </div>
     </div>
   );

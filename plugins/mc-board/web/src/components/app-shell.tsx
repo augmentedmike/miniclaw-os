@@ -34,8 +34,8 @@ function DailyStats() {
 
   return (
     <>
-      <span className="stat-pill" title={`${data.total_tokens.toLocaleString()} tokens today`}>
-        tokens<b>{fmtK(data.total_tokens)}</b>
+      <span className="stat-pill" data-col="tokens" title={`${data.total_tokens.toLocaleString()} tokens today`}>
+        <span className="pill-label">tokens</span><b>{fmtK(data.total_tokens)}</b>
       </span>
       {/* cost pill hidden for now */}
     </>
@@ -237,7 +237,7 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
                     {countPills.length === 0 ? (
                       <span style={{ fontSize: 11, color: "#52525b" }}>0 cards</span>
                     ) : countPills.map(({ col, n }) => (
-                      <span key={col} style={{
+                      <span key={col} className="proj-count-pill" style={{
                         fontSize: 11,
                         color: colColors[col] ?? "#52525b",
                         background: (colColors[col] ?? "#52525b") + "22",
@@ -245,7 +245,7 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
                         padding: "1px 5px",
                         fontWeight: 500,
                       }}>
-                        {col} <b style={{ fontWeight: 700 }}>{n}</b>
+                        <span className="proj-pill-label">{col} </span><b style={{ fontWeight: 700 }}>{n}</b>
                       </span>
                     ))}
                   </div>
@@ -258,15 +258,15 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
         {/* Right: stat pills */}
         {counts && (
           <div className="stat-pills">
-            <span className="stat-pill">projects<b>{projects.length}</b></span>
-            <span className="stat-pill">backlog<b>{counts.backlog}</b></span>
-            <span className="stat-pill">in&nbsp;progress<b>{counts.inProgress}</b></span>
-            <span className="stat-pill">in&nbsp;review<b>{counts.inReview}</b></span>
-            <span className="stat-pill">shipped<b>{counts.shipped}</b></span>
+            <span className="stat-pill" data-col="projects"><span className="pill-label">projects</span><b>{projects.length}</b></span>
+            <span className="stat-pill" data-col="backlog"><span className="pill-label">backlog</span><b>{counts.backlog}</b></span>
+            <span className="stat-pill" data-col="in-progress"><span className="pill-label">in&nbsp;progress</span><b>{counts.inProgress}</b></span>
+            <span className="stat-pill" data-col="in-review"><span className="pill-label">in&nbsp;review</span><b>{counts.inReview}</b></span>
+            <span className="stat-pill" data-col="shipped"><span className="pill-label">shipped</span><b>{counts.shipped}</b></span>
             <DailyStats />
             {memoryStats && (
-              <span className="stat-pill" title={`${memoryStats.memoryFiles} memory files, ${memoryStats.kbEntries} KB entries`}>
-                memory<b>{memoryStats.memoryFiles}&thinsp;/&thinsp;{memoryStats.kbEntries}</b>
+              <span className="stat-pill" data-col="memory" title={`${memoryStats.memoryFiles} memory files, ${memoryStats.kbEntries} KB entries`}>
+                <span className="pill-label">memory</span><b>{memoryStats.memoryFiles}&thinsp;/&thinsp;{memoryStats.kbEntries}</b>
               </span>
             )}
           </div>

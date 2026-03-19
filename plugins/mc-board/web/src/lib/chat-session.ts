@@ -21,13 +21,17 @@ interface ChatEvent {
 }
 
 export class ChatSession extends EventEmitter {
-  async send(message: string): Promise<void> {
+  async send(message: string, imagePaths?: string[]): Promise<void> {
     return new Promise<void>((resolve) => {
       const conn = net.createConnection(SOCKET_PATH);
       let buf = "";
 
       conn.on("connect", () => {
-        conn.write(JSON.stringify({ type: "message", text: message }) + "\n");
+        const payload: { type: string; text: string; imagePaths?: string[] } = { type: "message", text: message };
+        if (imagePaths && imagePaths.length > 0) {
+          payload.imagePaths = imagePaths;
+        }
+        conn.write(JSON.stringify(payload) + "\n");
       });
 
       conn.on("data", (chunk) => {
