@@ -54,20 +54,18 @@ One line to install. Runs on your Mac. Your data never leaves your machine. [Ins
 ## Demo
 
 <p align="center">
-  <video src="https://raw.githubusercontent.com/augmentedmike/miniclaw-os/main/assets/mc-demo-dogfooding.mp4" width="720" controls></video>
+  <img src="https://raw.githubusercontent.com/augmentedmike/miniclaw-os/main/assets/demo.gif" alt="MiniClaw OS — dogfooding demo" width="720">
 </p>
 
 *Dogfooding MiniClaw — real agent work session showing the board, pixel office, chat, and autonomous task execution.*
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/augmentedmike/miniclaw-os/main/assets/demo.gif" alt="MiniClaw OS Demo — agent picks task, executes, remembers, ships" width="720">
-</p>
-
-*An agent picks a task from its kanban board, executes it autonomously, writes learnings to long-term memory, and ships the result — all without human intervention.*
+<!-- Dogfooding demo video — drag-drop MC Demo 1 - Dogfooding.mp4 here via GitHub web editor to get a user-attachments URL -->
 
 <a id="install-demo"></a>
 
 https://github.com/user-attachments/assets/937327da-40a8-423c-ab34-d3fe088099c9
+
+*Install walkthrough — one command to a fully running agent.*
 
 ---
 
