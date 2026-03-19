@@ -2,13 +2,32 @@ import { createServer } from "node:http";
 import { WebSocketServer, WebSocket } from "ws";
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { homedir, tmpdir } from "node:os";
 
 export interface ChatServerOptions {
   port: number;
   claudeBin: string;
   workspaceDir: string;
+}
+
+interface ContextPruneConfig {
+  windowMinutes: number;
+  windowMinMessages: number;
+  contextThresholdPercent: number;
+}
+
+const PRUNE_CONFIG: ContextPruneConfig = {
+  windowMinutes: 60,
+  windowMinMessages: 10,
+  contextThresholdPercent: 75,
+};
+
+interface PruneStats {
+  totalPrunes: number;
+  messagesDropped: number;
+  lastPruneAt: string | null;
 }
 
 export function startChatServer(opts: ChatServerOptions) {
@@ -33,6 +52,15 @@ export function startChatServer(opts: ChatServerOptions) {
     return Math.ceil(text.length / 4);
   }
 
+  interface StoredMessage {
+    role: "user" | "assistant" | "system";
+    content: string;
+    hasImages?: boolean;
+    imageCount?: number;
+    error?: boolean;
+    timestamp: string;
+  }
+
   interface ChatSession {
     id: string;
     proc: ChildProcess | null;
@@ -48,9 +76,39 @@ export function startChatServer(opts: ChatServerOptions) {
     awaitingResult: boolean;
     messageQueue: string[];
     procHasContext: boolean;
+    messages: StoredMessage[];
+    lastContextUsed: number;
+    needsPrune: boolean;
+    pruneStats: PruneStats;
+    replayHistory?: string;
   }
 
   const chatSessions = new Map<string, ChatSession>();
+
+  const historyDir = join(
+    process.env.OPENCLAW_STATE_DIR ?? join(homedir(), ".openclaw"),
+    "USER", "brain", "chat-history",
+  );
+  mkdirSync(historyDir, { recursive: true });
+
+  function historyPath(sessionId: string): string {
+    return join(historyDir, `${sessionId}.json`);
+  }
+
+  function loadHistory(sessionId: string): StoredMessage[] {
+    const p = historyPath(sessionId);
+    if (!existsSync(p)) return [];
+    try { return JSON.parse(readFileSync(p, "utf-8")); } catch { return []; }
+  }
+
+  function saveHistory(session: ChatSession) {
+    try { writeFileSync(historyPath(session.id), JSON.stringify(session.messages)); } catch {}
+  }
+
+  function addMessage(session: ChatSession, msg: Omit<StoredMessage, "timestamp">) {
+    session.messages.push({ ...msg, timestamp: new Date().toISOString() });
+    saveHistory(session);
+  }
 
   function newSession(ws: WebSocket): ChatSession {
     return {
@@ -58,7 +116,81 @@ export function startChatServer(opts: ChatServerOptions) {
       totalInputTokens: 0, totalOutputTokens: 0, totalCacheRead: 0, totalCacheCreate: 0,
       totalCost: 0, contextWindow: 1_000_000, turnCount: 0,
       awaitingResult: false, messageQueue: [], procHasContext: false,
+      messages: [], lastContextUsed: 0, needsPrune: false,
+      pruneStats: { totalPrunes: 0, messagesDropped: 0, lastPruneAt: null },
     };
+  }
+
+  /** Return only recent messages within the time window, always keeping at least minMessages. */
+  function pruneMessages(messages: StoredMessage[], config: ContextPruneConfig): { kept: StoredMessage[]; dropped: number } {
+    if (messages.length <= config.windowMinMessages) {
+      return { kept: messages, dropped: 0 };
+    }
+    const cutoff = Date.now() - config.windowMinutes * 60 * 1000;
+    const guaranteed = messages.slice(-config.windowMinMessages);
+    const older = messages.slice(0, -config.windowMinMessages);
+    const survivingOlder = older.filter((m) => {
+      const ts = new Date(m.timestamp).getTime();
+      return !isNaN(ts) && ts >= cutoff;
+    });
+    const kept = [...survivingOlder, ...guaranteed];
+    return { kept, dropped: messages.length - kept.length };
+  }
+
+  /** Format pruned history as text for injection into the first message after respawn. */
+  function formatHistoryForReplay(messages: StoredMessage[]): string {
+    if (messages.length === 0) return "";
+    const lines = messages.map((m) => {
+      const ts = m.timestamp ? ` ${m.timestamp}` : "";
+      const prefix = m.role === "user" ? "[user" : "[assistant";
+      const imgNote = m.hasImages ? ` (${m.imageCount || 1} image${(m.imageCount || 1) > 1 ? "s" : ""} — no longer available)` : "";
+      return `${prefix}${ts}]:${imgNote}\n${m.content}`;
+    });
+    return lines.join("\n\n");
+  }
+
+  /** Check if context usage exceeds threshold — schedule prune before next turn. */
+  function checkContextThreshold(session: ChatSession) {
+    const threshold = session.contextWindow * (PRUNE_CONFIG.contextThresholdPercent / 100);
+    if (session.lastContextUsed >= threshold && session.messages.length > PRUNE_CONFIG.windowMinMessages) {
+      session.needsPrune = true;
+      console.log(`[mc-web-chat] context at ${session.lastContextUsed}/${session.contextWindow} (${Math.round(session.lastContextUsed / session.contextWindow * 100)}%) — prune scheduled`);
+    }
+  }
+
+  /** Kill the process and respawn. Next message will include pruned history. */
+  function pruneAndRespawn(session: ChatSession) {
+    const { kept, dropped } = pruneMessages(session.messages, PRUNE_CONFIG);
+    if (dropped === 0) {
+      session.needsPrune = false;
+      return;
+    }
+
+    console.log(`[mc-web-chat] pruning: dropping ${dropped} messages, keeping ${kept.length}`);
+
+    // Kill the old process
+    if (session.proc) {
+      session.proc.kill();
+      session.proc = null;
+    }
+
+    // Store replay history for injection on next message
+    session.replayHistory = formatHistoryForReplay(kept);
+    session.procHasContext = false;
+    session.needsPrune = false;
+    session.lastContextUsed = 0;
+
+    // Update stats
+    session.pruneStats.totalPrunes++;
+    session.pruneStats.messagesDropped += dropped;
+    session.pruneStats.lastPruneAt = new Date().toISOString();
+
+    sendToClient(session, {
+      type: "context_pruned",
+      dropped,
+      kept: kept.length,
+      stats: session.pruneStats,
+    });
   }
 
   function sendToClient(session: ChatSession, data: Record<string, unknown>) {
@@ -97,14 +229,24 @@ export function startChatServer(opts: ChatServerOptions) {
             session.totalCacheRead += (u.cache_read_input_tokens || 0);
             session.totalCacheCreate += (u.cache_creation_input_tokens || 0);
             session.totalCost += (ev.total_cost_usd || 0);
+
+            // Track context size for pruning decisions
+            session.lastContextUsed = (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0);
+            checkContextThreshold(session);
+
+            const resultText = ev.result || "";
+            if (resultText) {
+              addMessage(session, { role: "assistant", content: resultText });
+            }
             sendToClient(session, {
-              type: "result", text: ev.result || "",
+              type: "result", text: resultText,
               tokens: {
-                contextUsed: (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0),
+                contextUsed: session.lastContextUsed,
                 contextWindow: session.contextWindow,
                 totalInput: session.totalInputTokens, totalOutput: session.totalOutputTokens,
                 totalCost: session.totalCost,
               },
+              pruneStats: session.pruneStats,
             });
             session.awaitingResult = false;
             if (session.messageQueue.length > 0) {
@@ -134,7 +276,31 @@ export function startChatServer(opts: ChatServerOptions) {
     return proc;
   }
 
-  function sendMessageToProcess(session: ChatSession, content: string) {
+  interface ImageAttachment {
+    base64: string;
+    mediaType: string;
+  }
+
+  function buildMessageContent(text: string, images?: ImageAttachment[]): string {
+    if (!images || images.length === 0) return text;
+    // Save images to temp files so Claude Code can read them with the Read tool
+    const imagePaths: string[] = [];
+    for (const img of images) {
+      const ext = img.mediaType.split("/")[1] || "png";
+      const tmpPath = join(tmpdir(), `mc-chat-img-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`);
+      writeFileSync(tmpPath, Buffer.from(img.base64, "base64"));
+      imagePaths.push(tmpPath);
+    }
+    const imageNote = imagePaths.map(p => `[Attached image: ${p}]`).join("\n");
+    return `${imageNote}\n\n${text}`;
+  }
+
+  function sendMessageToProcess(session: ChatSession, content: string, images?: ImageAttachment[]) {
+    // Prune before sending if threshold was crossed
+    if (session.needsPrune) {
+      pruneAndRespawn(session);
+    }
+
     const proc = ensureProcess(session);
     session.turnCount++;
     session.awaitingResult = true;
@@ -151,21 +317,34 @@ export function startChatServer(opts: ChatServerOptions) {
         const context = chatPersona
           ? `${wp}\n\n# refs/chat-persona.md\n${chatPersona}`
           : wp;
-        msg = `<workspace-context>\n${context}\n</workspace-context>\n\nInternalize the above silently. Now respond to:\n\n${content}`;
+
+        // Include pruned history if respawning after a prune
+        const historyBlock = session.replayHistory
+          ? `\n\n<conversation-history>\n${session.replayHistory}\n</conversation-history>\n\nThe above is your recent conversation history — older messages were pruned. Continue naturally.`
+          : "";
+        session.replayHistory = undefined;
+
+        msg = `<workspace-context>\n${context}\n</workspace-context>${historyBlock}\n\nInternalize the above silently. Now respond to:\n\n${content}`;
       }
     }
 
-    console.log(`[mc-web-chat] turn ${session.turnCount}: sending message`);
-    proc.stdin!.write(JSON.stringify({ type: "user", message: { role: "user", content: msg } }) + "\n");
+    const messageContent = buildMessageContent(msg, images);
+    console.log(`[mc-web-chat] turn ${session.turnCount}: sending message${images?.length ? ` (${images.length} image${images.length > 1 ? "s" : ""})` : ""}`);
+    proc.stdin!.write(JSON.stringify({ type: "user", message: { role: "user", content: messageContent } }) + "\n");
   }
 
-  function handleChat(session: ChatSession, content: string) {
+  function handleChat(session: ChatSession, content: string, images?: ImageAttachment[]) {
+    addMessage(session, {
+      role: "user",
+      content,
+      ...(images?.length ? { hasImages: true, imageCount: images.length } : {}),
+    });
     if (session.awaitingResult) {
       session.messageQueue.push(content);
       sendToClient(session, { type: "queued", position: session.messageQueue.length });
       return;
     }
-    sendMessageToProcess(session, content);
+    sendMessageToProcess(session, content, images);
   }
 
   // HTTP server just for health checks
@@ -192,7 +371,7 @@ export function startChatServer(opts: ChatServerOptions) {
     let session: ChatSession | null = null;
 
     ws.on("message", (raw) => {
-      let msg: { type: string; content?: string; sessionId?: string };
+      let msg: { type: string; content?: string; sessionId?: string; images?: ImageAttachment[] };
       try { msg = JSON.parse(raw.toString()); } catch { return; }
 
       if (msg.type === "join") {
@@ -203,12 +382,41 @@ export function startChatServer(opts: ChatServerOptions) {
           ws.send(JSON.stringify({
             type: "joined", sessionId: session.id, resumed: true,
             processing: session.awaitingResult,
+            messages: session.messages,
             tokens: {
               totalInput: session.totalInputTokens, totalOutput: session.totalOutputTokens,
               contextUsed: session.totalInputTokens + session.totalCacheRead + session.totalCacheCreate,
               contextWindow: session.contextWindow, totalCost: session.totalCost,
             },
           }));
+        } else if (rid) {
+          // Session not in memory — try loading from disk
+          const history = loadHistory(rid);
+          if (history.length > 0) {
+            session = newSession(ws);
+            session.id = rid;
+            session.messages = history;
+            chatSessions.set(session.id, session);
+            const est = estimateTokens(loadWorkspacePrompt());
+            ensureProcess(session);
+            ws.send(JSON.stringify({
+              type: "joined", sessionId: session.id, resumed: true,
+              messages: session.messages,
+              workspace: { estimatedTokens: est },
+              tokens: { contextUsed: est, contextWindow: session.contextWindow, totalInput: 0, totalOutput: 0, totalCost: 0 },
+            }));
+          } else {
+            session = newSession(ws);
+            chatSessions.set(session.id, session);
+            const est = estimateTokens(loadWorkspacePrompt());
+            ensureProcess(session);
+            ws.send(JSON.stringify({
+              type: "joined", sessionId: session.id, resumed: false,
+              messages: [],
+              workspace: { estimatedTokens: est },
+              tokens: { contextUsed: est, contextWindow: session.contextWindow, totalInput: 0, totalOutput: 0, totalCost: 0 },
+            }));
+          }
         } else {
           session = newSession(ws);
           chatSessions.set(session.id, session);
@@ -216,6 +424,7 @@ export function startChatServer(opts: ChatServerOptions) {
           ensureProcess(session);
           ws.send(JSON.stringify({
             type: "joined", sessionId: session.id, resumed: false,
+            messages: [],
             workspace: { estimatedTokens: est },
             tokens: { contextUsed: est, contextWindow: session.contextWindow, totalInput: 0, totalOutput: 0, totalCost: 0 },
           }));
@@ -225,7 +434,14 @@ export function startChatServer(opts: ChatServerOptions) {
 
       if (!session) return;
 
-      if (msg.type === "chat" && msg.content) handleChat(session, msg.content);
+      if (msg.type === "chat" && msg.content) {
+        // Normalize client field names (data/mimeType) → server names (base64/mediaType)
+        const images = msg.images?.map((img: Record<string, unknown>) => ({
+          base64: (img as any).base64 ?? (img as any).data,
+          mediaType: (img as any).mediaType ?? (img as any).mimeType,
+        })).filter((img: ImageAttachment) => img.base64 && img.mediaType);
+        handleChat(session, msg.content, images?.length ? images : undefined);
+      }
 
       if (msg.type === "stop" && session.proc) {
         session.proc.kill(); session.proc = null;

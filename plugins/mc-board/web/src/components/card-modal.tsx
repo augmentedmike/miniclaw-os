@@ -271,6 +271,130 @@ function fmtDuration(ms: number): string {
   return `${m}m ${s}s`;
 }
 
+function AttachmentsSection({ card, onInjectContext, onMutate, onToast }: {
+  card: Card;
+  onInjectContext?: (ctx: string) => void;
+  onMutate?: () => void;
+  onToast?: (icon: string, title: string, sub?: string) => void;
+}) {
+  const [dragOver, setDragOver] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const uploadFiles = async (files: FileList | File[]) => {
+    const imageFiles = Array.from(files).filter(f => f.type.startsWith("image/"));
+    if (!imageFiles.length) return;
+    setUploading(true);
+    try {
+      for (const file of imageFiles) {
+        const form = new FormData();
+        form.append("file", file);
+        form.append("cardId", card.id);
+        const upRes = await fetch("/api/upload", { method: "POST", body: form });
+        if (!upRes.ok) { onToast?.("!", "Upload failed", await upRes.text()); continue; }
+        const { path } = await upRes.json();
+        await fetch(`/api/cards/${card.id}/attachments`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ path, label: file.name, mime: file.type }),
+        });
+      }
+      onMutate?.();
+      onToast?.("img", "Image attached", `${imageFiles.length} file${imageFiles.length > 1 ? "s" : ""}`);
+    } catch (e) {
+      onToast?.("!", "Upload error", String(e));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    if (e.dataTransfer.files.length) uploadFiles(e.dataTransfer.files);
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData.items;
+    const imageFiles: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith("image/")) {
+        const file = items[i].getAsFile();
+        if (file) imageFiles.push(file);
+      }
+    }
+    if (imageFiles.length) uploadFiles(imageFiles);
+  };
+
+  const attachments = card.attachments ?? [];
+
+  return (
+    <div
+      onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={handleDrop}
+      onPaste={handlePaste}
+      tabIndex={0}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Attachments</h3>
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          className="text-xs text-zinc-500 hover:text-zinc-300 cursor-pointer"
+          style={{ background: "none", border: "none", fontFamily: "inherit" }}
+        >{uploading ? "uploading…" : "+ add image"}</button>
+        <input ref={fileInputRef} type="file" accept="image/*" multiple hidden onChange={e => { if (e.target.files) uploadFiles(e.target.files); e.target.value = ""; }} />
+      </div>
+
+      {attachments.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 8 }}>
+          {attachments.map((a: Attachment, i: number) => (
+            <a
+              key={i}
+              href={`/api/media?path=${encodeURIComponent(a.path)}`}
+              target="_blank"
+              rel="noreferrer"
+              style={{ display: "block", borderRadius: 6, overflow: "hidden", border: "1px solid #3f3f46", background: "#18181b" }}
+              title={a.label || a.path}
+              onContextMenu={onInjectContext ? (e) => {
+                e.preventDefault();
+                onInjectContext(`[${card.id}] Attachment: ${a.label || a.path}\nPath: ${a.path}`);
+              } : undefined}
+            >
+              <img
+                src={`/api/media?path=${encodeURIComponent(a.path)}`}
+                alt={a.label || "attachment"}
+                style={{ width: "100%", height: "auto", display: "block" }}
+                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+              />
+              {a.label && (
+                <div style={{ padding: "4px 6px", fontSize: 11, color: "#a1a1aa", fontFamily: "var(--font-geist-mono), ui-monospace, monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {a.label}
+                </div>
+              )}
+            </a>
+          ))}
+        </div>
+      )}
+
+      <div
+        style={{
+          border: dragOver ? "2px dashed #818cf8" : "1px dashed #3f3f46",
+          borderRadius: 6, padding: "12px 0", textAlign: "center",
+          background: dragOver ? "#1a1a2e" : "transparent",
+          transition: "all 0.15s", cursor: "pointer",
+        }}
+        onClick={() => fileInputRef.current?.click()}
+      >
+        <span style={{ fontSize: 11, color: dragOver ? "#818cf8" : "#52525b" }}>
+          {dragOver ? "Drop image here" : "Drop, paste, or click to attach images"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function AgentRunsSection({ cardId }: { cardId: string }) {
   const { data: runs, isLoading } = useSWR<AgentRun[]>(
     `/api/card/${cardId}/runs`,
@@ -578,39 +702,7 @@ export function CardModal({ cardId, projects, activeIds, onClose, onOpenLog, onT
           )}
 
           {/* Attachments */}
-          {card.attachments && card.attachments.length > 0 && (
-            <div>
-              <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-2">Attachments</h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {card.attachments.map((a: Attachment, i: number) => (
-                  <a
-                    key={i}
-                    href={`/api/media?path=${encodeURIComponent(a.path)}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ display: "block", borderRadius: 6, overflow: "hidden", border: "1px solid #3f3f46", background: "#18181b" }}
-                    title={a.label || a.path}
-                    onContextMenu={onInjectContext ? (e) => {
-                      e.preventDefault();
-                      onInjectContext(`[${card.id}] Attachment: ${a.label || a.path}\nPath: ${a.path}`);
-                    } : undefined}
-                  >
-                    <img
-                      src={`/api/media?path=${encodeURIComponent(a.path)}`}
-                      alt={a.label || "attachment"}
-                      style={{ width: "100%", height: "auto", display: "block" }}
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                    />
-                    {a.label && (
-                      <div style={{ padding: "4px 6px", fontSize: 11, color: "#a1a1aa", fontFamily: "var(--font-geist-mono), ui-monospace, monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {a.label}
-                      </div>
-                    )}
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
+          <AttachmentsSection card={card} onInjectContext={onInjectContext} onMutate={onMutate} onToast={onToast} />
 
           {/* Agent Runs */}
           <AgentRunsSection cardId={card.id} />

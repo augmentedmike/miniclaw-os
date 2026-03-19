@@ -9,6 +9,7 @@ const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".op
 
 const ALLOWED_ROOTS = [
   path.join(STATE_DIR, "media"),
+  path.join(STATE_DIR, "USER"),
 ];
 
 const MIME: Record<string, string> = {

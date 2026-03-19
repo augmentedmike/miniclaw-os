@@ -43,7 +43,7 @@ export function ColumnShell({ column, count, activeCount, headerActions, childre
         onClick={isShipped ? onToggleCollapse : undefined}
         style={{ cursor: isShipped ? "pointer" : undefined, justifyContent: "flex-start", gap: 8 }}
       >
-        <span className={`column-badge ${badge}`}>{label}</span>
+        <span className={`column-badge ${badge}`} data-col={column}>{label}</span>
         <span className="column-count">
           {count}
           {activeCount != null && activeCount > 0 && (
