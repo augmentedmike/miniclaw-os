@@ -563,12 +563,12 @@ export function CardModal({ cardId, projects, activeIds, onClose, onOpenLog, onT
                 {card.work_log.map((entry, i) => (
                   <div key={i} className="bg-zinc-800 rounded px-3 py-2 text-xs">
                     <div className="flex items-center gap-2 text-zinc-500 mb-1">
-                      <span className="font-mono">{entry.at.slice(0, 16).replace("T", " ")}</span>
+                      <span className="font-mono">{entry.at?.slice(0, 16)?.replace("T", " ") ?? ""}</span>
                       <span>·</span>
                       <span>{entry.worker}</span>
                     </div>
                     <div className="text-zinc-300 leading-relaxed">{entry.note}</div>
-                    {entry.links?.map(l => (
+                    {entry.links?.map((l) => (
                       <a key={l} href={l} target="_blank" rel="noreferrer" className="text-blue-400 hover:underline block mt-1 truncate">{l}</a>
                     ))}
                   </div>
