@@ -30,7 +30,7 @@ const WALK_SPEED = 48; // px/sec
 const WALK_FRAME_DUR = 0.15;
 const TYPE_FRAME_DUR = 0.3;
 const WANDER_PAUSE_MIN = 3;
-const WANDER_PAUSE_MAX = 15;
+const WANDER_PAUSE_MAX = 6;
 const SEAT_REST_MIN = 30; // shorter than original for demo appeal
 const SEAT_REST_MAX = 60;
 const SITTING_OFFSET = 6;
@@ -390,6 +390,14 @@ function updateCharacter(
       }
 
       const next = ch.path[0];
+
+      // Defensive guard: abort walk if next tile is blocked (furniture placed after path was computed)
+      if (state.blocked.has(`${next.col},${next.row}`)) {
+        ch.path = [];
+        ch.state = CharacterState.IDLE;
+        ch.wanderTimer = rand(WANDER_PAUSE_MIN, WANDER_PAUSE_MAX);
+        break;
+      }
       const fromX = ch.tileCol * TILE_SIZE + TILE_SIZE / 2;
       const fromY = ch.tileRow * TILE_SIZE + TILE_SIZE / 2;
       const toX = next.col * TILE_SIZE + TILE_SIZE / 2;
@@ -1038,15 +1046,24 @@ export function syncAgents(
     const sprites = state.baseSprites[baseIdx];
 
     // Spawn priority: painted spawn zones > zone waypoints > all walkable
+    // Always filter out blocked tiles and seat positions to avoid spawning on furniture
+    const seatPositions = new Set(state.seats.map(s => `${s.col},${s.row}`));
+    const isSafeSpawn = (t: { col: number; row: number }) =>
+      !state.blocked.has(`${t.col},${t.row}`) && !seatPositions.has(`${t.col},${t.row}`);
+
     const zoneWps = state.zoneWaypoints[zone];
-    const spawnPool = state.spawnTiles.length > 0
+    const rawPool = state.spawnTiles.length > 0
       ? state.spawnTiles
       : zoneWps.length > 0
         ? zoneWps
         : state.walkable;
-    const fallback = state.walkable.length > 0
-      ? state.walkable[Math.floor(Math.random() * state.walkable.length)]
-      : { col: 5, row: 5 };
+    const spawnPool = rawPool.filter(isSafeSpawn);
+    const safeWalkable = state.walkable.filter(isSafeSpawn);
+    const fallback = safeWalkable.length > 0
+      ? safeWalkable[Math.floor(Math.random() * safeWalkable.length)]
+      : state.walkable.length > 0
+        ? state.walkable[Math.floor(Math.random() * state.walkable.length)]
+        : { col: 5, row: 5 };
     const spawn = spawnPool.length > 0
       ? spawnPool[Math.floor(Math.random() * spawnPool.length)]
       : fallback;
@@ -1073,6 +1090,8 @@ export function syncAgents(
         freeSeat.assigned = true;
         freeSeat.assignedTo = agent.worker;
         ch.seatId = freeSeat.uid;
+        // Immediately walk to seat on spawn instead of waiting 3-15s
+        ch.wanderTimer = 0;
       }
     }
 

@@ -23,11 +23,11 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 function cardsToAgents(cards: Card[], activeWorkers: Record<string, string>): ActiveAgent[] {
   return cards
-    .filter((c) => c.column !== "shipped")
+    .filter((c) => c.column !== "shipped" && activeWorkers[c.id] != null)
     .map((c) => ({
       cardId: c.id,
       title: c.title,
-      worker: activeWorkers[c.id] ?? c.id,
+      worker: activeWorkers[c.id],
       column: c.column,
       pickedUpAt: c.updated_at,
     }));
