@@ -1,3 +1,5 @@
+> Welcome Wes & Dylan! https://www.youtube.com/watch?v=TzZqFkBNnZA - we love you guys ❤️
+
 # We gave AI agents a brain.
 
 <p align="center">
