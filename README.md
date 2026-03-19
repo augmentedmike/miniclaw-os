@@ -54,6 +54,12 @@ One line to install. Runs on your Mac. Your data never leaves your machine. [Ins
 ## Demo
 
 <p align="center">
+  <video src="https://raw.githubusercontent.com/augmentedmike/miniclaw-os/main/assets/mc-demo-dogfooding.mp4" width="720" controls></video>
+</p>
+
+*Dogfooding MiniClaw — real agent work session showing the board, pixel office, chat, and autonomous task execution.*
+
+<p align="center">
   <img src="https://raw.githubusercontent.com/augmentedmike/miniclaw-os/main/assets/demo.gif" alt="MiniClaw OS Demo — agent picks task, executes, remembers, ships" width="720">
 </p>
 
