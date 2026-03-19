@@ -91,6 +91,10 @@ export function PixelOfficeTab({ onSwitchToBoard }: Props) {
             if (resp.ok) layout = await resp.json();
           } catch {}
         }
+        // Validate layout before init
+        if (layout && (!layout.tiles || !layout.furniture || !layout.cols || !layout.rows)) {
+          layout = null; // force default
+        }
         const state = await initOffice(layout);
         if (cancelled) return;
         // Load user-defined zones

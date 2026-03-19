@@ -145,13 +145,20 @@ function rowToCard(row: CardRow, history: HistoryRow[]): Card {
     attachments: (() => { try { return JSON.parse(row.attachments || "[]") as import("./types").Attachment[]; } catch { return []; } })(),
     work_log: (() => {
       try {
-        const raw = JSON.parse(row.work_log || "[]") as Array<Record<string, unknown>>;
-        return raw.map(e => ({
-          at: (e.at ?? e.ts ?? "") as string,
-          worker: (e.worker ?? "") as string,
-          note: (e.note ?? e.entry ?? "") as string,
-          ...(e.links ? { links: e.links as string[] } : {}),
-        })) as WorkLogEntry[];
+        const raw = JSON.parse(row.work_log || "[]") as unknown[];
+        return raw.map(e => {
+          if (typeof e === "string") {
+            // Normalize plain strings into WorkLogEntry
+            return { at: new Date().toISOString(), worker: "unknown", note: e } as WorkLogEntry;
+          }
+          const obj = e as Record<string, unknown>;
+          return {
+            at: (obj.at ?? obj.ts ?? "") as string,
+            worker: (obj.worker ?? "") as string,
+            note: (obj.note ?? obj.entry ?? "") as string,
+            ...(obj.links ? { links: obj.links as string[] } : {}),
+          } as WorkLogEntry;
+        });
       } catch { return []; }
     })(),
   };

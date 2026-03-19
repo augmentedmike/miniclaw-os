@@ -314,7 +314,7 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
             />
           </div>
           <div className={`tab-panel${tab === "office" ? " active" : ""}`}>
-            <PixelOfficeTab onSwitchToBoard={() => switchTab("board")} />
+            {tab === "office" && <PixelOfficeTab onSwitchToBoard={() => switchTab("board")} />}
           </div>
           <div className={`tab-panel${tab === "memory" ? " active" : ""}`}>
             <MemoryTab />
