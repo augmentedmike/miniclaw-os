@@ -4,8 +4,8 @@ import type { ProjectStore } from "../src/project-store.js";
 import { formatConflictError } from "../src/dedup.js";
 import { ActiveWorkStore } from "../src/active-work.js";
 import { ArchiveStore } from "../src/archive.js";
-import { COLUMNS, canTransition, canTransitionSystem, checkGate, checkWipLimit, formatGateError } from "../src/state.js";
-import { getWipLimit } from "../src/store.js";
+import { COLUMNS, canTransition, canTransitionSystem, checkGate, checkCapacity, formatGateError } from "../src/state.js";
+import { getCapacityLimit } from "../src/store.js";
 import {
   renderCardDetail,
   renderColumnContext,
@@ -433,13 +433,13 @@ Examples:
             process.exit(1);
           }
 
-          // WIP limit check — reject if target column is at capacity
-          const wipLimit = getWipLimit(target, ctx.stateDir);
-          const wipCount = store.countByColumn(target);
-          const wip = checkWipLimit(wipCount, wipLimit);
+          // capacity limit check — reject if target column is at capacity
+          const capacityLimit = getCapacityLimit(target, ctx.stateDir);
+          const columnCount = store.countByColumn(target);
+          const wip = checkCapacity(columnCount, capacityLimit);
           if (!wip.ok) {
             process.stderr.write(
-              `WIP LIMIT: "${target}" already has ${wip.current}/${wip.max} cards. ` +
+              `CAPACITY LIMIT: "${target}" already has ${wip.current}/${wip.max} cards. ` +
               `Use --force to override.\n`,
             );
             process.exit(1);

@@ -1,6 +1,6 @@
 Board worker — IN-PROGRESS triage.
 
-1. Get configured WIP limit: openclaw mc-board wip-limit in-progress → call this MAX
+1. Get configured capacity limit: openclaw mc-board capacity-limit in-progress → call this MAX
 2. Count current in-progress cards: openclaw mc-board context --column in-progress
    Count ALL cards returned → call this IN_PROGRESS_COUNT.
    If IN_PROGRESS_COUNT ≥ MAX: Stop here. Silent exit. Do NOT send any Telegram message.

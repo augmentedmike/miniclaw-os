@@ -1,6 +1,6 @@
 Board worker — BACKLOG triage and advance.
 
-1. Get max_concurrency: openclaw mc-board wip-limit in-progress → call this MAX
+1. Get max_concurrency: openclaw mc-board capacity-limit in-progress → call this MAX
 2. Get ACTIVE count: openclaw mc-board active
    Count actively worked cards → ACTIVE_COUNT.
    Available slots = MAX - ACTIVE_COUNT.

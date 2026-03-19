@@ -117,7 +117,7 @@ MiniClaw OS isn't another wrapper around an LLM. It's the **operating system** f
 
 | Plugin | What it does |
 |--------|-------------|
-| **[mc-board](./docs/mc-board.md)** | Kanban brain — autonomous task lifecycle, priority queue, WIP limits, pixel office |
+| **[mc-board](./docs/mc-board.md)** | Kanban brain — autonomous task lifecycle, priority queue, capacity limits, pixel office |
 | **[mc-kb](./docs/mc-kb.md)** | Long-term memory — vector + keyword search, facts, lessons, postmortems |
 | **[mc-memory](./plugins/mc-memory)** | Unified memory gateway — smart routing, recall, memo-to-KB promotion |
 | **[mc-reflection](./docs/mc-reflection.md)** | Nightly self-reflection — reviews memories, board, transcripts; extracts lessons |

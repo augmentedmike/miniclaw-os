@@ -1,6 +1,6 @@
 Board worker — IN-REVIEW triage.
 
-1. Get configured WIP limit: openclaw mc-board wip-limit in-review → call this MAX
+1. Get configured capacity limit: openclaw mc-board capacity-limit in-review → call this MAX
 2. Count current in-review cards: openclaw mc-board context --column in-review
    Count ALL cards returned → call this IN_REVIEW_COUNT.
    If IN_REVIEW_COUNT ≥ MAX: Stop here. Silent exit. Do NOT send any Telegram message.
