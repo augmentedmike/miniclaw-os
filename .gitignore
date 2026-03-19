@@ -1,41 +1,34 @@
-# End-user data — created and owned by the end user, never committed
-user/
 
-# Vault — NEVER commit secrets, keys, or encrypted blobs
-system/vault/
-
-# Node dependencies
-node_modules/
-**/node_modules/
-
-# Build output
-dist/
-*.js.map
-
-# Age-encrypted secrets (committed separately if needed, never plaintext)
-*.age
-
-# Environment and credential files
+.DS_Store
 .env
 .env.*
-
-# Headless install config (contains real credentials)
-examples/headless-config.json
-*.key
-*.pem
-*.p12
-*.pfx
-credentials.json
-secrets/
-.secret
-
-# Logs
-*.log
-
-# OS noise
-.DS_Store
-Thumbs.db
-test-results/
 .next/
-TODO-*.md
 .plugins-prebuilt/
+.secret
+*.age
+*.js.map
+*.key
+*.log
+*.p12
+*.pem
+*.pfx
+**/node_modules/
+# Age-encrypted secrets (committed separately if needed, never plaintext)
+# Build output
+# End-user data — created and owned by the end user, never committed
+# Environment and credential files
+# Headless install config (contains real credentials)
+# Logs
+# Node dependencies
+# OS noise
+# Vault — NEVER commit secrets, keys, or encrypted blobs
+credentials.json
+dist/
+examples/headless-config.json
+node_modules/
+secrets/
+system/vault/
+test-results/
+Thumbs.db
+TODO-*.md
+user/

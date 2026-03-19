@@ -20,7 +20,7 @@ import { setupMacOsSystem, verifyMacOsSetup } from "../src/macos-system-setup.js
 
 const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
 const SEND_ALERT_BIN = path.join(STATE_DIR, "miniclaw", "SYSTEM", "bin", "send-alert");
-const DEFAULT_EMAIL_TO = "michael@claimhawk.app";
+const DEFAULT_EMAIL_TO = "";
 
 async function sendEmail(to: string, reason: string, url: string, timeoutSec: number): Promise<void> {
   const subject = `AM needs your help: ${reason}`;
