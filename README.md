@@ -33,11 +33,7 @@ AI agents don't fail because of the model. They fail because they have **no memo
 - **Session continuity** — memos, reflections, and identity that persist across restarts
 - **Self-repair** — agents file their own GitHub issues and PRs when they find bugs
 
-One line to install. Runs on your Mac. Your data never leaves your machine.
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/augmentedmike/miniclaw-os/main/bootstrap.sh | bash
-```
+One line to install. Runs on your Mac. Your data never leaves your machine. [Install now →](#install)
 
 > ⭐ **If MiniClaw looks useful, [starring the repo](https://github.com/augmentedmike/miniclaw-os) takes one click and helps us reach more builders.**
 
