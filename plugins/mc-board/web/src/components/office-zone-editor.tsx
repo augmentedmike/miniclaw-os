@@ -13,7 +13,7 @@ import {
 type ZoneType = "in-progress" | "backlog" | "in-review";
 type Facing = "up" | "down" | "left" | "right";
 type SpotAction = "sit" | "stand";
-type Mode = ZoneType | "erase" | "hand";
+type Mode = ZoneType | "spawn" | "erase" | "hand";
 
 interface Spot {
   col: number;
@@ -42,6 +42,7 @@ const MODE_LABELS: Record<Mode, string> = {
   "in-progress": "In Progress [P]",
   "backlog": "Backlog [B]",
   "in-review": "In Review [R]",
+  "spawn": "Spawn [S]",
   "erase": "Eraser [E]",
   "hand": "Pan [H]",
 };
@@ -57,6 +58,7 @@ export function OfficeZoneEditor({ onClose }: Props) {
   const [loaded, setLoaded] = useState(false);
   const [zones, setZones] = useState<Record<string, ZoneType>>({});
   const [spots, setSpots] = useState<Spot[]>([]);
+  const [spawnPoints, setSpawnPoints] = useState<Record<string, boolean>>({});
   const [mode, setMode] = useState<Mode>("in-progress");
   const [painting, setPainting] = useState(false);
   const [panning, setPanning] = useState(false);
@@ -73,6 +75,7 @@ export function OfficeZoneEditor({ onClose }: Props) {
         case "p": setMode("in-progress"); setLastPainted(null); break;
         case "b": setMode("backlog"); setLastPainted(null); break;
         case "r": setMode("in-review"); setLastPainted(null); break;
+        case "s": setMode("spawn"); setLastPainted(null); break;
         case "e": setMode("erase"); setLastPainted(null); break;
         case "h": setMode("hand"); setLastPainted(null); break;
         case "escape": setLastPainted(null); break;
@@ -91,6 +94,11 @@ export function OfficeZoneEditor({ onClose }: Props) {
           const data = await resp.json();
           if (data.zones) setZones(data.zones);
           if (data.spots) setSpots(data.spots);
+          if (data.spawnPoints) {
+            const sp: Record<string, boolean> = {};
+            for (const p of data.spawnPoints) sp[`${p.col},${p.row}`] = true;
+            setSpawnPoints(sp);
+          }
         }
       } catch {}
       let layout: OfficeLayout | null = null;
@@ -159,6 +167,20 @@ export function OfficeZoneEditor({ onClose }: Props) {
             ctx.fillRect(offsetX + c * sz, offsetY + r * sz, sz, sz);
           }
 
+          // Spawn point overlays (green)
+          for (const key of Object.keys(spawnPoints)) {
+            const [c, r] = key.split(",").map(Number);
+            ctx.fillStyle = "rgba(34, 197, 94, 0.5)";
+            ctx.fillRect(offsetX + c * sz, offsetY + r * sz, sz, sz);
+            // Small "S" label
+            ctx.fillStyle = "#fff";
+            const spFs = Math.max(8, Math.round(8 * zoom));
+            ctx.font = `bold ${spFs}px sans-serif`;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText("S", offsetX + c * sz + sz / 2, offsetY + r * sz + sz / 2);
+          }
+
           // Spots
           for (const spot of spots) {
             const x = offsetX + spot.col * sz;
@@ -213,7 +235,7 @@ export function OfficeZoneEditor({ onClose }: Props) {
     };
     rafId = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(rafId);
-  }, [loaded, zones, spots, lastPainted]);
+  }, [loaded, zones, spots, spawnPoints, lastPainted]);
 
   // Convert mouse to tile — for painting: floor only. For facing: any non-void.
   const canvasToTile = useCallback((e: React.MouseEvent<HTMLCanvasElement>, allowWalls: boolean): { col: number; row: number } | null => {
@@ -275,6 +297,13 @@ export function OfficeZoneEditor({ onClose }: Props) {
       const key = `${tile.col},${tile.row}`;
       setZones((prev) => { const n = { ...prev }; delete n[key]; return n; });
       setSpots((prev) => prev.filter((s) => !(s.col === tile.col && s.row === tile.row)));
+      setSpawnPoints((prev) => { const n = { ...prev }; delete n[key]; return n; });
+      setLastPainted(null);
+      setDirty(true);
+      setPainting(true);
+    } else if (mode === "spawn") {
+      const key = `${tile.col},${tile.row}`;
+      setSpawnPoints((prev) => ({ ...prev, [key]: true }));
       setLastPainted(null);
       setDirty(true);
       setPainting(true);
@@ -298,8 +327,12 @@ export function OfficeZoneEditor({ onClose }: Props) {
     const tile = canvasToTile(e, false);
     if (!tile) return;
     if (mode === "erase") {
-      setZones((prev) => { const n = { ...prev }; delete n[`${tile.col},${tile.row}`]; return n; });
+      const key = `${tile.col},${tile.row}`;
+      setZones((prev) => { const n = { ...prev }; delete n[key]; return n; });
       setSpots((prev) => prev.filter((s) => !(s.col === tile.col && s.row === tile.row)));
+      setSpawnPoints((prev) => { const n = { ...prev }; delete n[key]; return n; });
+    } else if (mode === "spawn") {
+      setSpawnPoints((prev) => ({ ...prev, [`${tile.col},${tile.row}`]: true }));
     } else if (mode !== "hand") {
       setZones((prev) => ({ ...prev, [`${tile.col},${tile.row}`]: mode }));
     }
@@ -315,10 +348,15 @@ export function OfficeZoneEditor({ onClose }: Props) {
   async function handleSave() {
     setSaving(true);
     try {
+      // Convert spawnPoints record to array format for API
+      const spawnPointsArray = Object.keys(spawnPoints).map((key) => {
+        const [col, row] = key.split(",").map(Number);
+        return { col, row };
+      });
       await fetch("/api/office/zones", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ zones, spots }),
+        body: JSON.stringify({ zones, spots, spawnPoints: spawnPointsArray }),
       });
       setDirty(false);
     } finally {
@@ -360,6 +398,14 @@ export function OfficeZoneEditor({ onClose }: Props) {
             {MODE_LABELS[z]}
           </button>
         ))}
+        <button onClick={() => { setMode("spawn"); setLastPainted(null); }}
+          style={{
+            background: mode === "spawn" ? "rgba(34, 197, 94, 0.8)" : "#27272a",
+            border: mode === "spawn" ? "2px solid #fff" : "1px solid #3f3f46",
+            color: "#e4e4e7", borderRadius: 4, padding: "4px 10px", cursor: "pointer", fontSize: 12,
+          }}>
+          {MODE_LABELS["spawn"]}
+        </button>
         <div style={{ flex: 1 }} />
         <span style={{ color: "#52525b", fontSize: 11 }}>
           {mode === "hand" ? "✋ Pan" : mode === "erase" ? "🧹 Erase" : ""}
@@ -414,8 +460,12 @@ export function OfficeZoneEditor({ onClose }: Props) {
           </span>
         ))}
         <span>{spots.length} seats</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
+          <span style={{ width: 8, height: 8, borderRadius: 2, background: "rgba(34, 197, 94, 0.8)" }} />
+          {Object.keys(spawnPoints).length} spawns
+        </span>
         <div style={{ flex: 1 }} />
-        <span>P B R: zones · E: erase · H: pan · Scroll: zoom</span>
+        <span>P B R: zones · S: spawn · E: erase · H: pan · Scroll: zoom</span>
       </div>
     </div>
   );
