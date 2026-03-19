@@ -12,17 +12,17 @@ const COL_TO_JOB: Record<string, string> = {
   "in-review": "board-in-review-triage",
 };
 
-const DEFAULT_WIP_LIMIT = 3;
+const DEFAULT_capacity_LIMIT = 3;
 
 /**
- * Read the WIP limit (maxConcurrent) for a column from board-cron.json.
- * Falls back to DEFAULT_WIP_LIMIT if not configured.
+ * Read the capacity limit (maxConcurrent) for a column from board-cron.json.
+ * Falls back to DEFAULT_capacity_LIMIT if not configured.
  */
-export function getWipLimit(column: Column, stateDir?: string): number {
+export function getCapacityLimit(column: Column, stateDir?: string): number {
   const dir = stateDir ?? process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
   const jobsFile = process.env.BOARD_CRON_JOBS ?? path.join(dir, "USER", "brain", "board-cron.json");
   const jobId = COL_TO_JOB[column];
-  if (!jobId) return DEFAULT_WIP_LIMIT;
+  if (!jobId) return DEFAULT_capacity_LIMIT;
   try {
     const raw = JSON.parse(fs.readFileSync(jobsFile, "utf8"));
     const job = raw[jobId];
@@ -30,7 +30,7 @@ export function getWipLimit(column: Column, stateDir?: string): number {
       return job.maxConcurrent;
     }
   } catch {}
-  return DEFAULT_WIP_LIMIT;
+  return DEFAULT_capacity_LIMIT;
 }
 
 type WorkType = "work" | "verify";

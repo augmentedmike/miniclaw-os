@@ -12,7 +12,7 @@ const COL_TO_JOB: Record<string, string> = {
   "in-review": "board-in-review-triage",
 };
 
-function getWipLimitForColumn(column: string): number {
+function getCapacityLimitForColumn(column: string): number {
   const jobId = COL_TO_JOB[column];
   if (!jobId) return 3;
   const jobs = listCronJobs();
@@ -56,12 +56,12 @@ export async function POST(
     return new Response(`Card ${cardId} is in "${card.column}", not "${column}"`, { status: 409 });
   }
 
-  // WIP limit check — reject if too many agents already queued/running for this column
-  const wipLimit = getWipLimitForColumn(column);
+  // capacity limit check — reject if too many agents already queued/running for this column
+  const capacityLimit = getCapacityLimitForColumn(column);
   const queuedOrRunning = countQueuedOrRunning(column);
-  if (queuedOrRunning >= wipLimit) {
+  if (queuedOrRunning >= capacityLimit) {
     return NextResponse.json(
-      { ok: false, reason: `WIP limit reached for "${column}": ${queuedOrRunning}/${wipLimit} agents queued/running` },
+      { ok: false, reason: `capacity limit reached for "${column}": ${queuedOrRunning}/${capacityLimit} agents queued/running` },
       { status: 429 },
     );
   }

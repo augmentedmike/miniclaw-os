@@ -83,21 +83,38 @@ export function openDb(stateDir: string): Database {
   db.exec("PRAGMA journal_mode = WAL");
   db.exec("PRAGMA foreign_keys = ON");
   db.exec(SCHEMA);
-  // Additive migrations for existing DBs
-  try { db.exec(`ALTER TABLE cards ADD COLUMN research TEXT NOT NULL DEFAULT ''`); } catch { /* already exists */ }
-  try { db.exec(`ALTER TABLE cards ADD COLUMN work_log TEXT NOT NULL DEFAULT '[]'`); } catch { /* already exists */ }
-  try { db.exec(`ALTER TABLE cards ADD COLUMN verify_url TEXT NOT NULL DEFAULT ''`); } catch { /* already exists */ }
-  try { db.exec(`ALTER TABLE projects ADD COLUMN work_dir TEXT NOT NULL DEFAULT ''`); } catch { /* already exists */ }
-  try { db.exec(`ALTER TABLE projects ADD COLUMN github_repo TEXT NOT NULL DEFAULT ''`); } catch { /* already exists */ }
-  try { db.exec(`ALTER TABLE projects ADD COLUMN build_command TEXT NOT NULL DEFAULT ''`); } catch { /* already exists */ }
-  try { db.exec(`ALTER TABLE cards ADD COLUMN depends_on TEXT NOT NULL DEFAULT '[]'`); } catch { /* already exists */ }
-  // Agent run token usage columns
-  try { db.exec(`ALTER TABLE agent_runs ADD COLUMN input_tokens INTEGER DEFAULT 0`); } catch { /* already exists */ }
-  try { db.exec(`ALTER TABLE agent_runs ADD COLUMN output_tokens INTEGER DEFAULT 0`); } catch { /* already exists */ }
-  try { db.exec(`ALTER TABLE agent_runs ADD COLUMN cache_read_tokens INTEGER DEFAULT 0`); } catch { /* already exists */ }
-  try { db.exec(`ALTER TABLE agent_runs ADD COLUMN cache_write_tokens INTEGER DEFAULT 0`); } catch { /* already exists */ }
-  try { db.exec(`ALTER TABLE agent_runs ADD COLUMN total_tokens INTEGER DEFAULT 0`); } catch { /* already exists */ }
-  try { db.exec(`ALTER TABLE agent_runs ADD COLUMN cost_usd REAL DEFAULT 0`); } catch { /* already exists */ }
+  // ── Versioned migrations ──────────────────────────────────────────────
+  // Each migration runs once. Version is tracked in a meta table.
+  db.exec(`CREATE TABLE IF NOT EXISTS _migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)`);
+  const applied = new Set(
+    (db.prepare(`SELECT version FROM _migrations`).all() as { version: number }[]).map(r => r.version)
+  );
+
+  const migrations: [number, string][] = [
+    [1, `ALTER TABLE cards ADD COLUMN research TEXT NOT NULL DEFAULT ''`],
+    [2, `ALTER TABLE cards ADD COLUMN work_log TEXT NOT NULL DEFAULT '[]'`],
+    [3, `ALTER TABLE cards ADD COLUMN verify_url TEXT NOT NULL DEFAULT ''`],
+    [4, `ALTER TABLE projects ADD COLUMN work_dir TEXT NOT NULL DEFAULT ''`],
+    [5, `ALTER TABLE projects ADD COLUMN github_repo TEXT NOT NULL DEFAULT ''`],
+    [6, `ALTER TABLE projects ADD COLUMN build_command TEXT NOT NULL DEFAULT ''`],
+    [7, `ALTER TABLE cards ADD COLUMN depends_on TEXT NOT NULL DEFAULT '[]'`],
+    [8, `ALTER TABLE agent_runs ADD COLUMN input_tokens INTEGER DEFAULT 0`],
+    [9, `ALTER TABLE agent_runs ADD COLUMN output_tokens INTEGER DEFAULT 0`],
+    [10, `ALTER TABLE agent_runs ADD COLUMN cache_read_tokens INTEGER DEFAULT 0`],
+    [11, `ALTER TABLE agent_runs ADD COLUMN cache_write_tokens INTEGER DEFAULT 0`],
+    [12, `ALTER TABLE agent_runs ADD COLUMN total_tokens INTEGER DEFAULT 0`],
+    [13, `ALTER TABLE agent_runs ADD COLUMN cost_usd REAL DEFAULT 0`],
+  ];
+
+  for (const [version, sql] of migrations) {
+    if (applied.has(version)) continue;
+    try {
+      db.exec(sql);
+    } catch {
+      // Column/table may already exist from pre-migration era — that's fine
+    }
+    db.prepare(`INSERT INTO _migrations (version, applied_at) VALUES (?, ?)`).run(version, new Date().toISOString());
+  }
   try {
     db.exec(`
       CREATE TABLE IF NOT EXISTS agent_runs (

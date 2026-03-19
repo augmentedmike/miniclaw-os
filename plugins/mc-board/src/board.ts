@@ -13,7 +13,7 @@ export const VALID_TAGS = {
   "team-design": "Visual/UX work, design systems",
 
   // Lifecycle
-  "wip": "Work-in-progress",
+  "capacity": "Column capacity limit",
   "blocked": "Depends on external input or unblocked cards",
   "waiting-feedback": "Awaiting review, approval, or human response",
   "on-hold": "Intentionally paused; not actively worked",
