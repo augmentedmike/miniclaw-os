@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# mc-oauth-sync — copy Claude Code OAuth tokens from macOS Keychain to gateway auth-profiles.json
+#
+# Claude Code stores OAuth tokens in macOS Keychain ("Claude Code-credentials").
+# The gateway reads from auth-profiles.json which goes stale when tokens expire.
+# This script bridges the two so /login in Claude Code fixes the gateway too.
+#
+# Usage:
+#   mc-oauth-sync              Sync if current token is expired
+#   mc-oauth-sync --force      Always sync, even if token looks valid
+
+set -euo pipefail
+
+STATE_DIR="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}"
+AUTH_FILE="$STATE_DIR/agents/main/agent/auth-profiles.json"
+FORCE=false
+[[ "${1:-}" == "--force" ]] && FORCE=true
+
+if [[ "$(uname)" != "Darwin" ]]; then
+  echo "mc-oauth-sync: macOS only (Keychain)" >&2
+  exit 0
+fi
+
+# Read current token expiry
+if [[ -f "$AUTH_FILE" ]] && ! $FORCE; then
+  EXPIRES=$(python3 -c "
+import json, time
+try:
+    d = json.load(open('$AUTH_FILE'))
+    e = d.get('profiles', {}).get('claude-cli', {}).get('expires', 0)
+    print(e)
+except: print(0)
+" 2>/dev/null || echo 0)
+  NOW=$(python3 -c "import time; print(int(time.time() * 1000))" 2>/dev/null)
+  if [[ "$EXPIRES" -gt "$NOW" ]]; then
+    # Token still valid
+    exit 0
+  fi
+fi
+
+# Read fresh token from Keychain
+KEYCHAIN_JSON=$(security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null || true)
+if [[ -z "$KEYCHAIN_JSON" ]]; then
+  echo "mc-oauth-sync: no Claude Code credentials in Keychain" >&2
+  exit 1
+fi
+
+# Extract and write to auth-profiles.json
+python3 - "$KEYCHAIN_JSON" "$AUTH_FILE" <<'PYEOF'
+import json, sys, os
+
+raw = sys.argv[1]
+auth_file = sys.argv[2]
+
+try:
+    creds = json.loads(raw)
+    oauth = creds.get("claudeAiOauth", {})
+    access = oauth.get("accessToken", "")
+    refresh = oauth.get("refreshToken", "")
+    expires = oauth.get("expiresAt", 0)
+
+    if not access:
+        print("mc-oauth-sync: no accessToken in Keychain credentials", file=sys.stderr)
+        sys.exit(1)
+
+    # Read existing auth-profiles or create new
+    if os.path.exists(auth_file):
+        auth = json.load(open(auth_file))
+    else:
+        os.makedirs(os.path.dirname(auth_file), exist_ok=True)
+        auth = {"version": 1, "profiles": {}, "usageStats": {}}
+
+    profile = auth.setdefault("profiles", {}).setdefault("claude-cli", {
+        "type": "oauth",
+        "provider": "anthropic",
+    })
+    profile["access"] = access
+    profile["refresh"] = refresh
+    profile["expires"] = expires
+
+    with open(auth_file, "w") as f:
+        json.dump(auth, f, indent=2)
+
+    import time
+    remaining = (expires - int(time.time() * 1000)) / 1000 / 60
+    print(f"mc-oauth-sync: token synced from Keychain (valid for {remaining:.0f} minutes)")
+
+except Exception as e:
+    print(f"mc-oauth-sync: failed — {e}", file=sys.stderr)
+    sys.exit(1)
+PYEOF

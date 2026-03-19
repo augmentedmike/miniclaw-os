@@ -57,6 +57,12 @@ function getMaxConcurrentPerColumn() {
 // Full-agent columns run claude directly. Other columns delegate to openclaw triage CLI.
 const FULL_AGENT_COLUMNS = new Set(["backlog", "in-progress", "in-review"]);
 
+// Sync OAuth token from Claude Code Keychain on startup
+const oauthSyncBin = path.join(STATE_DIR, "miniclaw", "SYSTEM", "bin", "mc-oauth-sync");
+if (fs.existsSync(oauthSyncBin)) {
+  try { execFileSync(oauthSyncBin, [], { timeout: 10_000, stdio: "pipe" }); } catch {}
+}
+
 // ---- Logging ----
 
 const runnerLog = path.join(STATE_DIR, "logs", "agent-runner.log");

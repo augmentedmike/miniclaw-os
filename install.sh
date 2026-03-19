@@ -1574,6 +1574,12 @@ fi
 GW_LABELS=("Configuring Telegram" "Connecting to gateway" "Hacking the matrix" "Coming online")
 step "Step 27: ${GW_LABELS[$((RANDOM % ${#GW_LABELS[@]}))]}"
 
+# Sync OAuth token from Claude Code Keychain before starting gateway
+if [[ -x "$SYSTEM_BIN/mc-oauth-sync" ]]; then
+  "$SYSTEM_BIN/mc-oauth-sync" 2>/dev/null && ok "OAuth token synced from Keychain" \
+    || info "OAuth sync skipped (no Keychain credentials yet)"
+fi
+
 # The gateway is the core process — it runs the telegram bot, cron workers,
 # and agent sessions.  `openclaw gateway install` creates a LaunchAgent plist
 # and loads it via launchctl.
