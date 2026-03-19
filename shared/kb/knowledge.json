@@ -1,78 +1,468 @@
 {
   "version": 1,
-  "exported_at": "2026-03-16T00:00:00.000Z",
+  "exported_at": "2026-03-19T00:00:00.000Z",
   "entries": [
     {
       "type": "principle",
-      "title": "Unix Philosophy — do one thing well",
+      "title": "Unix Philosophy \u2014 do one thing well",
       "content": "From Eric Raymond's 'The Art of Unix Programming': Write programs that do one thing and do it well. Write programs to work together. Write programs to handle text streams, because that is a universal interface. This is why MiniClaw plugins each have a single responsibility (mc-email does email, mc-kb does knowledge, mc-voice does transcription). Composition of small tools beats monolithic frameworks. When designing a new tool or plugin, ask: does this do ONE thing? Can its output be consumed by another tool? If the answer to either is no, split it.",
-      "tags": ["philosophy", "unix", "architecture", "reflection-source"]
+      "tags": [
+        "philosophy",
+        "unix",
+        "architecture",
+        "reflection-source"
+      ]
     },
     {
       "type": "principle",
-      "title": "Unix Philosophy — silence is golden",
-      "content": "From Raymond: When a program has nothing surprising to report, it should say nothing. No 'Successfully completed!' when success is the normal case. No verbose output when quiet would do. Error output is for errors. This applies to agent behavior too — don't narrate success, don't announce routine operations, don't add filler to responses. Say something when something needs saying.",
-      "tags": ["philosophy", "unix", "communication", "reflection-source"]
+      "title": "Unix Philosophy \u2014 silence is golden",
+      "content": "From Raymond: When a program has nothing surprising to report, it should say nothing. No 'Successfully completed!' when success is the normal case. No verbose output when quiet would do. Error output is for errors. This applies to agent behavior too \u2014 don't narrate success, don't announce routine operations, don't add filler to responses. Say something when something needs saying.",
+      "tags": [
+        "philosophy",
+        "unix",
+        "communication",
+        "reflection-source"
+      ]
     },
     {
       "type": "principle",
-      "title": "Unix Philosophy — make data complicated, not the program",
-      "content": "From Raymond: Fold knowledge into data so program logic can be stupid and robust. Smart data and dumb code works better than the other way around. This is why card files are plain markdown with YAML frontmatter — the complexity is in the data format, not in the code that processes it. When tempted to add conditionals, ask: can this be expressed as data instead?",
-      "tags": ["philosophy", "unix", "architecture", "reflection-source"]
+      "title": "Unix Philosophy \u2014 make data complicated, not the program",
+      "content": "From Raymond: Fold knowledge into data so program logic can be stupid and robust. Smart data and dumb code works better than the other way around. This is why card files are plain markdown with YAML frontmatter \u2014 the complexity is in the data format, not in the code that processes it. When tempted to add conditionals, ask: can this be expressed as data instead?",
+      "tags": [
+        "philosophy",
+        "unix",
+        "architecture",
+        "reflection-source"
+      ]
     },
     {
       "type": "principle",
-      "title": "SICP — abstraction barriers",
-      "content": "From Abelson & Sussman's 'Structure and Interpretation of Computer Programs': Abstraction barriers separate usage from implementation. The user of an abstraction should not need to know how it works — only what it does. In MiniClaw, the plugin API is an abstraction barrier: plugins call api.registerTool() without knowing how the gateway dispatches tools. The card file format is a barrier: code reads/writes markdown without knowing how the board UI renders it. Respect these barriers. Don't reach through them.",
-      "tags": ["philosophy", "sicp", "architecture", "reflection-source"]
+      "title": "SICP \u2014 abstraction barriers",
+      "content": "From Abelson & Sussman's 'Structure and Interpretation of Computer Programs': Abstraction barriers separate usage from implementation. The user of an abstraction should not need to know how it works \u2014 only what it does. In MiniClaw, the plugin API is an abstraction barrier: plugins call api.registerTool() without knowing how the gateway dispatches tools. The card file format is a barrier: code reads/writes markdown without knowing how the board UI renders it. Respect these barriers. Don't reach through them.",
+      "tags": [
+        "philosophy",
+        "sicp",
+        "architecture",
+        "reflection-source"
+      ]
     },
     {
       "type": "principle",
-      "title": "SICP — the power of composition",
-      "content": "From SICP: The most powerful design principle is composition — building complex behavior from simple, well-understood parts. A function that takes a function and returns a function is more powerful than a class hierarchy. A pipeline of small transforms is more reliable than a single big transform. When building agent tools, prefer composable primitives (search, create, update, delete) over monolithic 'do everything' operations.",
-      "tags": ["philosophy", "sicp", "architecture", "reflection-source"]
+      "title": "SICP \u2014 the power of composition",
+      "content": "From SICP: The most powerful design principle is composition \u2014 building complex behavior from simple, well-understood parts. A function that takes a function and returns a function is more powerful than a class hierarchy. A pipeline of small transforms is more reliable than a single big transform. When building agent tools, prefer composable primitives (search, create, update, delete) over monolithic 'do everything' operations.",
+      "tags": [
+        "philosophy",
+        "sicp",
+        "architecture",
+        "reflection-source"
+      ]
     },
     {
       "type": "principle",
-      "title": "SICP — side effects are where bugs live",
-      "content": "From SICP: Pure functions (same input → same output, no side effects) are trivially testable and composable. Side effects (I/O, state mutation, network calls) are where bugs hide. Push side effects to the edges. The function that decides what to do should not be the function that does it. In practice: compute the plan, then execute the plan. Don't interleave thinking and acting.",
-      "tags": ["philosophy", "sicp", "code-quality", "reflection-source"]
+      "title": "SICP \u2014 side effects are where bugs live",
+      "content": "From SICP: Pure functions (same input \u2192 same output, no side effects) are trivially testable and composable. Side effects (I/O, state mutation, network calls) are where bugs hide. Push side effects to the edges. The function that decides what to do should not be the function that does it. In practice: compute the plan, then execute the plan. Don't interleave thinking and acting.",
+      "tags": [
+        "philosophy",
+        "sicp",
+        "code-quality",
+        "reflection-source"
+      ]
     },
     {
       "type": "principle",
-      "title": "Ousterhout — deep modules, shallow interfaces",
-      "content": "From John Ousterhout's 'A Philosophy of Software Design': The best modules are deep — they do a lot of work behind a simple interface. The worst are shallow — they have a complex interface that does little. A good plugin tool has 2-3 parameters and handles all the complexity internally. A bad one exposes every knob and requires the caller to understand the internals. When designing tools: make the interface as simple as possible, hide the complexity inside.",
-      "tags": ["philosophy", "ousterhout", "architecture", "reflection-source"]
+      "title": "Ousterhout \u2014 deep modules, shallow interfaces",
+      "content": "From John Ousterhout's 'A Philosophy of Software Design': The best modules are deep \u2014 they do a lot of work behind a simple interface. The worst are shallow \u2014 they have a complex interface that does little. A good plugin tool has 2-3 parameters and handles all the complexity internally. A bad one exposes every knob and requires the caller to understand the internals. When designing tools: make the interface as simple as possible, hide the complexity inside.",
+      "tags": [
+        "philosophy",
+        "ousterhout",
+        "architecture",
+        "reflection-source"
+      ]
     },
     {
       "type": "principle",
-      "title": "Ousterhout — complexity is the enemy",
+      "title": "Ousterhout \u2014 complexity is the enemy",
       "content": "From Ousterhout: The primary cause of software complexity is dependencies and obscurity. Every dependency is a liability. Every piece of obscure behavior is a future bug. Fight complexity relentlessly. When you add a feature, ask: does this make the system simpler or more complex? If more complex, is the value worth it? Most of the time, the answer is no.",
-      "tags": ["philosophy", "ousterhout", "code-quality", "reflection-source"]
+      "tags": [
+        "philosophy",
+        "ousterhout",
+        "code-quality",
+        "reflection-source"
+      ]
     },
     {
       "type": "principle",
-      "title": "Kleppmann — validate at system boundaries",
+      "title": "Kleppmann \u2014 validate at system boundaries",
       "content": "From Martin Kleppmann's 'Designing Data-Intensive Applications': The boundary between your system and the outside world is where trust ends. Validate everything that crosses a boundary: user input, API responses, file contents, database results. Inside the boundary, trust your own types and invariants. Don't re-validate what you already guaranteed. This prevents defensive programming bloat while keeping the system safe.",
-      "tags": ["philosophy", "kleppmann", "architecture", "reflection-source"]
+      "tags": [
+        "philosophy",
+        "kleppmann",
+        "architecture",
+        "reflection-source"
+      ]
     },
     {
       "type": "principle",
-      "title": "Kleppmann — deterministic processing beats probabilistic",
-      "content": "From Kleppmann: When you can make a process deterministic (same input → same output), do it. Deterministic processes are testable, reproducible, and debuggable. Probabilistic processes (retry with backoff, eventual consistency, best-effort matching) are hard to test and impossible to debug reliably. Use deterministic logic for everything you can. Reserve probabilistic approaches for genuinely uncertain domains.",
-      "tags": ["philosophy", "kleppmann", "code-quality", "reflection-source"]
+      "title": "Kleppmann \u2014 deterministic processing beats probabilistic",
+      "content": "From Kleppmann: When you can make a process deterministic (same input \u2192 same output), do it. Deterministic processes are testable, reproducible, and debuggable. Probabilistic processes (retry with backoff, eventual consistency, best-effort matching) are hard to test and impossible to debug reliably. Use deterministic logic for everything you can. Reserve probabilistic approaches for genuinely uncertain domains.",
+      "tags": [
+        "philosophy",
+        "kleppmann",
+        "code-quality",
+        "reflection-source"
+      ]
     },
     {
       "type": "principle",
-      "title": "Out of the Tar Pit — accidental vs essential complexity",
-      "content": "From Moseley & Marks: All complexity in software is either essential (inherent to the problem) or accidental (introduced by our tools, choices, and habits). Most complexity is accidental. State is the primary source of accidental complexity — mutable state that flows through the system in unpredictable ways. The cure: minimize mutable state, separate logic from state, make data flow explicit. Every time you add a global variable, a cache, or a shared mutable object, ask: is this essential or accidental?",
-      "tags": ["philosophy", "tar-pit", "architecture", "reflection-source"]
+      "title": "Out of the Tar Pit \u2014 accidental vs essential complexity",
+      "content": "From Moseley & Marks: All complexity in software is either essential (inherent to the problem) or accidental (introduced by our tools, choices, and habits). Most complexity is accidental. State is the primary source of accidental complexity \u2014 mutable state that flows through the system in unpredictable ways. The cure: minimize mutable state, separate logic from state, make data flow explicit. Every time you add a global variable, a cache, or a shared mutable object, ask: is this essential or accidental?",
+      "tags": [
+        "philosophy",
+        "tar-pit",
+        "architecture",
+        "reflection-source"
+      ]
     },
     {
       "type": "lesson",
-      "title": "Nightly reflection — how to apply coding philosophy",
-      "content": "During nightly reflection, review the day's code through the lens of these principles. Ask: Did I add accidental complexity today? Did I build for hypothetical futures? Did I respect abstraction barriers? Did I push side effects to the edges? Did I make deep modules with simple interfaces? If any answer is no, create a card to fix it. The goal is not perfection — it's continuous improvement through honest self-assessment.",
-      "tags": ["reflection", "self-improvement", "meta", "reflection-source"]
+      "title": "Nightly reflection \u2014 how to apply coding philosophy",
+      "content": "During nightly reflection, review the day's code through the lens of these principles. Ask: Did I add accidental complexity today? Did I build for hypothetical futures? Did I respect abstraction barriers? Did I push side effects to the edges? Did I make deep modules with simple interfaces? If any answer is no, create a card to fix it. The goal is not perfection \u2014 it's continuous improvement through honest self-assessment.",
+      "tags": [
+        "reflection",
+        "self-improvement",
+        "meta",
+        "reflection-source"
+      ]
+    },
+    {
+      "id": "coding-axiom--fail-loudly",
+      "title": "Coding Axiom \u2014 fail loudly",
+      "body": "A clean failure surfaces the real problem. No default values that mask missing data. No silent catches. No graceful degradation to a plausible guess. If something is wrong, the code should scream.",
+      "tags": [
+        "coding",
+        "philosophy"
+      ],
+      "source": "CODING_AXIOMS.md"
+    },
+    {
+      "id": "coding-axiom--three-lines-over-one-abstraction",
+      "title": "Coding Axiom \u2014 three lines over one abstraction",
+      "body": "Don't extract a helper for something that happens once. Three similar lines of code is better than a premature abstraction. Extract on the fourth repetition.",
+      "tags": [
+        "coding",
+        "philosophy"
+      ],
+      "source": "CODING_AXIOMS.md"
+    },
+    {
+      "id": "coding-axiom--dont-build-for-hypothetical-futures",
+      "title": "Coding Axiom \u2014 don't build for hypothetical futures",
+      "body": "Solve the problem in front of you. No feature flags for features that don't exist. No config options for variations nobody asked for. The right amount of complexity is the minimum needed for the current task.",
+      "tags": [
+        "coding",
+        "philosophy"
+      ],
+      "source": "CODING_AXIOMS.md"
+    },
+    {
+      "id": "coding-axiom--deterministic-beats-probabilistic",
+      "title": "Coding Axiom \u2014 deterministic beats probabilistic",
+      "body": "Every piece of logic in a tested tool is a hallucination that can never happen. If behavior can be codified into a function with known inputs and outputs, do that instead of runtime inference.",
+      "tags": [
+        "coding",
+        "philosophy"
+      ],
+      "source": "CODING_AXIOMS.md"
+    },
+    {
+      "id": "coding-axiom--declarative-over-imperative",
+      "title": "Coding Axiom \u2014 declarative over imperative",
+      "body": "Say what, not how. Prefer pure functions, immutable data, composition. SQL over manual loops. map/filter over index tracking. But not religiously \u2014 a clear for loop beats an unreadable reduce chain.",
+      "tags": [
+        "coding",
+        "philosophy"
+      ],
+      "source": "CODING_AXIOMS.md"
+    },
+    {
+      "id": "coding-axiom--idiomatic-code-wins",
+      "title": "Coding Axiom \u2014 idiomatic code wins",
+      "body": "Don't force patterns from one language into another. Write code that a senior engineer in that language would recognize as natural. When an axiom conflicts with language idioms, idioms win.",
+      "tags": [
+        "coding",
+        "philosophy"
+      ],
+      "source": "CODING_AXIOMS.md"
+    },
+    {
+      "id": "coding-axiom--no-over-engineering",
+      "title": "Coding Axiom \u2014 no over-engineering",
+      "body": "Don't add features, refactor code, or make improvements beyond what was asked. A bug fix doesn't need surrounding code cleaned up. Only add comments where the logic isn't self-evident.",
+      "tags": [
+        "coding",
+        "philosophy"
+      ],
+      "source": "CODING_AXIOMS.md"
+    },
+    {
+      "id": "coding-axiom--validate-at-boundaries,-trust-internally",
+      "title": "Coding Axiom \u2014 validate at boundaries, trust internally",
+      "body": "Only validate at system boundaries \u2014 user input, external APIs, file I/O. Don't add runtime checks for impossible states inside your own code. Trust the types.",
+      "tags": [
+        "coding",
+        "philosophy"
+      ],
+      "source": "CODING_AXIOMS.md"
+    },
+    {
+      "id": "coding-axiom--composition-over-inheritance",
+      "title": "Coding Axiom \u2014 composition over inheritance",
+      "body": "Small functions that compose beat class hierarchies. Pipes beat orchestrators. A tool that does one thing and exits beats a framework that does everything and never finishes.",
+      "tags": [
+        "coding",
+        "philosophy"
+      ],
+      "source": "CODING_AXIOMS.md"
+    },
+    {
+      "id": "coding-axiom--delete-dont-deprecate",
+      "title": "Coding Axiom \u2014 delete don't deprecate",
+      "body": "If something is unused, delete it. No removed comments. No _unused renames. No re-exports for backwards compatibility with zero callers. Git has history.",
+      "tags": [
+        "coding",
+        "philosophy"
+      ],
+      "source": "CODING_AXIOMS.md"
+    },
+    {
+      "id": "coding-axiom--tests-prove-behavior-not-coverage",
+      "title": "Coding Axiom \u2014 tests prove behavior not coverage",
+      "body": "Write tests that would catch real bugs. A single integration test that exercises the real path is worth more than ten unit tests that mock everything.",
+      "tags": [
+        "coding",
+        "philosophy"
+      ],
+      "source": "CODING_AXIOMS.md"
+    },
+    {
+      "id": "coding-axiom--error-messages-are-ui",
+      "title": "Coding Axiom \u2014 error messages are UI",
+      "body": "Error messages are read by humans. Make them specific, actionable, and short. Include what went wrong, what was expected, and what to do about it.",
+      "tags": [
+        "coding",
+        "philosophy"
+      ],
+      "source": "CODING_AXIOMS.md"
+    },
+    {
+      "id": "coding-axiom--naming-is-documentation",
+      "title": "Coding Axiom \u2014 naming is documentation",
+      "body": "Good names eliminate the need for comments. If a function needs a comment to explain what it does, rename the function.",
+      "tags": [
+        "coding",
+        "philosophy"
+      ],
+      "source": "CODING_AXIOMS.md"
+    },
+    {
+      "id": "coding-axiom--side-effects-at-the-edges",
+      "title": "Coding Axiom \u2014 side effects at the edges",
+      "body": "Keep the core logic pure. Push I/O, database calls, and network requests to the edges of the call stack. The function that decides what to do should not be the function that does it.",
+      "tags": [
+        "coding",
+        "philosophy"
+      ],
+      "source": "CODING_AXIOMS.md"
+    },
+    {
+      "id": "coding-axiom--explicit-over-implicit",
+      "title": "Coding Axiom \u2014 explicit over implicit",
+      "body": "No magic. No action at a distance. No global state that changes behavior based on who imported what. If a function needs something, pass it in.",
+      "tags": [
+        "coding",
+        "philosophy"
+      ],
+      "source": "CODING_AXIOMS.md"
+    },
+    {
+      "id": "coding-axiom--no-dsls-for-dsls-sake",
+      "title": "Coding Axiom \u2014 no DSLs for DSLs sake",
+      "body": "A DSL is justified when it compresses a domain into something genuinely simpler. Most DSLs just move complexity from code you can debug into syntax you can't.",
+      "tags": [
+        "coding",
+        "philosophy"
+      ],
+      "source": "CODING_AXIOMS.md"
+    },
+    {
+      "id": "coding-axiom--runtime-decoration-is-evil",
+      "title": "Coding Axiom \u2014 runtime decoration is evil",
+      "body": "Decorators, monkey-patching, runtime class mutation \u2014 anything that changes what code does without changing what code says. Dynamic dispatch is fine. Metaprogramming that rewrites behavior behind your back is not.",
+      "tags": [
+        "coding",
+        "philosophy"
+      ],
+      "source": "CODING_AXIOMS.md"
+    },
+    {
+      "id": "code-quality--correctness-first",
+      "title": "Code Quality \u2014 correctness first",
+      "body": "A small correct solution beats a clever incomplete one. Prefer obvious boring code over smart tricks.",
+      "tags": [
+        "coding",
+        "philosophy"
+      ],
+      "source": "CODE_QUALITY.md"
+    },
+    {
+      "id": "code-quality--strict-typing",
+      "title": "Code Quality \u2014 strict typing",
+      "body": "All interfaces fully typed with no escape hatches. Type errors are build failures. Zero tolerance for any. Use unknown and narrow with type guards.",
+      "tags": [
+        "coding",
+        "philosophy"
+      ],
+      "source": "CODE_QUALITY.md"
+    },
+    {
+      "id": "code-quality--immutability-by-default",
+      "title": "Code Quality \u2014 immutability by default",
+      "body": "Prefer readonly, as const, and immutable update patterns. Mutation is exceptional and must be explicitly justified. Spread operators over mutating methods.",
+      "tags": [
+        "coding",
+        "philosophy"
+      ],
+      "source": "CODE_QUALITY.md"
+    },
+    {
+      "id": "code-quality--low-complexity-limits",
+      "title": "Code Quality \u2014 low complexity limits",
+      "body": "Max cyclomatic complexity 10, max nesting depth 3, max function length 50 lines, max parameters 4. Max JSX depth 4, max hooks per component 5, max props 7.",
+      "tags": [
+        "coding",
+        "philosophy"
+      ],
+      "source": "CODE_QUALITY.md"
+    },
+    {
+      "id": "code-quality--forbidden-typescript-patterns",
+      "title": "Code Quality \u2014 forbidden TypeScript patterns",
+      "body": "No any, no as assertions, no ! non-null assertions, no enum (use as const), no class components, no deep inheritance, no global mutable state, no var, no implicit coercion.",
+      "tags": [
+        "coding",
+        "philosophy"
+      ],
+      "source": "CODE_QUALITY.md"
+    },
+    {
+      "id": "code-quality--pre-commit-pipeline",
+      "title": "Code Quality \u2014 pre-commit pipeline",
+      "body": "Every commit: Prettier format, ESLint lint, tsc type check, affected tests. Build fails if any step fails. No ts-ignore without justification and ticket reference.",
+      "tags": [
+        "coding",
+        "philosophy"
+      ],
+      "source": "CODE_QUALITY.md"
+    },
+    {
+      "id": "code-quality--result-types-for-fallible-operations",
+      "title": "Code Quality \u2014 Result types for fallible operations",
+      "body": "Use Result<T, E> = { success: true, data: T } | { success: false, error: E } for operations that can fail. Fail fast on invalid state. Never silently swallow errors.",
+      "tags": [
+        "coding",
+        "philosophy"
+      ],
+      "source": "CODE_QUALITY.md"
+    },
+    {
+      "id": "code-quality--code-review-checklist",
+      "title": "Code Quality \u2014 code review checklist",
+      "body": "Review for: correctness and edge cases, type precision, immutability, complexity (could it be simpler?), React patterns, test coverage for behavior not implementation.",
+      "tags": [
+        "coding",
+        "philosophy"
+      ],
+      "source": "CODE_QUALITY.md"
+    },
+    {
+      "id": "ai-guardrail--linting-is-mandatory",
+      "title": "AI Guardrail \u2014 linting is mandatory",
+      "body": "Every line of AI-generated code must pass the same linter as human code. ESLint strict, TypeScript strict mode, no exceptions. Linting catches what the model hallucinates. The linter is the first guardrail.",
+      "tags": [
+        "coding",
+        "ai-guardrails"
+      ],
+      "source": "miniclaw-coding-philosophy"
+    },
+    {
+      "id": "ai-guardrail--complexity-checking",
+      "title": "AI Guardrail \u2014 complexity checking",
+      "body": "Cyclomatic complexity limits, nesting depth limits, function length limits \u2014 enforced by tooling, not by hope. If a model generates a 200-line function, the build breaks. Complexity limits prevent AI from writing code humans can't maintain.",
+      "tags": [
+        "coding",
+        "ai-guardrails"
+      ],
+      "source": "miniclaw-coding-philosophy"
+    },
+    {
+      "id": "ai-guardrail--code-coverage-proves-the-code-works",
+      "title": "AI Guardrail \u2014 code coverage proves the code works",
+      "body": "Tests are proof that the code does what it claims. AI models are confident liars. Without test coverage, generated code is just plausible fiction. Run the tests. Every time.",
+      "tags": [
+        "coding",
+        "ai-guardrails"
+      ],
+      "source": "miniclaw-coding-philosophy"
+    },
+    {
+      "id": "ai-guardrail--idiomatic-programming",
+      "title": "AI Guardrail \u2014 idiomatic programming",
+      "body": "AI models mix patterns from every language they've seen. Force idiomatic output: Go code should look like Go. TypeScript should look like TypeScript. Linter rules and code review catch cross-language contamination.",
+      "tags": [
+        "coding",
+        "ai-guardrails"
+      ],
+      "source": "miniclaw-coding-philosophy"
+    },
+    {
+      "id": "ai-guardrail--functional-programming-reduces-bugs",
+      "title": "AI Guardrail \u2014 functional programming reduces bugs",
+      "body": "Pure functions, immutability, composition \u2014 these patterns constrain what code can do. Fewer side effects means fewer places for AI-generated bugs to hide. Functional style makes AI output auditable.",
+      "tags": [
+        "coding",
+        "ai-guardrails"
+      ],
+      "source": "miniclaw-coding-philosophy"
+    },
+    {
+      "id": "ai-guardrail--dont-rely-on-models-for-what-code-can-do",
+      "title": "AI Guardrail \u2014 don't rely on models for what code can do",
+      "body": "The model doesn't run the code. It predicts text. Never trust a model's claim about runtime behavior \u2014 run it, test it, measure it. If you can write a test that proves the behavior, write the test instead of asking the model.",
+      "tags": [
+        "coding",
+        "ai-guardrails"
+      ],
+      "source": "miniclaw-coding-philosophy"
+    },
+    {
+      "id": "ai-guardrail--guardrails-make-ai-work",
+      "title": "AI Guardrail \u2014 guardrails make AI work",
+      "body": "Unconstrained AI output is unreliable. Constrained AI output \u2014 through linting, type checking, testing, complexity limits, and code review \u2014 is production-grade. The guardrails aren't limitations, they're what makes AI-generated code trustworthy.",
+      "tags": [
+        "coding",
+        "ai-guardrails"
+      ],
+      "source": "miniclaw-coding-philosophy"
+    },
+    {
+      "id": "ai-guardrail--pre-and-post-processing",
+      "title": "AI Guardrail \u2014 pre and post processing",
+      "body": "Pre-process: inject context, constraints, and style rules before the model generates. Post-process: lint, type-check, test, and review after. The model is the middle step, not the whole pipeline.",
+      "tags": [
+        "coding",
+        "ai-guardrails"
+      ],
+      "source": "miniclaw-coding-philosophy"
     }
   ]
 }
