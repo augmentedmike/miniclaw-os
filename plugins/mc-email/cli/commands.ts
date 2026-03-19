@@ -8,6 +8,13 @@ import type { Logger } from "openclaw/plugin-sdk";
 import type { EmailConfig } from "../src/config.js";
 import { GmailClient } from "../src/client.js";
 import { getAppPassword, saveAppPassword } from "../src/vault.js";
+import {
+  loadTriageState,
+  saveTriageState,
+  filterNewUids,
+  markAllProcessed,
+  pruneState,
+} from "../src/triage-state.js";
 
 interface Ctx {
   program: Command;
