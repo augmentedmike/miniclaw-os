@@ -62,7 +62,7 @@ echo "  log    : $LOG_FILE"
 [[ "$ARCH" == "arm64" ]] && BREW_PREFIX="/opt/homebrew" || BREW_PREFIX="/usr/local"
 
 # -- Step 0: Detect & migrate existing OpenClaw install --------------------
-step "Step 0: Existing OpenClaw detection"
+step "Step 1: Existing OpenClaw detection"
 
 ARCHIVE_DIR="$HOME/.openclaw-backup-$(date +%Y%m%d-%H%M%S)"
 NEEDS_MIGRATION=false
@@ -134,7 +134,7 @@ fi
 
 
 # ── Step 0b: Pre-flight collision checks ─────────────────────────────────────
-step "Step 0b: Pre-flight collision checks"
+step "Step 2: Pre-flight collision checks"
 
 COLLISIONS=0
 
@@ -194,7 +194,7 @@ fi
 
 
 # ── Step 1: Homebrew ──────────────────────────────────────────────────────────
-step "Step 1: Homebrew"
+step "Step 3: Homebrew"
 
 if command -v brew &>/dev/null; then
   ok "Homebrew already installed"
@@ -228,7 +228,7 @@ brew_install() {
 }
 
 # ── Step 2: Core deps ─────────────────────────────────────────────────────────
-step "Step 2: Core dependencies"
+step "Step 4: Core dependencies"
 
 # Read pinned dependency versions from MANIFEST.json
 REQUIRED_NODE_MAJOR=$(python3 -c "import json; print(json.load(open('$REPO_DIR/MANIFEST.json'))['dependencies']['node'])" 2>/dev/null || echo "24")
@@ -372,7 +372,7 @@ else
 fi
 
 # ── Step 2a: whisper.cpp + sox (mc-voice / transcribe) ───────────────────────
-step "Step 2a: whisper.cpp (local speech-to-text)"
+step "Step 5: whisper.cpp (local speech-to-text)"
 
 brew_install sox sox
 
@@ -414,7 +414,7 @@ if [[ "$(uname)" == "Darwin" ]]; then
 fi
 
 # ── Step 3: Claude Code ──────────────────────────────────────────────────────
-step "Step 3: Claude Code"
+step "Step 6: Claude Code"
 
 if command -v claude &>/dev/null; then
   ok "Claude Code already installed ($(claude --version 2>/dev/null | head -1))"
@@ -428,7 +428,7 @@ else
 fi
 
 # ── Step 4: QMD (optional) ────────────────────────────────────────────────────
-step "Step 4: QMD"
+step "Step 7: QMD"
 
 if command -v qmd &>/dev/null; then
   ok "QMD already installed"
@@ -440,7 +440,7 @@ else
 fi
 
 # ── Step 5: OpenClaw (from MiniClaw fork) ─────────────────────────────────────
-step "Step 5: OpenClaw"
+step "Step 8: OpenClaw"
 
 # Read pinned openclaw version from MANIFEST.json
 OPENCLAW_NPM_PKG=$(python3 -c "
@@ -536,7 +536,7 @@ fi
 [[ "$CHECK_ONLY" == true ]] && { echo -e "\n${GREEN}Check complete.${NC}\n"; exit 0; }
 
 # ── Step 6: Directories ───────────────────────────────────────────────────────
-step "Step 6: Directories"
+step "Step 9: Directories"
 
 mkdir -p "$MINICLAW_DIR/plugins" "$PROJECTS_DIR"
 ln -sfn "$PROJECTS_DIR" "$HOME/mc-projects"
@@ -551,7 +551,7 @@ if [[ -f "$REPO_DIR/MANIFEST.json" ]]; then
 fi
 
 # ── Step 7: Install plugins ───────────────────────────────────────────────────
-step "Step 7: miniclaw plugins"
+step "Step 10: miniclaw plugins"
 
 # Migrated plugins: install to $MINICLAW_DIR/<name>/ (standalone CLI)
 MIGRATED_PLUGINS=(vault designer)
@@ -596,7 +596,7 @@ if [[ -f "$BOARD_PLUGIN_DIR/package.json" ]]; then
 fi
 
 # ── Step 8: Install plugins to extensions + patch openclaw.json ──────────────
-step "Step 8: Plugin registration"
+step "Step 11: Plugin registration"
 
 # Clean unknown top-level keys that cause openclaw config validation to fail
 python3 - "$STATE_DIR/openclaw.json" <<'CLEANEOF'
@@ -728,7 +728,7 @@ REGEOF
 ok "Registered $REGISTERED plugins (direct install, no openclaw CLI)"
 
 # ── Step 9: CLI tools → SYSTEM/bin ────────────────────────────────────────────
-step "Step 9: CLI tools"
+step "Step 12: CLI tools"
 
 SYSTEM_BIN="$MINICLAW_DIR/SYSTEM/bin"
 USER_BIN="$STATE_DIR/USER/bin"
@@ -749,7 +749,7 @@ cp "$MINICLAW_DIR/vault/cli" "$SYSTEM_BIN/mc-vault" 2>/dev/null && chmod +x "$SY
 ok "SYSTEM/bin: $(ls "$SYSTEM_BIN" | wc -l | tr -d ' ') tools"
 
 # Generate CLI wrappers for every plugin
-step "Step 8b: Plugin CLI wrappers"
+step "Step 13: Plugin CLI wrappers"
 
 PLUGINS_DIR="$MINICLAW_DIR/plugins"
 GENERATED=0
@@ -770,7 +770,7 @@ ok "Generated $GENERATED plugin CLI wrappers"
 ok "SYSTEM/bin total: $(ls "$SYSTEM_BIN" | wc -l | tr -d ' ') tools"
 
 # ── Step 10: Directories ───────────────────────────────────────────────────────
-step "Step 10: User directories"
+step "Step 14: User directories"
 
 USER_MEMORY_DIR="$STATE_DIR/USER/memory"
 SOUL_BACKUPS_DIR="$STATE_DIR/soul-backups"
@@ -785,7 +785,7 @@ mkdir -p "$SOUL_BACKUPS_DIR"
 ok "~/.openclaw/soul-backups/"
 
 # ── Step 11: QMD collections ──────────────────────────────────────────────────
-step "Step 11: QMD collections"
+step "Step 15: QMD collections"
 
 if command -v qmd &>/dev/null; then
 
@@ -801,7 +801,7 @@ else
 fi
 
 # ── Step 11b: Embedding model ─────────────────────────────────────────────────
-step "Step 11b: Embedding model (EmbeddingGemma-300M)"
+step "Step 16: Embedding model (EmbeddingGemma-300M)"
 
 EMBED_MODEL_DIR="$HOME/.cache/qmd/models"
 EMBED_MODEL_FILE="hf_ggml-org_embeddinggemma-300M-Q8_0.gguf"
@@ -832,7 +832,7 @@ else
 fi
 
 # ── Step 12: Vault ────────────────────────────────────────────────────────────
-step "Step 12: Vault"
+step "Step 17: Vault"
 
 VAULT_ROOT="$MINICLAW_DIR/SYSTEM/vault"
 MC_VAULT="$MINICLAW_DIR/vault/cli"
@@ -1012,7 +1012,7 @@ fi
 
 
 # ── Step 13: Cron workers (from MANIFEST.json) ───────────────────────────────
-step "Step 13: Cron workers"
+step "Step 18: Cron workers"
 
 # Write cron jobs directly to jobs.json so OpenClaw picks them up on startup.
 # Reads expected crons from MANIFEST.json — no running gateway required.
@@ -1157,7 +1157,7 @@ if [[ -d "$REPO_DIR/cron/prompts" ]]; then
 fi
 
 # ── Step 14: Shell env ────────────────────────────────────────────────────────
-step "Step 14: Shell environment"
+step "Step 19: Shell environment"
 
 # Env vars and PATH go in .zshenv so non-interactive shells (cron, agents,
 # IDE terminals) also pick them up.  Aliases stay in .zshrc (interactive only).
@@ -1237,7 +1237,7 @@ if [[ -n "$CLAUDE_BIN" ]]; then
 fi
 
 # ── Step 15: Board web build + LaunchAgent ────────────────────────────────────
-step "Step 15: Board web server"
+step "Step 20: Board web server"
 
 BOARD_WEB_DIR="$MINICLAW_DIR/plugins/mc-board/web"
 BOARD_PLIST="$HOME/Library/LaunchAgents/com.miniclaw.board-web.plist"
@@ -1319,7 +1319,7 @@ else
 fi
 
 # ── Step 15b: mc-web-chat WebSocket server ─────────────────────────────────────
-step "Step 15b: Web chat server"
+step "Step 21: Web chat server"
 
 CHAT_DIR="$MINICLAW_DIR/plugins/mc-web-chat"
 CHAT_PLIST="$HOME/Library/LaunchAgents/com.miniclaw.web-chat.plist"
@@ -1378,7 +1378,7 @@ else
 fi
 
 # ── Step 14a2: Agent runner LaunchAgent ────────────────────────────────────────
-step "Step 14a2: Agent runner daemon"
+step "Step 22: Agent runner daemon"
 
 RUNNER_PLIST="$HOME/Library/LaunchAgents/com.miniclaw.board-agent-runner.plist"
 RUNNER_SCRIPT="$MINICLAW_DIR/plugins/mc-board/agent-runner/runner.mjs"
@@ -1439,7 +1439,7 @@ else
 fi
 
 # ── Step 14a3: Auto-update LaunchAgent ────────────────────────────────────────
-step "Step 14a3: Auto-update"
+step "Step 23: Auto-update"
 
 UPDATE_PLIST="$HOME/Library/LaunchAgents/com.miniclaw.auto-update.plist"
 UPDATE_BIN="$MINICLAW_DIR/SYSTEM/bin/mc-update"
@@ -1488,7 +1488,7 @@ else
 fi
 
 # ── Step 14b: Default board projects ──────────────────────────────────────────
-step "Step 14b: Default board projects"
+step "Step 24: Default board projects"
 
 BOARD_DB_DIR="$STATE_DIR/USER/brain"
 mkdir -p "$BOARD_DB_DIR"
@@ -1548,7 +1548,7 @@ if [[ -d "$PROMPTS_DEFAULTS" ]]; then
 fi
 
 # ── Step 15a: Copy scripts ────────────────────────────────────────────────
-step "Step 15a: Scripts"
+step "Step 25: Scripts"
 
 if [[ -d "$REPO_DIR/scripts" ]]; then
   mkdir -p "$MINICLAW_DIR/scripts"
@@ -1558,7 +1558,7 @@ if [[ -d "$REPO_DIR/scripts" ]]; then
 fi
 
 # ── Step 15b: Clean up legacy am-setup LaunchAgent ───────────────────────────
-step "Step 15b: Legacy am-setup cleanup"
+step "Step 26: Legacy am-setup cleanup"
 
 # Setup wizard is now part of the board web app (port 4220). Remove old 4210 agent.
 SETUP_PLIST="$HOME/Library/LaunchAgents/com.miniclaw.am-setup.plist"
@@ -1572,7 +1572,7 @@ fi
 
 # ── Step 15c: OpenClaw Gateway LaunchAgent ───────────────────────────────────
 GW_LABELS=("Configuring Telegram" "Connecting to gateway" "Hacking the matrix" "Coming online")
-step "Step 15c: ${GW_LABELS[$((RANDOM % ${#GW_LABELS[@]}))]}"
+step "Step 27: ${GW_LABELS[$((RANDOM % ${#GW_LABELS[@]}))]}"
 
 # The gateway is the core process — it runs the telegram bot, cron workers,
 # and agent sessions.  `openclaw gateway install` creates a LaunchAgent plist
@@ -1600,7 +1600,7 @@ else
 fi
 
 # ── Step 15d: Sync Claude Code credentials to gateway ────────────────────────
-step "Step 15d: Claude auth"
+step "Step 28: Claude auth"
 
 # OpenClaw gateway needs auth-profiles.json to call the Anthropic API.
 # If the user is logged into Claude Code, their OAuth token is in the macOS
@@ -1646,7 +1646,7 @@ else
 fi
 
 # ── Step 15d2: Tailscale login ───────────────────────────────────────────────
-step "Step 15d2: Tailscale remote access"
+step "Step 29: Tailscale remote access"
 
 # Tailscale enables: mc-human VNC sessions, board card deep links from phone,
 # and remote access to the agent from outside the local network.
@@ -1702,7 +1702,7 @@ if [[ -n "$CONFIG_FILE" && -f "$CONFIG_FILE" && ! -f "$SETUP_STATE" ]]; then
 fi
 
 # ── Step 15e: Personalize workspace from setup wizard ────────────────────────
-step "Step 15e: Agent identity"
+step "Step 30: Agent identity"
 
 WORKSPACE_DIR="$STATE_DIR/workspace"
 
@@ -1808,7 +1808,7 @@ else
 fi
 
 # ── Step 17: Import shared KB ─────────────────────────────────────────────────
-step "Step 17: Shared knowledge base"
+step "Step 31: Shared knowledge base"
 
 KB_BUNDLE_URL="https://raw.githubusercontent.com/augmentedmike/miniclaw-os/main/shared/kb/knowledge.json"
 KB_TMP="/tmp/miniclaw-kb-import-$$.json"
