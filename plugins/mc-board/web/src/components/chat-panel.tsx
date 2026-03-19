@@ -76,8 +76,12 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
   const [imageError, setImageError] = useState<string | null>(null);
   const [storageWarning, setStorageWarning] = useState<string | null>(null);
 
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const isAtBottomRef = useRef(true);
+
   const wsRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const streamingInsertIndexRef = useRef<number | null>(null);
@@ -322,9 +326,26 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
     setTimeout(() => textareaRef.current?.focus(), 50);
   }, [pendingContext, onContextConsumed]);
 
-  // Scroll to bottom and focus textarea on new messages
+  // Track scroll position to detect when user is not at bottom
+  const handleScroll = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const threshold = 60;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= threshold;
+    isAtBottomRef.current = atBottom;
+    setIsAtBottom(atBottom);
+  }, []);
+
+  // Scroll to bottom helper
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    messagesEndRef.current?.scrollIntoView({ behavior });
+  }, []);
+
+  // Auto-scroll on new messages only when user is already at the bottom
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (isAtBottomRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
     textareaRef.current?.focus();
   }, [messages, streamingText]);
 
@@ -528,7 +549,8 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
       )}
 
       {/* Messages */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ flex: 1, position: "relative", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      <div ref={scrollContainerRef} onScroll={handleScroll} style={{ flex: 1, overflowY: "auto", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 12 }}>
         {messages.length === 0 && !streaming && (
           <div style={{ color: "#3f3f46", fontSize: 12, textAlign: "center", marginTop: 40, lineHeight: 1.6 }}>
             Chat with {agentName}.<br />Right-click any card to inject context.
@@ -641,6 +663,39 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
           );
         })()}
         <div ref={messagesEndRef} />
+      </div>
+
+      {/* Scroll-to-bottom floating button */}
+      <button
+        onClick={() => scrollToBottom("smooth")}
+        aria-label="Scroll to bottom"
+        style={{
+          position: "absolute",
+          bottom: 16,
+          right: 16,
+          width: 32,
+          height: 32,
+          borderRadius: "50%",
+          background: "#27272a",
+          border: "1px solid #3f3f46",
+          color: "#a1a1aa",
+          fontSize: 14,
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
+          opacity: isAtBottom ? 0 : 1,
+          transform: isAtBottom ? "translateY(8px)" : "translateY(0)",
+          pointerEvents: isAtBottom ? "none" : "auto",
+          transition: "opacity 0.2s ease, transform 0.2s ease, background 0.15s, color 0.15s",
+          zIndex: 5,
+          padding: 0,
+          lineHeight: 1,
+        }}
+        onMouseEnter={e => { e.currentTarget.style.background = "#3f3f46"; e.currentTarget.style.color = "#e4e4e7"; }}
+        onMouseLeave={e => { e.currentTarget.style.background = "#27272a"; e.currentTarget.style.color = "#a1a1aa"; }}
+      >↓</button>
       </div>
 
       {/* Context badge */}
