@@ -61,12 +61,6 @@ curl -fsSL https://raw.githubusercontent.com/augmentedmike/miniclaw-os/main/boot
 
 *An agent picks a task from its kanban board, executes it autonomously, writes learnings to long-term memory, and ships the result — all without human intervention.*
 
-<p align="center">
-  <img src="./assets/pixel-office.png" alt="MiniClaw Pixel Office — live agent workspace visualization" width="720">
-</p>
-
-*The Pixel Office — a retro-pixel visualization of your agent's live workspace, showing active tasks and real-time status.*
-
 <a id="install-demo"></a>
 
 https://github.com/user-attachments/assets/937327da-40a8-423c-ab34-d3fe088099c9
