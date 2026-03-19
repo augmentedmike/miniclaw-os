@@ -20,10 +20,24 @@ import {
 
 // Use createRequire to load CJS modules from openclaw's bundled node_modules
 const require = createRequire(import.meta.url);
-const SQLITE_VEC_PATHS = [
-  "/opt/homebrew/lib/node_modules/openclaw/node_modules/sqlite-vec",
-  "sqlite-vec",
-];
+
+function findSqliteVecPaths(): string[] {
+  const paths: string[] = [];
+  try {
+    const { execSync } = require("node:child_process");
+    const ocBin = fs.realpathSync(execSync("which openclaw", { encoding: "utf-8" }).trim());
+    let dir = path.dirname(ocBin);
+    for (let i = 0; i < 5; i++) {
+      const candidate = path.join(dir, "node_modules", "sqlite-vec");
+      if (fs.existsSync(candidate)) { paths.push(candidate); break; }
+      dir = path.dirname(dir);
+    }
+  } catch {}
+  paths.push("sqlite-vec");
+  return paths;
+}
+
+const SQLITE_VEC_PATHS = findSqliteVecPaths();
 
 export interface FTSResult {
   id: string;

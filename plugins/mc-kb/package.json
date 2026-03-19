@@ -4,6 +4,9 @@
   "type": "module",
   "main": "index.ts",
   "description": "SQLite vector knowledge base — long-term semantic memory",
+  "scripts": {
+    "postinstall": "node scripts/postinstall.mjs"
+  },
   "dependencies": {
     "better-sqlite3": "^11.9.0"
   },
