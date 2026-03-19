@@ -24,7 +24,6 @@ export default function StepInstalling({ onNext }: Props) {
     { id: "install", label: "Waiting for install to finish", status: "pending" },
     { id: "secrets", label: "Saving your credentials", status: "pending" },
     { id: "gateway", label: ["Configuring Telegram", "Connecting to gateway", "Hacking the matrix", "Coming online"][Math.floor(Math.random() * 4)], status: "pending" },
-    { id: "smoke", label: "Running system checks", status: "pending" },
   ]);
 
   const checksRef = useRef(checks);
@@ -137,49 +136,6 @@ export default function StepInstalling({ onNext }: Props) {
       } catch {
         clearInterval(gwRotate);
         updateCheck("gateway", { status: "error", detail: "Could not start gateway" });
-      }
-
-      // 5. Run mc-smoke
-      updateCheck("smoke", { status: "running", detail: "Starting checks..." });
-      let smokePassed = 0;
-      let smokeFailed = 0;
-      try {
-        const res = await fetch("/api/setup/smoke");
-        if (res.ok && res.body) {
-          const reader = res.body.getReader();
-          const decoder = new TextDecoder();
-          let buf = "";
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buf += decoder.decode(value, { stream: true });
-            const parts = buf.split("\n\n");
-            buf = parts.pop() || "";
-            for (const part of parts) {
-              const dl = part.split("\n").find((l) => l.startsWith("data: "));
-              if (!dl) continue;
-              try {
-                const evt = JSON.parse(dl.slice(6));
-                if (evt.type === "check") {
-                  updateCheck("smoke", { detail: evt.label });
-                }
-                if (evt.type === "done") {
-                  smokePassed = evt.passed;
-                  smokeFailed = evt.failed;
-                  if (evt.failed === 0) {
-                    updateCheck("smoke", { status: "ok", detail: `${evt.passed} passed` });
-                  } else {
-                    updateCheck("smoke", { status: "error", detail: `${evt.failed} failed, ${evt.passed} passed` });
-                  }
-                }
-              } catch { /* skip */ }
-            }
-          }
-        } else {
-          updateCheck("smoke", { status: "error", detail: "Could not run checks" });
-        }
-      } catch {
-        updateCheck("smoke", { status: "error", detail: "System checks failed" });
       }
 
       // HALT if ANY step failed — never auto-advance on errors
