@@ -1,6 +1,6 @@
 "use client";
 
-import useSWR from "swr";
+import useSWR, { useSWRConfig } from "swr";
 import { BoardData, BoardCard, Project } from "@/lib/types";
 import { Column } from "./column";
 import { CardModal } from "./card-modal";
@@ -62,6 +62,7 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
   const seenLogKeys = useRef<Set<string>>(new Set());
   const initialized = useRef(false);
 
+  const { mutate: globalMutate } = useSWRConfig();
   const qs = selectedProject ? `?project=${encodeURIComponent(selectedProject)}` : "";
   const { data, isLoading, mutate } = useSWR<BoardData>(
     `/api/board${qs}`,
@@ -215,8 +216,8 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
       body: JSON.stringify(wasHeld
         ? { action: "update", cardId, "remove-tags": "hold" }
         : { action: "update", cardId, "add-tags": "hold", "remove-tags": "focus" }),
-    }).then(() => mutate()).catch(() => mutate());
-  }, [mutate]);
+    }).then(() => { mutate(); globalMutate(`/api/card/${cardId}`); }).catch(() => { mutate(); globalMutate(`/api/card/${cardId}`); });
+  }, [mutate, globalMutate]);
 
   const handleSearchSelect = (cardId: string) => {
     setSearchQuery("");

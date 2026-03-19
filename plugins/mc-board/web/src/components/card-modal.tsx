@@ -384,7 +384,7 @@ function AgentRunsSection({ cardId }: { cardId: string }) {
 }
 
 export function CardModal({ cardId, projects, activeIds, onClose, onOpenLog, onToast, onMutate, onInjectContext, onHold }: Props) {
-  const { data: card } = useSWR<Card>(
+  const { data: card, mutate: mutateCard } = useSWR<Card>(
     cardId ? `/api/card/${cardId}` : null,
     fetcher,
     { refreshInterval: 5000 }
@@ -446,7 +446,20 @@ export function CardModal({ cardId, projects, activeIds, onClose, onOpenLog, onT
                 const held = card.tags.includes("hold");
                 return (
                   <button
-                    onClick={() => onHold(card.id)}
+                    onClick={() => {
+                      onHold(card.id);
+                      // Optimistically update modal's card cache
+                      mutateCard(current => {
+                        if (!current) return current;
+                        const isHeld = current.tags.includes("hold");
+                        const newTags = isHeld
+                          ? current.tags.filter((t: string) => t !== "hold")
+                          : [...current.tags.filter((t: string) => t !== "hold" && t !== "focus"), "hold"];
+                        return { ...current, tags: newTags };
+                      }, { revalidate: false });
+                      // Also revalidate after API settles to get authoritative state
+                      setTimeout(() => mutateCard(), 600);
+                    }}
                     title={held ? "Remove hold" : "Put on hold"}
                     style={{
                       fontSize: 11, padding: "3px 10px", borderRadius: 6, fontWeight: 600,
