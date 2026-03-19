@@ -53,7 +53,7 @@ export function ColumnShell({ column, count, activeCount, headerActions, childre
           )}
         </span>
         {headerActions && (
-          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, flexShrink: 1, flexWrap: "wrap", minWidth: 0, justifyContent: "flex-end" }}>
             {headerActions}
           </div>
         )}

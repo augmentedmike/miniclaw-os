@@ -90,7 +90,7 @@ a { color: inherit; }
 }
 
 /* ── Stat pills ── */
-.stat-pills { display: flex; align-items: center; }
+.stat-pills { display: flex; align-items: center; overflow: hidden; flex-shrink: 1; min-width: 0; }
 .stat-pill {
   font-size: 11px;
   color: #52525b;
@@ -100,8 +100,27 @@ a { color: inherit; }
   display: flex;
   align-items: center;
   height: 100%;
+  overflow: hidden;
+  transition: padding .2s, font-size .2s;
 }
 .stat-pill b { color: #a1a1aa; font-weight: 600; margin-left: 4px; }
+.stat-pill .pill-label { transition: width .2s, opacity .2s; }
+/* Color-coded dots for stat pills — hidden by default, shown at smallest sizes */
+.stat-pill::before {
+  content: "";
+  display: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.stat-pill[data-col="backlog"]::before { background: #7c3aed; }
+.stat-pill[data-col="in-progress"]::before { background: #3b82f6; }
+.stat-pill[data-col="in-review"]::before { background: #f59e0b; }
+.stat-pill[data-col="shipped"]::before { background: #16a34a; }
+.stat-pill[data-col="projects"]::before { background: #52525b; }
+.stat-pill[data-col="tokens"]::before { background: #a855f7; }
+.stat-pill[data-col="memory"]::before { background: #06b6d4; }
 
 /* ── Board controls ── */
 .board-controls {
@@ -180,6 +199,7 @@ a { color: inherit; }
   padding: 2px 10px;
   border-radius: 9999px;
   letter-spacing: .04em;
+  white-space: nowrap;
 }
 .column-count { font-size: 13px; color: #ffffff; font-weight: 700; font-family: var(--font-geist-mono), ui-monospace, monospace; }
 .column-empty { text-align: center; color: #3f3f46; font-size: 13px; padding: 24px 0; font-style: italic; }
@@ -913,6 +933,141 @@ a { color: inherit; }
   .settings-nav-btn { width: auto; white-space: nowrap; flex-shrink: 0; padding: 6px 10px; }
 
   .settings-content { padding: 16px; }
+}
+
+/* ── Triage controls ── */
+.triage-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+.triage-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  line-height: 1.6;
+  font-family: inherit;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.triage-btn--toggle {
+  background: #27272a;
+  border: 1px solid #52525b;
+  color: #71717a;
+}
+.triage-btn--toggle.on {
+  background: #14532d;
+  border-color: #16a34a;
+  color: #86efac;
+}
+.triage-select {
+  font-size: 10px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  background: #27272a;
+  border: 1px solid #52525b;
+  color: #a1a1aa;
+  cursor: pointer;
+  line-height: 1.6;
+  appearance: none;
+  -webkit-appearance: none;
+  font-family: inherit;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── Responsive: compact medium breakpoint ── */
+@media (max-width: 1200px) {
+  .board-tab { padding: 14px 16px; }
+  .board { gap: 8px; }
+  .column-cards { gap: 8px; }
+  .card { padding: 12px 14px; }
+  .card-title { font-size: 13px; }
+  .filter-panel { width: 120px; padding: 10px 6px; }
+  .modal-header, .modal-body, .modal-footer { padding-left: 18px; padding-right: 18px; }
+  .settings-content { padding: 18px 24px; }
+}
+
+/* ── Responsive: stat pills & badges (progressive shrink) ── */
+
+/* Medium: reduce stat pill padding and font size */
+@media (max-width: 1100px) {
+  .stat-pill { padding: 0 8px; font-size: 10px; }
+  .stat-pill b { font-weight: 500; }
+  .column-badge { font-size: 10px; padding: 2px 8px; }
+  .proj-count-pill { font-size: 10px !important; }
+}
+
+/* Narrower: hide text labels, show only count values */
+@media (max-width: 850px) {
+  .stat-pill { padding: 0 6px; font-size: 10px; }
+  .stat-pill .pill-label { display: none; }
+  .stat-pill b { margin-left: 0; }
+  .column-badge { font-size: 9px; padding: 2px 6px; font-weight: 600; }
+  .proj-count-pill .proj-pill-label { display: none !important; }
+  .triage-btn, .triage-select { font-size: 9px !important; padding: 2px 5px !important; }
+}
+
+/* Intermediate: shrink badges further before dot-collapse */
+@media (max-width: 700px) {
+  .column-badge { font-size: 8px; padding: 1px 5px; }
+  .triage-btn, .triage-select { font-size: 9px !important; padding: 2px 4px !important; }
+}
+
+/* Small: hide triage button labels, icon-only */
+@media (max-width: 550px) {
+  .triage-btn .triage-label { display: none; }
+  .triage-btn, .triage-select { font-size: 9px !important; padding: 2px 4px !important; min-width: 0 !important; }
+  .triage-select { max-width: 36px; }
+}
+
+/* Smallest: collapse stat pills to colored dots */
+@media (max-width: 550px) {
+  .stat-pill {
+    padding: 0 4px;
+    font-size: 0;
+    min-width: 16px;
+    justify-content: center;
+  }
+  .stat-pill b { display: none; }
+  .stat-pill .pill-label { display: none; }
+  .stat-pill::before { display: block; }
+  .column-badge {
+    font-size: 0;
+    width: 12px;
+    height: 12px;
+    padding: 0;
+    overflow: hidden;
+    min-width: 12px;
+  }
+  .proj-count-pill {
+    font-size: 0 !important;
+    width: 8px !important;
+    height: 8px !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
+    min-width: 8px !important;
+    display: inline-block !important;
+  }
+  .proj-count-pill b { display: none !important; }
+  .proj-count-pill .proj-pill-label { display: none !important; }
+}
+
+/* Ensure no wrapping at any width */
+@media (max-width: 320px) {
+  .stat-pills { gap: 0; }
+  .stat-pill { padding: 0 3px; border-left: none; }
+  .top-bar { min-height: 36px; }
+  .brand { padding: 0 10px; font-size: 11px; }
+  .tab-btn { padding: 0 8px; font-size: 11px; }
+  .triage-controls { gap: 2px; }
+  .triage-btn, .triage-select { font-size: 8px !important; padding: 1px 3px !important; }
+  .triage-btn .triage-label { display: none; }
 }
 
 /* ── Card markdown typography ── */

@@ -26,26 +26,19 @@ export function TriageControls({
   if (!cronLoaded) return null;
 
   return (
-    <>
+    <div className="triage-controls">
       <button
         data-tour={t("toggle")}
         onClick={handleToggleCron}
         title={cronEnabled ? "Disable scheduler" : "Enable scheduler"}
-        style={{
-          display: "flex", alignItems: "center", gap: 5,
-          fontSize: 10, padding: "3px 8px", borderRadius: 4,
-          background: cronEnabled ? "#14532d" : "#27272a",
-          border: `1px solid ${cronEnabled ? "#16a34a" : "#52525b"}`,
-          color: cronEnabled ? "#86efac" : "#71717a",
-          cursor: "pointer", lineHeight: 1.6,
-        }}
+        className={`triage-btn triage-btn--toggle${cronEnabled ? " on" : ""}`}
       >
         <span style={{
           width: 5, height: 5, borderRadius: "50%",
           background: cronEnabled ? "#22c55e" : "#52525b",
-          display: "inline-block",
+          display: "inline-block", flexShrink: 0,
         }} />
-        {cronEnabled ? "on" : "off"}
+        <span className="triage-label">{cronEnabled ? "on" : "off"}</span>
       </button>
 
       <select
@@ -53,12 +46,7 @@ export function TriageControls({
         onClick={e => e.stopPropagation()}
         value={cronMinutes}
         onChange={handleMinutesChange}
-        style={{
-          fontSize: 10, padding: "3px 6px", borderRadius: 4,
-          background: "#27272a", border: "1px solid #52525b",
-          color: "#a1a1aa", cursor: "pointer", lineHeight: 1.6,
-          appearance: "none", WebkitAppearance: "none",
-        }}
+        className="triage-select"
       >
         {[1, 5, 10, 15, 30, 60].map(m => (
           <option key={m} value={m}>{m}m</option>
@@ -71,12 +59,7 @@ export function TriageControls({
         value={maxConcurrent}
         onChange={e => onMaxConcurrentChange(parseInt(e.target.value, 10))}
         title="Max cards worked concurrently"
-        style={{
-          fontSize: 10, padding: "3px 6px", borderRadius: 4,
-          background: "#27272a", border: "1px solid #52525b",
-          color: "#a1a1aa", cursor: "pointer", lineHeight: 1.6,
-          appearance: "none", WebkitAppearance: "none",
-        }}
+        className="triage-select"
       >
         {[1, 3, 5, 10].map(n => (
           <option key={n} value={n}>{n}×</option>
@@ -89,10 +72,9 @@ export function TriageControls({
           onClick={e => { e.stopPropagation(); if (hasTriageCards) onOpenTriage(); }}
           disabled={!hasTriageCards}
           title={hasTriageCards ? "Triage backlog cards" : "No cards to triage"}
-          className="btn-action"
-          style={{ fontSize: 10, padding: "3px 9px", borderRadius: 4 }}
+          className="btn-action triage-btn"
         >
-          ⚙ Triage
+          <span>⚙</span><span className="triage-label">Triage</span>
         </button>
       )}
 
@@ -102,19 +84,16 @@ export function TriageControls({
           onClick={e => { e.stopPropagation(); if (hasWorkCards) onOpenWork(); }}
           disabled={launching || !hasWorkCards}
           title={hasWorkCards ? `Work top ${maxConcurrent} card${maxConcurrent === 1 ? "" : "s"}` : "No cards to work"}
-          className="btn-action"
-          style={{
-            fontSize: 10, padding: "3px 9px", borderRadius: 4,
-            ...(launching ? {
-              background: "#292524",
-              border: "1px solid #92400e",
-              color: "#92400e",
-            } : {}),
-          }}
+          className={`btn-action triage-btn${launching ? " launching" : ""}`}
+          style={launching ? {
+            background: "#292524",
+            border: "1px solid #92400e",
+            color: "#92400e",
+          } : undefined}
         >
-          {launching ? "…" : "▶ Work"}
+          <span>{launching ? "…" : "▶"}</span><span className="triage-label">{launching ? "" : "Work"}</span>
         </button>
       )}
-    </>
+    </div>
   );
 }
