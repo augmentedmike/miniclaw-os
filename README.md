@@ -59,7 +59,10 @@ One line to install. Runs on your Mac. Your data never leaves your machine. [Ins
 
 *Dogfooding MiniClaw — real agent work session showing the board, pixel office, chat, and autonomous task execution.*
 
-<!-- Dogfooding demo video — drag-drop MC Demo 1 - Dogfooding.mp4 here via GitHub web editor to get a user-attachments URL -->
+
+https://github.com/user-attachments/assets/5a6a6c7f-3af7-45d6-86fd-027d2bd229d6
+
+
 
 <a id="install-demo"></a>
 
