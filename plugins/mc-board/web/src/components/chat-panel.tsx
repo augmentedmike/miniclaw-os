@@ -38,6 +38,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
   const wsRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const streamingInsertIndexRef = useRef<number | null>(null);
 
   // Persist
   useEffect(() => {
@@ -77,14 +78,28 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
           break;
         case "result":
           setStreaming(false); setStreamingText(""); setStreamingTools([]);
-          if (d.text) setMessages(prev => [...prev, { role: "assistant", content: d.text }]);
+          if (d.text) {
+            const insertIdx = streamingInsertIndexRef.current;
+            if (insertIdx !== null) {
+              setMessages(prev => [
+                ...prev.slice(0, insertIdx),
+                { role: "assistant", content: d.text },
+                ...prev.slice(insertIdx),
+              ]);
+            } else {
+              setMessages(prev => [...prev, { role: "assistant", content: d.text }]);
+            }
+          }
+          streamingInsertIndexRef.current = null;
           break;
         case "done": case "process_exit":
           setStreaming(false); setStreamingText(""); setStreamingTools([]);
+          streamingInsertIndexRef.current = null;
           break;
         case "error":
           setMessages(prev => [...prev, { role: "system", content: d.message, error: true }]);
           setStreaming(false);
+          streamingInsertIndexRef.current = null;
           break;
       }
     };
@@ -117,6 +132,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
       setVisibleCount(20);
       setDraft("");
       setContext(null);
+      streamingInsertIndexRef.current = null;
       return;
     }
 
@@ -126,11 +142,21 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
       setContext(null);
     }
 
-    setMessages(prev => [...prev, { role: "user", content: text }]);
+    setMessages(prev => {
+      const next = [...prev, { role: "user" as const, content: text }];
+      // Track where the streaming assistant response should be inserted.
+      // Only set on the FIRST send that starts streaming — subsequent sends
+      // during the same streaming session must NOT overwrite the index,
+      // otherwise messages sent during streaming appear in the wrong order.
+      if (streamingInsertIndexRef.current === null) {
+        streamingInsertIndexRef.current = next.length;
+      }
+      return next;
+    });
     wsRef.current.send(JSON.stringify({ type: "chat", content }));
     setDraft("");
     setStreaming(true);
-  }, [draft, context, connected]);
+  }, [draft, context, connected, streaming]);
 
   const stopResponse = useCallback(() => {
     wsRef.current?.send(JSON.stringify({ type: "stop" }));
@@ -257,57 +283,84 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
             }}
           >Show older ({messages.length - visibleCount} more)</button>
         )}
-        {messages.slice(-visibleCount).map((msg, i) => (
-          <div key={i} style={{
-            display: "flex", flexDirection: "column",
-            alignItems: msg.role === "user" ? "flex-end" : "flex-start",
-          }}>
-            {msg.role === "system" ? (
-              <div style={{ fontSize: 11, color: "#52525b", textAlign: "center", width: "100%", padding: "4px 0" }}>
-                {msg.content}
-              </div>
-            ) : (
-              <div style={{
-                maxWidth: "92%", padding: "8px 11px",
-                borderRadius: msg.role === "user" ? "10px 10px 3px 10px" : "10px 10px 10px 3px",
-                background: msg.role === "user" ? "#1d3a2a" : "#18181b",
-                border: msg.error ? "1px solid #7c2d12"
-                  : msg.role === "user" ? "1px solid #16a34a" : "1px solid #27272a",
-                fontSize: 13, color: msg.error ? "#f87171" : msg.role === "user" ? "#bbf7d0" : "#d4d4d8",
-                lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-word",
-              }}>
-                {msg.content}
-              </div>
-            )}
-          </div>
-        ))}
+        {(() => {
+          const visible = messages.slice(-visibleCount);
+          const visibleStartIdx = Math.max(0, messages.length - visibleCount);
+          // Determine where streaming block goes within the visible slice
+          const insertIdx = streamingInsertIndexRef.current;
+          const streamingPos = (streaming && insertIdx !== null)
+            ? Math.max(0, Math.min(insertIdx - visibleStartIdx, visible.length))
+            : null;
 
-        {/* Streaming */}
-        {streaming && (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
-            <div style={{
-              maxWidth: "92%", padding: "8px 11px",
-              borderRadius: "10px 10px 10px 3px",
-              background: "#18181b", border: "1px solid #27272a",
-              fontSize: 13, color: "#d4d4d8", lineHeight: 1.55,
-              whiteSpace: "pre-wrap", wordBreak: "break-word",
+          const renderMsg = (msg: Message, i: number) => (
+            <div key={`msg-${i}`} style={{
+              display: "flex", flexDirection: "column",
+              alignItems: msg.role === "user" ? "flex-end" : "flex-start",
             }}>
-              {streamingTools.length > 0 && (
-                <div style={{ marginBottom: 6, display: "flex", flexWrap: "wrap", gap: 4 }}>
-                  {streamingTools.map((t, i) => (
-                    <span key={i} style={{
-                      fontSize: 10, background: "#27272a", borderRadius: 3,
-                      padding: "1px 6px", color: "#d97706", fontFamily: "monospace",
-                    }}>{t.name}</span>
-                  ))}
+              {msg.role === "system" ? (
+                <div style={{ fontSize: 11, color: "#52525b", textAlign: "center", width: "100%", padding: "4px 0" }}>
+                  {msg.content}
+                </div>
+              ) : (
+                <div style={{
+                  maxWidth: "92%", padding: "8px 11px",
+                  borderRadius: msg.role === "user" ? "10px 10px 3px 10px" : "10px 10px 10px 3px",
+                  background: msg.role === "user" ? "#1d3a2a" : "#18181b",
+                  border: msg.error ? "1px solid #7c2d12"
+                    : msg.role === "user" ? "1px solid #16a34a" : "1px solid #27272a",
+                  fontSize: 13, color: msg.error ? "#f87171" : msg.role === "user" ? "#bbf7d0" : "#d4d4d8",
+                  lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-word",
+                }}>
+                  {msg.content}
                 </div>
               )}
-              {streamingText || <span style={{ color: "#52525b", animation: "pulse 1.5s infinite" }}>
-                {streamingTools.length > 0 ? "working…" : "thinking…"}
-              </span>}
             </div>
-          </div>
-        )}
+          );
+
+          const streamingBlock = streaming ? (
+            <div key="streaming" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
+              <div style={{
+                maxWidth: "92%", padding: "8px 11px",
+                borderRadius: "10px 10px 10px 3px",
+                background: "#18181b", border: "1px solid #27272a",
+                fontSize: 13, color: "#d4d4d8", lineHeight: 1.55,
+                whiteSpace: "pre-wrap", wordBreak: "break-word",
+              }}>
+                {streamingTools.length > 0 && (
+                  <div style={{ marginBottom: 6, display: "flex", flexWrap: "wrap", gap: 4 }}>
+                    {streamingTools.map((t, i) => (
+                      <span key={i} style={{
+                        fontSize: 10, background: "#27272a", borderRadius: 3,
+                        padding: "1px 6px", color: "#d97706", fontFamily: "monospace",
+                      }}>{t.name}</span>
+                    ))}
+                  </div>
+                )}
+                {streamingText || <span style={{ color: "#52525b", animation: "pulse 1.5s infinite" }}>
+                  {streamingTools.length > 0 ? "working..." : "thinking..."}
+                </span>}
+              </div>
+            </div>
+          ) : null;
+
+          if (streamingPos !== null) {
+            // Split: messages before streaming position, streaming block, messages after
+            return (
+              <>
+                {visible.slice(0, streamingPos).map(renderMsg)}
+                {streamingBlock}
+                {visible.slice(streamingPos).map((msg, i) => renderMsg(msg, streamingPos + i))}
+              </>
+            );
+          }
+          // No insert position — render all messages then streaming block at end (normal case)
+          return (
+            <>
+              {visible.map(renderMsg)}
+              {streamingBlock}
+            </>
+          );
+        })()}
         <div ref={messagesEndRef} />
       </div>
 
