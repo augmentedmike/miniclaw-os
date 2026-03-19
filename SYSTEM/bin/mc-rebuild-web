@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# mc-rebuild-web — rebuild the board web app and restart the LaunchAgent
+set -euo pipefail
+
+WEB_SRC="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}/miniclaw/web"
+STANDALONE="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}/miniclaw/plugins/mc-board/web/.next/standalone"
+PLIST="$HOME/Library/LaunchAgents/com.miniclaw.board-web.plist"
+
+echo "  Syncing source from plugins..."
+rsync -a --exclude='node_modules' --exclude='.next' \
+  "${OPENCLAW_STATE_DIR:-$HOME/.openclaw}/miniclaw/plugins/mc-board/web/src/" "$WEB_SRC/src/"
+
+echo "  Installing deps..."
+cd "$WEB_SRC"
+npm install --silent 2>/dev/null || true
+npm install react react-dom --silent 2>/dev/null || true
+
+echo "  Building..."
+rm -rf .next
+node node_modules/next/dist/bin/next build 2>&1 | tail -3
+
+echo "  Deploying standalone..."
+cp -a .next/standalone/. "$STANDALONE/"
+mkdir -p "$STANDALONE/.next"
+cp -r .next/static "$STANDALONE/.next/static"
+cp -r public "$STANDALONE/public" 2>/dev/null || true
+
+echo "  Restarting..."
+lsof -ti :4220 2>/dev/null | xargs kill -9 2>/dev/null || true
+sleep 1
+launchctl unload "$PLIST" 2>/dev/null || true
+launchctl load "$PLIST" 2>/dev/null
+sleep 2
+
+if lsof -ti :4220 &>/dev/null; then
+  echo "  ✓ Board web running on :4220"
+else
+  echo "  ✗ Failed to start — check logs"
+  exit 1
+fi
