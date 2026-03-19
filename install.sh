@@ -1298,7 +1298,7 @@ if [[ -f "$CHAT_DIR/server.ts" ]]; then
   # Copy to extensions
   mkdir -p "$CHAT_EXT_DIR"
   cp "$CHAT_DIR/server.ts" "$CHAT_DIR/run.ts" "$CHAT_DIR/package.json" "$CHAT_DIR/openclaw.plugin.json" "$CHAT_EXT_DIR/" 2>/dev/null
-  (cd "$CHAT_EXT_DIR" && run_quiet npm install --production 2>/dev/null) || true
+  (cd "$CHAT_EXT_DIR" && run_quiet npm install --production 2>/dev/null && run_quiet npm install tsx 2>/dev/null) || true
 
   launchctl unload "$CHAT_PLIST" 2>/dev/null || true
   cat > "$CHAT_PLIST" << CHATPLIST
