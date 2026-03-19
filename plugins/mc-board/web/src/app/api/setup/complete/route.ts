@@ -7,7 +7,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
 import * as crypto from "node:crypto";
-import { execSync, spawnSync } from "node:child_process";
+import { execSync, spawnSync, spawn } from "node:child_process";
 
 const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(process.env.HOME || "", ".openclaw");
 
@@ -744,29 +744,18 @@ export async function POST() {
   // Send welcome email from the agent
   sendWelcomeEmail();
 
-  // Run mc-smoke to verify everything is healthy
-  const smoke = runSmoke();
-
-  // Self-healing: run mc-doctor --auto to create fix cards for failures
-  let healCardsCreated = 0;
-  if (!smoke.passed) {
-    try {
-      const doctorOut = execSync("mc-doctor --auto", {
-        encoding: "utf-8",
-        timeout: 120_000,
-        env: {
-          ...process.env,
-          PATH: `${STATE_DIR}/miniclaw/SYSTEM/bin:${os.homedir()}/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${process.env.PATH || ""}`,
-        },
-      });
-      healCardsCreated = (doctorOut.match(/created card:/g) || []).length;
-    } catch { /* mc-doctor may exit non-zero if failures remain */ }
-  }
-
   const state = writeSetupState({
     complete: true,
     completedAt: new Date().toISOString(),
   });
+
+  // Run smoke + doctor in background — don't block the user
+  const smokePath = `${STATE_DIR}/miniclaw/SYSTEM/bin:${os.homedir()}/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${process.env.PATH || ""}`;
+  spawn("bash", ["-c", "mc-smoke && mc-doctor --auto"], {
+    env: { ...process.env, PATH: smokePath },
+    stdio: "ignore",
+    detached: true,
+  }).unref();
 
   return NextResponse.json({
     ok: true,
@@ -774,10 +763,5 @@ export async function POST() {
     ghAuth,
     gateway: gw,
     projectsFolder,
-    smoke: {
-      output: smoke.output,
-      passed: smoke.passed,
-      healing: { cardsCreated: healCardsCreated },
-    },
   });
 }
