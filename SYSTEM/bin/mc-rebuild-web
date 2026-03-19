@@ -20,10 +20,22 @@ rm -rf .next
 node node_modules/next/dist/bin/next build 2>&1 | tail -3
 
 echo "  Deploying standalone..."
-cp -a .next/standalone/. "$STANDALONE/"
-mkdir -p "$STANDALONE/.next"
+# Remove old standalone completely to avoid stale files
+rm -rf "$STANDALONE"
+# Copy fresh standalone
+cp -a .next/standalone "$STANDALONE"
+# Next.js standalone does NOT include static — copy from build
 cp -r .next/static "$STANDALONE/.next/static"
+# Copy public assets
 cp -r public "$STANDALONE/public" 2>/dev/null || true
+
+# Verify CSS exists
+CSS_FILE=$(ls "$STANDALONE/.next/static/chunks/"*.css 2>/dev/null | head -1)
+if [[ -z "$CSS_FILE" ]]; then
+  echo "  ✗ ERROR: No CSS file in standalone build!"
+  exit 1
+fi
+echo "  CSS: $(basename "$CSS_FILE")"
 
 echo "  Restarting..."
 lsof -ti :4220 2>/dev/null | xargs kill -9 2>/dev/null || true
