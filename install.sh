@@ -815,19 +815,31 @@ elif [[ "$CHECK_ONLY" == true ]]; then
   warn "Embedding model not found at $EMBED_MODEL_PATH"
 else
   mkdir -p "$EMBED_MODEL_DIR"
+  EMBED_TMP_PATH="${EMBED_MODEL_PATH}.tmp"
   info "Downloading EmbeddingGemma-300M Q8_0 (~313MB)..."
-  if curl -fSL --progress-bar -o "$EMBED_MODEL_PATH" "$EMBED_MODEL_URL"; then
-    FILE_SIZE="$(stat -f%z "$EMBED_MODEL_PATH" 2>/dev/null || stat -c%s "$EMBED_MODEL_PATH" 2>/dev/null)"
+  if curl -fSL --progress-bar --retry 3 --retry-delay 5 \
+       -H 'Accept: application/octet-stream' \
+       -o "$EMBED_TMP_PATH" "$EMBED_MODEL_URL"; then
+    FILE_SIZE="$(stat -f%z "$EMBED_TMP_PATH" 2>/dev/null || stat -c%s "$EMBED_TMP_PATH" 2>/dev/null)"
     if [[ "$FILE_SIZE" -gt "$EMBED_MIN_SIZE" ]]; then
-      ok "Embedding model downloaded ($(( FILE_SIZE / 1048576 ))MB)"
+      # Validate GGUF magic bytes (0x47475546 = 'GGUF')
+      MAGIC="$(xxd -p -l4 "$EMBED_TMP_PATH" 2>/dev/null)"
+      if [[ "$MAGIC" == "47475546" ]]; then
+        mv "$EMBED_TMP_PATH" "$EMBED_MODEL_PATH"
+        ok "Embedding model downloaded ($(( FILE_SIZE / 1048576 ))MB)"
+      else
+        rm -f "$EMBED_TMP_PATH"
+        warn "Download corrupt (invalid GGUF magic: $MAGIC) — vector search will be disabled"
+        info "Manual fix: curl -fSL -H 'Accept: application/octet-stream' -o \"$EMBED_MODEL_PATH\" \"$EMBED_MODEL_URL\""
+      fi
     else
-      rm -f "$EMBED_MODEL_PATH"
+      rm -f "$EMBED_TMP_PATH"
       warn "Download too small — vector search will be disabled"
     fi
   else
-    rm -f "$EMBED_MODEL_PATH"
+    rm -f "$EMBED_TMP_PATH"
     warn "Download failed — vector search will be disabled"
-    info "Manual fix: curl -fSL -o \"$EMBED_MODEL_PATH\" \"$EMBED_MODEL_URL\""
+    info "Manual fix: curl -fSL -H 'Accept: application/octet-stream' -o \"$EMBED_MODEL_PATH\" \"$EMBED_MODEL_URL\""
   fi
 fi
 

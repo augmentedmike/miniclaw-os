@@ -77,6 +77,26 @@ export class Embedder {
       return;
     }
 
+    // Validate GGUF magic bytes (0x47475546 = 'GGUF') before loading
+    try {
+      const fd = fs.openSync(this.modelPath, "r");
+      const magic = Buffer.alloc(4);
+      fs.readSync(fd, magic, 0, 4, 0);
+      fs.closeSync(fd);
+      if (magic.toString("ascii") !== "GGUF") {
+        const hex = magic.toString("hex");
+        console.error(`[mc-kb/embedder] Model file is corrupt (not valid GGUF). Expected magic 47475546, got ${hex}. Delete and re-download: ${this.modelPath}`);
+        this.loading = false;
+        this.loadPromise = null;
+        return;
+      }
+    } catch (magicErr) {
+      console.warn(`[mc-kb/embedder] Could not read model file for validation: ${magicErr}`);
+      this.loading = false;
+      this.loadPromise = null;
+      return;
+    }
+
     try {
       const llama = await import(OPENCLAW_LLAMA_PATH);
       const { getLlama } = llama;
