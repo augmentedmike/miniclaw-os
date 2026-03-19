@@ -51,7 +51,8 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
   // WebSocket connection
   useEffect(() => {
     const wsHost = window.location.hostname;
-    const ws = new WebSocket(`ws://${wsHost}:4221`);
+    const wsProto = window.location.protocol === "https:" ? "wss" : "ws";
+    const ws = new WebSocket(`${wsProto}://${wsHost}:4221`);
     wsRef.current = ws;
 
     ws.onopen = () => {
