@@ -295,6 +295,59 @@ White hats welcome. Break it, report it, help fix it.
 
 ---
 
+## Awesome MiniClaw
+
+A curated list of plugins, tools, resources, and examples for the MiniClaw ecosystem.
+
+### Core Plugins
+- [mc-board](./docs/mc-board.md) — Kanban task management, the agent's prefrontal cortex
+- [mc-kb](./docs/mc-kb.md) — Long-term memory with hybrid vector + keyword search
+- [mc-soul](./docs/mc-soul.md) — Personality & identity persistence
+- [mc-reflection](./docs/mc-reflection.md) — Nightly self-reflection and learning
+- [mc-queue](./docs/mc-queue.md) — Async message routing (never blocks)
+- [mc-memo](./docs/mc-memo.md) — Short-term working memory per task
+- [mc-context](./docs/mc-context.md) — Sliding window context management
+
+### Communication
+- [mc-email](./docs/mc-email.md) — Gmail integration with Haiku-based classification
+- [mc-rolodex](./docs/mc-rolodex.md) — Contact management with fuzzy matching
+- [mc-reddit](./docs/mc-reddit.md) — Reddit API client for posts, comments, moderation
+- [mc-trust](./docs/mc-trust.md) — Cryptographic agent identity verification
+
+### Content & Publishing
+- [mc-designer](./docs/mc-designer.md) — Gemini-backed image generation & compositing
+- [mc-blog](./docs/mc-blog.md) — Persona-driven blog engine
+- [mc-substack](./docs/mc-substack.md) — Substack publishing with bilingual support
+- [mc-youtube](./docs/mc-youtube.md) — Video analysis with keyframe extraction
+- [mc-seo](./docs/mc-seo.md) — SEO audits, rank tracking, sitemap submission
+- [mc-docs](./docs/mc-docs.md) — Document authoring and versioning
+
+### Payments & Commerce
+- [mc-stripe](./docs/mc-stripe.md) — Stripe payments, charges, refunds
+- [mc-square](./docs/mc-square.md) — Square payments, zero-dependency
+- [mc-booking](./docs/mc-booking.md) — Appointment scheduling with payment integration
+
+### Operations
+- [mc-authenticator](./docs/mc-authenticator.md) — TOTP 2FA code generation
+- [mc-backup](./docs/mc-backup.md) — Daily encrypted backups with tiered retention
+- [mc-contribute](./docs/mc-contribute.md) — Autonomous contribution tooling for agents
+- [mc-guardian](./docs/mc-guardian.md) — Error absorption and crash recovery
+- [mc-human](./docs/mc-human.md) — Human intervention for CAPTCHAs and UI tasks
+
+### Resources
+- [Plugin Development Guide](./docs/wiki/Writing-Plugins.md) — Build your own plugin
+- [CONTRIBUTING.md](./CONTRIBUTING.md) — Contribution guidelines for humans and agents
+- [AGENTS.md](./AGENTS.md) — Machine-readable project guide for AI agents
+- [MANIFEST.json](./MANIFEST.json) — Structured plugin manifest for discovery bots
+- [Full Documentation](https://docs.openclaw.ai) — Architecture, guides, troubleshooting
+
+### Community
+- [GitHub Discussions](https://github.com/augmentedmike/miniclaw-os/discussions) — Ask questions, share ideas
+- [GitHub Issues](https://github.com/augmentedmike/miniclaw-os/issues) — Bug reports, feature requests
+- [miniclaw.bot](https://miniclaw.bot) — Setup help & consulting
+
+---
+
 ## Powered By
 
 - [OpenClaw](https://openclaw.ai) — the AI agent runtime
