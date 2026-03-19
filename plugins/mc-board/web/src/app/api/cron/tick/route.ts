@@ -19,7 +19,7 @@ function cleanStaleRunning(column: string): void {
     db.prepare(`
       UPDATE agent_queue SET status = 'done'
       WHERE status = 'running' AND col = ?
-      AND card_id NOT IN (SELECT id FROM cards WHERE column = ?)
+      AND card_id NOT IN (SELECT id FROM cards WHERE col = ?)
     `).run(column, column);
     // Mark as done: entries older than 20 minutes (stale agents)
     const cutoff = new Date(Date.now() - STALE_MS).toISOString();
@@ -213,7 +213,7 @@ export async function GET(req: Request) {
     const runningCount = (runningByCol[column] ?? []).length;
     const availableSlots = Math.max(0, maxConcurrent - runningCount);
     if (availableSlots === 0) {
-      skipped.push(`${job.id}: at WIP limit (${runningCount}/${maxConcurrent} running)`);
+      skipped.push(`${job.id}: at capacity (${runningCount}/${maxConcurrent} running)`);
       continue;
     }
 
