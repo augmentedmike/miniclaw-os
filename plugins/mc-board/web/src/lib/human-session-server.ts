@@ -329,7 +329,8 @@ function buildViewerHtml(reason: string, token: string): string {
 import RFB from 'https://cdn.jsdelivr.net/npm/@novnc/novnc@1.5.0/core/rfb.js';
 const status = document.getElementById('status');
 const overlay = document.getElementById('overlay');
-const wsUrl = 'ws://' + location.host + '${WS_PATH}';
+const wsProto = location.protocol === 'https:' ? 'wss' : 'ws';
+const wsUrl = wsProto + '://' + location.host + '${WS_PATH}';
 let rfb;
 try {
   rfb = new RFB(document.getElementById('screen'), wsUrl, { credentials: {} });
