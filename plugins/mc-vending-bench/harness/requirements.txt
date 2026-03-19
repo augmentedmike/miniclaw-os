@@ -1,0 +1,2 @@
+inspect-ai>=0.3.0
+multiagent-inspect>=0.1.0

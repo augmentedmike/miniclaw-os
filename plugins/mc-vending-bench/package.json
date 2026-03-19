@@ -1,0 +1,11 @@
+{
+  "name": "mc-vending-bench",
+  "version": "0.1.0",
+  "type": "module",
+  "openclaw": {
+    "extensions": ["./index.ts"]
+  },
+  "dependencies": {
+    "commander": "^12.1.0"
+  }
+}
