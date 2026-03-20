@@ -1,0 +1,89 @@
+export const dynamic = "force-dynamic";
+
+import { spawn } from "node:child_process";
+
+/**
+ * GET /api/setup/smoke
+ *
+ * Runs mc-smoke and streams output as Server-Sent Events.
+ *
+ * Events:
+ *   data: {"type":"output","data":"..."}     — line of mc-smoke output
+ *   data: {"type":"check","status":"pass"|"fail"|"warn","label":"..."}
+ *   data: {"type":"done","code":0,"passed":N,"failed":N,"warned":N}
+ */
+export async function GET() {
+  const stream = new ReadableStream({
+    start(controller) {
+      const enc = new TextEncoder();
+      const send = (obj: Record<string, unknown>) => {
+        controller.enqueue(enc.encode(`data: ${JSON.stringify(obj)}\n\n`));
+      };
+
+      const home = process.env.HOME || "";
+      const proc = spawn("bash", ["-lc", "mc-smoke"], {
+        env: {
+          ...process.env,
+          TERM: "dumb",
+          NO_COLOR: "1",
+          FORCE_COLOR: "0",
+        },
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+
+      let passed = 0;
+      let failed = 0;
+      let warned = 0;
+      let buffer = "";
+
+      const processChunk = (chunk: Buffer) => {
+        buffer += chunk.toString();
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          send({ type: "output", data: line });
+
+          // Parse check results
+          if (line.includes("✓") || line.includes("[✓]")) {
+            passed++;
+            const label = line.replace(/.*[✓]\s*/, "").trim();
+            send({ type: "check", status: "pass", label });
+          } else if (line.includes("✗") || line.includes("[✗]")) {
+            failed++;
+            const label = line.replace(/.*[✗]\s*/, "").trim();
+            send({ type: "check", status: "fail", label });
+          } else if (line.includes("⚠") || line.includes("[!]")) {
+            warned++;
+            const label = line.replace(/.*[⚠!]\s*/, "").trim();
+            send({ type: "check", status: "warn", label });
+          }
+        }
+      };
+
+      proc.stdout?.on("data", processChunk);
+      proc.stderr?.on("data", processChunk);
+
+      proc.on("close", (code) => {
+        if (buffer.trim()) {
+          send({ type: "output", data: buffer });
+        }
+        send({ type: "done", code: code ?? 1, passed, failed, warned });
+        controller.close();
+      });
+
+      proc.on("error", (err) => {
+        send({ type: "error", message: err.message });
+        controller.close();
+      });
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    },
+  });
+}

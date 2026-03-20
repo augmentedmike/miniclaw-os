@@ -1,0 +1,26 @@
+{
+  "_comment": "Minimal config — core plugins only. Suitable for local-first personal assistant.",
+  "_usage": "Run: ./install.sh --config examples/minimal.example.json",
+
+  "assistantName": "Amelia",
+  "shortName": "am",
+  "pronouns": "she/her",
+  "accentColor": "#00E5CC",
+  "personaBlurb": "A focused, minimal personal assistant.",
+
+  "_comment_plugins": "Informational — install.sh installs all plugins. This list shows which plugins this profile is designed around.",
+  "_plugins": [
+    "mc-board",
+    "mc-context",
+    "mc-kb",
+    "mc-soul",
+    "mc-backup",
+    "mc-rolodex"
+  ],
+
+  "_comment_tokens": "ghToken is required for mc-board issue sync. Get one at https://github.com/settings/tokens (scopes: repo, read:org).",
+  "ghToken": "ghp_YOUR_GITHUB_TOKEN",
+
+  "_comment_optional": "anthropicToken is used by the OpenClaw runtime for LLM calls. Set it here or via ANTHROPIC_API_KEY env var.",
+  "anthropicToken": ""
+}

@@ -6,15 +6,9 @@ import * as os from "node:os";
 import type { Command } from "commander";
 import type { Logger } from "openclaw/plugin-sdk";
 import type { EmailConfig } from "../src/config.js";
-import { GmailClient } from "../src/client.js";
+import { GmailClient, resolveFolder, FOLDER_ALIASES } from "../src/client.js";
 import { getAppPassword, saveAppPassword } from "../src/vault.js";
-import {
-  loadTriageState,
-  saveTriageState,
-  filterNewUids,
-  markAllProcessed,
-  pruneState,
-} from "../src/triage-state.js";
+import { formatPluginError, formatUserError, DOCTOR_SUGGESTION } from "../../shared/errors/format.js";
 
 interface Ctx {
   program: Command;
@@ -62,22 +56,32 @@ export function registerEmailCommands(ctx: Ctx): void {
   // ---- check ----
   sub
     .command("check")
-    .description("List unread inbox messages")
+    .description("List messages from a folder (default: INBOX unread)")
     .option("-n, --limit <n>", "Max messages to show", "20")
     .option("-q, --query <q>", "Gmail search query", "in:inbox is:unread")
-    .action(async (opts: { limit: string; query: string }) => {
-      const client = getClient(cfg);
-      const messages = await client.listMessages(opts.query, parseInt(opts.limit, 10));
-      if (!messages.length) {
-        console.log("No messages found.");
-        return;
-      }
-      for (const m of messages) {
-        console.log(`[${m.id}] ${m.date}`);
-        console.log(`  From: ${m.from}`);
-        console.log(`  Subject: ${m.subject}`);
-        if (m.snippet) console.log(`  ${m.snippet.substring(0, 100)}`);
-        console.log();
+    .option("-f, --folder <folder>", "IMAP folder or alias (inbox, sent, all, drafts, trash, spam)")
+    .action(async (opts: { limit: string; query: string; folder?: string }) => {
+      try {
+        const client = getClient(cfg);
+        const messages = await client.listMessages(opts.query, parseInt(opts.limit, 10), opts.folder);
+        if (!messages.length) {
+          console.log("No messages found.");
+          return;
+        }
+        for (const m of messages) {
+          console.log(`[${m.id}] ${m.date}`);
+          console.log(`  From: ${m.from}`);
+          console.log(`  Subject: ${m.subject}`);
+          if (m.snippet) console.log(`  ${m.snippet.substring(0, 100)}`);
+          console.log();
+        }
+      } catch (err) {
+        console.error(formatPluginError("mc-email", "check inbox", err, [
+          "Verify your Gmail auth: openclaw mc-email auth",
+          "Check your network connection — IMAP requires internet access",
+          DOCTOR_SUGGESTION,
+        ]));
+        process.exit(1);
       }
     });
 
@@ -87,18 +91,24 @@ export function registerEmailCommands(ctx: Ctx): void {
     .description("Read a single message by UID")
     .option("--save-attachments <dir>", "Save all attachments to directory")
     .option("--attachment <index>", "Extract specific attachment by 1-based index")
-    .action(async (id: string, opts: { saveAttachments?: string; attachment?: string }) => {
+    .option("-f, --folder <folder>", "IMAP folder or alias (inbox, sent, all, drafts, trash, spam)", "INBOX")
+    .action(async (id: string, opts: { saveAttachments?: string; attachment?: string; folder: string }) => {
       const client = getClient(cfg);
-      const msg = await client.getMessage(id);
+      const msg = await client.getMessage(id, opts.folder);
       if (!msg) {
-        console.error(`Message ${id} not found.`);
+        console.error(formatUserError(`Message ${id} not found.`, [
+          "Run: openclaw mc-email check — to list available messages",
+          "Check the message UID — it may have been archived or deleted",
+        ]));
         process.exit(1);
       }
 
       // Handle attachment extraction mode
       if (opts.attachment) {
         if (!msg.attachments || msg.attachments.length === 0) {
-          console.error("Message has no attachments.");
+          console.error(formatUserError("Message has no attachments.", [
+            "Run: openclaw mc-email read " + id + " — to view message content",
+          ]));
           process.exit(1);
         }
         const idx = parseInt(opts.attachment, 10) - 1;
@@ -133,7 +143,11 @@ export function registerEmailCommands(ctx: Ctx): void {
             }
           }
         } catch (err) {
-          console.error(`Error saving attachments: ${err}`);
+          console.error(formatPluginError("mc-email", "save attachments", err, [
+            "Check that the output directory is writable: " + (opts.saveAttachments ?? ""),
+            "Verify disk space is available",
+            DOCTOR_SUGGESTION,
+          ]));
           process.exit(1);
         }
         return;
@@ -171,9 +185,19 @@ export function registerEmailCommands(ctx: Ctx): void {
     .command("archive <id>")
     .description("Archive a message (move to All Mail, remove from INBOX)")
     .action(async (id: string) => {
-      const client = getClient(cfg);
-      await client.archiveMessage(id);
-      console.log(`Archived: ${id}`);
+      try {
+        const client = getClient(cfg);
+        await client.archiveMessage(id);
+        console.log(`Archived: ${id}`);
+      } catch (err) {
+        console.error(formatPluginError("mc-email", "archive message", err, [
+          "Run: openclaw mc-email check — to list available messages",
+          "Verify the message UID exists and has not already been archived",
+          "Check your Gmail auth: openclaw mc-email auth",
+          DOCTOR_SUGGESTION,
+        ]));
+        process.exit(1);
+      }
     });
 
   // ---- send ----
@@ -183,14 +207,30 @@ export function registerEmailCommands(ctx: Ctx): void {
     .requiredOption("-t, --to <address>", "Recipient email address")
     .requiredOption("-s, --subject <subject>", "Email subject")
     .requiredOption("-b, --body <text>", "Email body text")
-    .action(async (opts: { to: string; subject: string; body: string }) => {
-      const client = getClient(cfg);
-      const id = await client.sendMessage({
-        to: opts.to,
-        subject: opts.subject,
-        body: opts.body,
-      });
-      console.log(`Sent. Message ID: ${id}`);
+    .option("--attach <paths...>", "File path(s) to attach")
+    .action(async (opts: { to: string; subject: string; body: string; attach?: string[] }) => {
+      try {
+        const client = getClient(cfg);
+        const attachments = opts.attach?.map((p: string) => ({
+          filename: path.basename(p),
+          path: path.resolve(p),
+        }));
+        const id = await client.sendMessage({
+          to: opts.to,
+          subject: opts.subject,
+          body: opts.body,
+          attachments,
+        });
+        console.log(`Sent. Message ID: ${id}`);
+      } catch (err) {
+        console.error(formatPluginError("mc-email", "send message", err, [
+          "Verify your Gmail auth: openclaw mc-email auth",
+          "Check the recipient address is valid",
+          "Check your network connection — SMTP requires internet access",
+          DOCTOR_SUGGESTION,
+        ]));
+        process.exit(1);
+      }
     });
 
   // ---- reply ----
@@ -199,9 +239,19 @@ export function registerEmailCommands(ctx: Ctx): void {
     .description("Reply to a message by UID")
     .requiredOption("-b, --body <text>", "Reply body text")
     .action(async (id: string, opts: { body: string }) => {
-      const client = getClient(cfg);
-      const sentId = await client.replyToMessage(id, opts.body);
-      console.log(`Reply sent. Message ID: ${sentId}`);
+      try {
+        const client = getClient(cfg);
+        const sentId = await client.replyToMessage(id, opts.body);
+        console.log(`Reply sent. Message ID: ${sentId}`);
+      } catch (err) {
+        console.error(formatPluginError("mc-email", "reply to message", err, [
+          "Run: openclaw mc-email check — to list available messages",
+          "Verify the original message UID exists: openclaw mc-email read " + id,
+          "Check your Gmail auth: openclaw mc-email auth",
+          DOCTOR_SUGGESTION,
+        ]));
+        process.exit(1);
+      }
     });
 
   // ---- triage ----
@@ -211,71 +261,58 @@ export function registerEmailCommands(ctx: Ctx): void {
     .option("--dry-run", "Classify but do not send replies or archive")
     .option("-n, --limit <n>", "Max unread messages to process", "20")
     .option("--test-set", "Run classification test suite only (no inbox access)")
-    .option("--no-state", "Disable state tracking (process all unread messages)")
-    .action(async (opts: { dryRun?: boolean; limit: string; testSet?: boolean; state?: boolean }) => {
+    .action((opts: { dryRun?: boolean; limit: string; testSet?: boolean }) => {
       const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
-      const useState = opts.state !== false;
-
-      // If --test-set, skip state tracking entirely
-      if (opts.testSet) {
-        const scriptPath = path.join(stateDir, "cron/scripts/email-triage.py");
-        const args = ["python3", scriptPath, "--test-set", "--limit", opts.limit];
-        const result = spawnSync(args[0], args.slice(1), {
-          stdio: "inherit",
-          env: { ...process.env },
-        });
-        if (result.status !== 0) process.exit(result.status ?? 1);
-        return;
-      }
-
-      // Load triage state to filter already-processed UIDs
-      let triageState = useState ? pruneState(loadTriageState()) : loadTriageState();
-      let skipUids: string[] = [];
-      if (useState) {
-        skipUids = Object.keys(triageState.processedUids);
-      }
-
-      // Fetch current unread messages to identify which UIDs will be processed
-      let processedUids: string[] = [];
-      if (useState) {
-        try {
-          const client = getClient(cfg);
-          const messages = await client.listMessages("in:inbox is:unread", parseInt(opts.limit, 10));
-          const newMessages = messages.filter((m) => !skipUids.includes(m.id));
-          if (!newMessages.length) {
-            console.log("No new unread messages to triage (all already processed).");
-            return;
-          }
-          processedUids = newMessages.map((m) => m.id);
-          console.log(`Triaging ${newMessages.length} new message(s) (${skipUids.length} already processed, skipped).`);
-        } catch (err) {
-          console.error("Warning: could not pre-check messages for state tracking, proceeding without filter.", err);
-        }
-      }
-
-      // Build skip-uids arg for the triage script
-      const scriptPath = path.join(stateDir, "cron/scripts/email-triage.py");
+      const scriptPath = path.join(stateDir, "miniclaw/cron/scripts/email-triage.py");
       const args = ["python3", scriptPath];
       if (opts.dryRun) args.push("--dry-run");
+      if (opts.testSet) args.push("--test-set");
       args.push("--limit", opts.limit);
-      if (useState && skipUids.length > 0) {
-        args.push("--skip-uids", skipUids.join(","));
-      }
 
       const result = spawnSync(args[0], args.slice(1), {
         stdio: "inherit",
         env: { ...process.env },
       });
-
-      // Record processed UIDs on success (or dry-run)
-      if (useState && processedUids.length > 0 && (result.status === 0 || opts.dryRun)) {
-        triageState = markAllProcessed(processedUids, triageState);
-        saveTriageState(triageState);
-        console.log(`State updated: marked ${processedUids.length} UID(s) as processed.`);
-      }
-
-      if (result.status !== 0 && !opts.dryRun) {
+      if (result.status !== 0) {
         process.exit(result.status ?? 1);
+      }
+    });
+
+  // ---- search ----
+  sub
+    .command("search")
+    .description("Search messages across folders")
+    .requiredOption("-q, --query <query>", "Search text (searches message body and headers)")
+    .option("--folders <folders>", "Comma-separated folder names or aliases (default: inbox,sent)", "inbox,sent")
+    .option("-n, --limit <n>", "Max results", "20")
+    .action(async (opts: { query: string; folders: string; limit: string }) => {
+      try {
+        const client = getClient(cfg);
+        const folderList = opts.folders.split(",").map((f: string) => f.trim());
+        const results = await client.searchMessages(
+          opts.query,
+          folderList,
+          parseInt(opts.limit, 10)
+        );
+        if (!results.length) {
+          console.log(`No messages matching "${opts.query}" found.`);
+          return;
+        }
+        for (const m of results) {
+          console.log(`[${m.id}] (${m.folder}) ${m.date}`);
+          console.log(`  From: ${m.from}`);
+          console.log(`  Subject: ${m.subject}`);
+          if (m.snippet) console.log(`  ${m.snippet.substring(0, 100)}`);
+          console.log();
+        }
+        console.log(`Found ${results.length} result(s).`);
+      } catch (err) {
+        console.error(formatPluginError("mc-email", "search messages", err, [
+          "Verify your Gmail auth: openclaw mc-email auth",
+          "Check your network connection — IMAP requires internet access",
+          DOCTOR_SUGGESTION,
+        ]));
+        process.exit(1);
       }
     });
 }

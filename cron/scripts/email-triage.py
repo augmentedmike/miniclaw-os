@@ -35,7 +35,7 @@ VAULT_BIN        = os.path.join(_STATE_DIR, "miniclaw", "system", "bin", "mc-vau
 SEND_ALERT       = os.path.join(_STATE_DIR, "miniclaw", "system", "bin", "send-alert")
 MC_BIN           = "/opt/homebrew/bin/openclaw"
 SETUP_STATE_FILE = os.path.join(_STATE_DIR, "USER", "setup-state.json")
-PROMPT_FILE      = os.path.join(_STATE_DIR, "cron", "prompts", "email-triage.md")
+PROMPT_FILE      = os.path.join(_STATE_DIR, "miniclaw", "cron", "prompts", "email-triage.md")
 MODEL            = "haiku"  # openclaw model alias for haiku
 MAX_BODY_CHARS   = 2000
 # OpenClaw local gateway — exposes OpenAI-compatible endpoint
