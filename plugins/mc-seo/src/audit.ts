@@ -399,6 +399,79 @@ export async function auditPage(url: string, targetKeywords: string[] = []): Pro
       points: Math.floor(ogScore / ogMax * 10), maxPoints: 10 });
   }
 
+  // ─── CATEGORY: WebMCP / AI Agent Readiness (10 pts) ──────────────────────
+  const modelContextMeta = root.querySelector('meta[name="model-context"]');
+  const hasModelContextMeta = !!modelContextMeta?.getAttribute("content");
+  const formsWithToolname = root.querySelectorAll("form[toolname]");
+  const hasDeclarativeTools = formsWithToolname.length > 0;
+
+  // Check for imperative navigator.modelContext usage in scripts
+  const allScripts = root.querySelectorAll("script");
+  let hasImperativeWebMCP = false;
+  for (const script of allScripts) {
+    const src = script.getAttribute("src") ?? "";
+    const text = script.text ?? "";
+    if (src.includes("webmcp") || text.includes("navigator.modelContext") || text.includes("registerTool")) {
+      hasImperativeWebMCP = true;
+      break;
+    }
+  }
+
+  // Check for webmcp-tools.js or similar script include
+  const hasWebMCPScript = Array.from(allScripts).some(s => {
+    const src = s.getAttribute("src") ?? "";
+    return src.includes("webmcp");
+  });
+
+  let webmcpPoints = 0;
+  const webmcpMax = 10;
+
+  // Discovery meta tag (3 pts)
+  if (hasModelContextMeta) {
+    check({ id: "webmcp_meta", category: "WebMCP", name: "WebMCP discovery meta tag", status: "pass",
+      value: modelContextMeta!.getAttribute("content")!, points: 3, maxPoints: 3 });
+    webmcpPoints += 3;
+  } else {
+    check({ id: "webmcp_meta", category: "WebMCP", name: "WebMCP discovery meta tag", status: "warn",
+      issue: 'No <meta name="model-context"> tag found',
+      suggestion: 'Add <meta name="model-context" content="supported"> to signal AI agent compatibility.',
+      points: 0, maxPoints: 3 });
+  }
+
+  // Declarative form tools (3 pts)
+  if (hasDeclarativeTools) {
+    const toolNames = Array.from(formsWithToolname).map(f => f.getAttribute("toolname")).join(", ");
+    check({ id: "webmcp_declarative", category: "WebMCP", name: "Declarative WebMCP forms", status: "pass",
+      value: `${formsWithToolname.length} form(s): ${toolNames}`, points: 3, maxPoints: 3 });
+    webmcpPoints += 3;
+  } else {
+    const totalForms = root.querySelectorAll("form").length;
+    if (totalForms > 0) {
+      check({ id: "webmcp_declarative", category: "WebMCP", name: "Declarative WebMCP forms", status: "warn",
+        value: `${totalForms} form(s) without toolname`,
+        issue: `Found ${totalForms} form(s) but none have toolname/tooldescription attributes`,
+        suggestion: "Add toolname and tooldescription attributes to forms so AI agents can discover and invoke them.",
+        points: 0, maxPoints: 3 });
+    } else {
+      check({ id: "webmcp_declarative", category: "WebMCP", name: "Declarative WebMCP forms", status: "info",
+        value: "No forms on page", points: 1, maxPoints: 3 });
+      webmcpPoints += 1;
+    }
+  }
+
+  // Imperative registration (4 pts)
+  if (hasImperativeWebMCP) {
+    check({ id: "webmcp_imperative", category: "WebMCP", name: "Imperative WebMCP registration", status: "pass",
+      value: hasWebMCPScript ? "webmcp script + navigator.modelContext" : "navigator.modelContext usage detected",
+      points: 4, maxPoints: 4 });
+    webmcpPoints += 4;
+  } else {
+    check({ id: "webmcp_imperative", category: "WebMCP", name: "Imperative WebMCP registration", status: "warn",
+      issue: "No navigator.modelContext.registerTool() usage found",
+      suggestion: "Register tools via navigator.modelContext.registerTool() for Chrome 146+ AI agent support. Include webmcp-tools.js for a graceful fallback.",
+      points: 0, maxPoints: 4 });
+  }
+
   // ─── CALCULATE SCORE ───────────────────────────────────────────────────────
   const totalPoints = checks.reduce((sum, c) => sum + c.points, 0);
   const totalMax = checks.reduce((sum, c) => sum + c.maxPoints, 0);

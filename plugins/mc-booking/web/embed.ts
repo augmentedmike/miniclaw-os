@@ -58,11 +58,13 @@ export const WIDGET_HTML = `<!DOCTYPE html>
       <div class="calendar" id="calendar"></div>
       <div class="times" id="times"></div>
 
-      <form class="form" id="booking-form" onsubmit="submitBooking(event)">
-        <input type="text" name="name" placeholder="Your name" required />
-        <input type="email" name="email" placeholder="Your email" required />
-        <input type="text" name="interest" placeholder="What would you like to discuss?" />
-        <textarea name="notes" placeholder="Any additional notes..."></textarea>
+      <form class="form" id="booking-form" onsubmit="submitBooking(event)"
+            toolname="book-consultation"
+            tooldescription="Book a paid consultation with Mike O'Neal. Select a date/time and provide your details.">
+        <input type="text" name="name" placeholder="Your name" aria-label="Your full name" required />
+        <input type="email" name="email" placeholder="Your email" aria-label="Your email address" required />
+        <input type="text" name="interest" placeholder="What would you like to discuss?" aria-label="Topic of interest" />
+        <textarea name="notes" placeholder="Any additional notes..." aria-label="Additional notes"></textarea>
         <div id="form-error" class="error hidden"></div>
         <button type="submit" class="submit-btn" id="submit-btn">Book Now</button>
       </form>
@@ -210,6 +212,44 @@ export const WIDGET_HTML = `<!DOCTYPE html>
         btn.textContent = 'Book Now';
       }
     }
+
+    // --- WebMCP: Register booking tool via navigator.modelContext (Chrome 146+) ---
+    (function() {
+      if (typeof navigator !== 'undefined' && navigator.modelContext && typeof navigator.modelContext.registerTool === 'function') {
+        navigator.modelContext.registerTool({
+          name: 'book-consultation',
+          description: "Book a paid consultation with Mike O'Neal. Provide name, email, topic of interest, and optional notes. The agent must also select an available date/time slot.",
+          inputSchema: {
+            type: 'object',
+            properties: {
+              name: { type: 'string', description: 'Full name of the person booking' },
+              email: { type: 'string', format: 'email', description: 'Email address for confirmation' },
+              interest: { type: 'string', description: 'Topic or subject to discuss' },
+              notes: { type: 'string', description: 'Any additional notes or context' }
+            },
+            required: ['name', 'email']
+          },
+          execute: function(params) {
+            var form = document.getElementById('booking-form');
+            if (!form) return { content: [{ type: 'text', text: 'Booking form not available.' }] };
+            Object.keys(params).forEach(function(key) {
+              var field = form.querySelector('[name="' + key + '"]');
+              if (field) {
+                field.value = params[key];
+                field.dispatchEvent(new Event('input', { bubbles: true }));
+              }
+            });
+            return {
+              content: [{
+                type: 'text',
+                text: 'Form fields populated. Please select an available date and time slot, then submit.'
+              }]
+            };
+          }
+        });
+        console.log('[WebMCP] Registered tool: book-consultation');
+      }
+    })();
 
     init();
   </script>
