@@ -23,6 +23,7 @@ export interface SendEmailOptions {
   subject: string;
   body: string;
   from?: string;
+  plain?: boolean;
   attachments?: { filename: string; path: string }[];
 }
 

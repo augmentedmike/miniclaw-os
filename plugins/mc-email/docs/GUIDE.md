@@ -206,6 +206,74 @@ Subject: [Direct topic]
 
 ---
 
+## 6. Cold Email Deliverability
+
+Cold emails live or die on deliverability. The best-written email is worthless if it lands in spam. These rules apply to all outbound cold outreach sent via mc-email.
+
+### Use Plain Text Only
+
+- **Always use `--plain` flag** for cold outreach: `mc mc-email send --plain -t recipient@example.com -s "Subject" -b "Body"`
+- HTML emails trigger spam filters. Tables, styled divs, tracking pixels, and rich formatting all raise spam scores.
+- Plain text emails have higher open rates for cold outreach because they look like a real person wrote them, not a marketing tool.
+- The `--plain` flag sends text/plain only — no text/html part, no multipart/alternative wrapper.
+
+### Subject Lines
+
+- **Under 50 characters.** Shorter subjects have higher open rates in cold contexts.
+- No ALL CAPS words. No exclamation marks. No emoji.
+- Be specific and relevant: "Re: your talk at JSConf" beats "Quick question."
+- Never use deceptive Re:/Fwd: prefixes on first-touch emails.
+
+### Link Minimization
+
+- **Maximum 1 link per cold email.** Zero is better.
+- Every link raises spam score. Multiple links = marketing blast = spam folder.
+- If you must include a link, use the bare URL (not hyperlinked text) — plain text emails can't hyperlink anyway.
+- No URL shorteners (bit.ly, t.ly) — they're blacklisted across most spam filters.
+- No tracking links or UTM parameters on first touch.
+
+### No Images or Tracking Pixels
+
+- Zero images in cold emails. No logos, no headshots, no banners.
+- No 1x1 tracking pixels. Gmail and Outlook block remote images by default anyway.
+- No inline Base64 images — they bloat the message and trigger filters.
+
+### Spam Trigger Words to Avoid
+
+These words/phrases in subject or body raise spam scores:
+
+| Category | Avoid |
+|----------|-------|
+| Urgency | "Act now", "Limited time", "Don't miss", "Expires", "Urgent" |
+| Money | "Free", "Discount", "Save $", "Lowest price", "No cost", "Cash" |
+| Pressure | "Once in a lifetime", "What are you waiting for", "Order now" |
+| Hype | "Amazing", "Incredible", "Revolutionary", "Guaranteed" |
+| Spam classics | "Click here", "Buy now", "Unsubscribe", "No obligation" |
+
+### Formatting Rules
+
+- Short paragraphs: 1-3 sentences max.
+- No bullet points or numbered lists in first-touch cold emails — they look templated.
+- Personalized opening line referencing something specific about the recipient.
+- Single call-to-action: one question or one ask. Not both.
+- Sign with a real name and real contact info.
+- Total length: 50-125 words. Shorter is better.
+
+### SPF/DKIM/DMARC
+
+- Sending domain must have SPF, DKIM, and DMARC records configured. Without these, even perfect emails land in spam.
+- Verify with: `dig TXT yourdomain.com | grep spf` and `dig TXT default._domainkey.yourdomain.com`
+- Gmail App Passwords (which mc-email uses) inherit Google's DKIM signing automatically.
+
+### Warm-Up & Sending Patterns
+
+- New email accounts need warm-up: start with 5-10 cold emails per day, increase gradually over 2-4 weeks.
+- Never send more than 50 cold emails per day from a single account.
+- Space sends by at least 2-5 minutes apart — bulk blasts trigger rate limiting.
+- Send during business hours in the recipient's timezone when possible.
+
+---
+
 ## Sources
 
 - Zendesk — Email Etiquette Tips for Business
