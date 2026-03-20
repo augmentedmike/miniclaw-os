@@ -1,6 +1,6 @@
 "use client";
 
-import useSWR, { useSWRConfig } from "swr";
+import useSWR from "swr";
 import { BoardData, BoardCard, Project } from "@/lib/types";
 import { Column } from "./column";
 import { CardModal } from "./card-modal";
@@ -50,9 +50,7 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
   const [watchCardId, setWatchCardId] = useState<string | null>(null);
   const [logOpen, setLogOpen] = useState(false);
   const [shippedOpen, setShippedOpen] = useState(false);
-  const [showHeld, setShowHeld] = useState(() => {
-    try { return localStorage.getItem("mc-board:show-held") === "true"; } catch { return false; }
-  });
+  const [showHeld, setShowHeld] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -62,7 +60,6 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
   const seenLogKeys = useRef<Set<string>>(new Set());
   const initialized = useRef(false);
 
-  const { mutate: globalMutate } = useSWRConfig();
   const qs = selectedProject ? `?project=${encodeURIComponent(selectedProject)}` : "";
   const { data, isLoading, mutate } = useSWR<BoardData>(
     `/api/board${qs}`,
@@ -174,7 +171,7 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
         cards: current.cards.map(c => {
           if (c.id !== cardId) return c;
           const newTags = setFocused
-            ? [...c.tags.filter(t => t !== "focus" && t !== "hold"), "focus"]
+            ? [...c.tags.filter(t => t !== "focus"), "focus"]
             : c.tags.filter(t => t !== "focus");
           return { ...c, tags: newTags };
         }),
@@ -183,7 +180,7 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
 
     // Use add-tags/remove-tags for atomic CLI operation (avoids full tag replacement from stale cache)
     const updateBody = setFocused
-      ? { action: "update", cardId, "add-tags": "focus", "remove-tags": "hold" }
+      ? { action: "update", cardId, "add-tags": "focus" }
       : { action: "update", cardId, "remove-tags": "focus" };
 
     fetch("/api/board/action", {
@@ -204,7 +201,7 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
           if (c.id !== cardId) return c;
           const isHeld = c.tags.includes("hold");
           wasHeld = isHeld;
-          const newTags = isHeld ? c.tags.filter(t => t !== "hold") : [...c.tags.filter(t => t !== "hold" && t !== "focus"), "hold"];
+          const newTags = isHeld ? c.tags.filter(t => t !== "hold") : [...c.tags.filter(t => t !== "hold"), "hold"];
           return { ...c, tags: newTags };
         }),
       };
@@ -213,11 +210,9 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
     fetch("/api/board/action", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(wasHeld
-        ? { action: "update", cardId, "remove-tags": "hold" }
-        : { action: "update", cardId, "add-tags": "hold", "remove-tags": "focus" }),
-    }).then(() => { mutate(); globalMutate(`/api/card/${cardId}`); }).catch(() => { mutate(); globalMutate(`/api/card/${cardId}`); });
-  }, [mutate, globalMutate]);
+      body: JSON.stringify({ action: "update", cardId, [wasHeld ? "remove-tags" : "add-tags"]: "hold" }),
+    }).then(() => mutate()).catch(() => mutate());
+  }, [mutate]);
 
   const handleSearchSelect = (cardId: string) => {
     setSearchQuery("");
@@ -259,28 +254,15 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
               transition: "background 0.15s ease, border-color 0.15s ease",
             }}
           />
-          <button
-            onClick={() => {
-              setShowHeld(on => {
-                const next = !on;
-                try { localStorage.setItem("mc-board:show-held", next ? "true" : "false"); } catch {}
-                return next;
-              });
-            }}
-            style={{
-              fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 6,
-              background: showHeld ? "#1c1917" : "transparent",
-              border: showHeld ? "1px solid #d97706" : "1px solid #2a2a33",
-              color: showHeld ? "#fbbf24" : "#52525b",
-              cursor: "pointer", whiteSpace: "nowrap",
-              transition: "background 0.1s, border-color 0.1s, color 0.1s",
-            }}
-            onMouseEnter={e => { if (!showHeld) { e.currentTarget.style.borderColor = "#3f3f46"; e.currentTarget.style.color = "#a1a1aa"; } }}
-            onMouseLeave={e => { if (!showHeld) { e.currentTarget.style.borderColor = "#2a2a33"; e.currentTarget.style.color = "#52525b"; } }}
-            title={showHeld ? "Hide held/blocked cards" : "Show held/blocked cards"}
-          >
-            {showHeld ? "Hide held" : "Show held"}
-          </button>
+          <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer", fontSize: 12, color: showHeld ? "#a8a29e" : "#52525b", userSelect: "none", whiteSpace: "nowrap" }}>
+            <input
+              type="checkbox"
+              checked={showHeld}
+              onChange={e => setShowHeld(e.target.checked)}
+              style={{ accentColor: "#d97706", cursor: "pointer" }}
+            />
+            show held
+          </label>
           <button
             onClick={() => setShowSummary(true)}
             style={{

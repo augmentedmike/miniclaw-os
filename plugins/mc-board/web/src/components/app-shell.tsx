@@ -4,7 +4,7 @@ import { Board } from "./board";
 import { MemoryTab } from "./memory-tab";
 import { RolodexTab } from "./rolodex-tab";
 import { SettingsPage } from "./settings-page";
-import { PixelOfficeTab } from "./pixel-office-tab";
+import { AgentsTab } from "./agents-tab";
 import { Modal } from "./modal";
 import { ChatPanel } from "./chat-panel";
 import { WelcomeWizard, useWelcomeWizard } from "./welcome-wizard";
@@ -12,7 +12,7 @@ import { Project, BoardCard } from "@/lib/types";
 
 import useSWR from "swr";
 
-type Tab = "board" | "memory" | "rolodex" | "settings" | "office";
+type Tab = "board" | "memory" | "rolodex" | "agents" | "settings";
 interface Toast { id: number; icon: string; title: string; sub?: string; exiting?: boolean; }
 interface Counts { backlog: number; inProgress: number; inReview: number; shipped: number; }
 
@@ -34,15 +34,15 @@ function DailyStats() {
 
   return (
     <>
-      <span className="stat-pill" data-col="tokens" title={`${data.total_tokens.toLocaleString()} tokens today`}>
-        <span className="pill-label">tokens</span><b>{fmtK(data.total_tokens)}</b>
+      <span className="stat-pill" title={`${data.total_tokens.toLocaleString()} tokens today`}>
+        tokens<b>{fmtK(data.total_tokens)}</b>
       </span>
       {/* cost pill hidden for now */}
     </>
   );
 }
 
-const TAB_PATHS: Record<Tab, string> = { board: "/board", memory: "/memory", rolodex: "/rolodex", settings: "/settings", office: "/office" };
+const TAB_PATHS: Record<Tab, string> = { board: "/board", memory: "/memory", rolodex: "/rolodex", agents: "/agents", settings: "/settings" };
 
 function getNotifsEnabled(): boolean {
   try { return localStorage.getItem("brain-toasts") !== "false"; } catch { return true; }
@@ -75,6 +75,7 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
   const [assistantName, setAssistantName] = useState("Am");
   const { data: rolodexCount } = useSWR<{ count: number }>("/api/rolodex/count", fetcher, { refreshInterval: 60000 });
   const { data: memoryStats } = useSWR<{ memoryFiles: number; kbEntries: number; total: number }>("/api/memory/stats", fetcher, { refreshInterval: 60000 });
+  const { data: health } = useSWR<{ version: string }>("/api/health", fetcher, { refreshInterval: 300000 });
 
   // Fetch assistant name for empty-state message
   useEffect(() => {
@@ -156,15 +157,27 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
         <div className="flex items-stretch">
           <div className="brand">MiniClaw Brain</div>
           <div className="tab-bar">
-            {(["office", "board", "memory", "rolodex", "settings"] as Tab[]).map(t => {
-              const activeCount = t === "board" && counts ? counts.backlog + counts.inProgress + counts.inReview : 0;
-              const memoryCount = t === "memory" && memoryStats ? memoryStats.total : 0;
-              const badgeCount = t === "rolodex" && rolodexCount ? rolodexCount.count : t === "memory" ? memoryCount : activeCount;
+            {(["board", "memory", "rolodex", "agents", "settings"] as Tab[]).map(t => {
+              const activeCount = t === "board" && counts ? counts.inProgress + counts.inReview : 0;
+              const badgeCount = t === "rolodex" && rolodexCount ? rolodexCount.count : t === "board" ? activeCount : 0;
+              const memoryBadge = t === "memory" && memoryStats && memoryStats.total > 0
+                ? `${memoryStats.memoryFiles}\u2009/\u2009${memoryStats.kbEntries}` : "";
               return (
                 <button key={t} onClick={() => switchTab(t)}
                   className={`tab-btn${tab === t ? " active" : ""}`}
                   style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  {t === "board" ? "Board" : t === "office" ? "Office" : t === "memory" ? "Memory" : t === "rolodex" ? "Contacts" : "Settings"}
+                  {t === "board" ? "Board" : t === "memory" ? "Memory" : t === "rolodex" ? "Contacts" : t === "agents" ? "Agents" : "Settings"}
+                  {memoryBadge && (
+                    <span style={{
+                      fontSize: 10,
+                      fontWeight: 600,
+                      background: "#52525b",
+                      color: "#fafafa",
+                      borderRadius: 10,
+                      padding: "1px 6px",
+                      lineHeight: "14px",
+                    }}>{memoryBadge}</span>
+                  )}
                   {badgeCount > 0 && (
                     <span style={{
                       fontSize: 10,
@@ -237,7 +250,7 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
                     {countPills.length === 0 ? (
                       <span style={{ fontSize: 11, color: "#52525b" }}>0 cards</span>
                     ) : countPills.map(({ col, n }) => (
-                      <span key={col} className="proj-count-pill" style={{
+                      <span key={col} style={{
                         fontSize: 11,
                         color: colColors[col] ?? "#52525b",
                         background: (colColors[col] ?? "#52525b") + "22",
@@ -245,7 +258,7 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
                         padding: "1px 5px",
                         fontWeight: 500,
                       }}>
-                        <span className="proj-pill-label">{col} </span><b style={{ fontWeight: 700 }}>{n}</b>
+                        {col} <b style={{ fontWeight: 700 }}>{n}</b>
                       </span>
                     ))}
                   </div>
@@ -258,31 +271,16 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
         {/* Right: stat pills */}
         {counts && (
           <div className="stat-pills">
-            <span className="stat-pill" data-col="projects"><span className="pill-label">projects</span><b>{projects.length}</b></span>
-            <span className="stat-pill" data-col="backlog"><span className="pill-label">backlog</span><b>{counts.backlog}</b></span>
-            <span className="stat-pill" data-col="in-progress"><span className="pill-label">in&nbsp;progress</span><b>{counts.inProgress}</b></span>
-            <span className="stat-pill" data-col="in-review"><span className="pill-label">in&nbsp;review</span><b>{counts.inReview}</b></span>
-            <span className="stat-pill" data-col="shipped"><span className="pill-label">shipped</span><b>{counts.shipped}</b></span>
+            <span className="stat-pill">projects<b>{projects.length}</b></span>
+            <span className="stat-pill">backlog<b>{counts.backlog}</b></span>
+            <span className="stat-pill">in&nbsp;progress<b>{counts.inProgress}</b></span>
+            <span className="stat-pill">in&nbsp;review<b>{counts.inReview}</b></span>
+            <span className="stat-pill">shipped<b>{counts.shipped}</b></span>
             <DailyStats />
-            {memoryStats && (
-              <span className="stat-pill" data-col="memory" title={`${memoryStats.memoryFiles} memory files, ${memoryStats.kbEntries} KB entries`}>
-                <span className="pill-label">memory</span><b>{memoryStats.memoryFiles}&thinsp;/&thinsp;{memoryStats.kbEntries}</b>
-              </span>
-            )}
           </div>
         )}
 
-        {/* Chat toggle */}
-        <button
-          onClick={toggleChat}
-          className="flex items-center justify-center w-11 border-l border-zinc-800 shrink-0 hover:bg-zinc-900 transition-colors h-full"
-          title={chatOpen ? "Close chat" : "Open chat"}
-          style={{ color: chatOpen ? "#4ade80" : "#52525b" }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
-        </button>
+        {/* Chat toggle — disabled until chat daemon is ready */}
 
         {/* Far right: alerts icon */}
         <button
@@ -296,6 +294,11 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
               fill="currentColor" />
           </svg>
         </button>
+        {health?.version && (
+          <span className="flex items-center px-3 border-l border-zinc-800 text-zinc-500 text-xs font-mono shrink-0 h-full">
+            v{health.version}
+          </span>
+        )}
       </div>
 
       {/* Main content + Chat panel flex row */}
@@ -313,29 +316,21 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
               onCardOpen={setOpenCardId}
             />
           </div>
-          <div className={`tab-panel${tab === "office" ? " active" : ""}`}>
-            {tab === "office" && <PixelOfficeTab onSwitchToBoard={() => switchTab("board")} />}
-          </div>
           <div className={`tab-panel${tab === "memory" ? " active" : ""}`}>
             <MemoryTab />
           </div>
           <div className={`tab-panel${tab === "rolodex" ? " active" : ""}`}>
             <RolodexTab />
           </div>
+          <div className={`tab-panel${tab === "agents" ? " active" : ""}`}>
+            <AgentsTab />
+          </div>
           <div className={`tab-panel${tab === "settings" ? " active" : ""}`}>
             <SettingsPage />
           </div>
         </div>
 
-        {/* Chat panel */}
-        <ChatPanel
-          open={chatOpen}
-          onToggle={toggleChat}
-          pendingContext={pendingContext}
-          onContextConsumed={() => setPendingContext(null)}
-          projectId={selectedProject}
-          activeCardId={openCardId ?? undefined}
-        />
+        {/* Chat panel — disabled until chat daemon is ready (next release) */}
       </div>
 
       {/* Toasts */}
@@ -343,8 +338,10 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
         {toasts.map(t => (
           <div key={t.id} className={`toast${t.exiting ? " toast-out" : ""}`}>
             <span className="toast-icon">{t.icon}</span>
-            <span className="toast-title">{t.title}</span>
-            {t.sub && <span className="toast-sub">{t.sub}</span>}
+            <div>
+              <div className="toast-title">{t.title}</div>
+              {t.sub && <div className="toast-sub">{t.sub}</div>}
+            </div>
           </div>
         ))}
       </div>

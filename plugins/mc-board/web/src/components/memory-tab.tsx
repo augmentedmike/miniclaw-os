@@ -60,9 +60,23 @@ function MemoryList({
   );
 }
 
+function useIsMobile(breakpoint = 600) {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mql = window.matchMedia(`(max-width: ${breakpoint}px)`);
+    setIsMobile(mql.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
+  }, [breakpoint]);
+  return isMobile;
+}
+
 export function MemoryTab() {
   const [qmdQuery, setQmdQuery] = useState("");
   const [kbQuery, setKbQuery] = useState("");
+  const [mobileMemTab, setMobileMemTab] = useState<"short" | "long">("short");
+  const isMobile = useIsMobile();
   const [dQmd, setDQmd] = useState("");
   const [dKb, setDKb] = useState("");
   const [kbEntries, setKbEntries] = useState<KbEntry[]>([]);
@@ -138,19 +152,34 @@ export function MemoryTab() {
   };
 
   return (
-    <div className="flex flex-1 min-h-0 overflow-hidden flex-col px-5 py-4">
+    <div className="flex flex-1 min-h-0 overflow-hidden flex-col px-5 py-4" style={isMobile ? { padding: "8px" } : undefined}>
+    {/* Mobile tab toggle */}
+    <div className="memory-mobile-tabs">
+      <button
+        className={`memory-mobile-tab${mobileMemTab === "short" ? " active" : ""}`}
+        onClick={() => setMobileMemTab("short")}
+      >Short Term ({qmdEntries.length})</button>
+      <button
+        className={`memory-mobile-tab${mobileMemTab === "long" ? " active" : ""}`}
+        onClick={() => setMobileMemTab("long")}
+      >Long Term ({kbEntries.length})</button>
+    </div>
     <div className="flex flex-1 min-h-0 overflow-hidden rounded-xl border border-zinc-800" style={{ background: "rgba(24,24,27,0.7)" }}>
-      <MemoryList
-        label="Short Term" entries={qmdEntries} loading={loadingQmd}
-        query={qmdQuery} onQueryChange={setQmdQuery} onSelect={setModal} placeholder="Search memory..."
-        scrollRef={scrollRefQmd}
-      />
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-      <MemoryList
-        label="Long Term" entries={kbEntries} loading={loadingKb}
-        query={kbQuery} onQueryChange={setKbQuery} onSelect={setModal} placeholder="Search KB..."
-        scrollRef={scrollRefKb}
-      />
+      {(!isMobile || mobileMemTab === "short") && (
+        <MemoryList
+          label="Short Term" entries={qmdEntries} loading={loadingQmd}
+          query={qmdQuery} onQueryChange={setQmdQuery} onSelect={setModal} placeholder="Search memory..."
+          scrollRef={scrollRefQmd}
+        />
+      )}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden" style={isMobile && mobileMemTab === "short" ? { display: "none" } : undefined}>
+      {(!isMobile || mobileMemTab === "long") && (
+        <MemoryList
+          label="Long Term" entries={kbEntries} loading={loadingKb}
+          query={kbQuery} onQueryChange={setKbQuery} onSelect={setModal} placeholder="Search KB..."
+          scrollRef={scrollRefKb}
+        />
+      )}
       <div className="border-t border-zinc-800/70 px-4 py-2.5 flex gap-2 flex-shrink-0" style={{ background: "rgba(24,24,27,0.4)" }}>
         <button
           onClick={handlePrunePreview}

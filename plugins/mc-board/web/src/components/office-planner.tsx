@@ -223,7 +223,9 @@ export function OfficePlanner({ onClose }: Props) {
   const [layout, setLayout] = useState<OfficeLayout | null>(null);
   const [painting, setPainting] = useState(false);
   const [panning, setPanning] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const panStart = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
+  const touchState = useRef<{ lastDist: number; startX: number; startY: number; isPan: boolean; startTime: number } | null>(null);
   const layoutRef = useRef<OfficeLayout | null>(null);
 
   // Keep layoutRef in sync
@@ -935,6 +937,108 @@ export function OfficePlanner({ onClose }: Props) {
     state.zoom = newZoom;
   }, []);
 
+  // Touch handlers for mobile canvas
+  const handleTouchStart = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const state = stateRef.current;
+    const canvas = canvasRef.current;
+    if (!state || !canvas) return;
+
+    if (e.touches.length === 2) {
+      // Pinch zoom start
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      touchState.current = {
+        lastDist: Math.sqrt(dx * dx + dy * dy),
+        startX: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+        startY: (e.touches[0].clientY + e.touches[1].clientY) / 2,
+        isPan: false,
+        startTime: Date.now(),
+      };
+      return;
+    }
+
+    if (e.touches.length === 1) {
+      // Single finger: pan
+      const touch = e.touches[0];
+      touchState.current = {
+        lastDist: 0,
+        startX: touch.clientX,
+        startY: touch.clientY,
+        isPan: true,
+        startTime: Date.now(),
+      };
+      panStart.current = { x: touch.clientX, y: touch.clientY, ox: state.offsetX, oy: state.offsetY };
+    }
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const state = stateRef.current;
+    const canvas = canvasRef.current;
+    if (!state || !canvas || !touchState.current) return;
+
+    if (e.touches.length === 2) {
+      // Pinch zoom
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const scale = dist / touchState.current.lastDist;
+      const oldZoom = state.zoom;
+      const newZoom = Math.max(1, Math.min(10, oldZoom * scale));
+      const rect = canvas.getBoundingClientRect();
+      const mx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left;
+      const my = (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top;
+      state.offsetX = mx - (mx - state.offsetX) * (newZoom / oldZoom);
+      state.offsetY = my - (my - state.offsetY) * (newZoom / oldZoom);
+      state.zoom = newZoom;
+      touchState.current.lastDist = dist;
+      touchState.current.isPan = false;
+      return;
+    }
+
+    if (e.touches.length === 1 && panStart.current) {
+      // Pan
+      const touch = e.touches[0];
+      const dx = touch.clientX - touchState.current.startX;
+      const dy = touch.clientY - touchState.current.startY;
+      if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+        touchState.current.isPan = true;
+      }
+      state.offsetX = panStart.current.ox + (touch.clientX - panStart.current.x);
+      state.offsetY = panStart.current.oy + (touch.clientY - panStart.current.y);
+    }
+  }, []);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const state = stateRef.current;
+    const canvas = canvasRef.current;
+    if (!state || !canvas || !touchState.current) return;
+
+    // Tap to place (short touch, no pan)
+    const elapsed = Date.now() - touchState.current.startTime;
+    if (!touchState.current.isPan && elapsed < 300 && e.changedTouches.length === 1) {
+      const touch = e.changedTouches[0];
+      const rect = canvas.getBoundingClientRect();
+      const { zoom, offsetX, offsetY, layout: l } = state;
+      const col = Math.floor((touch.clientX - rect.left - offsetX) / (TILE_SIZE * zoom));
+      const row = Math.floor((touch.clientY - rect.top - offsetY) / (TILE_SIZE * zoom));
+      if (col >= 0 && row >= 0 && col < l.cols && row < l.rows) {
+        if (mode === "tile" && selectedTile !== null) {
+          applyTilePaint(col, row);
+        } else if (mode === "furniture" && selectedFurniture) {
+          placeFurniture(col, row);
+        } else if (mode === "erase") {
+          eraseTile(col, row);
+        }
+      }
+    }
+
+    touchState.current = null;
+    panStart.current = null;
+  }, [mode, selectedTile, selectedFurniture, applyTilePaint, placeFurniture, eraseTile]);
+
   async function handleSave() {
     const state = stateRef.current;
     if (!state) return;
@@ -1022,6 +1126,7 @@ export function OfficePlanner({ onClose }: Props) {
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#0f0f23" }}>
       {/* Toolbar */}
       <div
+        className="office-toolbar"
         style={{
           display: "flex",
           alignItems: "center",
@@ -1031,8 +1136,17 @@ export function OfficePlanner({ onClose }: Props) {
           background: "#18181b",
           fontSize: 12,
           flexShrink: 0,
+          flexWrap: "wrap",
         }}
       >
+        {/* Sidebar toggle */}
+        <button
+          onClick={() => setSidebarCollapsed(c => !c)}
+          style={toolbarBtnStyle(false)}
+          title={sidebarCollapsed ? "Show palette" : "Hide palette"}
+        >
+          {sidebarCollapsed ? "☰" : "✕"}
+        </button>
         {/* Layout selector */}
         <select
           value={layoutName}
@@ -1153,17 +1267,20 @@ export function OfficePlanner({ onClose }: Props) {
       </div>
 
       {/* Main area: sidebar + canvas */}
-      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+      <div className="office-main-area" style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         {/* Left sidebar palette */}
         <div
+          className="office-sidebar"
           style={{
-            width: 200,
+            width: sidebarCollapsed ? 0 : 200,
             flexShrink: 0,
-            borderRight: "1px solid #27272a",
+            borderRight: sidebarCollapsed ? "none" : "1px solid #27272a",
             background: "#18181b",
             overflowY: "auto",
-            padding: "8px",
+            padding: sidebarCollapsed ? 0 : "8px",
             fontSize: 11,
+            transition: "width .2s ease",
+            overflow: sidebarCollapsed ? "hidden" : undefined,
           }}
         >
           {mode === "tile" && (layer === "floor" || layer === "walls") && (
@@ -1473,8 +1590,11 @@ export function OfficePlanner({ onClose }: Props) {
               handleMouseUp();
               setHoveredTile(null);
             }}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
             onContextMenu={(e) => e.preventDefault()}
-            style={{ display: "block", width: "100%", height: "100%", cursor: cursorStyle }}
+            style={{ display: "block", width: "100%", height: "100%", cursor: cursorStyle, touchAction: "none" }}
           />
           {!loaded && (
             <div
