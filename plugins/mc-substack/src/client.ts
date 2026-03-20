@@ -3,6 +3,161 @@ import * as path from "node:path";
 import type { SubstackConfig } from "./config.js";
 import type { SubstackDraft, TiptapDoc, TiptapNode } from "./types.js";
 
+/**
+ * Convert markdown text to Substack's TipTap/ProseMirror JSON format.
+ * Handles: headings, bold, italic, links, bullet lists, code blocks, horizontal rules, paragraphs.
+ */
+export function markdownToTiptap(md: string): string {
+  const lines = md.split("\n");
+  const nodes: TiptapNode[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+
+    // Skip empty lines
+    if (line.trim() === "") { i++; continue; }
+
+    // Horizontal rule
+    if (/^---+$/.test(line.trim())) {
+      nodes.push({ type: "horizontalRule" });
+      i++; continue;
+    }
+
+    // Heading
+    const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
+    if (headingMatch) {
+      const level = headingMatch[1].length;
+      nodes.push({
+        type: "heading",
+        attrs: { level, textAlign: null },
+        content: parseInline(headingMatch[2]),
+      });
+      i++; continue;
+    }
+
+    // Code block
+    if (line.trim().startsWith("```")) {
+      const lang = line.trim().slice(3).trim() || null;
+      const codeLines: string[] = [];
+      i++;
+      while (i < lines.length && !lines[i].trim().startsWith("```")) {
+        codeLines.push(lines[i]);
+        i++;
+      }
+      i++; // skip closing ```
+      nodes.push({
+        type: "codeBlock",
+        attrs: { language: lang },
+        content: [{ type: "text", text: codeLines.join("\n") }],
+      });
+      continue;
+    }
+
+    // Bullet list
+    if (/^[-*]\s+/.test(line)) {
+      const items: TiptapNode[] = [];
+      while (i < lines.length && /^[-*]\s+/.test(lines[i])) {
+        const itemText = lines[i].replace(/^[-*]\s+/, "");
+        items.push({
+          type: "listItem",
+          content: [{ type: "paragraph", attrs: { textAlign: null }, content: parseInline(itemText) }],
+        });
+        i++;
+      }
+      nodes.push({ type: "bulletList", content: items });
+      continue;
+    }
+
+    // Numbered list
+    if (/^\d+\.\s+/.test(line)) {
+      const items: TiptapNode[] = [];
+      while (i < lines.length && /^\d+\.\s+/.test(lines[i])) {
+        const itemText = lines[i].replace(/^\d+\.\s+/, "");
+        items.push({
+          type: "listItem",
+          content: [{ type: "paragraph", attrs: { textAlign: null }, content: parseInline(itemText) }],
+        });
+        i++;
+      }
+      nodes.push({ type: "orderedList", attrs: { start: 1 }, content: items });
+      continue;
+    }
+
+    // Blockquote
+    if (line.startsWith("> ")) {
+      const quoteLines: string[] = [];
+      while (i < lines.length && lines[i].startsWith("> ")) {
+        quoteLines.push(lines[i].slice(2));
+        i++;
+      }
+      nodes.push({
+        type: "blockquote",
+        content: [{ type: "paragraph", attrs: { textAlign: null }, content: parseInline(quoteLines.join(" ")) }],
+      });
+      continue;
+    }
+
+    // Regular paragraph
+    nodes.push({
+      type: "paragraph",
+      attrs: { textAlign: null },
+      content: parseInline(line),
+    });
+    i++;
+  }
+
+  return JSON.stringify({ type: "doc", content: nodes });
+}
+
+/** Parse inline markdown (bold, italic, links, code) into TipTap text nodes. */
+function parseInline(text: string): TiptapNode[] {
+  const nodes: TiptapNode[] = [];
+  // Combined regex: bold, italic, inline code, links
+  const re = /\*\*(.+?)\*\*|_(.+?)_|\*(.+?)\*|`(.+?)`|\[([^\]]+)\]\(([^)]+)\)/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+
+  while ((m = re.exec(text)) !== null) {
+    // Text before match
+    if (m.index > last) {
+      nodes.push({ type: "text", text: text.slice(last, m.index) });
+    }
+
+    if (m[1] !== undefined) {
+      // **bold**
+      nodes.push({ type: "text", marks: [{ type: "bold" }], text: m[1] });
+    } else if (m[2] !== undefined || m[3] !== undefined) {
+      // _italic_ or *italic*
+      nodes.push({ type: "text", marks: [{ type: "italic" }], text: m[2] ?? m[3] });
+    } else if (m[4] !== undefined) {
+      // `code`
+      nodes.push({ type: "text", marks: [{ type: "code" }], text: m[4] });
+    } else if (m[5] !== undefined && m[6] !== undefined) {
+      // [text](url)
+      nodes.push({
+        type: "text",
+        marks: [{ type: "link", attrs: { href: m[6], target: "_blank", rel: "noopener noreferrer nofollow", class: null } }],
+        text: m[5],
+      });
+    }
+
+    last = m.index + m[0].length;
+  }
+
+  // Remaining text
+  if (last < text.length) {
+    nodes.push({ type: "text", text: text.slice(last) });
+  }
+
+  return nodes.length > 0 ? nodes : [{ type: "text", text: text || " " }];
+}
+
+/** Detect if a string is markdown (has ## headers, **bold**, [links], etc.) */
+function looksLikeMarkdown(text: string): boolean {
+  return /^#{1,6}\s/m.test(text) || /\*\*.+?\*\*/.test(text) || /\[.+?\]\(.+?\)/.test(text) || /^[-*]\s+/m.test(text);
+}
+
 export class SubstackClient {
   private base: string;
   private sid: string;
@@ -60,6 +215,17 @@ export class SubstackClient {
   }
 
   async updateDraft(id: number | string, fields: Partial<SubstackDraft>): Promise<void> {
+    // Auto-convert markdown → TipTap JSON if draft_body looks like markdown
+    if (fields.draft_body && typeof fields.draft_body === "string") {
+      try {
+        JSON.parse(fields.draft_body); // Already JSON — leave it
+      } catch {
+        // Not JSON — treat as markdown
+        if (looksLikeMarkdown(fields.draft_body)) {
+          fields.draft_body = markdownToTiptap(fields.draft_body);
+        }
+      }
+    }
     const resp = await fetch(`${this.base}/api/v1/drafts/${id}`, {
       method: "PUT",
       headers: this.headers({ "Content-Type": "application/json" }),
