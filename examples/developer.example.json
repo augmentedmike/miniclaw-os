@@ -1,0 +1,35 @@
+{
+  "_comment": "Developer config — core plugins plus GitHub, devlog, jobs, deploy, test, and monitor. Ideal for software engineers using MiniClaw for coding workflows.",
+  "_usage": "Run: ./install.sh --config examples/developer.example.json",
+
+  "assistantName": "Amelia",
+  "shortName": "am",
+  "pronouns": "she/her",
+  "accentColor": "#00E5CC",
+  "personaBlurb": "A developer-focused assistant for coding, CI, and project management.",
+
+  "_comment_plugins": "Core plugins plus: github (PR/issue management), devlog (development logging), jobs (role-based workflows), deploy (deployment automation), test (test runner), monitor (uptime/health checks).",
+  "plugins": [
+    "mc-board",
+    "mc-context",
+    "mc-kb",
+    "mc-soul",
+    "mc-backup",
+    "mc-rolodex",
+    "mc-github",
+    "mc-devlog",
+    "mc-jobs",
+    "mc-deploy",
+    "mc-test",
+    "mc-monitor"
+  ],
+
+  "_comment_ghToken": "Required by mc-board and mc-github. Create at https://github.com/settings/tokens with scopes: repo, read:org, workflow.",
+  "ghToken": "ghp_YOUR_GITHUB_TOKEN",
+
+  "_comment_optional_tokens": "anthropicToken powers the LLM runtime. Can also be set via ANTHROPIC_API_KEY env var.",
+  "anthropicToken": "",
+
+  "_comment_deploy": "mc-deploy uses your existing SSH keys and git remotes. No extra credentials needed for basic usage.",
+  "_comment_monitor": "mc-monitor runs local health checks by default. For external monitoring, configure endpoints in the plugin settings after install."
+}

@@ -1,0 +1,46 @@
+{
+  "_comment": "Content creator config — core plugins plus publishing, design, social, SEO, email, voice, and translation. Ideal for writers, bloggers, and newsletter authors.",
+  "_usage": "Run: ./install.sh --config examples/content-creator.example.json",
+
+  "assistantName": "Amelia",
+  "shortName": "am",
+  "pronouns": "she/her",
+  "accentColor": "#00E5CC",
+  "personaBlurb": "A creative assistant for writing, publishing, and audience growth.",
+
+  "_comment_plugins": "Core plugins plus: substack (newsletter publishing), blog (static site management), designer (image generation via Gemini), social (cross-platform posting), seo (search optimization), email (inbox triage and outreach), voice (text-to-speech), translate (multilingual content).",
+  "plugins": [
+    "mc-board",
+    "mc-context",
+    "mc-kb",
+    "mc-soul",
+    "mc-backup",
+    "mc-rolodex",
+    "mc-substack",
+    "mc-blog",
+    "mc-designer",
+    "mc-social",
+    "mc-seo",
+    "mc-email",
+    "mc-voice",
+    "mc-translate"
+  ],
+
+  "_comment_ghToken": "Required by mc-board for issue sync. Get one at https://github.com/settings/tokens (scope: repo).",
+  "ghToken": "ghp_YOUR_GITHUB_TOKEN",
+
+  "_comment_email": "Required by mc-email. Use an app password, not your main password. Gmail: https://myaccount.google.com/apppasswords",
+  "emailAddress": "your-agent@example.com",
+  "appPassword": "xxxx xxxx xxxx xxxx",
+  "emailSmtpHost": "smtp.gmail.com",
+  "emailSmtpPort": "465",
+
+  "_comment_gemini": "Required by mc-designer for image generation. Get a key at https://aistudio.google.com/apikey",
+  "geminiKey": "YOUR_GEMINI_API_KEY",
+
+  "_comment_voice": "Required by mc-voice for text-to-speech. Get a key at https://platform.openai.com/api-keys",
+  "openaiApiKey": "",
+
+  "_comment_optional": "anthropicToken powers the LLM runtime. Can also be set via ANTHROPIC_API_KEY env var.",
+  "anthropicToken": ""
+}
