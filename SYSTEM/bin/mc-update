@@ -142,13 +142,13 @@ if [[ -d "$BUNDLED_PLUGINS" ]]; then
   ok "Native modules rebuilt"
 fi
 
-# 2. Update web standalone
+# 2. Update web app
 BUNDLED_WEB="$APP_RESOURCES/miniclaw-web"
-if [[ -d "$BUNDLED_WEB" && -f "$BUNDLED_WEB/server.js" ]]; then
-  WEB_DEST="$MINICLAW_DIR/plugins/mc-board/web/.next/standalone"
-  rm -rf "$WEB_DEST"
-  mkdir -p "$(dirname "$WEB_DEST")"
-  cp -a "$BUNDLED_WEB" "$WEB_DEST"
+WEB_DEST="$MINICLAW_DIR/plugins/mc-board/web"
+if [[ -d "$BUNDLED_WEB" && -d "$BUNDLED_WEB/.next" ]]; then
+  rm -rf "$WEB_DEST/.next"
+  cp -a "$BUNDLED_WEB/.next" "$WEB_DEST/.next"
+  cp -f "$BUNDLED_WEB/package.json" "$WEB_DEST/package.json" 2>/dev/null || true
   ok "Web app updated"
 
   # Restart board web

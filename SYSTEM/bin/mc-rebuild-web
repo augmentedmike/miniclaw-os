@@ -2,37 +2,21 @@
 # mc-rebuild-web — rebuild the board web app and restart the LaunchAgent
 set -euo pipefail
 
-WEB_SRC="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}/miniclaw/web"
-STANDALONE="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}/miniclaw/plugins/mc-board/web/.next/standalone"
+WEB_DIR="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}/miniclaw/plugins/mc-board/web"
 PLIST="$HOME/Library/LaunchAgents/com.miniclaw.board-web.plist"
 
-echo "  Syncing source from plugins..."
-rsync -a --exclude='node_modules' --exclude='.next' \
-  "${OPENCLAW_STATE_DIR:-$HOME/.openclaw}/miniclaw/plugins/mc-board/web/src/" "$WEB_SRC/src/"
-
 echo "  Installing deps..."
-cd "$WEB_SRC"
+cd "$WEB_DIR"
 npm install --silent 2>/dev/null || true
-npm install react react-dom --silent 2>/dev/null || true
 
 echo "  Building..."
 rm -rf .next
 node node_modules/next/dist/bin/next build 2>&1 | tail -3
 
-echo "  Deploying standalone..."
-# Remove old standalone completely to avoid stale files
-rm -rf "$STANDALONE"
-# Copy fresh standalone
-cp -a .next/standalone "$STANDALONE"
-# Next.js standalone does NOT include static — copy from build
-cp -r .next/static "$STANDALONE/.next/static"
-# Copy public assets
-cp -r public "$STANDALONE/public" 2>/dev/null || true
-
 # Verify CSS exists
-CSS_FILE=$(ls "$STANDALONE/.next/static/chunks/"*.css 2>/dev/null | head -1)
+CSS_FILE=$(ls .next/static/chunks/*.css 2>/dev/null | head -1)
 if [[ -z "$CSS_FILE" ]]; then
-  echo "  ✗ ERROR: No CSS file in standalone build!"
+  echo "  ✗ ERROR: No CSS file in build!"
   exit 1
 fi
 echo "  CSS: $(basename "$CSS_FILE")"

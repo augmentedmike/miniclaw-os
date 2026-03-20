@@ -91,13 +91,14 @@ echo "  Installing shared dependencies..."
 (cd "$PLUGINS_PREBUILT" && npm install --omit=dev 2>&1 | tail -3)
 echo "  ✓ $(ls "$PLUGINS_PREBUILT" | wc -l | tr -d ' ') plugins pre-built (shared node_modules)"
 
-# 3. Package standalone
+# 3. Package web app
 echo "  Packaging installer..."
 rm -rf "$DIST"
 mkdir -p "$DIST/miniclaw-web"
-cp -a "$BOARD_WEB/.next/standalone/." "$DIST/miniclaw-web/"
-cp -r "$BOARD_WEB/.next/static" "$DIST/miniclaw-web/.next/static"
+cp -a "$BOARD_WEB/.next" "$DIST/miniclaw-web/.next"
 cp -r "$BOARD_WEB/public" "$DIST/miniclaw-web/public"
+cp "$BOARD_WEB/package.json" "$DIST/miniclaw-web/package.json"
+cp "$BOARD_WEB/next.config.ts" "$DIST/miniclaw-web/next.config.ts"
 
 APP="$DIST/miniclaw-installer.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
