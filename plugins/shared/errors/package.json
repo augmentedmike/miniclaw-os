@@ -1,0 +1,16 @@
+{
+  "name": "@miniclaw/errors",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Shared error formatting utility for the miniclaw-os plugin ecosystem",
+  "exports": {
+    ".": "./format.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.18"
+  }
+}
