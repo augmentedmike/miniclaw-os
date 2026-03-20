@@ -88,6 +88,8 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recordingStartRef = useRef<number>(0);
+  const recordingIntentRef = useRef<boolean>(false);
+  const MIN_RECORDING_MS = 500;
   const MAX_RECORDING_SECONDS = 60;
 
   const [isAtBottom, setIsAtBottom] = useState(true);
@@ -161,10 +163,37 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
     return () => { cancelled = true; };
   }, []);
 
+  // Cleanup recording resources on unmount
+  useEffect(() => {
+    return () => {
+      recordingIntentRef.current = false;
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        const stream = mediaRecorderRef.current.stream;
+        mediaRecorderRef.current.stop();
+        stream?.getTracks().forEach(t => t.stop());
+      }
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+    };
+  }, []);
+
   // Recording helpers
   const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-      mediaRecorderRef.current.stop();
+    recordingIntentRef.current = false;
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== "inactive") {
+      // Enforce minimum recording duration to avoid empty/tiny blobs
+      const elapsed = Date.now() - recordingStartRef.current;
+      if (elapsed < MIN_RECORDING_MS) {
+        // Delay stop so whisper gets enough audio
+        setTimeout(() => {
+          if (recorder.state !== "inactive") recorder.stop();
+        }, MIN_RECORDING_MS - elapsed);
+      } else {
+        recorder.stop();
+      }
     }
     if (recordingTimerRef.current) {
       clearInterval(recordingTimerRef.current);
@@ -201,15 +230,35 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
   }, []);
 
   const startRecording = useCallback(async () => {
+    recordingIntentRef.current = true;
     setMicError(null);
+    let stream: MediaStream | null = null;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      // If user released before getUserMedia resolved, abandon
+      if (!recordingIntentRef.current) {
+        stream.getTracks().forEach(t => t.stop());
+        return;
+      }
+
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
         ? "audio/webm;codecs=opus"
         : MediaRecorder.isTypeSupported("audio/mp4")
           ? "audio/mp4"
           : "";
-      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+
+      let recorder: MediaRecorder;
+      try {
+        recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      } catch {
+        // MediaRecorder constructor failure — release stream tracks
+        stream.getTracks().forEach(t => t.stop());
+        setMicError("Could not start recording");
+        recordingIntentRef.current = false;
+        return;
+      }
+
       audioChunksRef.current = [];
 
       recorder.ondataavailable = (e) => {
@@ -217,7 +266,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
       };
 
       recorder.onstop = () => {
-        stream.getTracks().forEach(t => t.stop());
+        stream!.getTracks().forEach(t => t.stop());
         const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType });
         if (blob.size > 0) transcribeAudio(blob);
       };
@@ -237,6 +286,9 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
         }
       }, 500);
     } catch (err: unknown) {
+      // Release stream tracks on any error path
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      recordingIntentRef.current = false;
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes("Permission") || msg.includes("NotAllowed")) {
         setMicError("Mic permission denied");
@@ -971,6 +1023,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
                 onMouseLeave={recording ? stopRecording : undefined}
                 onTouchStart={!recording && !transcribing ? startRecording : undefined}
                 onTouchEnd={recording ? stopRecording : undefined}
+                onTouchCancel={recording ? stopRecording : undefined}
                 disabled={transcribing}
                 style={{
                   background: recording ? "#7c3aed" : "none",
