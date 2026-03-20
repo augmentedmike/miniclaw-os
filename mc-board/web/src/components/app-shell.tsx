@@ -310,15 +310,18 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
             <span className="stat-pill" data-col="in-review"><span className="pill-label">in&nbsp;review</span><b>{counts.inReview}</b></span>
             <span className="stat-pill" data-col="shipped"><span className="pill-label">shipped</span><b>{counts.shipped}</b></span>
             <DailyStats />
-            {memoryStats && (
-              <span className="stat-pill" data-col="memory" title={`${memoryStats.memoryFiles} memory files, ${memoryStats.kbEntries} KB entries`}>
-                <span className="pill-label">memory</span><b>{memoryStats.memoryFiles}&thinsp;/&thinsp;{memoryStats.kbEntries}</b>
+            {healthData?.version && (
+              <span className="stat-pill" data-col="version" title={`Version ${healthData.version}`}>
+                <span className="pill-label">version</span><b>v{healthData.version}</b>
               </span>
             )}
           </div>
         )}
 
-        {/* Chat toggle */}
+        {/* Health indicator dots */}
+        <HealthDots services={healthData?.services} />
+
+        {/* Chat toggle + Alert button (grouped) */}
         <button
           onClick={toggleChat}
           className="top-bar-icon-btn"
@@ -329,14 +332,6 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
           </svg>
         </button>
-
-        {/* Health indicator dots */}
-        <HealthDots services={healthData?.services} />
-
-        {/* Far right: version badge + alerts icon */}
-        <span className="version-badge">
-          {healthData?.version && <>v{healthData.version}</>}
-        </span>
         <button
           onClick={toggleNotifs}
           className="top-bar-icon-btn"
