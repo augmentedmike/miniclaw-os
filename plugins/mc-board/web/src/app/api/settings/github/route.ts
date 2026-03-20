@@ -2,16 +2,23 @@ export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import { writeSetupState } from "@/lib/setup-state";
+import { consumeToken } from "@/lib/sensitive-auth";
 
 export async function POST(req: Request) {
-  const { token } = (await req.json()) as { token: string };
+  const { token, sensitiveToken } = (await req.json()) as { token: string; sensitiveToken?: string };
+
+  if (!consumeToken(sensitiveToken)) {
+    return NextResponse.json(
+      { ok: false, error: "Password confirmation required" },
+      { status: 403 },
+    );
+  }
 
   if (!token?.trim()) {
     return NextResponse.json({ ok: false, error: "Token is required" }, { status: 400 });
   }
 
   try {
-    // Validate the token against the GitHub API
     const res = await fetch("https://api.github.com/user", {
       headers: {
         Authorization: `Bearer ${token.trim()}`,
@@ -32,8 +39,6 @@ export async function POST(req: Request) {
 
     const user = (await res.json()) as { login: string; name?: string };
 
-    // Save token to setup state — vault doesn't exist yet during first-run.
-    // The "Finishing up" step moves it to vault after install.sh runs.
     writeSetupState({
       ghToken: token.trim(),
       ghUsername: user.login,

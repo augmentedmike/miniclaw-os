@@ -65,7 +65,7 @@ function PasswordConfirmModal({
     setError("");
     try {
       // Verify password — the hook's handleConfirm will extract the token
-      const res = await fetch("/api/setup/verify-password", {
+      const res = await fetch("/api/settings/verify-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password: pw }),
@@ -169,9 +169,10 @@ function GeneralPanel() {
   const [pronouns, setPronouns] = useState("she/her");
   const [accentColor, setAccentColor] = useState("#00E5CC");
   const [status, setStatus] = useState<SaveStatus>("idle");
+  const { showConfirm, requestSave, handleConfirm, handleCancel } = useSensitiveSave();
 
   useEffect(() => {
-    fetch("/api/setup/state")
+    fetch("/api/settings/state")
       .then((r) => r.json())
       .then((data) => {
         setName(data.assistantName || "");
@@ -182,13 +183,13 @@ function GeneralPanel() {
       .catch(() => {});
   }, []);
 
-  const save = async () => {
+  const doSave = async (sensitiveToken: string) => {
     setStatus("saving");
     try {
-      const res = await fetch("/api/setup/state", {
+      const res = await fetch("/api/settings/state", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assistantName: name, shortName, pronouns, accentColor }),
+        body: JSON.stringify({ assistantName: name, shortName, pronouns, accentColor, sensitiveToken }),
       });
       if (res.ok) {
         setStatus("saved");
@@ -235,8 +236,9 @@ function GeneralPanel() {
       </div>
       <div className="settings-panel-footer">
         {status === "error" && <span style={{ fontSize: 12, color: "#f87171" }}>Save failed</span>}
-        <SaveButton status={status} onClick={save} />
+        <SaveButton status={status} onClick={() => requestSave(doSave)} />
       </div>
+      <PasswordConfirmModal open={showConfirm} onConfirm={handleConfirm} onCancel={handleCancel} />
     </div>
   );
 }
@@ -276,7 +278,7 @@ function TelegramPanel() {
   const { showConfirm, requestSave, handleConfirm, handleCancel } = useSensitiveSave();
 
   useEffect(() => {
-    fetch("/api/setup/state")
+    fetch("/api/settings/state")
       .then((r) => r.json())
       .then((data) => {
         setUsername(data.telegramBotUsername || "");
@@ -291,7 +293,7 @@ function TelegramPanel() {
     setStatus("saving");
     setError("");
     try {
-      const res = await fetch("/api/setup/telegram", {
+      const res = await fetch("/api/settings/telegram", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ botToken: token.trim(), chatId: chatId.trim(), botUsername: username.trim(), sensitiveToken }),
@@ -348,7 +350,7 @@ function GitHubPanel() {
   const { showConfirm, requestSave, handleConfirm, handleCancel } = useSensitiveSave();
 
   useEffect(() => {
-    fetch("/api/setup/state")
+    fetch("/api/settings/state")
       .then((r) => r.json())
       .then((data) => {
         setToken(data.ghToken || "");
@@ -362,7 +364,7 @@ function GitHubPanel() {
     setStatus("saving");
     setError("");
     try {
-      const res = await fetch("/api/setup/github", {
+      const res = await fetch("/api/settings/github", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token: token.trim(), sensitiveToken }),
@@ -423,7 +425,7 @@ function EmailPanel() {
   const isGmail = emailAddr.split("@")[1]?.toLowerCase() === "gmail.com" || emailAddr.split("@")[1]?.toLowerCase() === "googlemail.com";
 
   useEffect(() => {
-    fetch("/api/setup/state")
+    fetch("/api/settings/state")
       .then((r) => r.json())
       .then((data) => {
         setEmailAddr(data.emailAddress || "");
@@ -453,7 +455,7 @@ function EmailPanel() {
         body.smtpHost = smtpHost.trim();
         body.smtpPort = smtpPort.trim();
       }
-      const res = await fetch("/api/setup/email", {
+      const res = await fetch("/api/settings/email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -521,7 +523,7 @@ function GeminiPanel() {
   const { showConfirm, requestSave, handleConfirm, handleCancel } = useSensitiveSave();
 
   useEffect(() => {
-    fetch("/api/setup/state")
+    fetch("/api/settings/state")
       .then((r) => r.json())
       .then((data) => {
         setApiKey(data.geminiKey || "");
@@ -535,7 +537,7 @@ function GeminiPanel() {
     setStatus("saving");
     setError("");
     try {
-      const res = await fetch("/api/setup/gemini", {
+      const res = await fetch("/api/settings/gemini", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ apiKey: apiKey.trim(), sensitiveToken }),
@@ -585,7 +587,7 @@ function AnthropicPanel() {
   const { showConfirm, requestSave, handleConfirm, handleCancel } = useSensitiveSave();
 
   useEffect(() => {
-    fetch("/api/setup/state")
+    fetch("/api/settings/state")
       .then((r) => r.json())
       .then((data) => {
         setConfigured(!!data.anthropicToken || !!data.complete);
@@ -598,7 +600,7 @@ function AnthropicPanel() {
     setStatus("saving");
     setError("");
     try {
-      const res = await fetch("/api/setup/anthropic", {
+      const res = await fetch("/api/settings/anthropic", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token: token.trim(), sensitiveToken }),
@@ -618,13 +620,23 @@ function AnthropicPanel() {
     }
   };
 
-  const handleConnect = async () => {
+  const doConnect = async (sensitiveToken: string) => {
     setStatus("saving");
     setError("");
     try {
-      await fetch("/api/setup/anthropic", { method: "POST" });
-      setStatus("saved");
-      setTimeout(() => setStatus("idle"), 2000);
+      const res = await fetch("/api/settings/anthropic", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sensitiveToken }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setStatus("saved");
+        setTimeout(() => setStatus("idle"), 2000);
+      } else {
+        setStatus("error");
+        setError(data.error || "Connection failed");
+      }
     } catch {
       setStatus("error");
       setError("Connection failed");
@@ -643,7 +655,7 @@ function AnthropicPanel() {
           <input className="form-input" type="password" value={token} onChange={(e) => setToken(e.target.value)} placeholder="Paste code here..." style={{ fontFamily: "monospace" }} />
         </SettingsField>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button className="btn btn-secondary" onClick={handleConnect} disabled={status === "saving"}>
+          <button className="btn btn-secondary" onClick={() => requestSave(doConnect)} disabled={status === "saving"}>
             Sign in via OAuth
           </button>
           {configured && <span style={{ fontSize: 12, color: "#4ade80" }}>Currently connected</span>}
@@ -804,7 +816,7 @@ export function SettingsPage() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
-    fetch("/api/setup/state")
+    fetch("/api/settings/state")
       .then((r) => r.json())
       .then((data) => {
         setConfigured({

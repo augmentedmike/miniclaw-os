@@ -3,12 +3,12 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { execSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
+import { consumeToken } from "@/lib/sensitive-auth";
 
 const CLAUDE_BIN = "/Users/michaeloneal/.local/bin/claude";
 const HOME = process.env.HOME || "";
 
 function isAnthropicAuthed(): boolean {
-  // Claude Code stores OAuth token in macOS keychain under "Claude Code-credentials"
   try {
     const raw = execSync(
       'security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null',
@@ -18,7 +18,6 @@ function isAnthropicAuthed(): boolean {
     if (creds?.claudeAiOauth?.accessToken) return true;
   } catch {}
 
-  // Fallback: check openclaw auth-profiles
   const candidates = [
     `${HOME}/.openclaw/agents/main/agent/auth-profiles.json`,
   ];
@@ -36,17 +35,24 @@ function isAnthropicAuthed(): boolean {
   return false;
 }
 
-// GET: poll for auth status
+// GET: poll for auth status (no auth required — read-only)
 export async function GET() {
   return NextResponse.json({ authed: isAnthropicAuthed() });
 }
 
-// POST: open Terminal.app running claude setup-token
-export async function POST() {
+// POST: open Terminal.app running claude setup-token (requires auth — post-setup)
+export async function POST(req: Request) {
+  const { sensitiveToken } = await req.json().catch(() => ({}));
+
+  if (!consumeToken(sensitiveToken)) {
+    return NextResponse.json(
+      { ok: false, error: "Password confirmation required" },
+      { status: 403 },
+    );
+  }
+
   try {
     const { CLAUDECODE: _, ...cleanEnv } = process.env;
-    // Open a real Terminal window — customer sees it pop up, claude does the OAuth,
-    // browser opens, they sign in, terminal closes automatically
     execSync(`osascript -e '
       tell application "Terminal"
         activate
@@ -63,9 +69,16 @@ export async function POST() {
   }
 }
 
-// PUT: paste a session token directly (wizard — no auth)
+// PUT: paste a session token directly (requires auth — post-setup)
 export async function PUT(req: Request) {
-  const { token } = await req.json();
+  const { token, sensitiveToken } = await req.json();
+
+  if (!consumeToken(sensitiveToken)) {
+    return NextResponse.json(
+      { ok: false, error: "Password confirmation required" },
+      { status: 403 },
+    );
+  }
 
   if (!token || typeof token !== "string") {
     return NextResponse.json({ ok: false, error: "Token is required" }, { status: 400 });
