@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import type { CardStore } from "../src/store.js";
 import type { ProjectStore } from "../src/project-store.js";
-import { formatConflictError } from "../src/dedup.js";
+import { formatConflictError, formatConflictList } from "../src/dedup.js";
 import { ActiveWorkStore } from "../src/active-work.js";
 import { ArchiveStore } from "../src/archive.js";
 import { COLUMNS, canTransition, canTransitionSystem, checkGate, formatGateError } from "../src/state.js";
@@ -19,6 +19,7 @@ import { spawn } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
+import * as readline from "node:readline";
 
 export interface CliContext {
   program: Command;
@@ -65,6 +66,7 @@ Examples:
     .option("--notes <text>", "Notes / context")
     .option("--research <text>", "Research notes — pre-work context and findings")
     .option("--verify-url <url>", "URL to verify the work is live (used by review agent)")
+    .option("--force", "Bypass similar-card confirmation prompt (for automation)")
     .addHelpText("after", `
 New cards always start in backlog. Fill in problem, plan, and criteria
 before moving to in-progress.
@@ -73,8 +75,9 @@ Examples:
   miniclaw brain create --title "Fix login bug"
   miniclaw brain create --title "Add dark mode" --priority high --tags ui,miniclaw
   miniclaw brain create --title "API redesign" --project prj_a1b2c3d4 --problem "Need API v2"
-  miniclaw brain create --title "VERIFY: Fix login bug" --work-type verify --linked-card-id crd_abc123`)
-    .action((opts: { title: string; priority: string; tags?: string; project?: string; workType?: string; linkedCardId?: string; problem?: string; plan?: string; criteria?: string; notes?: string; research?: string; verifyUrl?: string }) => {
+  miniclaw brain create --title "VERIFY: Fix login bug" --work-type verify --linked-card-id crd_abc123
+  miniclaw brain create --title "Fix login bug" --force   # skip duplicate check`)
+    .action((opts: { title: string; priority: string; tags?: string; project?: string; workType?: string; linkedCardId?: string; problem?: string; plan?: string; criteria?: string; notes?: string; research?: string; verifyUrl?: string; force?: boolean }) => {
       const priority = normalizePriority(opts.priority);
       if (!priority) {
         console.error(`Invalid priority: ${opts.priority}. Use: critical, high, medium, low`);
@@ -116,11 +119,36 @@ Examples:
         }
         linked_card_id = opts.linkedCardId;
       }
-      // Pre-create duplicate title check
-      const conflict = store.checkTitleConflict(opts.title, { projectId: opts.project });
-      if (conflict) {
-        console.error(formatConflictError(opts.title, conflict));
-        process.exit(1);
+      // Pre-create similar card check
+      const similarCards = store.checkSimilarCards(opts.title, opts.problem, { projectId: opts.project });
+      if (similarCards.length > 0 && !opts.force) {
+        console.error(formatConflictList(opts.title, similarCards));
+        // If stdin is a TTY, prompt for confirmation; otherwise exit
+        if (process.stdin.isTTY) {
+          const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+          rl.question("Create anyway? (y/N) ", (answer) => {
+            rl.close();
+            if (answer.trim().toLowerCase() === "y") {
+              const card = store.create({
+                title: opts.title, priority, tags, project_id: opts.project, work_type, linked_card_id,
+                problem_description: opts.problem,
+                implementation_plan: opts.plan,
+                acceptance_criteria: opts.criteria,
+                notes: opts.notes,
+                research: opts.research,
+                verify_url: opts.verifyUrl,
+              });
+              console.log(`Created ${card.id}: ${card.title}${opts.project ? ` [project: ${opts.project}]` : ""}${work_type ? ` [${work_type}${linked_card_id ? ` → ${linked_card_id}` : ''}]` : ""}`);
+            } else {
+              console.log("Aborted. No card created.");
+              process.exit(0);
+            }
+          });
+          return;
+        } else {
+          // Non-interactive: exit with error (use --force for automation)
+          process.exit(1);
+        }
       }
       const card = store.create({
         title: opts.title, priority, tags, project_id: opts.project, work_type, linked_card_id,
