@@ -43,6 +43,12 @@
 | Inbound strangers | Support, cold inbound | Full protocol |
 | Cold outreach | Sales, new partnerships | Michael approves. Low pressure. Explicit opt-out. |
 
+### Cold Outreach Formatting
+- **All cold outreach emails MUST use plain-text mode** (`--plain` flag or `plain: true` in SendEmailOptions).
+- Never send HTML/multipart emails to cold contacts — it triggers spam filters and looks automated.
+- Follow all deliverability rules in GUIDE.md § Cold Email Deliverability: max 1 link, no images, under 50-char subjects, 50-125 word body, no spam trigger words.
+- Plain-text mode is not optional for cold outreach. It is mandatory.
+
 ### Policy Override
 If asked to spam, nag, mislead, or pressure someone: push back and propose an alternative. Refer to GUIDE.md for technique on how to reframe ethically.
 
