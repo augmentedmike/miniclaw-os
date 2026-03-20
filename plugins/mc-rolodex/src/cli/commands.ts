@@ -8,6 +8,7 @@ import type { Command } from 'commander';
 import { SearchEngine } from '../search/engine.js';
 import chalk from 'chalk';
 import * as fs from 'fs';
+import { formatUserError, formatPluginError, DOCTOR_SUGGESTION } from '../../../shared/errors/format.js';
 
 export interface CliContext {
   program: Command;
@@ -50,7 +51,11 @@ Examples:
       }
 
       if (results.length === 0) {
-        console.log(chalk.yellow('No contacts found'));
+        console.log(formatUserError('[mc-rolodex] No contacts found', [
+          'Try a broader search term or different type: --type name|email|phone|domain|tag|multi',
+          'Add a contact: openclaw mc-rolodex add \'{"name":"Alice","emails":["alice@example.com"]}\'',
+          'List all contacts: openclaw mc-rolodex list',
+        ]));
         return;
       }
 
@@ -87,7 +92,10 @@ Examples:
       }
 
       if (contacts.length === 0) {
-        console.log(chalk.yellow('No contacts found'));
+        console.log(formatUserError('[mc-rolodex] No contacts found', [
+          opts.tag ? `No contacts with tag "${opts.tag}" — try: openclaw mc-rolodex list (without filter)` : '',
+          'Add a contact: openclaw mc-rolodex add \'{"name":"Alice","emails":["alice@example.com"]}\'',
+        ].filter(Boolean)));
         return;
       }
 
@@ -112,7 +120,10 @@ Examples:
       const contact = engine.getById(id);
 
       if (!contact) {
-        console.error(chalk.red(`Contact not found: ${id}`));
+        console.error(formatUserError(`[mc-rolodex] Contact not found: ${id}`, [
+          'Run: openclaw mc-rolodex list — to see all contacts',
+          'Search by name: openclaw mc-rolodex search "<name>"',
+        ]));
         process.exit(1);
       }
 
@@ -175,7 +186,11 @@ Examples:
         engine.add(contact as Parameters<typeof engine.add>[0]);
         console.log(chalk.green(`Added: ${contact['name']}`));
       } catch (err) {
-        console.error(chalk.red(`Error: ${(err as Error).message}`));
+        console.error(formatPluginError('mc-rolodex', 'add', err, [
+          'Contact must have a "name" field',
+          'Format: openclaw mc-rolodex add \'{"name":"Alice","emails":["alice@example.com"]}\'',
+          DOCTOR_SUGGESTION,
+        ]));
         process.exit(1);
       }
     });
@@ -194,7 +209,10 @@ Examples:
     .action((id: string, opts: { name?: string; email?: string; phone?: string; tag?: string; notes?: string; trust?: string; json?: string }) => {
       const contact = engine.getById(id);
       if (!contact) {
-        console.error(chalk.red(`Contact not found: ${id}`));
+        console.error(formatUserError(`[mc-rolodex] Contact not found: ${id}`, [
+          'Run: openclaw mc-rolodex list — to see all contacts',
+          'Search by name: openclaw mc-rolodex search "<name>"',
+        ]));
         process.exit(1);
       }
 
@@ -217,13 +235,19 @@ Examples:
           }
           Object.assign(updates, parsed);
         } catch (err) {
-          console.error(chalk.red(`Invalid JSON: ${(err as Error).message}`));
+          console.error(formatPluginError('mc-rolodex', 'update', err, [
+            'Provide valid JSON: --json \'{"key":"value"}\'',
+            DOCTOR_SUGGESTION,
+          ]));
           process.exit(1);
         }
       }
 
       if (Object.keys(updates).length === 0) {
-        console.error(chalk.red('No updates provided. Use --name, --email, --tag, --notes, --trust, or --json.'));
+        console.error(formatUserError('[mc-rolodex] No updates provided', [
+          'Use --name, --email, --tag, --notes, --trust, or --json',
+          'Run: openclaw mc-rolodex update --help — for all options',
+        ]));
         process.exit(1);
       }
 
@@ -239,7 +263,10 @@ Examples:
       const contact = engine.getById(id);
 
       if (!contact) {
-        console.error(chalk.red(`Contact not found: ${id}`));
+        console.error(formatUserError(`[mc-rolodex] Contact not found: ${id}`, [
+          'Run: openclaw mc-rolodex list — to see all contacts',
+          'Search by name: openclaw mc-rolodex search "<name>"',
+        ]));
         process.exit(1);
       }
 
