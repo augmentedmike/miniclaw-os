@@ -144,6 +144,65 @@ export function findTitleConflict(
 }
 
 /**
+ * Find ALL cards in `existing` that would conflict with the given title
+ * and/or problem text. Returns array sorted by similarity descending.
+ *
+ * Matching considers both title and (optionally) problem_description text.
+ * The first 100 words of problem text are tokenized and merged with title
+ * tokens for a combined Jaccard comparison.
+ */
+export function findAllConflicts(
+  title: string,
+  existing: Card[],
+  problemText?: string,
+  excludeId?: string,
+): TitleConflict[] {
+  const normTitle = normalizeTitle(title);
+  const titleTokens = tokenize(title);
+  // Combine title tokens with first 100 words of problem text
+  const problemTokens = problemText
+    ? tokenize(problemText.split(/\s+/).slice(0, 100).join(" "))
+    : [];
+  const combinedTokens = [...titleTokens, ...problemTokens];
+  const setCombined = new Set(combinedTokens);
+
+  const conflicts: TitleConflict[] = [];
+
+  for (const card of existing) {
+    if (excludeId && card.id === excludeId) continue;
+
+    const normCard = normalizeTitle(card.title);
+
+    // Exact title match
+    if (normCard === normTitle) {
+      conflicts.push({ card, similarity: 1.0 });
+      continue;
+    }
+
+    // Build combined token set for existing card (title + problem)
+    const cardTitleTokens = tokenize(card.title);
+    const cardProblemTokens = card.problem_description
+      ? tokenize(card.problem_description.split(/\s+/).slice(0, 100).join(" "))
+      : [];
+    const cardCombined = [...cardTitleTokens, ...cardProblemTokens];
+    const setCard = new Set(cardCombined);
+
+    // Short titles with no problem text: require exact match only
+    const minTitleTokens = Math.min(titleTokens.length, cardTitleTokens.length);
+    if (minTitleTokens <= 2 && problemTokens.length === 0 && cardProblemTokens.length === 0) continue;
+
+    const similarity = jaccardSimilarity(setCombined, setCard);
+    if (similarity >= SIMILARITY_THRESHOLD) {
+      conflicts.push({ card, similarity });
+    }
+  }
+
+  // Sort by similarity descending
+  conflicts.sort((a, b) => b.similarity - a.similarity);
+  return conflicts;
+}
+
+/**
  * Format a human-readable conflict error message for CLI output.
  */
 export function formatConflictError(title: string, conflict: TitleConflict): string {
@@ -164,4 +223,29 @@ export function formatConflictError(title: string, conflict: TitleConflict): str
     `  To view:    miniclaw brain show ${card.id}`,
     `  To merge:   miniclaw brain update ${card.id} --notes "..."`,
   ].join("\n");
+}
+
+/**
+ * Format a numbered list of all similar cards for CLI output.
+ * Includes card ID, title, column, and similarity percentage.
+ */
+export function formatConflictList(title: string, conflicts: TitleConflict[]): string {
+  if (conflicts.length === 0) return "";
+
+  const lines: string[] = [
+    `SIMILAR CARDS FOUND for "${title}":`,
+    ``,
+  ];
+
+  for (let i = 0; i < conflicts.length; i++) {
+    const { card, similarity } = conflicts[i];
+    const pct = Math.round(similarity * 100);
+    const matchType = similarity >= 1.0 ? "exact match" : `${pct}% similar`;
+    lines.push(`  ${i + 1}. ${card.id}  "${card.title}"  [${card.column}]  (${matchType})`);
+  }
+
+  lines.push(``);
+  lines.push(`Use --force to create anyway, or consolidate with an existing card.`);
+
+  return lines.join("\n");
 }

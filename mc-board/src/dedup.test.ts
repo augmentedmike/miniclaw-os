@@ -12,8 +12,10 @@
 import { describe, expect, it } from "vitest";
 import {
   areDuplicates,
+  findAllConflicts,
   findTitleConflict,
   formatConflictError,
+  formatConflictList,
   jaccardSimilarity,
   normalizeTitle,
   SIMILARITY_THRESHOLD,
@@ -279,5 +281,132 @@ describe("formatConflictError", () => {
     const msg = formatConflictError("Fix bug", { card, similarity: 1.0 });
     expect(msg).toContain("brain show");
     expect(msg).toContain("brain update");
+  });
+});
+
+// ---- findAllConflicts ----
+
+describe("findAllConflicts", () => {
+  it("returns empty array when no cards exist", () => {
+    expect(findAllConflicts("Any title", [])).toEqual([]);
+  });
+
+  it("returns empty array when no conflicts", () => {
+    const cards = [
+      makeCard({ title: "Add dark mode to dashboard" }),
+      makeCard({ title: "Fix OAuth token bug" }),
+    ];
+    expect(findAllConflicts("Build Redis integration plugin", cards)).toEqual([]);
+  });
+
+  it("returns ALL matching cards, not just first", () => {
+    // Use titles with high token overlap (>70% Jaccard)
+    const card1 = makeCard({ title: "Fix login authentication bug session handler", id: "crd_all001" });
+    const card2 = makeCard({ title: "Fix login authentication bug session refresh", id: "crd_all002" });
+    const card3 = makeCard({ title: "Add dark mode to dashboard", id: "crd_all003" });
+    const conflicts = findAllConflicts(
+      "Fix login authentication bug session handler refresh",
+      [card1, card2, card3],
+    );
+    expect(conflicts.length).toBe(2);
+    expect(conflicts.map(c => c.card.id)).toContain("crd_all001");
+    expect(conflicts.map(c => c.card.id)).toContain("crd_all002");
+  });
+
+  it("returns results sorted by similarity descending", () => {
+    const exact = makeCard({ title: "Fix login bug", id: "crd_sort001" });
+    const similar = makeCard({
+      title: "Build contacts registry system for trusted identities",
+      id: "crd_sort002",
+    });
+    const conflicts = findAllConflicts("Fix login bug", [similar, exact]);
+    expect(conflicts.length).toBeGreaterThanOrEqual(1);
+    expect(conflicts[0].card.id).toBe("crd_sort001");
+    expect(conflicts[0].similarity).toBe(1.0);
+  });
+
+  it("matches on problem_description text", () => {
+    const card = makeCard({
+      title: "Refactor authentication",
+      id: "crd_prob001",
+      problem_description: "The session handling middleware needs complete overhaul to support token refresh and rotation",
+    });
+    // Title alone wouldn't match, but problem text shares tokens
+    const conflicts = findAllConflicts(
+      "Overhaul middleware for token handling",
+      [card],
+      "The session handling middleware needs complete redesign to support token refresh and rotation",
+    );
+    expect(conflicts.length).toBe(1);
+    expect(conflicts[0].card.id).toBe("crd_prob001");
+  });
+
+  it("excludes card by excludeId", () => {
+    const card = makeCard({ title: "Fix login bug", id: "crd_excl001" });
+    const conflicts = findAllConflicts("Fix login bug", [card], undefined, "crd_excl001");
+    expect(conflicts).toEqual([]);
+  });
+
+  it("short titles (≤2 tokens) without problem text require exact match", () => {
+    const card = makeCard({ title: "Add auth", id: "crd_short001" });
+    // "Fix auth" vs "Add auth" — only 1 of 2 tokens overlap, short title, no problem text
+    const conflicts = findAllConflicts("Fix auth", [card]);
+    expect(conflicts).toEqual([]);
+  });
+
+  it("short titles with exact match still detected", () => {
+    const card = makeCard({ title: "Add auth", id: "crd_short002" });
+    const conflicts = findAllConflicts("Add auth", [card]);
+    expect(conflicts.length).toBe(1);
+    expect(conflicts[0].similarity).toBe(1.0);
+  });
+});
+
+// ---- formatConflictList ----
+
+describe("formatConflictList", () => {
+  it("returns empty string for no conflicts", () => {
+    expect(formatConflictList("Test", [])).toBe("");
+  });
+
+  it("includes card ID, title, column, and similarity percentage", () => {
+    const card = makeCard({ title: "Fix login bug", id: "crd_list001", column: "backlog" });
+    const msg = formatConflictList("Fix login bug", [{ card, similarity: 0.85 }]);
+    expect(msg).toContain("crd_list001");
+    expect(msg).toContain("Fix login bug");
+    expect(msg).toContain("backlog");
+    expect(msg).toContain("85% similar");
+  });
+
+  it("shows exact match label for 1.0 similarity", () => {
+    const card = makeCard({ title: "Fix login bug", id: "crd_list002", column: "in-progress" });
+    const msg = formatConflictList("Fix login bug", [{ card, similarity: 1.0 }]);
+    expect(msg).toContain("exact match");
+    expect(msg).toContain("in-progress");
+  });
+
+  it("shows numbered list for multiple conflicts", () => {
+    const card1 = makeCard({ title: "Fix login bug", id: "crd_list003", column: "backlog" });
+    const card2 = makeCard({ title: "Fix login issue", id: "crd_list004", column: "in-progress" });
+    const msg = formatConflictList("Fix login problem", [
+      { card: card1, similarity: 0.90 },
+      { card: card2, similarity: 0.75 },
+    ]);
+    expect(msg).toContain("1.");
+    expect(msg).toContain("2.");
+    expect(msg).toContain("crd_list003");
+    expect(msg).toContain("crd_list004");
+  });
+
+  it("includes --force hint", () => {
+    const card = makeCard({ title: "Fix bug", id: "crd_list005" });
+    const msg = formatConflictList("Fix bug", [{ card, similarity: 1.0 }]);
+    expect(msg).toContain("--force");
+  });
+
+  it("includes SIMILAR CARDS FOUND header with title", () => {
+    const card = makeCard({ title: "Fix bug", id: "crd_list006" });
+    const msg = formatConflictList("Fix bug", [{ card, similarity: 1.0 }]);
+    expect(msg).toContain('SIMILAR CARDS FOUND for "Fix bug"');
   });
 });

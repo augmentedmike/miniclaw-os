@@ -1,7 +1,7 @@
 import type { Database } from "./db.js";
 import type { Attachment, Card, Column, Priority, WorkLogEntry } from "./card.js";
 import { generateId, sortCards } from "./card.js";
-import { type TitleConflict, findTitleConflict } from "./dedup.js";
+import { type TitleConflict, findTitleConflict, findAllConflicts } from "./dedup.js";
 
 
 type WorkType = "work" | "verify";
@@ -214,6 +214,12 @@ export class CardStore {
     let candidates = this.list().filter(c => c.column !== "shipped");
     if (opts?.projectId) candidates = candidates.filter(c => c.project_id === opts.projectId);
     return findTitleConflict(title, candidates, opts?.excludeId);
+  }
+
+  checkSimilarCards(title: string, problemText?: string, opts?: { projectId?: string; excludeId?: string }): TitleConflict[] {
+    let candidates = this.list().filter(c => c.column !== "shipped" && c.column !== "done");
+    if (opts?.projectId) candidates = candidates.filter(c => c.project_id === opts.projectId);
+    return findAllConflicts(title, candidates, problemText, opts?.excludeId);
   }
 
   // SQLite PRIMARY KEY guarantees no duplicates — always returns empty map.
