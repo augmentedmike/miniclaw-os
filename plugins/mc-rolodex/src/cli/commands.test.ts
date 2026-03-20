@@ -93,7 +93,7 @@ describe('mc-rolodex add', () => {
 
   it('errors on invalid JSON', async () => {
     await expect(run('mc-rolodex', 'add', 'not-json')).rejects.toThrow();
-    expect(allErr()).toMatch(/Error/);
+    expect(allErr()).toMatch(/\[mc-rolodex\] add failed:/);
   });
 });
 
