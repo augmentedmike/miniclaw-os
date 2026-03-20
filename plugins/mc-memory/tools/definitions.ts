@@ -169,7 +169,7 @@ export function createMemoryTools(
               case "memo":
                 return `[Memo/${r.cardId}] ${r.timestamp ?? ""}\n> ${r.line}`;
               case "episodic":
-                return `[Episodic/${r.date}]\n> ${r.snippet}`;
+                return `[Episodic/${r.date}]\n> ${r.content ?? r.snippet}`;
               default:
                 return `[${r.source}] (unknown format)`;
             }

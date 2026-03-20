@@ -65,7 +65,7 @@ export async function promote(
   // Generate embedding
   let vector: Float32Array | undefined;
   try {
-    const v = await embedder.embed(`${title}\n${input.content.slice(0, 512)}`);
+    const v = await embedder.embed(`${title}\n${input.content.slice(0, 1024)}`);
     vector = v ?? undefined;
   } catch {
     // Fall back to FTS-only
@@ -76,7 +76,7 @@ export async function promote(
       type: type as any,
       title,
       content: input.content,
-      summary: input.content.slice(0, 200).replace(/\n/g, " ").trim(),
+      summary: input.content.slice(0, 500).replace(/\n/g, " ").trim(),
       tags,
       source: `${input.source_type}:${input.source_ref}`,
     },
