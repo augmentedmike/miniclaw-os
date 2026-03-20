@@ -3,6 +3,7 @@ import * as path from "node:path";
 import { execFileSync } from "node:child_process";
 import type { Command } from "commander";
 import type { BackupConfig } from "../index.js";
+import { formatPluginError, formatUserError, DOCTOR_SUGGESTION } from "../../shared/errors/format.js";
 
 export interface CliContext {
   program: Command;
@@ -145,9 +146,11 @@ export function registerBackupCommands(ctx: CliContext, cfg: BackupConfig): void
           }
         }
       } catch (err) {
-        console.error(
-          `Backup failed: ${err instanceof Error ? err.message : err}`,
-        );
+        console.error(formatPluginError("mc-backup", "now", err, [
+          "Check disk space: df -h",
+          "Verify the state directory exists: ls " + cfg.stateDir,
+          DOCTOR_SUGGESTION,
+        ]));
         process.exit(1);
       }
     });
@@ -202,7 +205,10 @@ export function registerBackupCommands(ctx: CliContext, cfg: BackupConfig): void
         : path.join(cfg.backupDir, filename);
 
       if (!fs.existsSync(archivePath)) {
-        console.error(`Archive not found: ${archivePath}`);
+        console.error(formatUserError(`[mc-backup] Archive not found: ${archivePath}`, [
+          "Run: openclaw mc-backup list — to see available backups",
+          "Use the filename only (e.g. 2026-03-11T14-30-00.tgz) or the full path",
+        ]));
         process.exit(1);
       }
 

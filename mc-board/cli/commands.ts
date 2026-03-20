@@ -81,7 +81,10 @@ Examples:
     .action((opts: { title: string; priority: string; tags?: string; project?: string; workType?: string; linkedCardId?: string; problem?: string; plan?: string; criteria?: string; notes?: string; research?: string; verifyUrl?: string; force?: boolean }) => {
       const priority = normalizePriority(opts.priority);
       if (!priority) {
-        console.error(`Invalid priority: ${opts.priority}. Use: critical, high, medium, low`);
+        console.error(formatUserError(`[mc-board] Invalid priority: ${opts.priority}`, [
+          "Valid priorities: critical, high, medium, low",
+          "Example: openclaw mc-board create --title \"My card\" --priority high",
+        ]));
         process.exit(1);
       }
       const tags = opts.tags
@@ -98,7 +101,10 @@ Examples:
       // Validate project if provided
       if (opts.project) {
         try { projects.findById(opts.project); } catch {
-          console.error(`Project not found: ${opts.project}`);
+          console.error(formatUserError(`[mc-board] Project not found: ${opts.project}`, [
+            "Run: openclaw mc-board project list — to see all projects",
+            "Check the ID format: projects start with prj_",
+          ]));
           process.exit(1);
         }
       }
@@ -106,7 +112,10 @@ Examples:
       let work_type: 'work' | 'verify' | undefined;
       if (opts.workType) {
         if (opts.workType !== 'work' && opts.workType !== 'verify') {
-          console.error(`Invalid work-type: ${opts.workType}. Use: work, verify`);
+          console.error(formatUserError(`[mc-board] Invalid work-type: ${opts.workType}`, [
+            "Valid work types: work, verify",
+            "Example: openclaw mc-board create --work-type verify --linked-card-id crd_abc123",
+          ]));
           process.exit(1);
         }
         work_type = opts.workType as 'work' | 'verify';
@@ -115,7 +124,10 @@ Examples:
       let linked_card_id: string | undefined;
       if (opts.linkedCardId) {
         try { store.findById(opts.linkedCardId); } catch {
-          console.error(`Linked card not found: ${opts.linkedCardId}`);
+          console.error(formatUserError(`[mc-board] Linked card not found: ${opts.linkedCardId}`, [
+            "Run: openclaw mc-board list — to see all cards",
+            "Check the ID format: cards start with crd_",
+          ]));
           process.exit(1);
         }
         linked_card_id = opts.linkedCardId;
@@ -181,7 +193,10 @@ Examples:
   miniclaw brain list --project prj_a1b2c3d4`)
     .action((opts: { column?: string; project?: string; skipHold?: boolean }) => {
       if (opts.column && !COLUMNS.includes(opts.column as Column)) {
-        console.error(`Invalid column: ${opts.column}. Valid: ${COLUMNS.join(", ")}`);
+        console.error(formatUserError(`[mc-board] Invalid column: ${opts.column}`, [
+          `Valid columns: ${COLUMNS.join(", ")}`,
+          "Example: openclaw mc-board list --column backlog",
+        ]));
         process.exit(1);
       }
       let cards = store.list(opts.column as Column | undefined);
@@ -224,7 +239,10 @@ Examples:
   openclaw mc-board context --column in-progress --tags focus`)
     .action((opts: { column: string; skipHold?: boolean; tags?: string }) => {
       if (!COLUMNS.includes(opts.column as Column)) {
-        console.error(`Invalid column: ${opts.column}. Valid: ${COLUMNS.join(", ")}`);
+        console.error(formatUserError(`[mc-board] Invalid column: ${opts.column}`, [
+          `Valid columns: ${COLUMNS.join(", ")}`,
+          "Example: openclaw mc-board context --column backlog",
+        ]));
         process.exit(1);
       }
       let cards = store.list(opts.column as Column);
@@ -296,7 +314,9 @@ Examples:
         if (opts.priority !== undefined) {
           const p = normalizePriority(opts.priority);
           if (!p) {
-            console.error(`Invalid priority: ${opts.priority}`);
+            console.error(formatUserError(`[mc-board] Invalid priority: ${opts.priority}`, [
+              "Valid priorities: critical, high, medium, low",
+            ]));
             process.exit(1);
           }
           updates.priority = p;
@@ -364,7 +384,10 @@ Examples:
             updates.project_id = undefined;
           } else {
             try { projects.findById(opts.project); } catch {
-              console.error(`Project not found: ${opts.project}`);
+              console.error(formatUserError(`[mc-board] Project not found: ${opts.project}`, [
+                "Run: openclaw mc-board project list — to see all projects",
+                "Check the ID format: projects start with prj_",
+              ]));
               process.exit(1);
             }
             updates.project_id = opts.project;
@@ -376,7 +399,9 @@ Examples:
           } else if (opts.workType === "work" || opts.workType === "verify") {
             updates.work_type = opts.workType;
           } else {
-            console.error(`Invalid work-type: ${opts.workType}. Use: work, verify, none`);
+            console.error(formatUserError(`[mc-board] Invalid work-type: ${opts.workType}`, [
+              "Valid work types: work, verify, none",
+            ]));
             process.exit(1);
           }
         }
@@ -385,7 +410,10 @@ Examples:
             updates.linked_card_id = undefined;
           } else {
             try { store.findById(opts.linkedCardId); } catch {
-              console.error(`Linked card not found: ${opts.linkedCardId}`);
+              console.error(formatUserError(`[mc-board] Linked card not found: ${opts.linkedCardId}`, [
+                "Run: openclaw mc-board list — to see all cards",
+                "Check the ID format: cards start with crd_",
+              ]));
               process.exit(1);
             }
             updates.linked_card_id = opts.linkedCardId;
@@ -393,7 +421,10 @@ Examples:
         }
 
         if (Object.keys(updates).length === 0) {
-          console.error("No fields to update. Provide at least one option.");
+          console.error(formatUserError("[mc-board] No fields to update", [
+            "Provide at least one option: --title, --priority, --tags, --problem, --plan, --criteria, --notes, etc.",
+            "Run: openclaw mc-board update --help — for all options",
+          ]));
           process.exit(1);
         }
 
@@ -433,7 +464,10 @@ Examples:
   miniclaw brain move crd_abc123 in-progress --force`)
     .action((id: string, column: string, opts: { force?: boolean }) => {
       if (!COLUMNS.includes(column as Column)) {
-        console.error(`Invalid column: ${column}. Valid: ${COLUMNS.join(", ")}`);
+        console.error(formatUserError(`[mc-board] Invalid column: ${column}`, [
+          `Valid columns: ${COLUMNS.join(", ")}`,
+          "Column flow: backlog → in-progress → in-review → shipped",
+        ]));
         process.exit(1);
       }
       const target = column as Column;
@@ -443,9 +477,13 @@ Examples:
 
         if (!opts.force) {
           if (!canTransition(card.column, target)) {
-            console.error(
-              `Cannot move ${card.id} from "${card.column}" to "${target}". Columns must advance sequentially: ${COLUMNS.join(" → ")}`,
-            );
+            console.error(formatUserError(
+              `[mc-board] Cannot move ${card.id} from "${card.column}" to "${target}"`,
+              [
+                `Columns must advance sequentially: ${COLUMNS.join(" → ")}`,
+                "Use --force to bypass gate checks (recovery only)",
+              ],
+            ));
             process.exit(1);
           }
 
@@ -581,7 +619,10 @@ Examples:
       try {
         const card = store.findById(id);
         if (card.column !== "shipped") {
-          console.error(`Card ${card.id} is in "${card.column}" — only shipped cards can be archived.`);
+          console.error(formatUserError(`[mc-board] Card ${card.id} is in "${card.column}" — only shipped cards can be archived`, [
+            "Move the card to shipped first: openclaw mc-board move " + card.id + " shipped",
+            "Or use delete --force to remove without archiving",
+          ]));
           process.exit(1);
         }
         archive.archiveCard(card);
@@ -650,7 +691,10 @@ Reads across all archive files. Prefix match on card id.
       const all = archive.readAll();
       const card = all.find(c => c.id.startsWith(id));
       if (!card) {
-        console.error(`Archived card not found: ${id}`);
+        console.error(formatUserError(`[mc-board] Archived card not found: ${id}`, [
+          "Run: openclaw mc-board archive-search <query> — to find archived cards",
+          "Check the active board: openclaw mc-board list",
+        ]));
         process.exit(1);
       }
       console.log(renderCardDetail(card));
@@ -666,8 +710,11 @@ Reads across all archive files. Prefix match on card id.
       try {
         const card = store.findById(id);
         if (!opts.force) {
-          console.error(`Refusing to delete without --force. Run: openclaw mc-board delete ${id} --force`);
-          console.error(`  Card: ${card.id} (${card.column}): "${card.title}"`);
+          console.error(formatUserError(`[mc-board] Refusing to delete without --force`, [
+            `Run: openclaw mc-board delete ${id} --force`,
+            `Card: ${card.id} (${card.column}): "${card.title}"`,
+            "Consider archiving shipped cards instead: openclaw mc-board archive " + id,
+          ]));
           process.exit(1);
         }
         store.delete(id);
@@ -817,7 +864,10 @@ archived projects.
   miniclaw brain project update prj_a1b2c3d4 --build-command 'cd ~/.openclaw/miniclaw/plugins/mc-board/web && npm run build'`)
     .action((id: string, opts: { name?: string; description?: string; workDir?: string; githubRepo?: string; buildCommand?: string }) => {
       if (!opts.name && opts.description === undefined && !opts.workDir && !opts.githubRepo && opts.buildCommand === undefined) {
-        console.error("No fields to update. Provide --name, --description, --work-dir, --github-repo, or --build-command.");
+        console.error(formatUserError("[mc-board] No fields to update", [
+          "Provide at least one: --name, --description, --work-dir, --github-repo, or --build-command",
+          "Run: openclaw mc-board project update --help — for all options",
+        ]));
         process.exit(1);
       }
       try {
@@ -1040,11 +1090,17 @@ Used by: web UI triage button, cron job backlog checker.
     .action((cardId: string, opts: { prompt?: string; worker: string; log?: string; move: boolean }) => {
       const card = store.findById(cardId);
       if (!card) {
-        console.error(`Card not found: ${cardId}`);
+        console.error(formatUserError(`[mc-board] Card not found: ${cardId}`, [
+          "Run: openclaw mc-board list — to see all cards",
+          "Check the ID format: cards start with crd_",
+        ]));
         process.exit(1);
       }
       if (card.column !== "backlog") {
-        console.error(`Card ${cardId} is in "${card.column}", not "backlog". Triage only applies to backlog.`);
+        console.error(formatUserError(`[mc-board] Card ${cardId} is in "${card.column}", not "backlog"`, [
+          "Triage only applies to backlog cards",
+          "Run: openclaw mc-board list --column backlog — to see triageable cards",
+        ]));
         process.exit(1);
       }
 
@@ -1287,19 +1343,27 @@ Examples:
     .action((file: string, opts: { project?: string; dryRun?: boolean; model: string }) => {
       // Validate file
       if (!fs.existsSync(file)) {
-        console.error(`File not found: ${file}`);
+        console.error(formatUserError(`[mc-board] File not found: ${file}`, [
+          "Check the file path exists and is accessible",
+          "Example: openclaw mc-board plan ~/docs/my-plan.md",
+        ]));
         process.exit(1);
       }
       const docContent = fs.readFileSync(file, "utf8");
       if (!docContent.trim()) {
-        console.error(`File is empty: ${file}`);
+        console.error(formatUserError(`[mc-board] File is empty: ${file}`, [
+          "The planning document must contain text to decompose into cards",
+        ]));
         process.exit(1);
       }
 
       // Validate project if provided
       if (opts.project) {
         try { projects.findById(opts.project); } catch {
-          console.error(`Project not found: ${opts.project}`);
+          console.error(formatUserError(`[mc-board] Project not found: ${opts.project}`, [
+            "Run: openclaw mc-board project list — to see all projects",
+            "Check the ID format: projects start with prj_",
+          ]));
           process.exit(1);
         }
       }
