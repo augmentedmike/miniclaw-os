@@ -271,8 +271,17 @@ function fmtDuration(ms: number): string {
   return `${m}m ${s}s`;
 }
 
-function AttachmentsSection({ card, onInjectContext, onMutate, onToast }: {
+const IMAGE_EXTS = new Set([".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".ico"]);
+
+function isImageAttachment(a: Attachment): boolean {
+  if (a.mime?.startsWith("image/")) return true;
+  const ext = a.path.slice(a.path.lastIndexOf(".")).toLowerCase();
+  return IMAGE_EXTS.has(ext);
+}
+
+function AttachmentsSection({ card, onOpenFile, onInjectContext, onMutate, onToast }: {
   card: Card;
+  onOpenFile?: (path: string) => void;
   onInjectContext?: (ctx: string) => void;
   onMutate?: () => void;
   onToast?: (icon: string, title: string, sub?: string) => void;
@@ -282,11 +291,11 @@ function AttachmentsSection({ card, onInjectContext, onMutate, onToast }: {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const uploadFiles = async (files: FileList | File[]) => {
-    const imageFiles = Array.from(files).filter(f => f.type.startsWith("image/"));
-    if (!imageFiles.length) return;
+    const allFiles = Array.from(files);
+    if (!allFiles.length) return;
     setUploading(true);
     try {
-      for (const file of imageFiles) {
+      for (const file of allFiles) {
         const form = new FormData();
         form.append("file", file);
         form.append("cardId", card.id);
@@ -300,7 +309,7 @@ function AttachmentsSection({ card, onInjectContext, onMutate, onToast }: {
         });
       }
       onMutate?.();
-      onToast?.("img", "Image attached", `${imageFiles.length} file${imageFiles.length > 1 ? "s" : ""}`);
+      onToast?.("📎", "File attached", `${allFiles.length} file${allFiles.length > 1 ? "s" : ""}`);
     } catch (e) {
       onToast?.("!", "Upload error", String(e));
     } finally {
@@ -316,14 +325,12 @@ function AttachmentsSection({ card, onInjectContext, onMutate, onToast }: {
 
   const handlePaste = (e: React.ClipboardEvent) => {
     const items = e.clipboardData.items;
-    const imageFiles: File[] = [];
+    const pastedFiles: File[] = [];
     for (let i = 0; i < items.length; i++) {
-      if (items[i].type.startsWith("image/")) {
-        const file = items[i].getAsFile();
-        if (file) imageFiles.push(file);
-      }
+      const file = items[i].getAsFile();
+      if (file) pastedFiles.push(file);
     }
-    if (imageFiles.length) uploadFiles(imageFiles);
+    if (pastedFiles.length) uploadFiles(pastedFiles);
   };
 
   const attachments = card.attachments ?? [];
@@ -343,38 +350,76 @@ function AttachmentsSection({ card, onInjectContext, onMutate, onToast }: {
           disabled={uploading}
           className="text-xs text-zinc-500 hover:text-zinc-300 cursor-pointer"
           style={{ background: "none", border: "none", fontFamily: "inherit" }}
-        >{uploading ? "uploading…" : "+ add image"}</button>
-        <input ref={fileInputRef} type="file" accept="image/*" multiple hidden onChange={e => { if (e.target.files) uploadFiles(e.target.files); e.target.value = ""; }} />
+        >{uploading ? "uploading…" : "+ add file"}</button>
+        <input ref={fileInputRef} type="file" multiple hidden onChange={e => { if (e.target.files) uploadFiles(e.target.files); e.target.value = ""; }} />
       </div>
 
       {attachments.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 8 }}>
-          {attachments.map((a: Attachment, i: number) => (
-            <a
-              key={i}
-              href={`/api/media?path=${encodeURIComponent(a.path)}`}
-              target="_blank"
-              rel="noreferrer"
-              style={{ display: "block", borderRadius: 6, overflow: "hidden", border: "1px solid #3f3f46", background: "#18181b" }}
-              title={a.label || a.path}
-              onContextMenu={onInjectContext ? (e) => {
-                e.preventDefault();
-                onInjectContext(`[${card.id}] Attachment: ${a.label || a.path}\nPath: ${a.path}`);
-              } : undefined}
-            >
-              <img
-                src={`/api/media?path=${encodeURIComponent(a.path)}`}
-                alt={a.label || "attachment"}
-                style={{ width: "100%", height: "auto", display: "block" }}
-                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-              />
-              {a.label && (
-                <div style={{ padding: "4px 6px", fontSize: 11, color: "#a1a1aa", fontFamily: "var(--font-geist-mono), ui-monospace, monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {a.label}
+          {attachments.map((a: Attachment, i: number) => {
+            const isImage = isImageAttachment(a);
+            const ctxMenu = onInjectContext ? (e: React.MouseEvent) => {
+              e.preventDefault();
+              onInjectContext(`[${card.id}] Attachment: ${a.label || a.path}\nPath: ${a.path}`);
+            } : undefined;
+
+            if (isImage) {
+              return (
+                <a
+                  key={i}
+                  href={`/api/media?path=${encodeURIComponent(a.path)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ display: "block", borderRadius: 6, overflow: "hidden", border: "1px solid #3f3f46", background: "#18181b" }}
+                  title={a.label || a.path}
+                  onContextMenu={ctxMenu}
+                >
+                  <img
+                    src={`/api/media?path=${encodeURIComponent(a.path)}`}
+                    alt={a.label || "attachment"}
+                    style={{ width: "100%", height: "auto", display: "block" }}
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                  />
+                  {a.label && (
+                    <div style={{ padding: "4px 6px", fontSize: 11, color: "#a1a1aa", fontFamily: "var(--font-geist-mono), ui-monospace, monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {a.label}
+                    </div>
+                  )}
+                </a>
+              );
+            }
+
+            // Non-image: open in FileViewModal
+            const ext = a.path.slice(a.path.lastIndexOf(".")).toLowerCase();
+            const fileName = a.label || a.path.split("/").pop() || a.path;
+            return (
+              <div
+                key={i}
+                onClick={() => onOpenFile?.(a.path)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
+                  borderRadius: 6, border: "1px solid #3f3f46", background: "#18181b",
+                  cursor: "pointer", transition: "border-color 0.15s",
+                }}
+                title={a.path}
+                onContextMenu={ctxMenu}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = "#60a5fa")}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = "#3f3f46")}
+              >
+                <span style={{ fontSize: 18, flexShrink: 0 }}>
+                  {ext === ".md" ? "📝" : ext === ".pdf" ? "📄" : "📄"}
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, color: "#e4e4e7", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {fileName}
+                  </div>
+                  <div style={{ fontSize: 10, color: "#71717a", fontFamily: "var(--font-geist-mono), ui-monospace, monospace" }}>
+                    {ext || "file"}
+                  </div>
                 </div>
-              )}
-            </a>
-          ))}
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -388,7 +433,7 @@ function AttachmentsSection({ card, onInjectContext, onMutate, onToast }: {
         onClick={() => fileInputRef.current?.click()}
       >
         <span style={{ fontSize: 11, color: dragOver ? "#818cf8" : "#52525b" }}>
-          {dragOver ? "Drop image here" : "Drop, paste, or click to attach images"}
+          {dragOver ? "Drop file here" : "Drop, paste, or click to attach files"}
         </span>
       </div>
     </div>
@@ -508,7 +553,7 @@ function AgentRunsSection({ cardId }: { cardId: string }) {
 }
 
 export function CardModal({ cardId, projects, activeIds, onClose, onOpenLog, onToast, onMutate, onInjectContext, onHold }: Props) {
-  const { data: card, mutate: mutateCard } = useSWR<Card>(
+  const { data: card } = useSWR<Card>(
     cardId ? `/api/card/${cardId}` : null,
     fetcher,
     { refreshInterval: 5000 }
@@ -570,20 +615,7 @@ export function CardModal({ cardId, projects, activeIds, onClose, onOpenLog, onT
                 const held = card.tags.includes("hold");
                 return (
                   <button
-                    onClick={() => {
-                      onHold(card.id);
-                      // Optimistically update modal's card cache
-                      mutateCard(current => {
-                        if (!current) return current;
-                        const isHeld = current.tags.includes("hold");
-                        const newTags = isHeld
-                          ? current.tags.filter((t: string) => t !== "hold")
-                          : [...current.tags.filter((t: string) => t !== "hold" && t !== "focus"), "hold"];
-                        return { ...current, tags: newTags };
-                      }, { revalidate: false });
-                      // Also revalidate after API settles to get authoritative state
-                      setTimeout(() => mutateCard(), 600);
-                    }}
+                    onClick={() => onHold(card.id)}
                     title={held ? "Remove hold" : "Put on hold"}
                     style={{
                       fontSize: 11, padding: "3px 10px", borderRadius: 6, fontWeight: 600,
@@ -715,7 +747,7 @@ export function CardModal({ cardId, projects, activeIds, onClose, onOpenLog, onT
           )}
 
           {/* Attachments */}
-          <AttachmentsSection card={card} onInjectContext={onInjectContext} onMutate={onMutate} onToast={onToast} />
+          <AttachmentsSection card={card} onOpenFile={(path) => setFileModal({ path, base: workDir })} onInjectContext={onInjectContext} onMutate={onMutate} onToast={onToast} />
 
           {/* Agent Runs */}
           <AgentRunsSection cardId={card.id} />
