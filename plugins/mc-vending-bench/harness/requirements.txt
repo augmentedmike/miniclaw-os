@@ -1,2 +1,1 @@
-inspect-ai>=0.3.0
-multiagent-inspect>=0.1.0
+# No external Python dependencies — uses MiniClaw's agent loop via openclaw CLI
