@@ -1,0 +1,17 @@
+<!--
+  WebMCP Integration for miniclaw.bot
+  Add this snippet to your site's <head> section.
+
+  Provides:
+  - Discovery meta tags (model-context, webmcp-version)
+  - Core WebMCP library (webmcp-tools.js)
+  - Domain-specific tool registration (view-portfolio, send-message, check_availability, search_docs, chat_with_am)
+
+  Contact forms on any page with toolname="send-message" will be auto-discovered.
+-->
+<meta name="model-context" content="supported">
+<meta name="webmcp-version" content="1.0">
+<meta name="webmcp-site" content="miniclaw.bot">
+<link rel="webmcp-manifest" href="/.well-known/webmcp.json">
+<script src="/webmcp-tools.js" defer></script>
+<script src="/webmcp-init-miniclaw.js" defer></script>

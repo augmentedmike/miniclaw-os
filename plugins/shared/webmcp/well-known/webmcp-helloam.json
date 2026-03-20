@@ -1,0 +1,21 @@
+{
+  "version": "1.0",
+  "site": "helloam.bot",
+  "description": "Hello Am — AI assistant chat interface. Start conversations, send messages, and interact with Am.",
+  "tools": [
+    {
+      "name": "chat-with-am",
+      "description": "Start a conversation with Am, the AI assistant",
+      "path": "/"
+    },
+    {
+      "name": "send-message",
+      "description": "Send a contact message via helloam.bot",
+      "path": "/contact"
+    }
+  ],
+  "support": {
+    "declarative": true,
+    "imperative": true
+  }
+}
