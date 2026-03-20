@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { FormEvent } from "react";
+import { useAccent } from "@/lib/accent-context";
 
 /* ── Types ── */
 type Category = "general" | "telegram" | "github" | "email" | "gemini" | "anthropic" | "vpn";
@@ -340,6 +341,7 @@ function TelegramPanel() {
 
 /* ── GitHub Panel ── */
 function GitHubPanel() {
+  const accent = useAccent();
   const [token, setToken] = useState("");
   const [configured, setConfigured] = useState(false);
   const [status, setStatus] = useState<SaveStatus>("idle");
@@ -395,7 +397,7 @@ function GitHubPanel() {
           <input className="form-input" type="password" value={token} onChange={(e) => setToken(e.target.value)} placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" style={{ fontFamily: "monospace" }} />
         </SettingsField>
         {ghUser && (
-          <div style={{ fontSize: 12, color: "#4ade80", padding: "4px 0" }}>
+          <div style={{ fontSize: 12, color: accent, padding: "4px 0" }}>
             Connected as <span style={{ fontFamily: "monospace", fontWeight: 600 }}>{ghUser}</span>
           </div>
         )}
@@ -578,6 +580,7 @@ function GeminiPanel() {
 
 /* ── Claude/Anthropic Panel ── */
 function AnthropicPanel() {
+  const accent = useAccent();
   const [configured, setConfigured] = useState(false);
   const [token, setToken] = useState("");
   const [status, setStatus] = useState<SaveStatus>("idle");
@@ -646,7 +649,7 @@ function AnthropicPanel() {
           <button className="btn btn-secondary" onClick={handleConnect} disabled={status === "saving"}>
             Sign in via OAuth
           </button>
-          {configured && <span style={{ fontSize: 12, color: "#4ade80" }}>Currently connected</span>}
+          {configured && <span style={{ fontSize: 12, color: "#00E5CC" }}>Currently connected</span>}
         </div>
       </div>
       <div className="settings-panel-footer">
@@ -660,6 +663,7 @@ function AnthropicPanel() {
 
 /* ── VPN Panel ── */
 function VpnPanel() {
+  const accent = useAccent();
   const [info, setInfo] = useState<{
     installed: boolean; bin: string; version: string;
     connected: boolean; country: string; city: string; ip: string;
@@ -734,7 +738,7 @@ function VpnPanel() {
           <>
             <SettingsField label="Status">
               <div style={{ display: "flex", gap: 16, fontSize: 13 }}>
-                <span style={{ color: info.connected ? "#4ade80" : "#a1a1aa" }}>
+                <span style={{ color: info.connected ? accent : "#a1a1aa" }}>
                   {info.connected ? "Connected" : "Disconnected"}
                 </span>
                 {info.connected && info.country && (
@@ -759,7 +763,7 @@ function VpnPanel() {
                   onChange={(e) => setAutoConnect(e.target.checked)}
                   style={{ width: 16, height: 16 }}
                 />
-                <span style={{ fontSize: 13, color: autoConnect ? "#4ade80" : "#a1a1aa" }}>
+                <span style={{ fontSize: 13, color: autoConnect ? accent : "#a1a1aa" }}>
                   {autoConnect ? "Enabled" : "Disabled"}
                 </span>
               </label>
@@ -799,6 +803,7 @@ const PANELS: Record<Category, React.FC> = {
 
 /* ── Main Settings Page ── */
 export function SettingsPage() {
+  const accent = useAccent();
   const [active, setActive] = useState<Category>("general");
   const [configured, setConfigured] = useState<Record<string, boolean>>({});
   const [mobileNavOpen, setMobileNavOpen] = useState(false);

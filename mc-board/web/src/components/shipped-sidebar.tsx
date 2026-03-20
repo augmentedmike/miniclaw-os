@@ -25,7 +25,7 @@ export function ShippedSidebar({ cards, projects, onCardClick }: Props) {
       {open && (
         <>
           <div className="px-3 py-2 flex items-center gap-2 border-b border-zinc-800">
-            <span className="text-xs font-semibold text-emerald-400">Shipped</span>
+            <span className="text-xs font-semibold" style={{ color: "var(--accent)" }}>Shipped</span>
             <span className="text-xs text-zinc-500 ml-auto">{shipped.length}</span>
           </div>
           <div className="flex-1 overflow-y-auto p-2 space-y-1">

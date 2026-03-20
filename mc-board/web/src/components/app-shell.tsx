@@ -8,6 +8,7 @@ import { PixelOfficeTab } from "./pixel-office-tab";
 import { Modal } from "./modal";
 import { ChatPanel } from "./chat-panel";
 import { WelcomeWizard, useWelcomeWizard } from "./welcome-wizard";
+import { HealthDots } from "./health-dots";
 import { Project, BoardCard } from "@/lib/types";
 import { AccentContext, hexToRgb } from "@/lib/accent-context";
 
@@ -78,18 +79,30 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
   const [accentColor, setAccentColor] = useState("#00E5CC");
   const { data: rolodexCount } = useSWR<{ count: number }>("/api/rolodex/count", fetcher, { refreshInterval: 60000 });
   const { data: memoryStats } = useSWR<{ memoryFiles: number; kbEntries: number; total: number }>("/api/memory/stats", fetcher, { refreshInterval: 60000 });
-  const { data: healthData } = useSWR<{ ok: boolean; version: string; time: string }>("/api/health", fetcher, { refreshInterval: 60000 });
+  const { data: healthData } = useSWR<{
+    ok: boolean; version: string; time: string;
+    services?: {
+      web: { status: "ok" | "down" | "unconfigured" };
+      chat: { status: "ok" | "down" | "unconfigured" };
+      telegram: { status: "ok" | "down" | "unconfigured" };
+    };
+  }>("/api/health", fetcher, { refreshInterval: 60000 });
 
-  // Fetch assistant name + accent color
+  // Fetch assistant name + accent color (poll every 10s for live settings changes)
   useEffect(() => {
-    fetch("/api/assistant-name").then(r => r.json()).then(d => {
-      if (d.shortName) setAssistantName(d.shortName);
-      if (d.accentColor) {
-        setAccentColor(d.accentColor);
-        document.documentElement.style.setProperty("--accent", d.accentColor);
-        document.documentElement.style.setProperty("--accent-rgb", hexToRgb(d.accentColor));
-      }
-    }).catch(() => {});
+    const fetchConfig = () => {
+      fetch("/api/assistant-name").then(r => r.json()).then(d => {
+        if (d.shortName) setAssistantName(d.shortName);
+        if (d.accentColor) {
+          setAccentColor(d.accentColor);
+          document.documentElement.style.setProperty("--accent", d.accentColor);
+          document.documentElement.style.setProperty("--accent-rgb", hexToRgb(d.accentColor));
+        }
+      }).catch(() => {});
+    };
+    fetchConfig();
+    const interval = setInterval(fetchConfig, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   // Re-sync CSS variable when accentColor changes
@@ -316,6 +329,9 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
           </svg>
         </button>
+
+        {/* Health indicator dots */}
+        <HealthDots services={healthData?.services} />
 
         {/* Far right: version badge + alerts icon */}
         <span className="version-badge">

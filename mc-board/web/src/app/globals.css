@@ -369,11 +369,11 @@ a { color: inherit; }
 
 /* ── Shipped column collapse ── */
 .shipped-col {
-  flex: 0 0 42px !important;
-  min-width: 42px;
+  flex: 0 0 48px !important;
+  min-width: 48px;
   overflow: hidden;
   cursor: pointer;
-  transition: flex .25s ease;
+  transition: flex .25s ease, background .15s ease, border-color .15s ease;
   padding: 0;
   display: flex;
   flex-direction: column;
@@ -383,6 +383,10 @@ a { color: inherit; }
   background: rgba(39,39,42,.6);
   border: 1px solid rgba(63,63,70,.5);
   border-radius: 12px;
+}
+.shipped-col:not(.open):hover {
+  background: rgba(39,39,42,.9);
+  border-color: rgba(74,222,128,.35);
 }
 .shipped-col.open {
   flex: 1 1 0 !important;
@@ -416,9 +420,37 @@ a { color: inherit; }
   background: none;
   padding: 0;
 }
+/* Chevron shared styles */
+.shipped-chevron {
+  color: #a1a1aa;
+  transition: transform 0.25s ease, color 0.15s ease;
+}
+.shipped-col:not(.open):hover .shipped-chevron { color: #4ade80; }
+/* Collapsed chevron */
+.shipped-chevron-collapsed {
+  margin-bottom: 2px;
+}
+/* Expanded header toggle */
+.shipped-header-toggle {
+  border-radius: 8px;
+  padding: 4px 8px;
+  transition: background .15s ease;
+}
+.shipped-header-toggle:hover {
+  background: rgba(74,222,128,.08);
+}
+.shipped-header-toggle .shipped-chevron-expanded {
+  margin-left: auto;
+  color: #71717a;
+  transition: color 0.15s ease, transform 0.25s ease;
+}
+.shipped-header-toggle:hover .shipped-chevron-expanded {
+  color: #a1a1aa;
+}
 .shipped-col:not(.open):hover .shipped-label { opacity: .85; }
 .shipped-col .column-header, .shipped-col .column-cards { display: none; }
-.shipped-col.open .shipped-label, .shipped-col.open .shipped-count { display: none; }
+.shipped-col .shipped-chevron-collapsed { display: block; }
+.shipped-col.open .shipped-label, .shipped-col.open .shipped-count, .shipped-col.open .shipped-chevron-collapsed { display: none; }
 .shipped-col.open .column-header, .shipped-col.open .column-cards { display: flex; }
 .shipped-col.open .column-cards { flex-direction: column; gap: 10px; }
 
@@ -637,16 +669,16 @@ a { color: inherit; }
 /* Action button — green border, transparent default, green gradient on hover */
 .btn-action {
   background: transparent;
-  border: 1px solid #16a34a;
-  color: #4ade80;
+  border: 1px solid var(--accent);
+  color: var(--accent);
   cursor: pointer;
   transition: background .15s, color .15s, border-color .15s;
   font-family: inherit;
   line-height: 1.6;
 }
 .btn-action:hover:not(:disabled) {
-  background: linear-gradient(135deg, #15803d, #16a34a);
-  border-color: #22c55e;
+  background: var(--accent);
+  border-color: var(--accent);
   color: #f0fdf4;
 }
 .btn-action:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -669,7 +701,7 @@ a { color: inherit; }
 .contact-sub .copyable-text { color: #71717a; }
 .copy-icon { font-size: 11px; color: #52525b; opacity: 0; transition: opacity .1s, color .15s; flex-shrink: 0; }
 .copyable-value:hover .copy-icon { opacity: 1; }
-.copy-icon--done { color: #4ade80 !important; opacity: 1 !important; }
+.copy-icon--done { color: var(--accent) !important; opacity: 1 !important; }
 
 /* Mobile filter toggle button - hidden on desktop */
 .filter-toggle-btn { display: none; }
@@ -818,6 +850,9 @@ a { color: inherit; }
   }
   .shipped-col .column-header, .shipped-col .column-cards { display: flex; }
   .shipped-col .shipped-label, .shipped-col .shipped-count { display: none; }
+  .shipped-col .shipped-chevron-collapsed, .shipped-col .shipped-chevron-expanded { display: none; }
+  .shipped-col .column-header { cursor: default; }
+  .shipped-header-toggle:hover { background: transparent; }
   .shipped-col .column-cards { flex-direction: column; gap: 10px; }
 
   /* ── Board dot indicators ── */
@@ -1064,8 +1099,8 @@ a { color: inherit; }
   letter-spacing: .04em;
 }
 .agent-badge-installed {
-  background: rgba(74, 222, 128, .12);
-  color: #4ade80;
+  background: rgba(var(--accent-rgb), .12);
+  color: var(--accent);
 }
 .agent-badge-optional {
   background: rgba(251, 191, 36, .12);
@@ -1123,7 +1158,7 @@ a { color: inherit; }
 .settings-nav-text { flex: 1; }
 .settings-nav-dot {
   width: 6px; height: 6px; border-radius: 50%;
-  background: #4ade80; flex-shrink: 0;
+  background: var(--accent); flex-shrink: 0;
 }
 
 /* Right content panel */
@@ -1138,7 +1173,7 @@ a { color: inherit; }
   display: inline-block; font-size: 11px; font-weight: 500;
   padding: 2px 8px; border-radius: 9999px; margin-top: 6px; width: fit-content;
 }
-.settings-status-badge.configured { background: rgba(74,222,128,.12); color: #4ade80; }
+.settings-status-badge.configured { background: rgba(var(--accent-rgb),.12); color: var(--accent); }
 
 .settings-panel-body { display: flex; flex-direction: column; gap: 18px; }
 
@@ -1247,9 +1282,9 @@ a { color: inherit; }
   color: #71717a;
 }
 .triage-btn--toggle.on {
-  background: #14532d;
-  border-color: #16a34a;
-  color: #86efac;
+  background: rgba(var(--accent-rgb), .15);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 .triage-select {
   font-size: 10px;
@@ -1426,3 +1461,48 @@ a { color: inherit; }
 .card-markdown th { background: #27272a; color: #e4e4e7; font-weight: 600; }
 .card-markdown img { max-width: 100%; border-radius: 6px; margin: 1rem 0; }
 .card-markdown > h1 + *, .card-markdown > h2 + *, .card-markdown > h3 + * { margin-top: 0.4rem; }
+
+/* ── Health indicator dots ── */
+.health-dots {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  border-left: 1px solid #27272a;
+  height: 100%;
+  flex-shrink: 0;
+}
+.health-dot-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: default;
+}
+.health-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background .3s;
+}
+.health-dot-label {
+  font-size: 10px;
+  color: #71717a;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* Hide health dot labels at narrow widths, keep dots */
+@media (max-width: 1100px) {
+  .health-dot-label { display: none; }
+  .health-dots { gap: 6px; padding: 0 8px; }
+}
+@media (max-width: 768px) {
+  .health-dots { display: none; }
+}
+
+/* Mic recording pulse animation */
+@keyframes mic-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}

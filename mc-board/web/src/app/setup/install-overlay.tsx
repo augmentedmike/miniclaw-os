@@ -96,7 +96,7 @@ export default function InstallOverlay({ accent }: Props) {
   // Don't show if no log output yet (install hasn't started or no log)
   if (lines.length === 0 && !done) return null;
 
-  const color = done ? "#4ade80" : accent;
+  const color = done ? accent : accent;
 
   return (
     <>

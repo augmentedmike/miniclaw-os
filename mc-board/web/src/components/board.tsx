@@ -2,6 +2,7 @@
 
 import useSWR, { useSWRConfig } from "swr";
 import { BoardData, BoardCard, Project } from "@/lib/types";
+import { useAccent } from "@/lib/accent-context";
 import { Column } from "./column";
 import { CardModal } from "./card-modal";
 import { WatchModal } from "./watch-modal";
@@ -46,6 +47,7 @@ const COL_LABEL: Record<string, string> = {
 };
 
 export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, onBoardData, onInjectContext, onCardOpen }: Props) {
+  const accent = useAccent();
   const [openCardId, setOpenCardId] = useState<string | null>(initialCardId ?? null);
   const [watchCardId, setWatchCardId] = useState<string | null>(null);
   const [logOpen, setLogOpen] = useState(false);
@@ -57,6 +59,8 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
+  const [activeColIdx, setActiveColIdx] = useState(0);
+  const boardScrollRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
   // Track which log keys we've already toasted (cardId:action:at)
   const seenLogKeys = useRef<Set<string>>(new Set());
@@ -165,6 +169,27 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
     return () => document.removeEventListener("mousedown", onDown);
   }, []);
 
+  // Track which column is visible for mobile dot indicators
+  useEffect(() => {
+    const el = boardScrollRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      const scrollLeft = el.scrollLeft;
+      const colWidth = el.scrollWidth / COLS.length;
+      const idx = Math.round(scrollLeft / colWidth);
+      setActiveColIdx(Math.min(idx, COLS.length - 1));
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
+  const scrollToCol = useCallback((idx: number) => {
+    const el = boardScrollRef.current;
+    if (!el) return;
+    const colWidth = el.scrollWidth / COLS.length;
+    el.scrollTo({ left: colWidth * idx, behavior: "smooth" });
+  }, []);
+
   const handleFocusToggle = useCallback((cardId: string, setFocused: boolean) => {
     // Optimistic update — read from live cache to avoid stale-data races
     mutate(current => {
@@ -241,8 +266,8 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
   return (
     <div className="board-tab">
       {/* Search bar */}
-      <div ref={searchRef} className="relative" data-tour="search" style={{ padding: "0 0 10px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div ref={searchRef} className="relative" data-tour="search" style={{ padding: "0 8px 10px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <input
             type="text"
             placeholder="Search cards…"
@@ -251,9 +276,9 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
             onFocus={() => { setSearchOpen(true); setSearchFocused(true); }}
             onBlur={() => setSearchFocused(false)}
             style={{
-              flex: "0 0 auto", width: 280,
+              flex: "1 1 200px", maxWidth: 280, minWidth: 0,
               background: searchFocused ? "#18181b" : "transparent",
-              border: searchFocused ? "1px solid #16a34a" : "1px solid rgba(63,63,70,0.4)",
+              border: searchFocused ? `1px solid ${accent}` : "1px solid rgba(63,63,70,0.4)",
               borderRadius: 4, padding: "5px 8px", color: "#e4e4e7",
               fontSize: 13, outline: "none", boxSizing: "border-box",
               transition: "background 0.15s ease, border-color 0.15s ease",
@@ -324,7 +349,7 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
           </div>
         )}
       </div>
-      <div className="board">
+      <div className="board" ref={boardScrollRef}>
         {COLS.map(col => (
           <Column
             key={col}
@@ -342,6 +367,18 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
             onInjectContext={onInjectContext}
             collapsed={col === "shipped" ? !shippedOpen : undefined}
             onToggleCollapse={col === "shipped" ? () => setShippedOpen(o => !o) : undefined}
+          />
+        ))}
+      </div>
+
+      {/* Mobile dot indicators */}
+      <div className="board-dots">
+        {COLS.map((col, i) => (
+          <button
+            key={col}
+            className={`board-dot${activeColIdx === i ? " active" : ""}`}
+            onClick={() => scrollToCol(i)}
+            title={COL_LABEL[col]}
           />
         ))}
       </div>
