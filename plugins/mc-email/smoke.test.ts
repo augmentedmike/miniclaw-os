@@ -4,6 +4,7 @@ import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveConfig } from "./src/config.ts";
 import type { EmailAttachment, EmailMessage } from "./src/types.ts";
+import { resolveFolder, FOLDER_ALIASES } from "./src/client.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -81,6 +82,48 @@ test("EmailMessage without attachments", () => {
   };
   
   expect(message.attachments).toBeUndefined();
+});
+
+// Folder alias tests
+test("resolveFolder maps 'sent' to [Gmail]/Sent Mail", () => {
+  expect(resolveFolder("sent")).toBe("[Gmail]/Sent Mail");
+});
+
+test("resolveFolder maps 'all' to [Gmail]/All Mail", () => {
+  expect(resolveFolder("all")).toBe("[Gmail]/All Mail");
+});
+
+test("resolveFolder maps 'drafts' to [Gmail]/Drafts", () => {
+  expect(resolveFolder("drafts")).toBe("[Gmail]/Drafts");
+});
+
+test("resolveFolder maps 'trash' to [Gmail]/Trash", () => {
+  expect(resolveFolder("trash")).toBe("[Gmail]/Trash");
+});
+
+test("resolveFolder maps 'spam' to [Gmail]/Spam", () => {
+  expect(resolveFolder("spam")).toBe("[Gmail]/Spam");
+});
+
+test("resolveFolder maps 'inbox' to INBOX", () => {
+  expect(resolveFolder("inbox")).toBe("INBOX");
+});
+
+test("resolveFolder is case-insensitive", () => {
+  expect(resolveFolder("SENT")).toBe("[Gmail]/Sent Mail");
+  expect(resolveFolder("Sent")).toBe("[Gmail]/Sent Mail");
+  expect(resolveFolder("INBOX")).toBe("INBOX");
+});
+
+test("resolveFolder passes through unknown folder names", () => {
+  expect(resolveFolder("[Gmail]/Sent Mail")).toBe("[Gmail]/Sent Mail");
+  expect(resolveFolder("CustomFolder")).toBe("CustomFolder");
+});
+
+test("FOLDER_ALIASES has all expected keys", () => {
+  expect(Object.keys(FOLDER_ALIASES)).toEqual(
+    expect.arrayContaining(["inbox", "sent", "all", "drafts", "trash", "spam"])
+  );
 });
 
 test("Attachment size formatting", () => {
