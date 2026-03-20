@@ -87,8 +87,46 @@ ${toolDefs}
  * Generate the standard WebMCP <head> tags for a site.
  * Includes meta discovery tags and the webmcp-tools.js script reference.
  */
-export function webmcpHeadTags(): string {
+export function webmcpHeadTags(site?: string): string {
+  const siteMeta = site ? `\n<meta name="webmcp-site" content="${site}">` : '';
+  const manifest = `\n<link rel="webmcp-manifest" href="/.well-known/webmcp.json">`;
   return `<meta name="model-context" content="supported">
-<meta name="webmcp-version" content="1.0">
+<meta name="webmcp-version" content="1.0">${siteMeta}${manifest}
 <script src="/webmcp-tools.js" defer></script>`;
+}
+
+/**
+ * Generate a contact form with declarative WebMCP annotations.
+ * The form includes toolname="send-message" and tooldescription attrs
+ * so Chrome 146+ agents can discover it via DOM inspection.
+ */
+export function webmcpContactForm(opts?: { toolname?: string; tooldescription?: string }): string {
+  const name = opts?.toolname || 'send-message';
+  const desc = opts?.tooldescription || 'Send a message or inquiry. Provide your name, email, and message.';
+  return `<form id="contact-form" ${webmcpFormAttrs(name, desc)}>
+  <input type="text" name="name" placeholder="Your name" aria-label="Your name" required />
+  <input type="email" name="email" placeholder="Your email" aria-label="Your email address" required />
+  <input type="text" name="subject" placeholder="Subject (optional)" aria-label="Message subject" />
+  <textarea name="message" placeholder="Your message..." aria-label="Your message" required></textarea>
+  <button type="submit">Send Message</button>
+</form>`;
+}
+
+/**
+ * Generate a .well-known/webmcp.json manifest for a site.
+ */
+export function webmcpManifest(site: string, description: string, tools: { name: string; description: string; path?: string; endpoint?: string; dynamic?: boolean }[]): string {
+  return JSON.stringify({
+    version: '1.0',
+    site,
+    description,
+    tools: tools.map(t => {
+      const entry: Record<string, unknown> = { name: t.name, description: t.description };
+      if (t.path) entry.path = t.path;
+      if (t.endpoint) entry.endpoint = t.endpoint;
+      if (t.dynamic) entry.dynamic = true;
+      return entry;
+    }),
+    support: { declarative: true, imperative: true }
+  }, null, 2);
 }
