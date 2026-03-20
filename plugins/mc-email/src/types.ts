@@ -23,6 +23,7 @@ export interface SendEmailOptions {
   subject: string;
   body: string;
   from?: string;
+  attachments?: { filename: string; path: string }[];
 }
 
 export interface ReplyEmailOptions {
