@@ -310,11 +310,6 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
             <span className="stat-pill" data-col="in-review"><span className="pill-label">in&nbsp;review</span><b>{counts.inReview}</b></span>
             <span className="stat-pill" data-col="shipped"><span className="pill-label">shipped</span><b>{counts.shipped}</b></span>
             <DailyStats />
-            {memoryStats && (
-              <span className="stat-pill" data-col="memory" title={`${memoryStats.memoryFiles} memory files, ${memoryStats.kbEntries} KB entries`}>
-                <span className="pill-label">memory</span><b>{memoryStats.memoryFiles}&thinsp;/&thinsp;{memoryStats.kbEntries}</b>
-              </span>
-            )}
           </div>
         )}
 
