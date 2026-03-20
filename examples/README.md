@@ -34,21 +34,23 @@ and where to get it.
 ./install.sh --config my-config.json
 ```
 
-The installer reads the JSON, provisions the listed plugins, and stores
-credentials in the local vault. Plugins not listed in the `plugins` array are
-skipped.
+The installer reads the JSON for identity fields and credentials, stores them in
+the local vault, and installs **all** plugins from the repository. The `_plugins`
+field in each example is informational — it lists which plugins the profile is
+designed around, but install.sh does not filter plugins based on it.
 
 ## Customizing
 
-You can mix and match plugins from any profile. The `plugins` array accepts any
-plugin ID from `MANIFEST.json`. To see all available plugins:
+Each profile differs in which credentials are pre-filled. Pick the profile
+closest to your use case, then add or remove credential fields as needed. To see
+all available plugins and their required credentials:
 
 ```bash
-cat MANIFEST.json | jq '[.plugins[].id]'
+cat MANIFEST.json | jq '.plugins[] | {id, requires}'
 ```
 
-Add a plugin by appending its ID to the `plugins` array, and add any required
-credentials (check the plugin's `requires` field in `MANIFEST.json`).
+Plugins that don't find their required credentials in the vault will simply
+remain inactive after install.
 
 ## Credential Reference
 
