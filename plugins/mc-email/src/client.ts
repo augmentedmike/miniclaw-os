@@ -314,12 +314,19 @@ export class GmailClient {
       },
     });
     const body = `${opts.body}\n\n--\n${this.cfg.signature}`;
-    const info = await transport.sendMail({
+    const mailOpts: Record<string, unknown> = {
       from: opts.from ?? this.cfg.emailAddress,
       to: opts.to,
       subject: opts.subject,
       text: body,
-    });
+    };
+    if (opts.attachments?.length) {
+      mailOpts.attachments = opts.attachments.map((a) => ({
+        filename: a.filename,
+        path: a.path,
+      }));
+    }
+    const info = await transport.sendMail(mailOpts);
     return info.messageId ?? "";
   }
 

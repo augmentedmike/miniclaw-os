@@ -1,6 +1,6 @@
-<<<<<<< ours
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { simpleParser } from "mailparser";
+import { htmlToText, parseQuery } from "./client.js";
 
 /**
  * Integration tests for listMessages snippet extraction.
@@ -59,7 +59,7 @@ async function extractSnippet(source: Buffer): Promise<string> {
 }
 
 // ---------------------------------------------------------------------------
-// Tests
+// Snippet extraction tests
 // ---------------------------------------------------------------------------
 
 describe("listMessages snippet extraction", () => {
@@ -120,9 +120,12 @@ describe("listMessages snippet extraction", () => {
     ].join("\r\n");
     const snippet = await extractSnippet(Buffer.from(raw));
     expect(snippet).toBe("");
-=======
-import { describe, it, expect } from "vitest";
-import { htmlToText } from "./client.js";
+  });
+});
+
+// ---------------------------------------------------------------------------
+// htmlToText tests
+// ---------------------------------------------------------------------------
 
 describe("htmlToText", () => {
   it("extracts readable text from HTML-only email body", () => {
@@ -203,6 +206,65 @@ describe("htmlToText", () => {
 
   it("returns empty string for empty input", () => {
     expect(htmlToText("")).toBe("");
->>>>>>> theirs
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseQuery tests
+// ---------------------------------------------------------------------------
+
+describe("parseQuery", () => {
+  it("extracts in:sent and maps to [Gmail]/Sent Mail", () => {
+    const result = parseQuery("in:sent");
+    expect(result.folder).toBe("[Gmail]/Sent Mail");
+    expect(result.searchCriteria).toEqual({ all: true });
+  });
+
+  it("extracts in:drafts and maps to [Gmail]/Drafts", () => {
+    const result = parseQuery("in:drafts");
+    expect(result.folder).toBe("[Gmail]/Drafts");
+  });
+
+  it("extracts in:inbox and maps to INBOX", () => {
+    const result = parseQuery("in:inbox");
+    expect(result.folder).toBe("INBOX");
+  });
+
+  it("passes through unknown folder name as-is", () => {
+    const result = parseQuery("in:custom-label");
+    expect(result.folder).toBe("custom-label");
+  });
+
+  it("returns null folder when no in: token", () => {
+    const result = parseQuery("is:unread");
+    expect(result.folder).toBeNull();
+    expect(result.searchCriteria).toEqual({ seen: false });
+  });
+
+  it("handles combined in:sent is:unread", () => {
+    const result = parseQuery("in:sent is:unread");
+    expect(result.folder).toBe("[Gmail]/Sent Mail");
+    expect(result.searchCriteria).toEqual({ seen: false });
+  });
+
+  it("handles is:read", () => {
+    const result = parseQuery("is:read");
+    expect(result.searchCriteria).toEqual({ seen: true });
+  });
+
+  it("handles from: token", () => {
+    const result = parseQuery("from:alice@example.com");
+    expect(result.searchCriteria.from).toBe("alice@example.com");
+  });
+
+  it("defaults to { all: true } when no search criteria tokens", () => {
+    const result = parseQuery("in:sent");
+    expect(result.searchCriteria).toEqual({ all: true });
+  });
+
+  it("removes in: token from cleanedQuery", () => {
+    const result = parseQuery("in:sent is:unread");
+    expect(result.cleanedQuery).toBe("is:unread");
+    expect(result.cleanedQuery).not.toContain("in:");
   });
 });

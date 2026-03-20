@@ -207,13 +207,19 @@ export function registerEmailCommands(ctx: Ctx): void {
     .requiredOption("-t, --to <address>", "Recipient email address")
     .requiredOption("-s, --subject <subject>", "Email subject")
     .requiredOption("-b, --body <text>", "Email body text")
-    .action(async (opts: { to: string; subject: string; body: string }) => {
+    .option("--attach <paths...>", "File path(s) to attach")
+    .action(async (opts: { to: string; subject: string; body: string; attach?: string[] }) => {
       try {
         const client = getClient(cfg);
+        const attachments = opts.attach?.map((p: string) => ({
+          filename: path.basename(p),
+          path: path.resolve(p),
+        }));
         const id = await client.sendMessage({
           to: opts.to,
           subject: opts.subject,
           body: opts.body,
+          attachments,
         });
         console.log(`Sent. Message ID: ${id}`);
       } catch (err) {
