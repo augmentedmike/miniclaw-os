@@ -14,6 +14,7 @@ import type { Command } from "commander";
 import type { KBStore } from "../src/store.js";
 import type { Embedder } from "../src/embedder.js";
 import { hybridSearch } from "../src/search.js";
+import { formatPluginError, formatUserError, DOCTOR_SUGGESTION } from "../../shared/errors/format.js";
 
 const __filename_cli = fileURLToPath(import.meta.url);
 const __dirname_cli = path.dirname(__filename_cli);
@@ -82,7 +83,11 @@ Examples:
           console.log("  (note: embedder not ready — FTS5-only search for this entry)");
         }
       } catch (err) {
-        console.error(`Error: ${err instanceof Error ? err.message : err}`);
+        console.error(formatPluginError("mc-kb", "add", err, [
+          "Check that the entry type is valid — allowed types: " + VALID_TYPES.join(", "),
+          "Run: openclaw mc-kb list — to verify existing entries",
+          DOCTOR_SUGGESTION,
+        ]));
         process.exit(1);
       }
     });
@@ -133,7 +138,11 @@ Examples:
           console.log();
         }
       } catch (err) {
-        console.error(`Error: ${err instanceof Error ? err.message : err}`);
+        console.error(formatPluginError("mc-kb", "search", err, [
+          "Verify the embedder is running: openclaw mc-kb embedder status",
+          "Try a simpler query or check FTS5 index: openclaw mc-kb stats",
+          DOCTOR_SUGGESTION,
+        ]));
         process.exit(1);
       }
     });
@@ -179,7 +188,10 @@ Examples:
     .action((id: string, opts: { json?: boolean }) => {
       const entry = store.get(id);
       if (!entry) {
-        console.error(`Entry not found: ${id}`);
+        console.error(formatUserError(`Entry not found: ${id}`, [
+          "Run: openclaw mc-kb list — to see all entries",
+          "Check the ID format: entries start with kb_",
+        ]));
         process.exit(1);
       }
       if (opts.json) {
@@ -213,7 +225,10 @@ Examples:
         if (opts.severity) patch.severity = opts.severity;
 
         if (Object.keys(patch).length === 0) {
-          console.error("No fields to update specified.");
+          console.error(formatUserError("No fields to update specified.", [
+            "Provide at least one: --type, --title, --content, --summary, --tags, --severity",
+            "Example: openclaw mc-kb update " + id + " --title \"New title\"",
+          ]));
           process.exit(1);
         }
 
@@ -232,7 +247,11 @@ Examples:
         const updated = store.update(id, patch, vector);
         console.log(`Updated ${updated.id}: ${updated.title}`);
       } catch (err) {
-        console.error(`Error: ${err instanceof Error ? err.message : err}`);
+        console.error(formatPluginError("mc-kb", "update", err, [
+          "Verify the entry exists: openclaw mc-kb get " + id,
+          "Check that the entry type is valid — allowed types: " + VALID_TYPES.join(", "),
+          DOCTOR_SUGGESTION,
+        ]));
         process.exit(1);
       }
     });
@@ -244,7 +263,10 @@ Examples:
     .action((id: string) => {
       const entry = store.get(id);
       if (!entry) {
-        console.error(`Entry not found: ${id}`);
+        console.error(formatUserError(`Entry not found: ${id}`, [
+          "Run: openclaw mc-kb list — to see all entries",
+          "Check the ID format: entries start with kb_",
+        ]));
         process.exit(1);
       }
       store.remove(id);
@@ -258,7 +280,10 @@ Examples:
     .action(async (file: string) => {
       const absFile = path.resolve(file);
       if (!fs.existsSync(absFile)) {
-        console.error(`File not found: ${absFile}`);
+        console.error(formatUserError(`File not found: ${absFile}`, [
+          "Provide an absolute or relative path to a YAML frontmatter file",
+          "Example: openclaw mc-kb import ~/knowledge/entries.md",
+        ]));
         process.exit(1);
       }
       const raw = fs.readFileSync(absFile, "utf-8");
@@ -324,7 +349,10 @@ Examples:
       try {
         // Copy plist to LaunchAgents
         if (!fs.existsSync(PLIST_SRC)) {
-          console.error(`Plist not found: ${PLIST_SRC}`);
+          console.error(formatUserError(`Plist not found: ${PLIST_SRC}`, [
+            "The embedder LaunchAgent plist is missing — reinstall mc-kb or check the plugin directory",
+            DOCTOR_SUGGESTION,
+          ]));
           process.exit(1);
         }
         fs.mkdirSync(path.dirname(PLIST_DEST), { recursive: true });
@@ -338,8 +366,12 @@ Examples:
         execSync(`launchctl bootstrap ${GUI_DOMAIN} ${PLIST_DEST}`, { stdio: "inherit" });
         console.log("Embedding daemon started.");
       } catch (err) {
-        console.error(`Failed to start daemon: ${(err as Error).message}`);
-        process.exit(1);
+        console.error(formatPluginError("mc-kb", "embedder start", err, [
+          "Check that launchctl is available and you have permission to bootstrap agents",
+          "Try: launchctl print gui/$(id -u)/com.miniclaw.embedder",
+          DOCTOR_SUGGESTION,
+        ]));
+        process.exit(2);
       }
     });
 
@@ -351,7 +383,10 @@ Examples:
         execSync(`launchctl bootout gui/$(id -u) ${PLIST_DEST}`, { stdio: "inherit" });
         console.log("Embedding daemon stopped.");
       } catch (err) {
-        console.error(`Failed to stop daemon: ${(err as Error).message}`);
+        console.error(formatPluginError("mc-kb", "embedder stop", err, [
+          "The daemon may not be loaded — check: openclaw mc-kb embedder status",
+          DOCTOR_SUGGESTION,
+        ]));
       }
       // Clean up socket and pid
       try { fs.unlinkSync(SOCK_PATH); } catch {}
