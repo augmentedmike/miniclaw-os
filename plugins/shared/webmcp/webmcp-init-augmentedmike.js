@@ -33,7 +33,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 field.dispatchEvent(new Event('input', { bubbles: true }));
               }
             });
-            form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+            if (typeof form.requestSubmit === 'function') { form.requestSubmit(); }
+            else { form.dispatchEvent(new SubmitEvent('submit', { bubbles: true, cancelable: true })); }
             return { content: [{ type: 'text', text: 'Demo request submitted.' }] };
           }
           return { content: [{ type: 'text', text: 'Demo request form not found on this page.' }] };
@@ -62,7 +63,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 field.dispatchEvent(new Event('input', { bubbles: true }));
               }
             });
-            form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+            if (typeof form.requestSubmit === 'function') { form.requestSubmit(); }
+            else { form.dispatchEvent(new SubmitEvent('submit', { bubbles: true, cancelable: true })); }
             return { content: [{ type: 'text', text: 'Message sent successfully.' }] };
           }
           return { content: [{ type: 'text', text: 'Contact form not found on this page.' }] };
