@@ -41,7 +41,7 @@
       ],
       "web": {
         "port": 4220,
-        "standalone": "web/standalone.mjs"
+        "dir": "web"
       },
       "config": {
         "cardsDir": "~/.openclaw/USER/brain/cards",
@@ -675,8 +675,8 @@
   "launchAgents": [
     {
       "name": "com.augmentedmike.miniclaw-brain-web",
-      "description": "Brain board web UI \u2014 standalone.mjs server on port 4220",
-      "script": "plugins/mc-board/web/standalone.mjs",
+      "description": "Brain board web UI \u2014 next start on port 4220",
+      "script": "plugins/mc-board/web",
       "plist": "system/launchagents/com.augmentedmike.miniclaw-brain-web.plist"
     }
   ],
