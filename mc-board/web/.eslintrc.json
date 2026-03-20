@@ -1,0 +1,20 @@
+{
+  "extends": ["next/core-web-vitals", "next/typescript"],
+  "rules": {
+    "no-console": "warn",
+    "no-unused-vars": "off",
+    "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+    "@typescript-eslint/no-explicit-any": "warn",
+    "prefer-const": "error",
+    "no-var": "error",
+    "eqeqeq": ["error", "always"],
+    "no-eval": "error",
+    "no-implied-eval": "error",
+    "no-new-func": "error",
+    "react/no-unescaped-entities": "off",
+    "react-hooks/exhaustive-deps": "warn",
+    "complexity": ["warn", 20],
+    "max-depth": ["warn", 4],
+    "max-lines-per-function": ["warn", 200]
+  }
+}
