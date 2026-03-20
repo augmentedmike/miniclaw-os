@@ -104,13 +104,23 @@ function statusCommand(cfg: VpnConfig): void {
   try {
     const statusJson = run(cfg.mullvadBin, ["status", "--json"]);
     const parsed = JSON.parse(statusJson);
+    const state = parsed.state ?? "unknown";
+    const isConnected = /^connected$/i.test(state);
+    const loc = parsed.details?.location;
+    const relay = parsed.details?.relay;
 
     console.log("\n━━ Mullvad VPN Status ━━\n");
-    console.log(`State:        ${parsed.state ?? "Unknown"}`);
-    console.log(`Relay:        ${parsed.relay?.hostname ?? "N/A"}`);
-    console.log(`Country:      ${parsed.relay?.location?.country ?? "N/A"}`);
-    console.log(`City:         ${parsed.relay?.location?.city ?? "N/A"}`);
-    console.log(`IP Address:   ${parsed.tunnel_state?.in_tunnel?.ipv4 ?? "N/A"}`);
+    console.log(`State:        ${state}`);
+    if (isConnected) {
+      console.log(`Relay:        ${relay?.hostname ?? loc?.hostname ?? "N/A"}`);
+      console.log(`Country:      ${loc?.country ?? "N/A"}`);
+      console.log(`City:         ${loc?.city ?? "N/A"}`);
+      console.log(`Tunnel IP:    ${loc?.ipv4 ?? "N/A"}`);
+    } else {
+      console.log(`Country:      ${loc?.country ?? "N/A"}`);
+      console.log(`City:         ${loc?.city ?? "N/A"}`);
+      console.log(`Visible IP:   ${loc?.ipv4 ?? "N/A"}`);
+    }
     console.log();
   } catch (e) {
     console.error(`Error: ${e instanceof Error ? e.message : String(e)}`);

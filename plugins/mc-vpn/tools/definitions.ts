@@ -72,12 +72,25 @@ export function createVpnTools(
           }
 
           const parsed = JSON.parse(statusJson);
+          const state = parsed.state ?? "unknown";
+          const isConnected = /^connected$/i.test(state);
+          const loc = parsed.details?.location;
+          const relay = parsed.details?.relay;
+
           const lines = [
-            `State: ${parsed.state ?? "Unknown"}`,
-            `Relay: ${parsed.relay?.hostname ?? "N/A"}`,
-            `Country: ${parsed.relay?.location?.country ?? "N/A"}`,
-            `City: ${parsed.relay?.location?.city ?? "N/A"}`,
-            `IPv4: ${parsed.tunnel_state?.in_tunnel?.ipv4 ?? "N/A"}`,
+            `State: ${state}`,
+            ...(isConnected
+              ? [
+                  `Relay: ${relay?.hostname ?? loc?.hostname ?? "N/A"}`,
+                  `Country: ${loc?.country ?? "N/A"}`,
+                  `City: ${loc?.city ?? "N/A"}`,
+                  `Tunnel IP: ${loc?.ipv4 ?? "N/A"}`,
+                ]
+              : [
+                  `Country: ${loc?.country ?? "N/A"}`,
+                  `City: ${loc?.city ?? "N/A"}`,
+                  `Visible IP: ${loc?.ipv4 ?? "N/A"}`,
+                ]),
           ];
 
           return ok(lines.join("\n"));
