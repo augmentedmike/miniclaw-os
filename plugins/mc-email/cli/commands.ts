@@ -6,7 +6,7 @@ import * as os from "node:os";
 import type { Command } from "commander";
 import type { Logger } from "openclaw/plugin-sdk";
 import type { EmailConfig } from "../src/config.js";
-import { GmailClient } from "../src/client.js";
+import { GmailClient, resolveFolder, FOLDER_ALIASES } from "../src/client.js";
 import { getAppPassword, saveAppPassword } from "../src/vault.js";
 import { formatPluginError, formatUserError, DOCTOR_SUGGESTION } from "../../shared/errors/format.js";
 
@@ -56,13 +56,14 @@ export function registerEmailCommands(ctx: Ctx): void {
   // ---- check ----
   sub
     .command("check")
-    .description("List unread inbox messages")
+    .description("List messages from a folder (default: INBOX unread)")
     .option("-n, --limit <n>", "Max messages to show", "20")
     .option("-q, --query <q>", "Gmail search query", "in:inbox is:unread")
-    .action(async (opts: { limit: string; query: string }) => {
+    .option("-f, --folder <folder>", "IMAP folder or alias (inbox, sent, all, drafts, trash, spam)")
+    .action(async (opts: { limit: string; query: string; folder?: string }) => {
       try {
         const client = getClient(cfg);
-        const messages = await client.listMessages(opts.query, parseInt(opts.limit, 10));
+        const messages = await client.listMessages(opts.query, parseInt(opts.limit, 10), opts.folder);
         if (!messages.length) {
           console.log("No messages found.");
           return;
@@ -90,9 +91,10 @@ export function registerEmailCommands(ctx: Ctx): void {
     .description("Read a single message by UID")
     .option("--save-attachments <dir>", "Save all attachments to directory")
     .option("--attachment <index>", "Extract specific attachment by 1-based index")
-    .action(async (id: string, opts: { saveAttachments?: string; attachment?: string }) => {
+    .option("-f, --folder <folder>", "IMAP folder or alias (inbox, sent, all, drafts, trash, spam)", "INBOX")
+    .action(async (id: string, opts: { saveAttachments?: string; attachment?: string; folder: string }) => {
       const client = getClient(cfg);
-      const msg = await client.getMessage(id);
+      const msg = await client.getMessage(id, opts.folder);
       if (!msg) {
         console.error(formatUserError(`Message ${id} not found.`, [
           "Run: openclaw mc-email check — to list available messages",
@@ -267,6 +269,44 @@ export function registerEmailCommands(ctx: Ctx): void {
       });
       if (result.status !== 0) {
         process.exit(result.status ?? 1);
+      }
+    });
+
+  // ---- search ----
+  sub
+    .command("search")
+    .description("Search messages across folders")
+    .requiredOption("-q, --query <query>", "Search text (searches message body and headers)")
+    .option("--folders <folders>", "Comma-separated folder names or aliases (default: inbox,sent)", "inbox,sent")
+    .option("-n, --limit <n>", "Max results", "20")
+    .action(async (opts: { query: string; folders: string; limit: string }) => {
+      try {
+        const client = getClient(cfg);
+        const folderList = opts.folders.split(",").map((f: string) => f.trim());
+        const results = await client.searchMessages(
+          opts.query,
+          folderList,
+          parseInt(opts.limit, 10)
+        );
+        if (!results.length) {
+          console.log(`No messages matching "${opts.query}" found.`);
+          return;
+        }
+        for (const m of results) {
+          console.log(`[${m.id}] (${m.folder}) ${m.date}`);
+          console.log(`  From: ${m.from}`);
+          console.log(`  Subject: ${m.subject}`);
+          if (m.snippet) console.log(`  ${m.snippet.substring(0, 100)}`);
+          console.log();
+        }
+        console.log(`Found ${results.length} result(s).`);
+      } catch (err) {
+        console.error(formatPluginError("mc-email", "search messages", err, [
+          "Verify your Gmail auth: openclaw mc-email auth",
+          "Check your network connection — IMAP requires internet access",
+          DOCTOR_SUGGESTION,
+        ]));
+        process.exit(1);
       }
     });
 }

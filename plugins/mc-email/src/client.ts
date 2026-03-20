@@ -4,6 +4,81 @@ import { simpleParser } from "mailparser";
 import type { EmailConfig } from "./config.js";
 import { getAppPassword } from "./vault.js";
 import type { EmailAttachment, EmailMessage, SendEmailOptions } from "./types.js";
+import { formatPluginError, DOCTOR_SUGGESTION } from "../../shared/errors/format.js";
+
+/** Map short folder aliases to Gmail IMAP folder paths */
+export const FOLDER_ALIASES: Record<string, string> = {
+  inbox: "INBOX",
+  sent: "[Gmail]/Sent Mail",
+  all: "[Gmail]/All Mail",
+  drafts: "[Gmail]/Drafts",
+  trash: "[Gmail]/Trash",
+  spam: "[Gmail]/Spam",
+};
+
+/** Resolve a folder name: check aliases first, then use as-is */
+export function resolveFolder(folder: string): string {
+  return FOLDER_ALIASES[folder.toLowerCase()] ?? folder;
+}
+
+/**
+ * Parse a Gmail-style query string.
+ * Extracts 'in:<folder>' token and maps it via FOLDER_ALIASES.
+ * Builds IMAP search criteria from remaining tokens (is:unread, is:read, from:<addr>).
+ * Returns { folder: resolved folder or null, searchCriteria: IMAP search object, cleanedQuery: query without in: token }.
+ */
+export function parseQuery(query: string): {
+  folder: string | null;
+  searchCriteria: Record<string, unknown>;
+  cleanedQuery: string;
+} {
+  let folder: string | null = null;
+  const searchCriteria: Record<string, unknown> = {};
+  const tokens = query.trim().split(/\s+/);
+  const remaining: string[] = [];
+
+  for (const token of tokens) {
+    const inMatch = token.match(/^in:(.+)$/i);
+    if (inMatch) {
+      folder = resolveFolder(inMatch[1]);
+      continue;
+    }
+
+    const isMatch = token.match(/^is:(.+)$/i);
+    if (isMatch) {
+      const flag = isMatch[1].toLowerCase();
+      if (flag === "unread") {
+        searchCriteria.seen = false;
+      } else if (flag === "read") {
+        searchCriteria.seen = true;
+      } else if (flag === "starred") {
+        searchCriteria.flagged = true;
+      }
+      remaining.push(token);
+      continue;
+    }
+
+    const fromMatch = token.match(/^from:(.+)$/i);
+    if (fromMatch) {
+      searchCriteria.from = fromMatch[1];
+      remaining.push(token);
+      continue;
+    }
+
+    remaining.push(token);
+  }
+
+  // If no specific criteria were set, default to all
+  if (Object.keys(searchCriteria).length === 0) {
+    searchCriteria.all = true;
+  }
+
+  return {
+    folder,
+    searchCriteria,
+    cleanedQuery: remaining.join(" "),
+  };
+}
 
 const HTML_ENTITY_MAP: Record<string, string> = {
   "&amp;": "&",
@@ -79,16 +154,16 @@ export class GmailClient {
     this.cfg = cfg;
   }
 
-  async listMessages(query = "in:inbox is:unread", maxResults = 20): Promise<EmailMessage[]> {
+  async listMessages(query = "in:inbox is:unread", maxResults = 20, folder?: string): Promise<EmailMessage[]> {
     const client = createImapClient(this.cfg);
     await client.connect();
     const messages: EmailMessage[] = [];
     try {
-      await client.mailboxOpen("INBOX");
-      // Map Gmail-style query to IMAP search criteria
-      const searchCriteria: Record<string, unknown> = query.includes("is:unread")
-        ? { seen: false }
-        : { all: true };
+      const parsed = parseQuery(query);
+      // Explicit folder param overrides query-derived folder; fall back to INBOX
+      const effectiveFolder = folder ?? parsed.folder ?? "INBOX";
+      await client.mailboxOpen(resolveFolder(effectiveFolder));
+      const searchCriteria = parsed.searchCriteria;
 
       const uids = await client.search(searchCriteria, { uid: true });
       if (!uids.length) return [];
@@ -134,11 +209,11 @@ export class GmailClient {
     return messages;
   }
 
-  async getMessage(id: string): Promise<EmailMessage | null> {
+  async getMessage(id: string, folder = "INBOX"): Promise<EmailMessage | null> {
     const client = createImapClient(this.cfg);
     await client.connect();
     try {
-      await client.mailboxOpen("INBOX");
+      await client.mailboxOpen(resolveFolder(folder));
       let found: EmailMessage | null = null;
 
       for await (const msg of client.fetch(
@@ -191,7 +266,11 @@ export class GmailClient {
       }
       return found;
     } catch (err) {
-      console.error("Error fetching message:", err);
+      console.error(formatPluginError("mc-email", "fetch message", err, [
+        "Run: openclaw mc-email check — to list available messages",
+        "Check IMAP auth: openclaw mc-email auth",
+        DOCTOR_SUGGESTION,
+      ]));
       return null;
     } finally {
       await client.logout();
@@ -251,5 +330,84 @@ export class GmailClient {
       ? original.subject
       : `Re: ${original.subject}`;
     return this.sendMessage({ to: original.from, subject, body });
+  }
+
+  /**
+   * Search for messages across one or more folders using IMAP SEARCH.
+   * Opens each folder sequentially, searches with text criteria, and returns combined results.
+   */
+  async searchMessages(
+    query: string,
+    folders: string[] = ["INBOX", "[Gmail]/Sent Mail"],
+    maxResults = 20
+  ): Promise<(EmailMessage & { folder: string })[]> {
+    const client = createImapClient(this.cfg);
+    await client.connect();
+    const results: (EmailMessage & { folder: string })[] = [];
+    try {
+      for (const rawFolder of folders) {
+        const folder = resolveFolder(rawFolder);
+        try {
+          await client.mailboxOpen(folder);
+        } catch {
+          // Folder may not exist — skip silently
+          continue;
+        }
+
+        // Use IMAP TEXT search which searches headers + body
+        const searchCriteria = { body: query };
+        let uids: number[];
+        try {
+          uids = await client.search(searchCriteria, { uid: true });
+        } catch {
+          // Search failed for this folder — skip
+          continue;
+        }
+        if (!uids.length) continue;
+
+        // Take the most recent UIDs up to remaining budget
+        const remaining = maxResults - results.length;
+        if (remaining <= 0) break;
+        const limited = uids.slice(-remaining);
+
+        for await (const msg of client.fetch(
+          limited,
+          { uid: true, envelope: true, flags: true, source: true },
+          { uid: true }
+        )) {
+          let snippet = "";
+          if (msg.source) {
+            const parsed = await simpleParser(msg.source);
+            const text =
+              parsed.text ??
+              (parsed.html
+                ? parsed.html
+                    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+                    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+                    .replace(/<[^>]+>/g, " ")
+                    .replace(/\s+/g, " ")
+                    .trim()
+                : "");
+            snippet = text.substring(0, 200);
+          }
+          results.push({
+            id: String(msg.uid),
+            threadId: String(msg.uid),
+            subject: msg.envelope?.subject ?? "(no subject)",
+            from: msg.envelope?.from?.[0]
+              ? `${msg.envelope.from[0].name ?? ""} <${msg.envelope.from[0].address ?? ""}>`.trim()
+              : "",
+            to: msg.envelope?.to?.[0]?.address ?? "",
+            date: msg.envelope?.date?.toISOString() ?? "",
+            snippet,
+            labelIds: msg.flags ? Array.from(msg.flags) : [],
+            folder: rawFolder,
+          });
+        }
+      }
+    } finally {
+      await client.logout();
+    }
+    return results;
   }
 }
