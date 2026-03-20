@@ -218,7 +218,7 @@ export function registerEmailCommands(ctx: Ctx): void {
 
       // If --test-set, skip state tracking entirely
       if (opts.testSet) {
-        const scriptPath = path.join(stateDir, "cron/scripts/email-triage.py");
+        const scriptPath = path.join(stateDir, "miniclaw/cron/scripts/email-triage.py");
         const args = ["python3", scriptPath, "--test-set", "--limit", opts.limit];
         const result = spawnSync(args[0], args.slice(1), {
           stdio: "inherit",
@@ -254,7 +254,7 @@ export function registerEmailCommands(ctx: Ctx): void {
       }
 
       // Build skip-uids arg for the triage script
-      const scriptPath = path.join(stateDir, "cron/scripts/email-triage.py");
+      const scriptPath = path.join(stateDir, "miniclaw/cron/scripts/email-triage.py");
       const args = ["python3", scriptPath];
       if (opts.dryRun) args.push("--dry-run");
       args.push("--limit", opts.limit);
