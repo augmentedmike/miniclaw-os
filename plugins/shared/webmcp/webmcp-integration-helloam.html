@@ -1,0 +1,23 @@
+<!--
+  WebMCP Integration for helloam.bot
+  Add this snippet to your site's <head> section.
+
+  Provides:
+  - Discovery meta tags (model-context-protocol, webmcp-version)
+  - Core WebMCP library (webmcp-tools.js)
+  - Domain-specific tool registration:
+    * join_helloam_mailing_list (declarative — form auto-discovered)
+    * preorder_helloam_device (imperative — Stripe checkout)
+    * pilot_program_apply (imperative — contact modal)
+    * book_helloam_session (imperative — session checkout)
+    * check_helloam_availability (imperative — API call)
+    * contact_helloam (imperative — API call)
+
+  Forms with toolname="join_helloam_mailing_list" are auto-discovered.
+-->
+<meta name="model-context-protocol" content="supported">
+<meta name="webmcp-version" content="1.0">
+<meta name="webmcp-site" content="helloam.bot">
+<link rel="webmcp-manifest" href="/.well-known/webmcp.json">
+<script src="/webmcp-tools.js" defer></script>
+<script src="/webmcp-init-helloam.js" defer></script>
