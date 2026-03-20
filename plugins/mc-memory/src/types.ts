@@ -80,6 +80,7 @@ export interface RecallResult {
   // Episodic fields
   date?: string;
   snippet?: string;
+  content?: string;   // full episodic body text (for agent/context consumption)
 }
 
 export interface PromoteResult {

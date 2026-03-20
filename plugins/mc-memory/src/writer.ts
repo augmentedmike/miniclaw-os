@@ -86,7 +86,7 @@ async function writeKb(
   // Generate embedding
   let vector: Float32Array | undefined;
   try {
-    const v = await embedder.embed(`${title}\n${content.slice(0, 512)}`);
+    const v = await embedder.embed(`${title}\n${content.slice(0, 1024)}`);
     vector = v ?? undefined;
   } catch {
     // Fall back to FTS-only
@@ -100,7 +100,7 @@ async function writeKb(
       type: type as any,
       title,
       content,
-      summary: content.slice(0, 200).replace(/\n/g, " ").trim(),
+      summary: content.slice(0, 500).replace(/\n/g, " ").trim(),
       tags,
       source: context?.source ?? "memory_write",
     },

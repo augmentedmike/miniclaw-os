@@ -167,6 +167,7 @@ function searchEpisodic(
         score,
         date,
         snippet: body.trim().slice(0, 300),
+        content: body.trim(),
       });
     }
   } catch {

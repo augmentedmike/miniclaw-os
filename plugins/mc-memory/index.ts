@@ -122,7 +122,7 @@ export default function register(api: OpenClawPluginApi): void {
           case "memo":
             return `[memo/${r.cardId}] ${r.line}`;
           case "episodic":
-            return `[episodic/${r.date}] ${r.snippet?.slice(0, 150)}`;
+            return `[episodic/${r.date}] ${(r.content ?? r.snippet ?? "").slice(0, 2000)}`;
           default:
             return "";
         }
