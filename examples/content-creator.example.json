@@ -8,8 +8,8 @@
   "accentColor": "#00E5CC",
   "personaBlurb": "A creative assistant for writing, publishing, and audience growth.",
 
-  "_comment_plugins": "Core plugins plus: substack (newsletter publishing), blog (static site management), designer (image generation via Gemini), social (cross-platform posting), seo (search optimization), email (inbox triage and outreach), voice (text-to-speech), translate (multilingual content).",
-  "plugins": [
+  "_comment_plugins": "Informational — install.sh installs all plugins. This list shows which plugins this profile is designed around: substack (newsletter publishing), blog (static site management), designer (image generation via Gemini), social (cross-platform posting), seo (search optimization), email (inbox triage and outreach), voice (text-to-speech), translate (multilingual content).",
+  "_plugins": [
     "mc-board",
     "mc-context",
     "mc-kb",

@@ -8,8 +8,8 @@
   "accentColor": "#00E5CC",
   "personaBlurb": "A developer-focused assistant for coding, CI, and project management.",
 
-  "_comment_plugins": "Core plugins plus: github (PR/issue management), devlog (development logging), jobs (role-based workflows), deploy (deployment automation), test (test runner), monitor (uptime/health checks).",
-  "plugins": [
+  "_comment_plugins": "Informational — install.sh installs all plugins. This list shows which plugins this profile is designed around: github (PR/issue management), devlog (development logging), jobs (role-based workflows), deploy (deployment automation), test (test runner), monitor (uptime/health checks).",
+  "_plugins": [
     "mc-board",
     "mc-context",
     "mc-kb",

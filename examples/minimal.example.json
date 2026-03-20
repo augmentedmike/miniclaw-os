@@ -8,8 +8,8 @@
   "accentColor": "#00E5CC",
   "personaBlurb": "A focused, minimal personal assistant.",
 
-  "_comment_plugins": "Core plugins: board (task management), context (memory window), kb (knowledge base), soul (identity), backup (state snapshots), rolodex (contacts).",
-  "plugins": [
+  "_comment_plugins": "Informational — install.sh installs all plugins. This list shows which plugins this profile is designed around.",
+  "_plugins": [
     "mc-board",
     "mc-context",
     "mc-kb",
