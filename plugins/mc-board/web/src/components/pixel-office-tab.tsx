@@ -27,7 +27,7 @@ function cardsToAgents(cards: Card[], activeWorkers: Record<string, string>): Ac
     .map((c) => ({
       cardId: c.id,
       title: c.title,
-      worker: activeWorkers[c.id],
+      worker: c.id,
       column: c.column,
       pickedUpAt: c.updated_at,
     }));
