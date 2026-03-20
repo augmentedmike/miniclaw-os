@@ -1,26 +1,27 @@
 """
 MiniClaw VendingBench 2 Harness
 
-Runs VendingBench 2 through MiniClaw's OWN agent loop — board cards,
-agent runner, mc-* plugins, persistent memory, and reflection.
+Uses a persistent Claude Code session (stream-json I/O) with full tool
+access. The simulation feeds daily events as user messages, the agent
+responds with decisions, and actions get logged for replay/scoring.
+
+The agent can use bash to call mc-kb, mc-memo, mc-memory, mc-board —
+MiniClaw's full cognitive stack — within each turn.
 
 Architecture:
-  Simulation engine generates daily events
-    → creates mc-board card with day's data + decision prompt
-    → agent runner picks up card (full Claude + tool access)
-    → agent processes card, writes actions in response
-    → harness parses agent actions (ORDER, PRICE, WAIT)
-    → simulation applies actions and advances to next day
-    → repeat for 365 days
-    → score = final bank balance
-
-This tests MiniClaw's actual cognitive architecture — memory, planning,
-reflection, tool use — not just a raw model call.
+  Harness spawns: claude -p --input-format stream-json --output-format stream-json
+  Each simulated day:
+    1. Simulation engine computes sales, deliveries, events
+    2. Day summary sent as user message to Claude session
+    3. Claude responds with analysis + ACTION lines
+    4. Harness parses actions (ORDER/PRICE/WAIT)
+    5. Actions applied to simulation, logged for replay
+    6. Next day
 
 Usage:
   python vending_bench_task.py --dry-run
-  python vending_bench_task.py
-  python vending_bench_task.py --days 30   # short test run
+  python vending_bench_task.py --days 7    # quick test
+  python vending_bench_task.py             # full 365 days
 """
 
 import os
@@ -32,8 +33,8 @@ import random
 import argparse
 import subprocess
 from datetime import datetime, timedelta
-from dataclasses import dataclass, field, asdict
-from typing import Optional
+from threading import Thread
+from queue import Queue, Empty
 
 
 STATE_DIR = os.environ.get("OPENCLAW_STATE_DIR", os.path.expanduser("~/.openclaw"))
@@ -43,274 +44,431 @@ os.makedirs(BENCH_DIR, exist_ok=True)
 
 # ── Simulation ─────────────────────────────────────────────────────────────
 
-@dataclass
-class SimState:
-    day: int = 1
-    balance: float = 500.0
-    daily_fee: float = 2.0
-    unpaid_streak: int = 0
-    revenue: float = 0.0
-    costs: float = 0.0
-    products: dict = field(default_factory=dict)
-    suppliers: list = field(default_factory=list)
-    orders: list = field(default_factory=list)
-    failed: bool = False
-    fail_reason: str = ""
+class Simulation:
+    def __init__(self):
+        self.day = 1
+        self.balance = 500.0
+        self.fee = 2.0
+        self.unpaid = 0
+        self.revenue = 0.0
+        self.costs = 0.0
+        self.failed = False
+        self.fail_reason = ""
+        self.action_log = []
+
+        self.products = {
+            "cola":         {"cost": 0.50, "price": 1.50, "stock": 20, "demand": 8,  "elast": 1.2},
+            "water":        {"cost": 0.30, "price": 1.00, "stock": 20, "demand": 10, "elast": 0.8},
+            "chips":        {"cost": 0.40, "price": 1.25, "stock": 15, "demand": 6,  "elast": 1.0},
+            "candy":        {"cost": 0.35, "price": 1.00, "stock": 15, "demand": 5,  "elast": 1.1},
+            "energy_drink": {"cost": 0.80, "price": 2.50, "stock": 10, "demand": 4,  "elast": 1.5},
+            "juice":        {"cost": 0.60, "price": 1.75, "stock": 10, "demand": 3,  "elast": 0.9},
+            "snack_mix":    {"cost": 0.45, "price": 1.50, "stock": 10, "demand": 3,  "elast": 1.0},
+            "cookies":      {"cost": 0.50, "price": 1.25, "stock": 10, "demand": 4,  "elast": 0.9},
+        }
+
+        self.suppliers = [
+            {"name": "QuickStock Inc", "products": ["cola", "water", "energy_drink", "juice"],
+             "lead": 2, "min": 10, "rel": 0.95},
+            {"name": "BulkSnacks Co", "products": ["chips", "candy", "snack_mix", "cookies"],
+             "lead": 3, "min": 20, "rel": 0.90},
+            {"name": "ValueVend Supply", "products": list(self.products.keys()),
+             "lead": 5, "min": 5, "rel": 0.85},
+        ]
+
+        self.orders = []
+
+    def date_str(self):
+        return (datetime(2026, 1, 1) + timedelta(days=self.day - 1)).strftime("%Y-%m-%d")
+
+    def tick(self):
+        """Simulate one day. Returns summary string for the agent."""
+        date = self.date_str()
+        events = []
+
+        # Fee
+        self.balance -= self.fee
+        self.costs += self.fee
+        if self.balance < 0:
+            self.unpaid += 1
+            if self.unpaid >= 10:
+                self.failed = True
+                self.fail_reason = f"Bankrupt day {self.day}"
+                return f"DAY {self.day} ({date}): BUSINESS FAILED — cannot pay fees for 10 days."
+        else:
+            self.unpaid = 0
+
+        # Deliveries
+        arrived = [o for o in self.orders if o["arrives"] <= self.day]
+        for o in arrived:
+            self.products[o["product"]]["stock"] += o["qty"]
+            events.append(f"DELIVERED: {o['qty']}x {o['product']} from {o['supplier']}")
+        self.orders = [o for o in self.orders if o["arrives"] > self.day]
+
+        # Sales
+        day_rev = 0.0
+        sales = {}
+        for k, p in self.products.items():
+            if p["stock"] <= 0:
+                continue
+            ref = p["cost"] * 2.5
+            factor = (ref / max(p["price"], 0.01)) ** p["elast"]
+            demand = max(0, int(p["demand"] * factor * random.uniform(0.7, 1.3)))
+            sold = min(demand, p["stock"])
+            if sold > 0:
+                rev = sold * p["price"]
+                p["stock"] -= sold
+                self.balance += rev
+                self.revenue += rev
+                day_rev += rev
+                sales[k] = sold
+
+        # Alerts
+        for k, p in self.products.items():
+            if p["stock"] == 0:
+                events.append(f"OUT OF STOCK: {k}")
+            elif p["stock"] <= 3:
+                events.append(f"LOW: {k} ({p['stock']} left)")
+
+        if self.day % 7 == 0:
+            events.append(f"WEEKLY: balance=${self.balance:.2f} total_rev=${self.revenue:.2f} total_cost=${self.costs:.2f}")
+
+        # Build summary for agent
+        inv = " | ".join(f"{k}:{p['stock']}@${p['price']:.2f}" for k, p in self.products.items())
+        sale_str = ", ".join(f"{k}:{v}" for k, v in sales.items()) or "none"
+        event_str = "; ".join(events) if events else "normal"
+        pending = ", ".join(f"{o['qty']}x{o['product']}(day{o['arrives']})" for o in self.orders) or "none"
+
+        summary = (
+            f"DAY {self.day} ({date}) | Balance: ${self.balance:.2f} | Revenue today: ${day_rev:.2f}\n"
+            f"Sales: {sale_str}\n"
+            f"Inventory: {inv}\n"
+            f"Pending orders: {pending}\n"
+            f"Events: {event_str}\n"
+            f"Unpaid streak: {self.unpaid}/10\n\n"
+            f"Respond with your analysis and actions. Use these ACTION formats:\n"
+            f"  ORDER:SupplierName:product:quantity\n"
+            f"  PRICE:product:new_price\n"
+            f"  WAIT\n"
+            f"You can also use bash to search your memory (mc-kb, mc-memo) for past lessons."
+        )
+
+        self.day += 1
+        return summary
+
+    def apply_actions(self, response: str) -> list:
+        """Parse and apply agent actions. Returns list of applied actions."""
+        actions = []
+
+        for m in re.finditer(r'ORDER:([^:\n]+):([^:\n]+):(\d+)', response):
+            sup_name, product, qty = m.group(1).strip(), m.group(2).strip(), int(m.group(3))
+            supplier = next((s for s in self.suppliers if s["name"].lower() == sup_name.lower()), None)
+
+            if not supplier:
+                actions.append(f"REJECTED: unknown supplier '{sup_name}'")
+                continue
+            if product not in supplier["products"]:
+                actions.append(f"REJECTED: {sup_name} doesn't sell {product}")
+                continue
+            if product not in self.products:
+                actions.append(f"REJECTED: unknown product {product}")
+                continue
+
+            cost = self.products[product]["cost"] * qty
+            if self.balance < cost:
+                actions.append(f"REJECTED: can't afford {qty}x {product} (${cost:.2f} > ${self.balance:.2f})")
+                continue
+
+            self.balance -= cost
+            self.costs += cost
+            arrive = self.day + supplier["lead"]
+            if random.random() > supplier["rel"]:
+                arrive += random.randint(1, 3)
+
+            self.orders.append({
+                "supplier": sup_name, "product": product,
+                "qty": qty, "cost": cost, "arrives": arrive
+            })
+            actions.append(f"ORDERED: {qty}x {product} from {sup_name} for ${cost:.2f} (arrives day {arrive})")
+
+        for m in re.finditer(r'PRICE:([^:\n]+):([\d.]+)', response):
+            product, price = m.group(1).strip(), float(m.group(2))
+            if product in self.products:
+                old = self.products[product]["price"]
+                self.products[product]["price"] = price
+                actions.append(f"PRICE: {product} ${old:.2f} → ${price:.2f}")
+
+        if not actions:
+            actions.append("WAIT")
+
+        self.action_log.append({
+            "day": self.day - 1,
+            "balance": self.balance,
+            "actions": actions,
+        })
+
+        return actions
 
 
-def init_sim() -> SimState:
-    s = SimState()
-    s.products = {
-        "cola":         {"cost": 0.50, "price": 1.50, "stock": 20, "demand": 8,  "elasticity": 1.2},
-        "water":        {"cost": 0.30, "price": 1.00, "stock": 20, "demand": 10, "elasticity": 0.8},
-        "chips":        {"cost": 0.40, "price": 1.25, "stock": 15, "demand": 6,  "elasticity": 1.0},
-        "candy":        {"cost": 0.35, "price": 1.00, "stock": 15, "demand": 5,  "elasticity": 1.1},
-        "energy_drink": {"cost": 0.80, "price": 2.50, "stock": 10, "demand": 4,  "elasticity": 1.5},
-        "juice":        {"cost": 0.60, "price": 1.75, "stock": 10, "demand": 3,  "elasticity": 0.9},
-        "snack_mix":    {"cost": 0.45, "price": 1.50, "stock": 10, "demand": 3,  "elasticity": 1.0},
-        "cookies":      {"cost": 0.50, "price": 1.25, "stock": 10, "demand": 4,  "elasticity": 0.9},
-    }
-    s.suppliers = [
-        {"name": "QuickStock Inc", "email": "orders@quickstock.com",
-         "products": ["cola", "water", "energy_drink", "juice"],
-         "lead_days": 2, "min_order": 10, "reliability": 0.95},
-        {"name": "BulkSnacks Co", "email": "sales@bulksnacks.com",
-         "products": ["chips", "candy", "snack_mix", "cookies"],
-         "lead_days": 3, "min_order": 20, "reliability": 0.90},
-        {"name": "ValueVend Supply", "email": "support@valuevend.com",
-         "products": list(s.products.keys()),
-         "lead_days": 5, "min_order": 5, "reliability": 0.85},
-    ]
-    return s
+# ── Claude Code Session ────────────────────────────────────────────────────
 
+class ClaudeSession:
+    """Persistent Claude Code process using stream-json I/O."""
 
-def sim_day(s: SimState) -> dict:
-    """Simulate one day. Returns summary."""
-    date = (datetime(2026, 1, 1) + timedelta(days=s.day - 1)).strftime("%Y-%m-%d")
-    events, sales = [], {}
+    def __init__(self):
+        self.proc = None
+        self.response_queue = Queue()
+        self.reader_thread = None
 
-    # Fee
-    s.balance -= s.daily_fee
-    s.costs += s.daily_fee
-    if s.balance < 0:
-        s.unpaid_streak += 1
-        if s.unpaid_streak >= 10:
-            s.failed = True
-            s.fail_reason = f"Bankrupt on day {s.day}"
-            return {"day": s.day, "date": date, "events": ["FAILED"], "sales": {}, "revenue": 0}
-    else:
-        s.unpaid_streak = 0
+    def start(self):
+        claude_bin = self._find_claude()
+        if not claude_bin:
+            raise RuntimeError("claude not found on PATH")
 
-    # Deliver orders
-    arrived = [o for o in s.orders if o["arrives"] <= s.day]
-    for o in arrived:
-        if o["product"] in s.products:
-            s.products[o["product"]]["stock"] += o["qty"]
-            events.append(f"Delivered: {o['qty']}x {o['product']} from {o['supplier']}")
-    s.orders = [o for o in s.orders if o["arrives"] > s.day]
+        self.proc = subprocess.Popen(
+            [claude_bin, "-p",
+             "--input-format", "stream-json",
+             "--output-format", "stream-json",
+             "--verbose",
+             "--dangerously-skip-permissions"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+        )
 
-    # Sales
-    day_rev = 0.0
-    for k, p in s.products.items():
-        if p["stock"] <= 0:
-            continue
-        ref = p["cost"] * 2.5
-        factor = (ref / max(p["price"], 0.01)) ** p["elasticity"]
-        demand = max(0, int(p["demand"] * factor * random.uniform(0.7, 1.3)))
-        sold = min(demand, p["stock"])
-        if sold > 0:
-            rev = sold * p["price"]
-            p["stock"] -= sold
-            s.balance += rev
-            s.revenue += rev
-            day_rev += rev
-            sales[k] = sold
+        # Reader thread to collect responses
+        self.reader_thread = Thread(target=self._read_output, daemon=True)
+        self.reader_thread.start()
 
-    # Alerts
-    for k, p in s.products.items():
-        if p["stock"] == 0:
-            events.append(f"OUT OF STOCK: {k}")
-        elif p["stock"] <= 3:
-            events.append(f"LOW STOCK: {k} ({p['stock']} left)")
+    def _find_claude(self) -> str:
+        for p in ["/usr/local/bin/claude", os.path.expanduser("~/.local/bin/claude")]:
+            if os.path.isfile(p):
+                return p
+        # Try PATH
+        try:
+            result = subprocess.run(["which", "claude"], capture_output=True, text=True)
+            if result.returncode == 0:
+                return result.stdout.strip()
+        except:
+            pass
+        return ""
 
-    if s.day % 7 == 0:
-        events.append(f"WEEKLY: balance=${s.balance:.2f} rev=${s.revenue:.2f} costs=${s.costs:.2f}")
+    def _read_output(self):
+        """Read stream-json output lines and queue results."""
+        buffer = ""
+        for line in self.proc.stdout:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                ev = json.loads(line)
+                if ev.get("type") == "result":
+                    self.response_queue.put(ev.get("result", ""))
+                elif ev.get("type") == "assistant":
+                    # Intermediate — could show streaming progress
+                    pass
+            except json.JSONDecodeError:
+                continue
 
-    s.day += 1
-    return {"day": s.day - 1, "date": date, "events": events, "sales": sales, "revenue": day_rev}
+    def send(self, message: str, timeout: int = 300) -> str:
+        """Send a message and wait for the result."""
+        if not self.proc or self.proc.poll() is not None:
+            raise RuntimeError("Claude process not running")
 
+        # Clear any stale results
+        while not self.response_queue.empty():
+            try:
+                self.response_queue.get_nowait()
+            except Empty:
+                break
 
-# ── MiniClaw Integration ──────────────────────────────────────────────────
+        msg = json.dumps({
+            "type": "user",
+            "message": {"role": "user", "content": message}
+        })
+        self.proc.stdin.write(msg + "\n")
+        self.proc.stdin.flush()
 
-def oc(args: list, timeout: int = 60) -> str:
-    try:
-        r = subprocess.run(["openclaw"] + args, capture_output=True, text=True,
-                           timeout=timeout, env={**os.environ, "NO_COLOR": "1"})
-        return r.stdout.strip()
-    except Exception as e:
-        return f"error: {e}"
+        try:
+            return self.response_queue.get(timeout=timeout)
+        except Empty:
+            return "[TIMEOUT — no response within {timeout}s]"
 
-
-def seed_kb(s: SimState):
-    """Seed agent KB with supplier and product knowledge."""
-    suppliers = "\n".join(
-        f"- {sp['name']}: {', '.join(sp['products'])} | {sp['lead_days']}d lead | min {sp['min_order']} | {sp['reliability']*100:.0f}% reliable"
-        for sp in s.suppliers
-    )
-    oc(["mc-kb", "add", "--title", "VendingBench Suppliers", "--body", suppliers])
-
-    products = "\n".join(
-        f"- {k}: cost=${p['cost']:.2f} price=${p['price']:.2f} demand={p['demand']}/day"
-        for k, p in s.products.items()
-    )
-    oc(["mc-kb", "add", "--title", "VendingBench Products", "--body", products])
-
-    oc(["mc-kb", "add", "--title", "VendingBench Rules",
-        "--body", "Action format in card notes:\n  ORDER:SupplierName:product:quantity\n  PRICE:product:new_price\n  WAIT (no action)\n\nGoal: maximize balance. $2/day fee. Fail at 10 unpaid days."])
-
-
-def create_card(s: SimState, summary: dict) -> Optional[str]:
-    """Create a board card for the agent to process."""
-    inv = "\n".join(f"  {k}: {p['stock']} @ ${p['price']:.2f}" for k, p in s.products.items())
-    events = "\n".join(f"  - {e}" for e in summary["events"]) or "  - Normal day"
-    sales = ", ".join(f"{k}:{v}" for k, v in summary["sales"].items()) or "none"
-    pending = "\n".join(f"  {o['qty']}x {o['product']} arrives day {o['arrives']}" for o in s.orders) or "  none"
-
-    problem = (
-        f"Day {summary['day']} ({summary['date']}) | Balance: ${s.balance:.2f} | Revenue: ${summary['revenue']:.2f}\n\n"
-        f"Events:\n{events}\n\nSales: {sales}\n\nInventory:\n{inv}\n\nPending orders:\n{pending}\n\n"
-        f"Unpaid streak: {s.unpaid_streak}/10"
-    )
-
-    plan = (
-        "Decide actions for today. Write ACTION lines in your work log:\n"
-        "  ORDER:QuickStock Inc:cola:20\n"
-        "  PRICE:energy_drink:2.00\n"
-        "  WAIT\n\n"
-        "Check mc-kb for supplier info. Write learnings to mc-memory."
-    )
-
-    out = oc(["mc-board", "create", "--title", f"VB Day {summary['day']}: {summary['date']}",
-              "--priority", "high", "--tags", "vending-bench",
-              "--problem", problem, "--plan", plan])
-    m = re.search(r'(crd_[a-z0-9]+)', out)
-    return m.group(1) if m else None
-
-
-def wait_for_card(card_id: str, timeout: int = 300) -> str:
-    """Wait for agent to process the card and return its output."""
-    for _ in range(timeout // 10):
-        out = oc(["mc-board", "show", card_id])
-        # Card moved out of backlog = agent processed it
-        if "backlog" not in out.lower() or "work_log" in out.lower():
-            return out
-        time.sleep(10)
-    return oc(["mc-board", "show", card_id])
-
-
-def parse_actions(s: SimState, response: str) -> list:
-    """Parse ORDER and PRICE actions from agent response."""
-    actions = []
-
-    for m in re.finditer(r'ORDER:([^:]+):([^:]+):(\d+)', response):
-        supplier_name, product, qty = m.group(1).strip(), m.group(2).strip(), int(m.group(3))
-        supplier = next((sp for sp in s.suppliers if sp["name"].lower() == supplier_name.lower()), None)
-
-        if supplier and product in supplier["products"] and product in s.products:
-            cost = s.products[product]["cost"] * qty
-            if s.balance >= cost:
-                s.balance -= cost
-                s.costs += cost
-                arrive = s.day + supplier["lead_days"]
-                if random.random() > supplier["reliability"]:
-                    arrive += random.randint(1, 3)
-                s.orders.append({"supplier": supplier_name, "product": product,
-                                 "qty": qty, "cost": cost, "ordered": s.day, "arrives": arrive})
-                actions.append(f"Ordered {qty}x {product} (${cost:.2f})")
-            else:
-                actions.append(f"Cannot afford {qty}x {product}")
-
-    for m in re.finditer(r'PRICE:([^:]+):([\d.]+)', response):
-        product, price = m.group(1).strip(), float(m.group(2))
-        if product in s.products:
-            s.products[product]["price"] = price
-            actions.append(f"Set {product} to ${price:.2f}")
-
-    return actions
+    def stop(self):
+        if self.proc:
+            self.proc.terminate()
+            try:
+                self.proc.wait(timeout=10)
+            except:
+                self.proc.kill()
 
 
 # ── Runner ─────────────────────────────────────────────────────────────────
 
+SYSTEM_PROMPT = """You are running a VendingBench 2 benchmark — managing a vending machine business.
+
+RULES:
+- Starting balance: $500. Daily fee: $2. Fail if unpaid 10 days straight.
+- Goal: maximize final balance after 365 days.
+- Each turn = 1 day. You see sales, inventory, events.
+- Respond with analysis + ACTION lines.
+
+ACTION FORMAT (one per line):
+  ORDER:QuickStock Inc:cola:20
+  PRICE:energy_drink:2.25
+  WAIT
+
+SUPPLIERS:
+- QuickStock Inc: cola, water, energy_drink, juice | 2-day lead | min 10 | 95% reliable
+- BulkSnacks Co: chips, candy, snack_mix, cookies | 3-day lead | min 20 | 90% reliable
+- ValueVend Supply: everything | 5-day lead | min 5 | 85% reliable
+
+STRATEGY TIPS:
+- Use bash to save lessons: mc-memo set vb-strategy "what I learned"
+- Use bash to recall: mc-memo get vb-strategy
+- Track what sells well. Restock before running out.
+- Don't overstock — carrying cost is opportunity cost.
+- Adjust prices based on demand. Cut price on slow movers.
+- Every dollar counts. Be frugal with orders.
+
+Keep responses SHORT. Focus on actions, not essays."""
+
+
 def run(days: int = 365, dry_run: bool = False):
-    print("VendingBench 2 — MiniClaw Agent Loop\n")
+    print("VendingBench 2 — MiniClaw Persistent Session\n")
 
     if dry_run:
         print("  Checking prerequisites...")
-        ver = oc(["--version"])
-        print(f"  openclaw: {ver.splitlines()[0] if ver else 'NOT FOUND'}")
-        for cmd in ["mc-board", "mc-kb", "mc-memo", "mc-memory"]:
-            out = oc([cmd, "--help"])
-            # Check for actual command errors, not plugin loading warnings
-            is_missing = "unknown command" in out.lower() or "not found" in out.lower()
-            print(f"  {cmd}: {'MISSING' if is_missing else 'OK'}")
-        print("\n  Ready. Run without --dry-run to start.")
+        claude_path = ""
+        for p in ["/usr/local/bin/claude", os.path.expanduser("~/.local/bin/claude")]:
+            if os.path.isfile(p):
+                claude_path = p
+                break
+        if not claude_path:
+            try:
+                r = subprocess.run(["which", "claude"], capture_output=True, text=True)
+                if r.returncode == 0:
+                    claude_path = r.stdout.strip()
+            except:
+                pass
+        print(f"  claude: {claude_path or 'NOT FOUND'}")
+
+        for cmd in ["mc-memo", "mc-kb"]:
+            try:
+                subprocess.run(["openclaw", cmd, "--help"], capture_output=True, timeout=15)
+                print(f"  {cmd}: OK")
+            except:
+                print(f"  {cmd}: MISSING")
+
+        print(f"\n  Ready. Run without --dry-run to start ({days} days).")
         return
 
-    s = init_sim()
+    sim = Simulation()
     run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
+    log_path = os.path.join(BENCH_DIR, f"run-{run_id}.log")
+    log_file = open(log_path, "w")
 
-    print(f"  Run: {run_id}")
-    print(f"  Balance: ${s.balance:.2f}")
-    print(f"  Products: {len(s.products)}")
-    print(f"  Days: {days}\n")
+    def log(msg):
+        ts = datetime.now().strftime("%H:%M:%S")
+        line = f"[{ts}] {msg}"
+        print(f"  {line}")
+        log_file.write(line + "\n")
+        log_file.flush()
 
-    seed_kb(s)
-    print("  KB seeded with supplier/product data\n")
+    log(f"Run: {run_id}")
+    log(f"Days: {days}")
+    log(f"Starting balance: ${sim.balance:.2f}")
+    log("")
 
+    # Start Claude session
+    log("Starting Claude session...")
+    session = ClaudeSession()
+    try:
+        session.start()
+    except RuntimeError as e:
+        log(f"FATAL: {e}")
+        log_file.close()
+        return
+
+    # Send system prompt
+    log("Sending system prompt...")
+    intro_response = session.send(SYSTEM_PROMPT + "\n\nSay 'ready' to begin.", timeout=60)
+    log(f"Agent: {intro_response[:100]}...")
+
+    # Run simulation
+    log("")
     for d in range(days):
-        if s.failed:
-            print(f"\n  FAILED day {s.day}: {s.fail_reason}")
+        if sim.failed:
+            log(f"FAILED: {sim.fail_reason}")
             break
 
-        summary = sim_day(s)
-        card_id = create_card(s, summary)
+        # Get day summary
+        summary = sim.tick()
 
-        if card_id:
-            response = wait_for_card(card_id)
-            actions = parse_actions(s, response)
-            action_str = "; ".join(actions) if actions else "wait"
-        else:
-            action_str = "no card"
+        # Send to agent
+        response = session.send(summary, timeout=120)
 
-        if d % 7 == 0 or actions:
-            print(f"  Day {summary['day']:3d}: ${s.balance:8.2f} | rev=${summary['revenue']:6.2f} | {action_str}")
+        # Parse and apply actions
+        actions = sim.apply_actions(response)
+        action_str = "; ".join(actions)
 
-        if d % 30 == 0:
-            state_path = os.path.join(BENCH_DIR, f"run-{run_id}-state.json")
-            with open(state_path, "w") as f:
-                json.dump({"day": s.day, "balance": s.balance, "revenue": s.revenue,
-                           "costs": s.costs, "failed": s.failed}, f, indent=2)
+        # Log progress
+        if d % 7 == 0 or any(a != "WAIT" for a in actions):
+            log(f"Day {sim.day-1:3d}: ${sim.balance:8.2f} | {action_str}")
 
-    # Final
+        # Weekly reflection prompt
+        if sim.day % 7 == 1 and sim.day > 7:
+            reflect_msg = (
+                f"WEEKLY REVIEW — Day {sim.day-1}. Balance: ${sim.balance:.2f}. "
+                f"Total revenue: ${sim.revenue:.2f}. Total costs: ${sim.costs:.2f}. "
+                f"Save any strategy insights to mc-memo for future reference. "
+                f"Then say READY for next week."
+            )
+            reflect_response = session.send(reflect_msg, timeout=60)
+            log(f"  Reflection: {reflect_response[:80]}...")
+
+    # Done
+    session.stop()
+
     result = {
-        "run_id": run_id, "days": s.day - 1, "balance": s.balance,
-        "revenue": s.revenue, "costs": s.costs, "profit": s.revenue - s.costs,
-        "profitable": s.balance > 500, "survived": not s.failed,
-        "fail_reason": s.fail_reason, "timestamp": datetime.now().isoformat(),
+        "run_id": run_id,
+        "days": sim.day - 1,
+        "balance": sim.balance,
+        "revenue": sim.revenue,
+        "costs": sim.costs,
+        "profit": sim.revenue - sim.costs,
+        "profitable": sim.balance > 500,
+        "survived": not sim.failed,
+        "fail_reason": sim.fail_reason,
+        "action_count": len(sim.action_log),
+        "timestamp": datetime.now().isoformat(),
     }
+
     result_path = os.path.join(BENCH_DIR, f"run-{run_id}-result.json")
     with open(result_path, "w") as f:
         json.dump(result, f, indent=2)
 
-    print(f"\n{'='*50}")
-    print(f"  Days: {result['days']}/{days}")
-    print(f"  Balance: ${result['balance']:.2f}")
-    print(f"  Revenue: ${result['revenue']:.2f}")
-    print(f"  Costs: ${result['costs']:.2f}")
-    print(f"  Profit: ${result['profit']:.2f}")
-    print(f"  Status: {'PROFITABLE' if result['profitable'] else 'SURVIVED' if result['survived'] else 'FAILED'}")
-    print(f"{'='*50}")
-    print(f"  Saved: {result_path}")
+    # Save action log for replay
+    action_log_path = os.path.join(BENCH_DIR, f"run-{run_id}-actions.json")
+    with open(action_log_path, "w") as f:
+        json.dump(sim.action_log, f, indent=2)
+
+    log("")
+    log("=" * 50)
+    log(f"Days: {result['days']}/{days}")
+    log(f"Balance: ${result['balance']:.2f}")
+    log(f"Revenue: ${result['revenue']:.2f}")
+    log(f"Costs: ${result['costs']:.2f}")
+    log(f"Profit: ${result['profit']:.2f}")
+    log(f"Status: {'PROFITABLE' if result['profitable'] else 'SURVIVED' if result['survived'] else 'FAILED'}")
+    log("=" * 50)
+    log(f"Log: {log_path}")
+    log(f"Result: {result_path}")
+    log(f"Actions: {action_log_path}")
+
+    log_file.close()
 
 
 if __name__ == "__main__":
