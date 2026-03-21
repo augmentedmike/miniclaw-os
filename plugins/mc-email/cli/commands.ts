@@ -289,6 +289,7 @@ export function registerEmailCommands(ctx: Ctx): void {
                 subject: `Re: ${fullMsg.subject}`,
                 body: "You have been removed from our Do Not Contact list. You will now receive normal communications from us again.\n\nIf you wish to opt out again in the future, simply reply asking to be removed.",
                 plain: true,
+                bypassDnc: true,
               });
               console.log(`DNC: Sent re-subscribe confirmation to ${senderEmail}.`);
               await client.archiveMessage(envelope.id);
@@ -307,6 +308,7 @@ export function registerEmailCommands(ctx: Ctx): void {
                 subject: `Re: ${fullMsg.subject}`,
                 body: "You are on our Do Not Contact list. No further emails will be sent to you.\n\nIf you would like to be removed from this list and resume normal communication, please reply explicitly asking to be removed from the Do Not Contact list.",
                 plain: true,
+                bypassDnc: true,
               });
               console.log(`DNC: Sent blocked-sender auto-reply to ${senderEmail}.`);
               await client.archiveMessage(envelope.id);
@@ -326,6 +328,7 @@ export function registerEmailCommands(ctx: Ctx): void {
                 subject: `Re: ${fullMsg.subject}`,
                 body: "You have been added to our Do Not Contact list. You will no longer receive emails from us.\n\nIf you change your mind and would like to resume communication, please reply explicitly asking to be removed from the Do Not Contact list.",
                 plain: true,
+                bypassDnc: true,
               });
               console.log(`DNC: Sent opt-out confirmation to ${senderEmail}.`);
               await client.archiveMessage(envelope.id);

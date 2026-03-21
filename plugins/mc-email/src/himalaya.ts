@@ -164,10 +164,12 @@ export class HimalayaClient {
    * When opts.plain is false/undefined, sends multipart (text + HTML).
    */
   async sendMessage(opts: SendEmailOptions): Promise<string> {
-    // DNC check: refuse to send to blocked addresses
-    const recipientEmail = extractEmail(opts.to);
-    if (isBlocked(recipientEmail)) {
-      throw new Error(`Recipient ${recipientEmail} is on the Do Not Contact list. Send aborted.`);
+    // DNC check: refuse to send to blocked addresses (unless bypassed for system auto-replies)
+    if (!opts.bypassDnc) {
+      const recipientEmail = extractEmail(opts.to);
+      if (isBlocked(recipientEmail)) {
+        throw new Error(`Recipient ${recipientEmail} is on the Do Not Contact list. Send aborted.`);
+      }
     }
 
     const from = opts.from ?? this.cfg.emailAddress;
