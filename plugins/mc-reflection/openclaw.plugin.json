@@ -9,7 +9,7 @@
     "properties": {
       "reflectionDir": {
         "type": "string",
-        "description": "Directory for reflection snapshots (default: ~/.openclaw/USER/reflections)"
+        "description": "Directory for reflection snapshots (default: ~/.openclaw/miniclaw/USER/reflections)"
       },
       "memoryDir": {
         "type": "string",
@@ -17,11 +17,11 @@
       },
       "boardDbPath": {
         "type": "string",
-        "description": "Path to board.db (default: ~/.openclaw/USER/brain)"
+        "description": "Path to board.db (default: ~/.openclaw/miniclaw/USER/brain)"
       },
       "kbDbPath": {
         "type": "string",
-        "description": "Path to kb directory (default: ~/.openclaw/USER/kb)"
+        "description": "Path to kb directory (default: ~/.openclaw/miniclaw/USER/kb)"
       },
       "transcriptsDir": {
         "type": "string",

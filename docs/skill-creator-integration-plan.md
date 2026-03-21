@@ -75,7 +75,7 @@ The `board-worker-in-progress` cron (runs every 5 minutes) picks up the card. It
 
 ### 2.3 How the mc-board Process / Work Workflow Includes "Create Skill"
 
-The existing `/api/process/[column]/[cardId]` route spawns Claude with a prompt loaded from `~/.openclaw/USER/brain/prompts/in-progress-process.txt`.
+The existing `/api/process/[column]/[cardId]` route spawns Claude with a prompt loaded from `~/.openclaw/miniclaw/USER/brain/prompts/in-progress-process.txt`.
 
 **Minimal change:** Add a conditional block to that prompt file:
 
@@ -143,12 +143,12 @@ For git push to the public repo, the `gh` CLI is already authenticated as `augme
 - `~/.openclaw/projects/miniclaw-os/MANIFEST.json`
 
 ### Step 3: Add skill-routing to the in-progress process prompt (2 hours)
-- Edit `~/.openclaw/USER/brain/prompts/in-progress-process.txt` to detect the `skill` tag
+- Edit `~/.openclaw/miniclaw/USER/brain/prompts/in-progress-process.txt` to detect the `skill` tag
 - Add the skill-creation workflow instructions (what to do, where to save outputs, what APPLY fields to return)
 - Test manually by creating a card with `tag: skill` and running Process on it via the UI
 
 **Files to edit:**
-- `~/.openclaw/USER/brain/prompts/in-progress-process.txt`
+- `~/.openclaw/miniclaw/USER/brain/prompts/in-progress-process.txt`
 
 ### Step 4: Update the process route to pass `--skill` flag (2 hours)
 - In `/api/process/[column]/[cardId]/route.ts`, detect `skill` tag on the card
@@ -240,7 +240,7 @@ For git push to the public repo, the `gh` CLI is already authenticated as `augme
 | miniclaw-os skills (version-controlled) | `~/.openclaw/projects/miniclaw-os/skills/` |
 | skill-creator skill | `~/.claude/skills/skill-creator/SKILL.md` |
 | Skill eval workspace | `~/.openclaw/skills-workspace/<skill-name>/` |
-| in-progress process prompt | `~/.openclaw/USER/brain/prompts/in-progress-process.txt` |
+| in-progress process prompt | `~/.openclaw/miniclaw/USER/brain/prompts/in-progress-process.txt` |
 | Process route (to add --skill flag) | `~/.openclaw/projects/miniclaw-os/plugins/mc-board/web/src/app/api/process/[column]/[cardId]/route.ts` |
 | Board tool definitions | `~/.openclaw/projects/miniclaw-os/plugins/mc-board/tools/definitions.ts` |
 | miniclaw-os manifest | `~/.openclaw/projects/miniclaw-os/MANIFEST.json` |

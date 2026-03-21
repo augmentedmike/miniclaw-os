@@ -776,10 +776,10 @@ USER_MEMORY_DIR="$STATE_DIR/USER/memory"
 SOUL_BACKUPS_DIR="$STATE_DIR/soul-backups"
 
 mkdir -p "$USER_MEMORY_DIR"
-ok "~/.openclaw/USER/memory/"
+ok "~/.openclaw/miniclaw/USER/memory/"
 
 mkdir -p "$STATE_DIR/USER/brain"
-ok "~/.openclaw/USER/brain/"
+ok "~/.openclaw/miniclaw/USER/brain/"
 
 mkdir -p "$SOUL_BACKUPS_DIR"
 ok "~/.openclaw/soul-backups/"

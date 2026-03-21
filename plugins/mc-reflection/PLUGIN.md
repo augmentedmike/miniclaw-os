@@ -60,17 +60,17 @@ The cron prompt instructs Am to:
 
 ## Storage
 
-- **SQLite DB:** `~/.openclaw/USER/reflections/reflections.db`
-- **Markdown snapshots:** `~/.openclaw/USER/reflections/entries/YYYY-MM-DD-refl_*.md`
+- **SQLite DB:** `~/.openclaw/miniclaw/USER/reflections/reflections.db`
+- **Markdown snapshots:** `~/.openclaw/miniclaw/USER/reflections/entries/YYYY-MM-DD-refl_*.md`
 
 ## Config
 
 ```json
 {
-  "reflectionDir": "~/.openclaw/USER/reflections",
+  "reflectionDir": "~/.openclaw/miniclaw/USER/reflections",
   "memoryDir": "~/.openclaw/workspace/memory",
-  "boardDbPath": "~/.openclaw/USER/brain",
-  "kbDbPath": "~/.openclaw/USER/kb",
+  "boardDbPath": "~/.openclaw/miniclaw/USER/brain",
+  "kbDbPath": "~/.openclaw/miniclaw/USER/kb",
   "transcriptsDir": "~/.claude/projects"
 }
 ```

@@ -85,7 +85,7 @@ openclaw social status
 
 ### Data Storage
 
-- Engagement log: `~/.openclaw/USER/engagement.jsonl`
+- Engagement log: `~/.openclaw/miniclaw/USER/engagement.jsonl`
 - Target repos: stored in mc-kb (article ID from `targetListKbId` config)
 
 ## Troubleshooting

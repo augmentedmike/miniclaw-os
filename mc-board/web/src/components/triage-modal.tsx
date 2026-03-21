@@ -82,7 +82,7 @@ export function TriageModal({ column, onClose }: Props) {
   }
 
   const label = COLUMN_LABEL[column] ?? column;
-  const promptPath = `~/.openclaw/USER/brain/prompts/${column}-triage.txt`;
+  const promptPath = `~/.openclaw/miniclaw/USER/brain/prompts/${column}-triage.txt`;
 
   return (
     <Modal onClose={onClose}>

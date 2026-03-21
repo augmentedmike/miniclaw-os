@@ -114,7 +114,7 @@ The entry point must `export default` a `register` function that receives an `Op
  * mc-notes — OpenClaw plugin
  *
  * Per-topic timestamped notes stored as flat markdown files.
- * Notes dir: ~/.openclaw/USER/notes/<topic>.md
+ * Notes dir: ~/.openclaw/miniclaw/USER/notes/<topic>.md
  */
 
 import * as path from "node:path";
@@ -138,7 +138,7 @@ function resolvePath(p: string): string {
 function resolveConfig(api: OpenClawPluginApi): NotesConfig {
   const raw = (api.pluginConfig ?? {}) as Partial<NotesConfig>;
   return {
-    notesDir: resolvePath(raw.notesDir ?? `~/.openclaw/USER/notes`),
+    notesDir: resolvePath(raw.notesDir ?? `~/.openclaw/miniclaw/USER/notes`),
   };
 }
 

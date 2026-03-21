@@ -7,7 +7,7 @@
     "type": "object",
     "additionalProperties": false,
     "properties": {
-      "stateDir": { "type": "string", "description": "Directory for research.db (default: ~/.openclaw/USER/research)" },
+      "stateDir": { "type": "string", "description": "Directory for research.db (default: ~/.openclaw/miniclaw/USER/research)" },
       "perplexityModel": { "type": "string", "description": "Perplexity model to use (default: sonar)" },
       "searchProvider": { "type": "string", "description": "Preferred search provider: serp | google | bing (default: google)" },
       "maxSnapshotPages": { "type": "number", "description": "Max pages to scrape per competitor snapshot (default: 5)" }

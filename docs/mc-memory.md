@@ -65,9 +65,9 @@ Use the memory_recall tool to search for any past notes about deploying to Tails
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `memoDir` | `string` | `~/.openclaw/USER/memos` | Directory for per-card memo files |
-| `kbDbDir` | `string` | `~/.openclaw/USER/kb` | Directory for KB SQLite database |
-| `episodicDir` | `string` | `~/.openclaw/USER/memory` | Directory for daily episodic memory files |
+| `memoDir` | `string` | `~/.openclaw/miniclaw/USER/memos` | Directory for per-card memo files |
+| `kbDbDir` | `string` | `~/.openclaw/miniclaw/USER/kb` | Directory for KB SQLite database |
+| `episodicDir` | `string` | `~/.openclaw/miniclaw/USER/memory` | Directory for daily episodic memory files |
 | `modelPath` | `string` | `~/.cache/qmd/models/...embeddinggemma-300M-Q8_0.gguf` | Path to embedding model |
 | `contextN` | `number` | `5` | Number of memory entries injected into context |
 | `contextThreshold` | `number` | `0.75` | Cosine distance threshold for context injection (0–2) |

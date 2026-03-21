@@ -40,9 +40,9 @@ function resolvePath(p: string): string {
 function resolveConfig(api: OpenClawPluginApi): MemoryConfig {
   const raw = (api.pluginConfig ?? {}) as Partial<MemoryConfig>;
   return {
-    memoDir: resolvePath(raw.memoDir ?? "~/.openclaw/USER/memos"),
-    kbDbDir: resolvePath(raw.kbDbDir ?? "~/.openclaw/USER/kb"),
-    episodicDir: resolvePath(raw.episodicDir ?? "~/.openclaw/USER/memory"),
+    memoDir: resolvePath(raw.memoDir ?? "~/.openclaw/miniclaw/USER/memos"),
+    kbDbDir: resolvePath(raw.kbDbDir ?? "~/.openclaw/miniclaw/USER/kb"),
+    episodicDir: resolvePath(raw.episodicDir ?? "~/.openclaw/miniclaw/USER/memory"),
     modelPath: resolvePath(
       raw.modelPath ?? "~/.cache/qmd/models/hf_ggml-org_embeddinggemma-300M-Q8_0.gguf",
     ),

@@ -7,7 +7,7 @@
     "model": "anthropic/claude-sonnet-4-6",
     "maxSteps": 500,
     "contextWindow": 30000,
-    "outputDir": "~/.openclaw/USER/benchmarks/vending-bench"
+    "outputDir": "~/.openclaw/miniclaw/USER/benchmarks/vending-bench"
   },
   "requires": [],
   "optional": true

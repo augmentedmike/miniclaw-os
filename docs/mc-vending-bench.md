@@ -63,7 +63,7 @@ No agent tools. mc-vending-bench is a CLI-only benchmarking plugin.
 | `model` | `string` | `anthropic/claude-sonnet-4-6` | Model to use for benchmarking |
 | `maxSteps` | `number` | `500` | Maximum benchmark steps |
 | `contextWindow` | `number` | `30000` | Context window size |
-| `outputDir` | `string` | `~/.openclaw/USER/benchmarks/vending-bench` | Output directory for results |
+| `outputDir` | `string` | `~/.openclaw/miniclaw/USER/benchmarks/vending-bench` | Output directory for results |
 
 ## Examples
 

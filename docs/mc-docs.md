@@ -303,12 +303,12 @@ Documents are stored as individual JSON files. The path resolves in priority ord
 
 1. **Explicit `basePath`** passed to `DocumentStore` constructor (programmatic use only)
 2. **`$OPENCLAW_STATE_DIR/USER/docs/`** — if the environment variable is set
-3. **`~/.openclaw/USER/docs/`** — hardcoded fallback
+3. **`~/.openclaw/miniclaw/USER/docs/`** — hardcoded fallback
 
 The effective path is:
 
 ```
-~/.openclaw/USER/docs/
+~/.openclaw/miniclaw/USER/docs/
   doc_k3x9ab1c2.json
   doc_m7p2wq4r1.json
   ...

@@ -79,7 +79,7 @@ Use the research_query tool to find out what agent benchmarks are trending in 20
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `stateDir` | `string` | `~/.openclaw/USER/research` | Directory for research.db |
+| `stateDir` | `string` | `~/.openclaw/miniclaw/USER/research` | Directory for research.db |
 | `perplexityModel` | `string` | `sonar` | Perplexity model to use |
 | `searchProvider` | `string` | `google` | Search provider: serp, google, or bing |
 | `maxSnapshotPages` | `number` | `5` | Max pages to scrape per snapshot |

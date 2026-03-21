@@ -30,10 +30,10 @@ function resolveConfig(api: OpenClawPluginApi): DevlogConfig {
     repoDir: resolvePath(raw.repoDir ?? "~/.openclaw/projects/miniclaw-os"),
     githubRepo: raw.githubRepo ?? "miniclaw-official/miniclaw-os",
     discussionCategory: raw.discussionCategory ?? "Devlog",
-    postsDir: resolvePath(raw.postsDir ?? "~/.openclaw/USER/blog/posts"),
+    postsDir: resolvePath(raw.postsDir ?? "~/.openclaw/miniclaw/USER/blog/posts"),
     contributorMap: raw.contributorMap ?? {},
     substackEnabled: raw.substackEnabled ?? false,
-    redditDigestDir: resolvePath(raw.redditDigestDir ?? "~/.openclaw/USER/devlog/reddit-queue"),
+    redditDigestDir: resolvePath(raw.redditDigestDir ?? "~/.openclaw/miniclaw/USER/devlog/reddit-queue"),
     timezone: raw.timezone ?? "America/Chicago",
   };
 }
