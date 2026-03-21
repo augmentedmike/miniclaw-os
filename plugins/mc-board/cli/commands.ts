@@ -538,7 +538,7 @@ Shipped cards are excluded — they're done.
   // ---- brain archive <id> ----
   brain
     .command("archive <id>")
-    .description("Archive a card — removes from board, compresses into rotating archive")
+    .description("Archive a card from any column — removes from board, compresses into rotating archive")
     .addHelpText("after", `
 Cards can be archived from any column. The card is removed from the active
 board and written into a gzip-compressed JSONL archive. Nothing is deleted

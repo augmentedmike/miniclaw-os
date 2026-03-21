@@ -11,7 +11,11 @@ interface Props {
 export function ShippedSidebar({ cards, projects, onCardClick }: Props) {
   const [open, setOpen] = useState(false);
   const projectMap = useMemo(() => Object.fromEntries(projects.map(p => [p.id, p.name])), [projects]);
-  const shipped = useMemo(() => cards.filter(c => c.column === "shipped").sort((a, b) => b.updated_at.localeCompare(a.updated_at)), [cards]);
+  const shipped = useMemo(() => cards.filter(c => c.column === "shipped").sort((a, b) => {
+    const aShipped = a.history?.findLast?.(h => h.column === "shipped")?.moved_at ?? a.updated_at;
+    const bShipped = b.history?.findLast?.(h => h.column === "shipped")?.moved_at ?? b.updated_at;
+    return bShipped.localeCompare(aShipped);
+  }), [cards]);
 
   return (
     <div className={`shrink-0 border-l border-zinc-800 bg-zinc-950 flex flex-col transition-all duration-200 ${open ? "w-72" : "w-8"}`}>
