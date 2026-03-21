@@ -75,9 +75,9 @@ The only exception: if you made partial progress and can continue next session (
 Design cards require visual artifacts from mc-designer BEFORE writing any code. Do not skip this.
 
 **HARD RULE: A design criterion that mentions "mc-designer" or "attached to card" CANNOT be checked `- [x]` unless:**
-1. The PNG file physically exists at `~/.openclaw/USER/docs/media/designer/`
+1. The PNG file physically exists at `~/.openclaw/miniclaw/USER/docs/media/designer/`
 2. The attachment curl POST to `/api/cards/{{CARD_ID}}/attachments` returned HTTP 200
-3. You ran `ls ~/.openclaw/USER/docs/media/designer/ | grep {{CARD_ID}}` and saw the file
+3. You ran `ls ~/.openclaw/miniclaw/USER/docs/media/designer/ | grep {{CARD_ID}}` and saw the file
 
 Do NOT check the criterion based on code alone. Verify the file exists first.
 
@@ -85,22 +85,22 @@ Do NOT check the criterion based on code alone. Verify the file exists first.
 ```
 # Color palette / mood board
 openclaw mc-designer gen "Ghibli-inspired pastel color palette: sage greens, dusty pinks, warm creams, sky blues — watercolor swatch grid" -c {{CARD_ID}}-palette --role background
-openclaw mc-designer composite -c {{CARD_ID}}-palette -o ~/.openclaw/USER/docs/media/designer/{{CARD_ID}}-palette.png
+openclaw mc-designer composite -c {{CARD_ID}}-palette -o ~/.openclaw/miniclaw/USER/docs/media/designer/{{CARD_ID}}-palette.png
 
 # Background texture or hero image
 openclaw mc-designer gen "<description of background>" -c {{CARD_ID}}-bg --role background
-openclaw mc-designer composite -c {{CARD_ID}}-bg -o ~/.openclaw/USER/docs/media/designer/{{CARD_ID}}-bg.png
+openclaw mc-designer composite -c {{CARD_ID}}-bg -o ~/.openclaw/miniclaw/USER/docs/media/designer/{{CARD_ID}}-bg.png
 
 # Component mockup (add elements on top of background)
 openclaw mc-designer gen "<UI element description>" -c {{CARD_ID}}-mockup --role element -x 0 -y 0 --w 800 --h 600
-openclaw mc-designer composite -c {{CARD_ID}}-mockup -o ~/.openclaw/USER/docs/media/designer/{{CARD_ID}}-mockup.png
+openclaw mc-designer composite -c {{CARD_ID}}-mockup -o ~/.openclaw/miniclaw/USER/docs/media/designer/{{CARD_ID}}-mockup.png
 ```
 
 **Step 2 — Attach every generated asset to the card:**
 ```
 curl -s -X POST http://localhost:4220/api/cards/{{CARD_ID}}/attachments \
   -H "Content-Type: application/json" \
-  -d '{"path":"~/.openclaw/USER/docs/media/designer/{{CARD_ID}}-palette.png","label":"Color palette reference"}'
+  -d '{"path":"~/.openclaw/miniclaw/USER/docs/media/designer/{{CARD_ID}}-palette.png","label":"Color palette reference"}'
 ```
 Attach each PNG. The card must have at least one attached image before any code is written.
 
@@ -202,9 +202,9 @@ Use these sources in order:
 
 **Step 3 — Write findings to a file:**
 ```
-mkdir -p ~/.openclaw/USER/research
+mkdir -p ~/.openclaw/miniclaw/USER/research
 # Write findings as structured markdown
-cat > ~/.openclaw/USER/research/{{CARD_ID}}-findings.md << 'EOF'
+cat > ~/.openclaw/miniclaw/USER/research/{{CARD_ID}}-findings.md << 'EOF'
 # Research: <title>
 
 ## Question
@@ -224,8 +224,8 @@ EOF
 **Step 4 — Update the card with findings:**
 ```
 openclaw mc-board update {{CARD_ID}} \
-  --notes "Research complete. Findings at ~/.openclaw/USER/research/{{CARD_ID}}-findings.md. Summary: <2-sentence summary>" \
-  --research "$(cat ~/.openclaw/USER/research/{{CARD_ID}}-findings.md)"
+  --notes "Research complete. Findings at ~/.openclaw/miniclaw/USER/research/{{CARD_ID}}-findings.md. Summary: <2-sentence summary>" \
+  --research "$(cat ~/.openclaw/miniclaw/USER/research/{{CARD_ID}}-findings.md)"
 ```
 
 **Step 5 — If the research produces a plan for follow-on work:**
