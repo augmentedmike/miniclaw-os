@@ -764,7 +764,7 @@ export function CardModal({ cardId, projects, activeIds, onClose, onOpenLog, onT
           <div
             className="text-xs font-mono card-id--clickable"
             style={{ color: idCopied ? "#22c55e" : "#52525b", cursor: "pointer", userSelect: "none", display: "inline-block" }}
-            title="Click to copy card ID"
+            title="Right click the card number to reference it in web chat"
             onClick={() => {
               navigator.clipboard.writeText(card.id).then(() => {
                 setIdCopied(true);

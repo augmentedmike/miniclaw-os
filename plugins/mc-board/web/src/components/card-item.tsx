@@ -114,7 +114,7 @@ export const CardItem = memo(function CardItem({ card, projectName, isActive, wo
       <div className="card-header">
         <span
           className={`card-id card-id--clickable${idCopied ? " card-id--copied" : ""}`}
-          title="Click to copy card ID"
+          title="Right click the card number to reference it in web chat"
           onClick={(e) => {
             e.stopPropagation();
             navigator.clipboard.writeText(card.id).then(() => {
