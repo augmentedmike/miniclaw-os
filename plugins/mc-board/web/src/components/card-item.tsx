@@ -75,6 +75,7 @@ export const CardItem = memo(function CardItem({ card, projectName, isActive, wo
   const pct = total > 0 ? Math.round((checked / total) * 100) : -1;
   const focused = card.tags.includes("focus");
   const held = card.tags.includes("hold");
+  const [idCopied, setIdCopied] = useState(false);
 
   const handleContextMenu = (e: React.MouseEvent) => {
     if (!onInjectContext) return;
@@ -111,7 +112,17 @@ export const CardItem = memo(function CardItem({ card, projectName, isActive, wo
 
       {/* Header: id + focus badge + priority badge */}
       <div className="card-header">
-        <span className="card-id">{card.id}</span>
+        <span
+          className={`card-id card-id--clickable${idCopied ? " card-id--copied" : ""}`}
+          title="Click to copy card ID"
+          onClick={(e) => {
+            e.stopPropagation();
+            navigator.clipboard.writeText(card.id).then(() => {
+              setIdCopied(true);
+              setTimeout(() => setIdCopied(false), 1600);
+            });
+          }}
+        >{idCopied ? "copied!" : card.id}</span>
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <HoldBadge held={held} onToggle={onHoldToggle ? (e) => { e.stopPropagation(); onHoldToggle(card.id); } : undefined} />
           <FocusBadge focused={focused} onToggle={onFocusToggle ? (e) => { e.stopPropagation(); onFocusToggle(card.id, !focused); } : undefined} />

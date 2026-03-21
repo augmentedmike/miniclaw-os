@@ -560,6 +560,7 @@ export function CardModal({ cardId, projects, activeIds, onClose, onOpenLog, onT
   );
 
   const [fileModal, setFileModal] = useState<{ path: string; base?: string } | null>(null);
+  const [idCopied, setIdCopied] = useState(false);
 
   const projectMap = Object.fromEntries(projects.map(p => [p.id, p.name]));
   const isActive = cardId ? (activeIds?.has(cardId) ?? false) : false;
@@ -760,7 +761,17 @@ export function CardModal({ cardId, projects, activeIds, onClose, onOpenLog, onT
       {/* Footer */}
       {card && (
         <div className="border-t border-zinc-800 px-6 py-3 flex-shrink-0">
-          <div className="text-xs text-zinc-600 font-mono">{card.id}</div>
+          <div
+            className="text-xs font-mono card-id--clickable"
+            style={{ color: idCopied ? "#22c55e" : "#52525b", cursor: "pointer", userSelect: "none", display: "inline-block" }}
+            title="Click to copy card ID"
+            onClick={() => {
+              navigator.clipboard.writeText(card.id).then(() => {
+                setIdCopied(true);
+                setTimeout(() => setIdCopied(false), 1600);
+              });
+            }}
+          >{idCopied ? "copied!" : card.id}</div>
         </div>
       )}
     </Modal>
