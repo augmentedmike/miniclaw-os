@@ -1,0 +1,16 @@
+{
+  "name": "mc-realty",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "index.ts",
+  "description": "Real estate workflow orchestration — comp analysis, listings, showings, transactions, market reports",
+  "dependencies": {},
+  "devDependencies": {
+    "openclaw": "file:../../../openclaw"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

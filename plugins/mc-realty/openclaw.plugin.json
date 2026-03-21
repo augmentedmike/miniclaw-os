@@ -1,0 +1,54 @@
+{
+  "id": "mc-realty",
+  "name": "Miniclaw Realty",
+  "description": "Real estate workflow orchestration for FSBO sellers and small brokerages — pricing, listings, showings, transactions, and market reports.",
+  "version": "0.1.0",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "attom_api_key_vault": {
+        "type": "string",
+        "description": "mc-vault key name for ATTOM Data API key (default: attom_api_key)"
+      },
+      "default_market": {
+        "type": "string",
+        "description": "Default metro area for comp searches (e.g. 'Miami-Fort Lauderdale')"
+      },
+      "comp_radius_miles": {
+        "type": "number",
+        "description": "Radius in miles for comparable property search"
+      },
+      "comp_lookback_months": {
+        "type": "number",
+        "description": "How many months back to search for comps"
+      },
+      "comp_max_results": {
+        "type": "number",
+        "description": "Maximum number of comps to return"
+      },
+      "booking_duration_minutes": {
+        "type": "number",
+        "description": "Default showing duration in minutes"
+      },
+      "transaction_stages": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Pipeline stages for transaction tracking"
+      },
+      "syndicate_platforms": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Social platforms for listing syndication"
+      },
+      "auto_syndicate": {
+        "type": "boolean",
+        "description": "Auto-post listings to syndicate_platforms on generate-listing"
+      },
+      "notification_email": {
+        "type": "string",
+        "description": "Seller/agent email for status updates"
+      }
+    }
+  }
+}
