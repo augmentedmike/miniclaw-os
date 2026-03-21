@@ -565,8 +565,8 @@ VALUES (
   'prj_setup',
   datetime('now'),
   datetime('now'),
-  'The rolodex has a placeholder contact for the human owner (name="My Human", no email). The agent needs to ask the human for their real name and preferred email address, then update the rolodex so all future communications use the correct identity.',
-  '1. Send the human a Telegram message (use the inbox CLI, NOT mc-human) asking for their preferred name and email address.\\n2. Once the human replies in Telegram, find the human contact id with: openclaw mc-rolodex list --tag owner\\n3. Update the contact: openclaw mc-rolodex update CONTACT_ID --name \"their name\" --email \"their email\"\\n4. Verify the rolodex contact was updated correctly with: openclaw mc-rolodex list',
+  'The rolodex has a placeholder contact for the human owner (name="My Human", no email). The agent needs to ask the human for their real name and preferred email address, then update the rolodex so all future communications use the correct identity. IMPORTANT: Before asking, run openclaw mc-rolodex list --tag owner. If the owner contact already has a real name (not "My Human") and an email address, skip asking and move this card directly to done.',
+  '0. GUARD: Run openclaw mc-rolodex list --tag owner. If the owner name is NOT "My Human" AND has a non-empty email, onboarding is already complete — move this card to done and exit immediately.\\n1. Send the human a Telegram message (use the inbox CLI, NOT mc-human) asking for their preferred name and email address.\\n2. Once the human replies in Telegram, find the human contact id with: openclaw mc-rolodex list --tag owner\\n3. Update the contact: openclaw mc-rolodex update CONTACT_ID --name \"their name\" --email \"their email\"\\n4. Verify the rolodex contact was updated correctly with: openclaw mc-rolodex list',
   '- [ ] Human contact in rolodex has their real name (not "My Human")\\n- [ ] Human contact has their real email address\\n- [ ] Agent confirmed the update via mc-rolodex list'
 )""")
 conn.commit()
