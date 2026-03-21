@@ -21,7 +21,7 @@
       },
       "postsDir": {
         "type": "string",
-        "description": "Directory for mc-blog posts (default: ~/.openclaw/USER/blog/posts)"
+        "description": "Directory for mc-blog posts (default: ~/.openclaw/miniclaw/USER/blog/posts)"
       },
       "contributorMap": {
         "type": "object",
@@ -34,7 +34,7 @@
       },
       "redditDigestDir": {
         "type": "string",
-        "description": "Directory to write weekly digest flags (default: ~/.openclaw/USER/devlog/reddit-queue)"
+        "description": "Directory to write weekly digest flags (default: ~/.openclaw/miniclaw/USER/devlog/reddit-queue)"
       },
       "timezone": {
         "type": "string",

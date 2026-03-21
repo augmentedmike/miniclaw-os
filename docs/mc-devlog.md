@@ -59,10 +59,10 @@ Use the devlog_preview tool to see what yesterday's activity looks like before p
 | `repoDir` | `string` | `~/.openclaw/projects/miniclaw-os` | Git repository path |
 | `githubRepo` | `string` | `miniclaw-official/miniclaw-os` | GitHub owner/repo for Discussions |
 | `discussionCategory` | `string` | `Devlog` | GitHub Discussions category |
-| `postsDir` | `string` | `~/.openclaw/USER/blog/posts` | Directory for mc-blog posts |
+| `postsDir` | `string` | `~/.openclaw/miniclaw/USER/blog/posts` | Directory for mc-blog posts |
 | `contributorMap` | `object` | `{}` | Map git author names → display names |
 | `substackEnabled` | `boolean` | `false` | Cross-post to Substack |
-| `redditDigestDir` | `string` | `~/.openclaw/USER/devlog/reddit-queue` | Weekly digest queue directory |
+| `redditDigestDir` | `string` | `~/.openclaw/miniclaw/USER/devlog/reddit-queue` | Weekly digest queue directory |
 | `timezone` | `string` | `America/Chicago` | Timezone for date display |
 
 ## Examples

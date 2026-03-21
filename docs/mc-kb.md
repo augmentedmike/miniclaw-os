@@ -520,7 +520,7 @@ Plugin config in `openclaw.plugin.json` or the openclaw config file:
 ```json
 {
   "mc-kb": {
-    "dbDir": "~/.openclaw/USER/kb",
+    "dbDir": "~/.openclaw/miniclaw/USER/kb",
     "modelPath": "~/.cache/qmd/models/hf_ggml-org_embeddinggemma-300M-Q8_0.gguf",
     "qmdBin": "~/.bun/bin/qmd",
     "qmdCollection": "kb",
@@ -532,7 +532,7 @@ Plugin config in `openclaw.plugin.json` or the openclaw config file:
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `dbDir` | `~/.openclaw/USER/kb` | Directory for `kb.db` and `entries/` |
+| `dbDir` | `~/.openclaw/miniclaw/USER/kb` | Directory for `kb.db` and `entries/` |
 | `modelPath` | `~/.cache/qmd/models/hf_ggml-org_embeddinggemma-300M-Q8_0.gguf` | EmbeddingGemma model file |
 | `contextN` | `3` | Max KB entries injected per prompt |
 | `contextThreshold` | `0.75` | Max cosine distance for context injection (lower = stricter) |

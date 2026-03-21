@@ -24,7 +24,7 @@
     <key>CLAUDE_BIN</key>
     <string>/opt/homebrew/bin/claude</string>
     <key>BOARD_DB_PATH</key>
-    <string>/Users/augmentedmike/.openclaw/USER/brain/board.db</string>
+    <string>/Users/augmentedmike/.openclaw/miniclaw/USER/brain/board.db</string>
     <key>AGENT_RUNNER_POLL_MS</key>
     <string>5000</string>
     <key>AGENT_RUNNER_MAX_CONCURRENT</key>

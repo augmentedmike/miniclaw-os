@@ -44,7 +44,7 @@
         "dir": "web"
       },
       "config": {
-        "cardsDir": "~/.openclaw/USER/brain/cards",
+        "cardsDir": "~/.openclaw/miniclaw/USER/brain/cards",
         "qmdBin": "~/.bun/bin/qmd",
         "qmdCollection": "mc-board",
         "webPort": 4220
@@ -103,7 +103,7 @@
         "kb_get"
       ],
       "config": {
-        "dbDir": "~/.openclaw/USER/brain/kb",
+        "dbDir": "~/.openclaw/miniclaw/USER/brain/kb",
         "modelPath": "~/.cache/qmd/models/hf_ggml-org_embeddinggemma-300M-Q8_0.gguf",
         "qmdBin": "~/.bun/bin/qmd",
         "qmdCollection": "kb",
@@ -120,7 +120,7 @@
       "cli": true,
       "tools": [],
       "config": {
-        "storagePath": "~/.openclaw/USER/rolodex/contacts.json"
+        "storagePath": "~/.openclaw/miniclaw/USER/rolodex/contacts.json"
       }
     },
     {
@@ -239,13 +239,13 @@
         "repoDir": "~/.openclaw/projects/miniclaw-os",
         "githubRepo": "augmentedmike/miniclaw-os",
         "discussionCategory": "Devlog",
-        "postsDir": "~/.openclaw/USER/blog/posts",
+        "postsDir": "~/.openclaw/miniclaw/USER/blog/posts",
         "contributorMap": {
           "AugmentedMike": "Amelia",
           "Michael ONeal": "Mike"
         },
         "substackEnabled": false,
-        "redditDigestDir": "~/.openclaw/USER/devlog/reddit-queue",
+        "redditDigestDir": "~/.openclaw/miniclaw/USER/devlog/reddit-queue",
         "timezone": "America/Chicago"
       }
     },
@@ -731,7 +731,7 @@
       "port": 4210,
       "pm2": "am-setup",
       "entryUrl": "http://localhost:4210",
-      "setupState": "~/.openclaw/USER/setup-state.json"
+      "setupState": "~/.openclaw/miniclaw/USER/setup-state.json"
     }
   ]
 }

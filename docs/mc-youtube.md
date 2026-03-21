@@ -13,7 +13,7 @@ Video keyframe extraction and analysis for YouTube content.
 
 ```json
 {
-  "mediaDir": "~/.openclaw/USER/media/youtube",
+  "mediaDir": "~/.openclaw/miniclaw/USER/media/youtube",
   "maxKeyPoints": 12,
   "screenshotWidth": 1280,
   "screenshotQuality": 3,

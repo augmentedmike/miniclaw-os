@@ -12,7 +12,7 @@
  * - KB entries (lessons, postmortems, decisions)
  * - A reflection snapshot (stored in SQLite + markdown)
  *
- * Reflection dir: ~/.openclaw/USER/reflections
+ * Reflection dir: ~/.openclaw/miniclaw/USER/reflections
  */
 
 import * as path from "node:path";
@@ -39,10 +39,10 @@ function resolvePath(p: string): string {
 function resolveConfig(api: OpenClawPluginApi): ReflectionPluginConfig {
   const raw = (api.pluginConfig ?? {}) as Partial<ReflectionPluginConfig>;
   return {
-    reflectionDir: resolvePath(raw.reflectionDir ?? `~/.openclaw/USER/reflections`),
+    reflectionDir: resolvePath(raw.reflectionDir ?? `~/.openclaw/miniclaw/USER/reflections`),
     memoryDir: resolvePath(raw.memoryDir ?? "~/.openclaw/workspace/memory"),
-    boardDbPath: resolvePath(raw.boardDbPath ?? `~/.openclaw/USER/brain`),
-    kbDbPath: resolvePath(raw.kbDbPath ?? `~/.openclaw/USER/kb`),
+    boardDbPath: resolvePath(raw.boardDbPath ?? `~/.openclaw/miniclaw/USER/brain`),
+    kbDbPath: resolvePath(raw.kbDbPath ?? `~/.openclaw/miniclaw/USER/kb`),
     transcriptsDir: resolvePath(raw.transcriptsDir ?? "~/.claude/projects"),
   };
 }

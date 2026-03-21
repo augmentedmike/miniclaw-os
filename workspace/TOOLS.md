@@ -6,9 +6,9 @@ All tools are accessed via `openclaw mc-<plugin> <command>`. Never call underlyi
 
 - **Projects/repos:** `~/.openclaw/miniclaw/USER/projects/`
 - **Research/docs/playbooks:** `~/.openclaw/miniclaw/USER/docs/`
-- **Memory (short-term):** `~/.openclaw/USER/memory/`
-- **Blog posts:** `~/.openclaw/USER/blog/posts/`
-- **Media/attachments:** `~/.openclaw/USER/bin/media/`
+- **Memory (short-term):** `~/.openclaw/miniclaw/USER/memory/`
+- **Blog posts:** `~/.openclaw/miniclaw/USER/blog/posts/`
+- **Media/attachments:** `~/.openclaw/miniclaw/USER/bin/media/`
 
 ## Git / Projects
 
