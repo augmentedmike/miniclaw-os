@@ -194,7 +194,10 @@ export const CardItem = memo(function CardItem({ card, projectName, isActive, wo
       {/* Meta */}
       <div className="card-meta">
         {projectName && <span style={{ color: "#71717a", marginRight: 6 }}>{projectName} ·</span>}
-        updated {fmtDate(card.updated_at)}
+        {card.shipped_at
+          ? <>shipped {fmtDate(card.shipped_at)}</>
+          : <>updated {fmtDate(card.updated_at)}</>
+        }
       </div>
     </div>
   );
