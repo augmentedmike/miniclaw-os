@@ -201,9 +201,21 @@ curl -fsSL https://raw.githubusercontent.com/augmentedmike/miniclaw-os/main/boot
 ### 系统要求
 
 - **Mac** — 2020 年或更新款（Intel 或 Apple Silicon）
-- **API 密钥** — Claude、GPT-4 或你偏好的 LLM（加密存储于 `mc-vault`）
+- **Claude 订阅**（必需） — MiniClaw 专为 Claude 订阅设计运行。无按量计费，无意外账单。
 - **约 20GB 磁盘空间** — 用于运行时和本地模型
 - **网络连接** — 用于安装和 LLM 推理（仅 SSL，无遥测）
+
+### 价格
+
+MiniClaw 使用你现有的 Claude 订阅运行 — **无意外账单，无按 token 收费**。
+
+| 方案 | 月费 | 适用场景 |
+|------|-------------|----------|
+| **Claude Pro** | $20/月 | 轻度使用 — 个人项目、偶尔的任务 |
+| **Claude Max (5x)** | $100/月 | 中等负载 — 日常自主运行 |
+| **Claude Max (20x)** | $200/月 | 开发者和高负载 — 重度自主使用、多智能体 |
+
+**其他 API 密钥呢？** 部分插件使用可选的第三方 API（例如 Nano Banana 2 用于 mc-designer 图像生成，Perplexity 用于 mc-research）。这些是**可选附加组件** — MiniClaw 无需它们即可运行。如果你添加了它们，它们使用各自的定价。所有密钥均加密存储于 `mc-vault`。
 
 ---
 

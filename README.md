@@ -203,9 +203,21 @@ That's it. The **setup wizard** walks you through API key configuration, plugin 
 ### Requirements
 
 - **A Mac** — 2020 or newer (Intel or Apple Silicon)
-- **API keys** — Claude, GPT-4, or your preferred LLM (stored encrypted in `mc-vault`)
+- **A Claude subscription** (required) — MiniClaw is built to run on a Claude subscription. No usage-based billing, no surprise charges.
 - **~20GB disk** — for runtime and local models
 - **Internet** — for setup and LLM inference (SSL only, no telemetry)
+
+### Pricing
+
+MiniClaw runs on your existing Claude subscription — **no surprise bills, no pay-per-token fees**.
+
+| Plan | Monthly Cost | Best For |
+|------|-------------|----------|
+| **Claude Pro** | $20/month | Light use — personal projects, occasional tasks |
+| **Claude Max (5x)** | $100/month | Average workloads — daily autonomous operation |
+| **Claude Max (20x)** | $200/month | Developers and high-volume — heavy autonomous use, multiple agents |
+
+**What about other API keys?** Some plugins use optional third-party APIs (e.g., Nano Banana 2 for mc-designer image generation, Perplexity for mc-research). These are **optional add-ons** — MiniClaw works without them. If you add them, they use their own pricing. All keys are stored encrypted in `mc-vault`.
 
 ---
 
