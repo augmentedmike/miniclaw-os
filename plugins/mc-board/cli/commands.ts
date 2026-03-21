@@ -27,6 +27,60 @@ export interface CliContext {
   logger: { info: (m: string) => void; warn: (m: string) => void; error: (m: string) => void };
 }
 
+/**
+ * Read the shared agent-base context template.
+ * Returns the full tool list, card-only workflow rule, and ecosystem description.
+ * Falls back to a minimal embedded version if the file is missing.
+ */
+function readAgentBaseContext(stateDir: string): string {
+  const templatePath = path.join(stateDir, "miniclaw", "SYSTEM", "context", "agent-base.md");
+  try {
+    return fs.readFileSync(templatePath, "utf8").trim();
+  } catch {
+    // Fallback: minimal embedded context so workers always have tool awareness
+    return [
+      "## Available CLI tools (use via Bash)",
+      "- `openclaw mc-board` — board management (create, update, move, show, board, pickup, release)",
+      "- `openclaw mc-rolodex` — contact management (add, search, list, update, remove)",
+      "- `openclaw mc-kb` — knowledge base (search, add, update, get)",
+      "- `openclaw mc-email` — email (send, inbox, triage)",
+      "- `openclaw mc-vault` — secrets (get, set, list)",
+      "- `openclaw mc-backup` — backups (now, list, restore)",
+      "",
+      "## Card-Only Workflow Rule",
+      "ALL tasks go to cards. Inline work is ONLY for answering direct questions.",
+      "If someone asks you to DO something, create a card: `openclaw mc-board create --title \"...\" --priority medium`",
+      "NEVER execute multi-step work inline. Always create a card.",
+    ].join("\n");
+  }
+}
+
+/**
+ * Build CLAUDE.md content for a spawned worker.
+ * @param title - Worker title line (e.g. "Triage: Fix login bug")
+ * @param cardLine - Optional card reference line
+ * @param mode - "sandboxed" (no tools, analysis only) or "toolaware" (full tool access)
+ * @param stateDir - State directory to find agent-base.md template
+ */
+function buildWorkerClaudeMd(title: string, cardLine: string | null, mode: "sandboxed" | "toolaware", stateDir: string): string {
+  const lines: string[] = [`# ${title}`, ""];
+  if (cardLine) lines.push(cardLine, "");
+
+  if (mode === "sandboxed") {
+    lines.push("This is a sandboxed non-interactive session. Do not use tools.");
+    lines.push("Respond only with your analysis and the APPLY block.");
+    lines.push("");
+    // Even sandboxed workers get the card-only workflow rule for awareness
+    lines.push("## Card-Only Workflow Rule");
+    lines.push("ALL tasks go to cards. Inline work is ONLY for answering direct questions.");
+  } else {
+    // Full tool-aware context
+    lines.push(readAgentBaseContext(stateDir));
+  }
+
+  return lines.join("\n");
+}
+
 export function registerBrainCommands(ctx: CliContext, store: CardStore, projects: ProjectStore): void {
   const archive = new ArchiveStore(ctx.stateDir);
   const { program } = ctx;
@@ -1000,13 +1054,8 @@ Rules:
       // Setup run dir
       const runDir = path.join(ctx.stateDir, "tmp", `${ts0}-${cardId}`);
       fs.mkdirSync(runDir, { recursive: true });
-      fs.writeFileSync(path.join(runDir, "CLAUDE.md"), [
-        `# Triage: ${card.title}`,
-        "",
-        `Card: ${cardId} (backlog)`,
-        "This is a sandboxed non-interactive session. Do not use tools.",
-        "Respond only with your analysis and the APPLY block.",
-      ].join("\n"));
+      fs.writeFileSync(path.join(runDir, "CLAUDE.md"),
+        buildWorkerClaudeMd(`Triage: ${card.title}`, `Card: ${cardId} (backlog)`, "sandboxed", ctx.stateDir));
 
       const CLAUDE_BIN = process.env.CLAUDE_BIN ?? "claude";
       const debugFile = path.join(logDir, `${ts0}-${cardId}.debug.log`);
@@ -1256,12 +1305,8 @@ Be thorough. Extract all meaningful tasks from the document. If the document alr
 
       const runDir = path.join(ctx.stateDir, "tmp", `${ts0}-plan`);
       fs.mkdirSync(runDir, { recursive: true });
-      fs.writeFileSync(path.join(runDir, "CLAUDE.md"), [
-        `# Plan: ${path.basename(file)}`,
-        "",
-        "This is a sandboxed non-interactive session. Do not use tools.",
-        "Respond only with your decomposition and the APPLY block.",
-      ].join("\n"));
+      fs.writeFileSync(path.join(runDir, "CLAUDE.md"),
+        buildWorkerClaudeMd(`Plan: ${path.basename(file)}`, null, "sandboxed", ctx.stateDir));
 
       const CLAUDE_BIN = process.env.CLAUDE_BIN ?? "claude";
       const debugFile = path.join(logDir, `${ts0}-plan.debug.log`);
