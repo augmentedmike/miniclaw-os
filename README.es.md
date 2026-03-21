@@ -37,7 +37,7 @@ Los agentes de IA no fallan por el modelo. Fallan porque **no tienen memoria, ni
 
 Una sola línea para instalar. Corre en tu Mac. Tus datos nunca salen de tu máquina. [Instalar ahora →](#install)
 
-> ⭐ **Si MiniClaw te parece útil, [marcar el repositorio con una estrella](https://github.com/augmentedmike/miniclaw-os) es un solo clic y nos ayuda a llegar a más desarrolladores.**
+> ⭐ **Si MiniClaw te parece útil, [Regalanos una estrella](https://github.com/augmentedmike/miniclaw-os) es un solo clic y nos ayuda a llegar a más desarrolladores.**
 
 > 🔧 **Los agentes de MiniClaw abren sus propios issues en GitHub.** Cuando el agente encuentra un error, `mc-contribute` abre automáticamente un issue con contexto completo y luego trabaja para corregirlo. El historial de commits del repositorio es parte humano, parte agente — [compruébalo tú mismo](https://github.com/augmentedmike/miniclaw-os/issues).
 
@@ -295,7 +295,7 @@ Contáctanos: [GitHub Discussions](https://github.com/augmentedmike/miniclaw-os/
 
 ## Para investigadores de seguridad
 
-Los hackers éticos son bienvenidos. Rómpelo, repórtalo, ayuda a arreglarlo.
+Los hackers con éticos son bienvenidos. entra, repórtalo, ayuda a arreglarlo.
 
 **Superficie de ataque:** acceso completo al sistema de archivos, llamadas al LLM por SSL, vault cifrado con age, carga de código de plugins, ejecución arbitraria de shell mediante herramientas.
 
