@@ -1,7 +1,5 @@
 [English](README.md) | [Español](README.es.md)
 
-> 欢迎 Wes 和 Dylan！https://www.youtube.com/watch?v=TzZqFkBNnZA - 我们爱你们 ❤️
-
 # 我们给 AI 智能体装上了大脑。
 
 <p align="center">

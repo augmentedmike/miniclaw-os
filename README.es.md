@@ -1,7 +1,5 @@
 [English](README.md) | [中文](README.zh-CN.md)
 
-> ¡Bienvenidos Wes y Dylan! https://www.youtube.com/watch?v=TzZqFkBNnZA - los queremos ❤️
-
 # Le dimos un cerebro a los agentes de IA.
 
 <p align="center">
