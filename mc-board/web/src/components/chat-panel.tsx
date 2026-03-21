@@ -2,12 +2,15 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useAccent } from "@/lib/accent-context";
+import { AgentMessageModal, type ContentBlock } from "./agent-message-modal";
+import { ChatHistorySidebar } from "./chat-history-sidebar";
 
 interface Message {
   role: "user" | "assistant" | "system";
   content: string;
   images?: string[]; // base64 data URLs for display
   error?: boolean;
+  blocks?: ContentBlock[]; // raw content blocks for agent modal expansion
 }
 
 interface PendingImage {
@@ -77,7 +80,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
   const [dragOver, setDragOver] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [storageWarning, setStorageWarning] = useState<string | null>(null);
-  // interruptOverlayVisible state removed — interrupt button is always visible on streaming bubble
+  const [interrupted, setInterrupted] = useState(false);
 
   // Mic / voice transcription state
   const [micAvailable, setMicAvailable] = useState(false);
@@ -95,6 +98,10 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
 
   const [isAtBottom, setIsAtBottom] = useState(true);
   const isAtBottomRef = useRef(true);
+  const [expandedBlocks, setExpandedBlocks] = useState<ContentBlock[] | null>(null);
+  const [topicShift, setTopicShift] = useState<{ suggestedTopic: string; seedMessage: string } | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const streamingBlocksRef = useRef<ContentBlock[]>([]);
 
   const wsRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -429,26 +436,58 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
             break;
           case "streaming":
             setStreaming(true);
-            if (d.text) setStreamingText(d.text);
+            if (d.text) setStreamingText(d.text.replace(/<topic_shift\s+detected="true"\s+new_topic="[^"]+"\s*\/>/g, "").trimEnd());
             if (d.tools?.length) setStreamingTools(d.tools);
+            if (d.blocks?.length) streamingBlocksRef.current = d.blocks;
             break;
-          case "result":
-            setStreaming(false); setStreamingText(""); setStreamingTools([]);             if (d.text) {
+          case "result": {
+            setStreaming(false); setStreamingText(""); setStreamingTools([]);
+            const finalBlocks = d.blocks?.length ? d.blocks : (streamingBlocksRef.current.length > 0 ? streamingBlocksRef.current : undefined);
+            streamingBlocksRef.current = [];
+            // Strip any topic_shift tags from displayed text
+            const cleanText = (d.text || "").replace(/<topic_shift\s+detected="true"\s+new_topic="[^"]+"\s*\/>/g, "").trimEnd();
+            if (cleanText) {
               const insertIdx = streamingInsertIndexRef.current;
+              const newMsg: Message = { role: "assistant", content: cleanText, blocks: finalBlocks };
               if (insertIdx !== null) {
                 setMessages(prev => [
                   ...prev.slice(0, insertIdx),
-                  { role: "assistant", content: d.text },
+                  newMsg,
                   ...prev.slice(insertIdx),
                 ]);
               } else {
-                setMessages(prev => [...prev, { role: "assistant", content: d.text }]);
+                setMessages(prev => [...prev, newMsg]);
               }
             }
             streamingInsertIndexRef.current = null;
             break;
+          }
+          case "interrupted": {
+            setStreaming(false); setStreamingText(""); setStreamingTools([]);
+            setInterrupted(true);
+            setTimeout(() => setInterrupted(false), 1500);
+            const partial = d.partialText || "";
+            if (partial) {
+              const iIdx = streamingInsertIndexRef.current;
+              if (iIdx !== null) {
+                setMessages(prev => [
+                  ...prev.slice(0, iIdx),
+                  { role: "assistant", content: partial + "\n\n[interrupted]" },
+                  ...prev.slice(iIdx),
+                ]);
+              } else {
+                setMessages(prev => [...prev, { role: "assistant", content: partial + "\n\n[interrupted]" }]);
+              }
+            }
+            streamingInsertIndexRef.current = null;
+            break;
+          }
           case "done": case "process_exit":
-            setStreaming(false); setStreamingText(""); setStreamingTools([]);             streamingInsertIndexRef.current = null;
+            setStreaming(false); setStreamingText(""); setStreamingTools([]);
+            streamingInsertIndexRef.current = null;
+            break;
+          case "topic_shift":
+            setTopicShift({ suggestedTopic: d.suggestedTopic, seedMessage: d.seedMessage || "" });
             break;
           case "error":
             setMessages(prev => [...prev, { role: "system", content: d.message, error: true }]);
@@ -531,6 +570,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
       setPendingImages([]);
       setImageError(null);
       setStorageWarning(null);
+      setTopicShift(null);
       streamingInsertIndexRef.current = null;
       return;
     }
@@ -580,10 +620,9 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
     setStreaming(false); setStreamingText(""); setStreamingTools([]);
   }, []);
 
-  const interruptAgent = useCallback(() => {
-    stopResponse();
-    setMessages(prev => [...prev, { role: "system" as const, content: "⏹ Agent interrupted by user" }]);
-  }, [stopResponse]);
+  const interruptResponse = useCallback(() => {
+    wsRef.current?.send(JSON.stringify({ type: "interrupt", partialText: streamingText }));
+  }, [streamingText]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && e.shiftKey) {
@@ -593,6 +632,29 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
   };
 
   const clearContext = () => setContext(null);
+
+  const startNewChatFromTopicShift = useCallback(() => {
+    if (!topicShift || !wsRef.current || !connected) return;
+    const seed = topicShift.seedMessage;
+    wsRef.current.send(JSON.stringify({ type: "new_chat", seedMessage: seed }));
+    setMessages(seed ? [{ role: "user", content: seed }] : []);
+    setSessionId(null);
+    setVisibleCount(20);
+    setTopicShift(null);
+    setStorageWarning(null);
+    setStreaming(!!seed); // will be streaming if seed message was sent
+    streamingInsertIndexRef.current = seed ? 1 : null;
+  }, [topicShift, connected]);
+
+  const resumeChat = useCallback((chatId: string) => {
+    if (!wsRef.current || !connected) return;
+    wsRef.current.send(JSON.stringify({ type: "resume_chat", sessionId: chatId }));
+    setMessages([]);
+    setSessionId(chatId);
+    setVisibleCount(20);
+    setStorageWarning(null);
+    streamingInsertIndexRef.current = null;
+  }, [connected]);
 
   // Collapsed state — vertical "CHAT" label
   if (!open) {
@@ -676,7 +738,23 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
           }}>{connected ? "connected" : reconnecting ? "reconnecting…" : "offline"}</span>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          {/* stop button removed — interrupt is on the streaming bubble */}
+          <button
+            onClick={() => setHistoryOpen(o => !o)}
+            title="Chat history"
+            style={{
+              background: historyOpen ? "#27272a" : "none", border: "none",
+              color: historyOpen ? accent : "#52525b", cursor: "pointer",
+              fontSize: 11, padding: "2px 6px", borderRadius: 3, fontFamily: "inherit",
+              transition: "color 0.15s, background 0.15s",
+            }}
+            onMouseEnter={e => { if (!historyOpen) e.currentTarget.style.color = "#a1a1aa"; }}
+            onMouseLeave={e => { if (!historyOpen) e.currentTarget.style.color = "#52525b"; }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+          </button>
           {messages.length > 0 && (
             <button
               onClick={() => { setMessages([]); setStorageWarning(null); wsRef.current?.send(JSON.stringify({ type: "new_chat" })); }}
@@ -740,7 +818,17 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
             ? Math.max(0, Math.min(insertIdx - visibleStartIdx, visible.length))
             : null;
 
-          const renderMsg = (msg: Message, i: number) => (
+          const truncate = (text: string, maxLines: number) => {
+            const lines = text.split("\n");
+            if (lines.length <= maxLines) return text;
+            return lines.slice(0, maxLines).join("\n") + "…";
+          };
+
+          const renderMsg = (msg: Message, i: number) => {
+            const hasBlocks = msg.role === "assistant" && msg.blocks && msg.blocks.length > 0;
+            const isCompact = hasBlocks;
+
+            return (
             <div key={`msg-${i}`} style={{
               display: "flex", flexDirection: "column",
               alignItems: msg.role === "user" ? "flex-end" : "flex-start",
@@ -750,15 +838,22 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
                   {msg.content}
                 </div>
               ) : (
-                <div style={{
-                  maxWidth: "92%", padding: "8px 11px",
-                  borderRadius: msg.role === "user" ? "10px 10px 3px 10px" : "10px 10px 10px 3px",
-                  background: msg.role === "user" ? "#1d3a2a" : "#18181b",
-                  border: msg.error ? "1px solid #7c2d12"
-                    : msg.role === "user" ? `1px solid ${accent}` : "1px solid #27272a",
-                  fontSize: 13, color: msg.error ? "#f87171" : msg.role === "user" ? "#bbf7d0" : "#d4d4d8",
-                  lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-word",
-                }}>
+                <div
+                  onClick={hasBlocks ? () => setExpandedBlocks(msg.blocks!) : undefined}
+                  style={{
+                    maxWidth: "92%", padding: "8px 11px",
+                    borderRadius: msg.role === "user" ? "10px 10px 3px 10px" : "10px 10px 10px 3px",
+                    background: msg.role === "user" ? "#1d3a2a" : "#18181b",
+                    border: msg.error ? "1px solid #7c2d12"
+                      : msg.role === "user" ? `1px solid ${accent}` : "1px solid #27272a",
+                    fontSize: 13, color: msg.error ? "#f87171" : msg.role === "user" ? "#bbf7d0" : "#d4d4d8",
+                    lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-word",
+                    cursor: hasBlocks ? "pointer" : undefined,
+                    transition: "border-color 0.15s, background 0.15s",
+                  }}
+                  onMouseEnter={hasBlocks ? e => { e.currentTarget.style.borderColor = "#52525b"; e.currentTarget.style.background = "#1f1f23"; } : undefined}
+                  onMouseLeave={hasBlocks ? e => { e.currentTarget.style.borderColor = "#27272a"; e.currentTarget.style.background = "#18181b"; } : undefined}
+                >
                   {msg.images && msg.images.length > 0 && msg.images[0] !== "[image]" && (
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6 }}>
                       {msg.images.map((src, imgIdx) => (
@@ -777,22 +872,31 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
                       ))}
                     </div>
                   )}
-                  {msg.content}
+                  {isCompact ? truncate(msg.content, 3) : msg.content}
+                  {hasBlocks && (
+                    <div style={{
+                      marginTop: 6, fontSize: 11, color: "#6366f1",
+                      display: "flex", alignItems: "center", gap: 4,
+                    }}>
+                      <span>▸ {msg.blocks!.length} step{msg.blocks!.length !== 1 ? "s" : ""} · click to expand</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
-          );
+          )};
+
 
           const streamingBlock = streaming ? (
             <div key="streaming" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
-              <div
-                style={{
+              <div style={{
                   maxWidth: "92%", padding: "8px 11px",
                   borderRadius: "10px 10px 10px 3px",
                   background: "#18181b", border: "1px solid #27272a",
                   fontSize: 13, color: "#d4d4d8", lineHeight: 1.55,
                   whiteSpace: "pre-wrap", wordBreak: "break-word",
                   transition: "border-color 0.15s",
+                  position: "relative" as const,
                 }}>
                 {streamingTools.length > 0 && (
                   <div style={{ marginBottom: 6, display: "flex", flexWrap: "wrap", gap: 4 }}>
@@ -804,27 +908,27 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
                     ))}
                   </div>
                 )}
-                {streamingText || <span style={{ color: "#52525b", animation: "pulse 1.5s infinite" }}>
-                  {streamingTools.length > 0 ? "working..." : "thinking..."}
-                </span>}
+                <div style={{ paddingRight: 60 }}>
+                  {streamingText || <span style={{ color: "#52525b", animation: "pulse 1.5s infinite" }}>
+                    {streamingTools.length > 0 ? "working..." : "thinking..."}
+                  </span>}
+                </div>
+                <button
+                  onClick={interrupted ? undefined : interruptResponse}
+                  style={{
+                    position: "absolute" as const,
+                    top: 6, right: 6,
+                    background: interrupted ? "#7c2d12" : "rgba(39,39,42,0.8)",
+                    border: `1px solid ${interrupted ? "#7c2d12" : "#3f3f46"}`,
+                    color: interrupted ? "#fef2f2" : "#f87171",
+                    cursor: interrupted ? "default" : "pointer",
+                    fontSize: 9, padding: "2px 6px", borderRadius: 3, fontFamily: "inherit",
+                    transition: "all 0.3s ease",
+                    opacity: interrupted ? 0.7 : 1,
+                    zIndex: 1,
+                  }}
+                >{interrupted ? "interrupted" : "interrupt"}</button>
               </div>
-              <button
-                onClick={interruptAgent}
-                style={{
-                  marginTop: 6, marginLeft: 8,
-                  background: "#1a2a1a", border: `1px solid ${accent}`,
-                  borderRadius: 6, color: accent,
-                  fontSize: 11, fontWeight: 600, fontFamily: "inherit",
-                  padding: "4px 14px", cursor: "pointer",
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.5)",
-                  transition: "background 0.15s, color 0.15s",
-                  display: "flex", alignItems: "center", gap: 5,
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background = "#2a3a2a"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "#1a2a1a"; }}
-              >
-                ⏹ Interrupt
-              </button>
             </div>
           ) : null;
 
@@ -1089,6 +1193,19 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
           </div>
         </div>
       </div>
+
+      {/* Chat history sidebar (overlay within chat panel) */}
+      <ChatHistorySidebar
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        onResumeChat={resumeChat}
+        currentSessionId={sessionId}
+      />
+
+      {/* Agent message expansion modal */}
+      {expandedBlocks && (
+        <AgentMessageModal blocks={expandedBlocks} onClose={() => setExpandedBlocks(null)} />
+      )}
     </div>
   );
 }

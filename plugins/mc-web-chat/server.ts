@@ -99,6 +99,8 @@ export function startChatServer(opts: ChatServerOptions) {
     procHasContext: boolean;
     lastActivity: number;
     messages: HistoryMessage[];
+    currentTopic: string | null; // tracks the current conversation topic
+    pendingSeedMessage: string | null; // message to auto-send after new_chat from topic shift
   }
 
   const chatSessions = new Map<string, ChatSession>();
@@ -110,6 +112,7 @@ export function startChatServer(opts: ChatServerOptions) {
       totalCost: 0, contextWindow: TOKEN_BUDGET, lastReportedContextUsed: 0,
       turnCount: 0, awaitingResult: false, messageQueue: [], procHasContext: false,
       lastActivity: Date.now(), messages: [],
+      currentTopic: null, pendingSeedMessage: null,
     };
   }
 
@@ -293,7 +296,27 @@ export function startChatServer(opts: ChatServerOptions) {
             session.totalCost += (ev.total_cost_usd || 0);
             session.lastReportedContextUsed = inputTokens + cacheRead + cacheCreate;
 
-            const resultText = ev.result || "";
+            let resultText = ev.result || "";
+
+            // --- Topic shift detection ---
+            const topicShiftRegex = /<topic_shift\s+detected="true"\s+new_topic="([^"]+)"\s*\/>/;
+            const topicMatch = resultText.match(topicShiftRegex);
+            let detectedTopicShift: string | null = null;
+
+            if (topicMatch) {
+              detectedTopicShift = topicMatch[1];
+              // Strip the tag from the result text
+              resultText = resultText.replace(topicShiftRegex, "").trimEnd();
+              console.log(`[mc-web-chat] topic shift detected: "${detectedTopicShift}" (was: "${session.currentTopic}")`);
+            }
+
+            // Extract topic label from first response if not set yet
+            if (!session.currentTopic && resultText && session.turnCount <= 2) {
+              // Use first 60 chars as a rough topic label for the session
+              const firstLine = resultText.split("\n")[0].slice(0, 60).trim();
+              if (firstLine) session.currentTopic = firstLine;
+            }
+
             if (resultText) {
               session.messages.push({
                 role: "assistant",
@@ -313,9 +336,17 @@ export function startChatServer(opts: ChatServerOptions) {
               return { type: b.type, text: String(b.text || "") };
             });
 
+            // Strip topic_shift tags from text blocks sent to client
+            const cleanBlocks = resultBlocks.map((b: Record<string, unknown>) => {
+              if (b.type === "text" && typeof b.text === "string") {
+                return { ...b, text: (b.text as string).replace(topicShiftRegex, "").trimEnd() };
+              }
+              return b;
+            });
+
             sendToClient(session, {
               type: "result", text: resultText,
-              blocks: resultBlocks.length > 0 ? resultBlocks : undefined,
+              blocks: cleanBlocks.length > 0 ? cleanBlocks : undefined,
               tokens: {
                 contextUsed: session.lastReportedContextUsed,
                 contextWindow: session.contextWindow,
@@ -324,6 +355,18 @@ export function startChatServer(opts: ChatServerOptions) {
                 totalCost: session.totalCost,
               },
             });
+
+            // Send topic_shift event AFTER the result so client has the response text first
+            if (detectedTopicShift) {
+              // Find the last user message that triggered this shift
+              const lastUserMsg = [...session.messages].reverse().find(m => m.role === "user");
+              sendToClient(session, {
+                type: "topic_shift",
+                suggestedTopic: detectedTopicShift,
+                currentSessionId: session.id,
+                seedMessage: lastUserMsg?.content || "",
+              });
+            }
 
             session.awaitingResult = false;
 
@@ -397,9 +440,15 @@ export function startChatServer(opts: ChatServerOptions) {
         } catch {}
         const currentDate = new Date().toISOString().slice(0, 10);
         const dateLine = `# currentDate\nToday's date is ${currentDate}.`;
+        const topicDetection = `# Topic Shift Detection
+When the user's message is clearly about a completely different task or subject than the current conversation (e.g. switching from debugging code to scheduling a meeting, or from discussing a recipe to asking about car repair), append this tag at the very end of your response on its own line:
+<topic_shift detected="true" new_topic="SHORT_LABEL_HERE"/>
+Replace SHORT_LABEL_HERE with a 2-5 word label for the new topic.
+IMPORTANT: Do NOT trigger this for natural subtopic evolution, follow-up questions, or related topics within the same domain. Only flag clear, unambiguous task/subject changes.
+${session.currentTopic ? `Current conversation topic: ${session.currentTopic}` : "This is a new conversation — set the topic naturally."}`;
         const context = chatPersona
-          ? `${wp}\n\n# refs/chat-persona.md\n${chatPersona}\n\n${dateLine}`
-          : `${wp}\n\n${dateLine}`;
+          ? `${wp}\n\n# refs/chat-persona.md\n${chatPersona}\n\n${topicDetection}\n\n${dateLine}`
+          : `${wp}\n\n${topicDetection}\n\n${dateLine}`;
         preamble = `<workspace-context>\n${context}\n</workspace-context>\n\n`;
       }
 
@@ -535,7 +584,7 @@ export function startChatServer(opts: ChatServerOptions) {
     let session: ChatSession | null = null;
 
     ws.on("message", (raw) => {
-      let msg: { type: string; content?: string; sessionId?: string; images?: ImageAttachment[]; chatId?: string; id?: string; replyTo?: string };
+      let msg: { type: string; content?: string; sessionId?: string; images?: ImageAttachment[]; chatId?: string; id?: string; replyTo?: string; seedMessage?: string };
       try { msg = JSON.parse(raw.toString()); } catch { return; }
 
       if (msg.type === "join") {
@@ -586,11 +635,18 @@ export function startChatServer(opts: ChatServerOptions) {
         chatSessions.set(session.id, session);
         const est = estimateTokens(getWorkspacePrompt());
         ensureProcess(session);
+        // Store seed message if provided (from topic shift)
+        const seedMsg = msg.seedMessage || null;
         ws.send(JSON.stringify({
           type: "joined", sessionId: session.id, resumed: false,
           workspace: { estimatedTokens: est },
           tokens: { contextUsed: est, contextWindow: session.contextWindow, totalInput: 0, totalOutput: 0, totalCost: 0 },
+          seedMessage: seedMsg,
         }));
+        // Auto-send the seed message if provided
+        if (seedMsg) {
+          handleChat(session, seedMsg);
+        }
       }
 
       if (msg.type === "resume_chat" && msg.sessionId) {
