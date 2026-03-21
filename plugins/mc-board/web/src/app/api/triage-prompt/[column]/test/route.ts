@@ -70,7 +70,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ col
   }
 
   const cardsSummary = colCards.map(cardToTriageSummary).join("\n\n");
-  const fullPrompt = prompt.replace("{{CARDS}}", cardsSummary) + APPLY_INSTRUCTION;
+  const fullPrompt = prompt.replace("{{CARDS}}", cardsSummary).replace(/\{\{CARD_ID\}\}/g, "") + APPLY_INSTRUCTION;
 
   const logDir = path.join(STATE_DIR, "logs", `${column}-triage`);
   fs.mkdirSync(logDir, { recursive: true });
@@ -125,8 +125,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ col
     `# ${column} Triage`,
     "",
     `You are a triage processor for the ${column} column of the Brain board.`,
-    "This is a sandboxed non-interactive session. Do not use tools.",
-    "Respond only with your analysis and the APPLY block.",
+    "You have full tool access. Use bash to read code, run CLI commands, and verify your work.",
+    "Respond with your analysis and the APPLY block.",
   ].join("\n"));
 
   const debugFile = path.join(logDir, `${ts0}.debug.log`);

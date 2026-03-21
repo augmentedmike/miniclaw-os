@@ -995,7 +995,7 @@ Rules:
 - "research" replaces the existing research field — be comprehensive
 - "move_to": set to "in-progress" ONLY if the card has ALL of: (1) clear problem_description, (2) acceptance_criteria, (3) implementation_plan, AND the work appears well-scoped and actionable. If any are missing or vague, omit "move_to" entirely.`;
 
-      const fullPrompt = promptTemplate.replace("{{CARD}}", cardLines) + APPLY_INSTRUCTION;
+      const fullPrompt = promptTemplate.replace("{{CARD}}", cardLines).replace(/\{\{CARD_ID\}\}/g, cardId) + APPLY_INSTRUCTION;
 
       // Setup run dir
       const runDir = path.join(ctx.stateDir, "tmp", `${ts0}-${cardId}`);
@@ -1004,8 +1004,8 @@ Rules:
         `# Triage: ${card.title}`,
         "",
         `Card: ${cardId} (backlog)`,
-        "This is a sandboxed non-interactive session. Do not use tools.",
-        "Respond only with your analysis and the APPLY block.",
+        "You have full tool access. Use bash to read code, run CLI commands, and verify your work.",
+        "Respond with your analysis and the APPLY block.",
       ].join("\n"));
 
       const CLAUDE_BIN = process.env.CLAUDE_BIN ?? "claude";
