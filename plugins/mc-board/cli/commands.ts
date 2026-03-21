@@ -538,9 +538,9 @@ Shipped cards are excluded — they're done.
   // ---- brain archive <id> ----
   brain
     .command("archive <id>")
-    .description("Archive a shipped card — removes from board, compresses into rotating archive")
+    .description("Archive a card from any column — removes from board, compresses into rotating archive")
     .addHelpText("after", `
-Only cards in the shipped column can be archived. The card is removed from
+Cards in any column can be archived. The card is removed from
 the active board and written into a gzip-compressed JSONL archive. Nothing
 is deleted — all archived cards remain searchable.
 
@@ -552,10 +552,6 @@ Examples:
     .action((id: string) => {
       try {
         const card = store.findById(id);
-        if (card.column !== "shipped") {
-          console.error(`Card ${card.id} is in "${card.column}" — only shipped cards can be archived.`);
-          process.exit(1);
-        }
         archive.archiveCard(card);
         store.delete(card.id);
         console.log(`Archived ${card.id}: ${card.title}`);
