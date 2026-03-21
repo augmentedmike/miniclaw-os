@@ -80,13 +80,13 @@ git -C <work_dir> status
    BUILD_CMD=$(openclaw mc-board project show "$PROJECT_ID" 2>/dev/null | grep "^Build command:" | sed 's/^Build command: //')
    if [ -n "$BUILD_CMD" ] && [ -n "$PROJECT_ID" ]; then
      echo "Running build: $BUILD_CMD"
-     LOG=~/am/logs/cards/{{CARD_ID}}.log
+     LOG=~/.openclaw/logs/cards/{{CARD_ID}}.log
      if eval "$BUILD_CMD" >> "$LOG" 2>&1; then
        echo "Build succeeded" >> "$LOG"
      else
        echo "Build FAILED" >> "$LOG"
        # REJECT — push succeeded but build failed
-       openclaw mc-board update {{CARD_ID}} --review "REJECTED: push succeeded but build_command failed. See ~/am/logs/cards/{{CARD_ID}}.log" --worker board-worker-review
+       openclaw mc-board update {{CARD_ID}} --review "REJECTED: push succeeded but build_command failed. See ~/.openclaw/logs/cards/{{CARD_ID}}.log" --worker board-worker-review
        openclaw mc-board move {{CARD_ID}} in-progress --force
        openclaw mc-board release {{CARD_ID}} --worker board-worker-review
        exit 1
@@ -108,14 +108,14 @@ git -C <work_dir> status
 
    if [ -n "$BUILD_CMD" ] && [ -n "$PROJECT_ID" ]; then
      echo "Running build command for project $PROJECT_ID: $BUILD_CMD"
-     LOG_FILE=~/am/logs/cards/{{CARD_ID}}.log
+     LOG_FILE=~/.openclaw/logs/cards/{{CARD_ID}}.log
      echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) [build] Running build_command: $BUILD_CMD" >> "$LOG_FILE"
      if eval "$BUILD_CMD" >> "$LOG_FILE" 2>&1; then
        echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) [build] Build succeeded" >> "$LOG_FILE"
        openclaw mc-board update {{CARD_ID}} --log "Build succeeded: $BUILD_CMD" --worker board-worker-review
      else
        echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) [build] Build FAILED — rejecting card back to in-progress" >> "$LOG_FILE"
-       openclaw mc-board update {{CARD_ID}} --review "Build FAILED after ship: $BUILD_CMD — see ~/am/logs/cards/{{CARD_ID}}.log for details" --worker board-worker-review
+       openclaw mc-board update {{CARD_ID}} --review "Build FAILED after ship: $BUILD_CMD — see ~/.openclaw/logs/cards/{{CARD_ID}}.log for details" --worker board-worker-review
        openclaw mc-board move {{CARD_ID}} in-progress --force
      fi
    fi
