@@ -15,6 +15,16 @@ import {
   markAllProcessed,
   pruneState,
 } from "../src/triage-state.js";
+import {
+  addToList,
+  removeFromList,
+  isBlocked,
+  listAll,
+  getEntry,
+  detectOptOut,
+  detectResubscribe,
+  extractEmail,
+} from "../src/dnc-store.js";
 
 interface Ctx {
   program: Command;
@@ -158,7 +168,8 @@ export function registerEmailCommands(ctx: Ctx): void {
     .option("-b, --body <text>", "Email body text")
     .option("-f, --body-file <path>", "Read email body from file (strips YAML frontmatter)")
     .option("-a, --attach <paths...>", "Attach files (space-separated paths)")
-    .action(async (opts: { to: string; subject: string; body?: string; bodyFile?: string; attach?: string[] }) => {
+    .option("--plain", "Send as plain text only (no HTML part) — required for cold outreach")
+    .action(async (opts: { to: string; subject: string; body?: string; bodyFile?: string; attach?: string[]; plain?: boolean }) => {
       let body = opts.body ?? "";
       if (opts.bodyFile) {
         const fs = await import("node:fs");
@@ -180,6 +191,7 @@ export function registerEmailCommands(ctx: Ctx): void {
         to: opts.to,
         subject: opts.subject,
         body,
+        plain: opts.plain,
         attachments,
       });
       console.log(`Sent. ${id}`);
@@ -266,6 +278,64 @@ export function registerEmailCommands(ctx: Ctx): void {
 
       if (result.status !== 0 && !opts.dryRun) {
         process.exit(result.status ?? 1);
+      }
+    });
+
+  // ---- dnc (Do Not Contact) ----
+  const dnc = sub
+    .command("dnc")
+    .description("Manage the Do Not Contact list");
+
+  dnc
+    .command("add <email>")
+    .description("Add an email address to the Do Not Contact list")
+    .option("-r, --reason <text>", "Reason for adding to the list")
+    .action((email: string, opts: { reason?: string }) => {
+      addToList(email, opts.reason, "cli");
+      console.log(`Added ${email.toLowerCase()} to the Do Not Contact list.`);
+    });
+
+  dnc
+    .command("remove <email>")
+    .description("Remove an email address from the Do Not Contact list")
+    .action((email: string) => {
+      const removed = removeFromList(email);
+      if (removed) {
+        console.log(`Removed ${email.toLowerCase()} from the Do Not Contact list.`);
+      } else {
+        console.log(`${email.toLowerCase()} was not on the Do Not Contact list.`);
+      }
+    });
+
+  dnc
+    .command("list")
+    .description("List all entries on the Do Not Contact list")
+    .action(() => {
+      const entries = listAll();
+      if (!entries.length) {
+        console.log("Do Not Contact list is empty.");
+        return;
+      }
+      console.log(`Do Not Contact list (${entries.length} entries):\n`);
+      for (const e of entries) {
+        console.log(`  ${e.email}`);
+        if (e.reason) console.log(`    Reason: ${e.reason}`);
+        console.log(`    Added: ${e.added_at}${e.added_by ? ` by ${e.added_by}` : ""}`);
+        console.log();
+      }
+    });
+
+  dnc
+    .command("check <email>")
+    .description("Check if an email address is on the Do Not Contact list")
+    .action((email: string) => {
+      if (isBlocked(email)) {
+        const entry = getEntry(email);
+        console.log(`BLOCKED: ${email.toLowerCase()} is on the Do Not Contact list.`);
+        if (entry?.reason) console.log(`  Reason: ${entry.reason}`);
+        if (entry?.added_at) console.log(`  Added: ${entry.added_at}`);
+      } else {
+        console.log(`OK: ${email.toLowerCase()} is NOT on the Do Not Contact list.`);
       }
     });
 }

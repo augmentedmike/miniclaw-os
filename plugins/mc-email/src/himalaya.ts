@@ -4,6 +4,8 @@ import * as path from "node:path";
 import * as os from "node:os";
 import type { EmailConfig } from "./config.js";
 import type { EmailAttachment, EmailMessage, SendEmailOptions } from "./types.js";
+import { prepareEmailBody } from "./email-format.js";
+import { isBlocked, extractEmail } from "./dnc-store.js";
 
 /** Raw envelope from `himalaya envelope list -o json` */
 interface HimalayaEnvelope {
@@ -154,18 +156,36 @@ export class HimalayaClient {
   }
 
   /**
-   * Send a plain-text email using MML template via himalaya.
+   * Send an email using MML template via himalaya.
    * himalaya template send automatically saves to Sent folder.
+   *
+   * When opts.plain is true, sends text/plain only (no HTML part).
+   * This is required for cold outreach to maximize deliverability.
+   * When opts.plain is false/undefined, sends multipart (text + HTML).
    */
   async sendMessage(opts: SendEmailOptions): Promise<string> {
+    // DNC check: refuse to send to blocked addresses
+    const recipientEmail = extractEmail(opts.to);
+    if (isBlocked(recipientEmail)) {
+      throw new Error(`Recipient ${recipientEmail} is on the Do Not Contact list. Send aborted.`);
+    }
+
     const from = opts.from ?? this.cfg.emailAddress;
     const bodyWithSig = this.cfg.signature
       ? `${opts.body}\n\n--\n${this.cfg.signature}`
       : opts.body;
 
+    const sendMode = opts.plain ? "plain" as const : "multipart" as const;
+    const prepared = prepareEmailBody(bodyWithSig, sendMode);
+
     // Build MML template
     let mml = `From: ${from}\nTo: ${opts.to}\nSubject: ${opts.subject}\n\n`;
-    mml += `<#part type=text/plain>\n${bodyWithSig}\n</#part>\n`;
+    mml += `<#part type=text/plain>\n${prepared.text}\n</#part>\n`;
+
+    // Add HTML part only in multipart mode
+    if (prepared.html) {
+      mml += `<#part type=text/html>\n${prepared.html}\n</#part>\n`;
+    }
 
     // Add attachments via MML <#include> tags
     if (opts.attachments?.length) {
@@ -185,6 +205,12 @@ export class HimalayaClient {
   async replyToMessage(messageId: string, body: string): Promise<string> {
     const original = await this.getMessage(messageId);
     if (!original) throw new Error(`Message ${messageId} not found`);
+
+    // DNC check: refuse to reply to blocked addresses
+    const senderEmail = extractEmail(original.from);
+    if (isBlocked(senderEmail)) {
+      throw new Error(`Recipient ${senderEmail} is on the Do Not Contact list. Reply aborted.`);
+    }
 
     const subject = original.subject.startsWith("Re:")
       ? original.subject
