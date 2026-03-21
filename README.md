@@ -1,3 +1,5 @@
+[Español](README.es.md) | [中文](README.zh-CN.md)
+
 > Welcome Wes & Dylan! https://www.youtube.com/watch?v=TzZqFkBNnZA - we love you guys ❤️
 
 # We gave AI agents a brain.
