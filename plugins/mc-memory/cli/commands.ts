@@ -40,8 +40,12 @@ export function registerMemoryCommands(
   memoDir: string,
   episodicDir: string,
 ): void {
+  const mem = ctx.program
+    .command("mc-memory")
+    .description("Unified memory gateway — write, recall, list, promote across all memory stores");
+
   // ---- write ----
-  ctx.program
+  mem
     .command("write")
     .description("Write to memory with auto-routing (memo, kb, or episodic)")
     .argument("<content>", "Content to store")
@@ -68,7 +72,7 @@ export function registerMemoryCommands(
     });
 
   // ---- recall ----
-  ctx.program
+  mem
     .command("recall")
     .description("Search all memory stores (KB + memos + episodic)")
     .argument("<query>", "Search query")
@@ -127,14 +131,12 @@ export function registerMemoryCommands(
     });
 
   // ---- list ----
-  ctx.program
+  mem
     .command("list")
     .description("List individual episodic memory entries")
     .option("--days <daysBack>", "Days of memory to show", "7")
-    .option("--page <page>", "Page number (default 1)", "1")
-    .option("--limit <limit>", "Entries per page (default 10)", "10")
     .option("--json", "Output as JSON")
-    .action(async (opts: { days: string; page: string; limit: string; json?: boolean }) => {
+    .action(async (opts: { days: string; json?: boolean }) => {
       try {
         const fs = await import("node:fs");
         const path = await import("node:path");
@@ -146,34 +148,17 @@ export function registerMemoryCommands(
 
         const now = new Date();
         const daysBack = parseInt(opts.days, 10);
-        const page = Math.max(1, parseInt(opts.page, 10));
-        const limit = Math.max(1, parseInt(opts.limit, 10));
         const cutoff = new Date(now.getTime() - daysBack * 24 * 60 * 60 * 1000);
         const cutoffStr = cutoff.toISOString().slice(0, 10);
 
-        const allFiles = fs.readdirSync(episodicDir)
+        const files = fs.readdirSync(episodicDir)
           .filter((f: string) => f.endsWith(".md"))
           .filter((f: string) => f.slice(0, 10) >= cutoffStr)
           .sort()
           .reverse();
 
-        const total = allFiles.length;
-
-        if (total === 0) {
-          console.log("No episodic memories found in the last " + daysBack + " days.");
-          return;
-        }
-
-        const totalPages = Math.ceil(total / limit);
-        const start = (page - 1) * limit;
-        const files = allFiles.slice(start, start + limit);
-
         if (files.length === 0) {
-          if (opts.json) {
-            console.log(JSON.stringify({ entries: [], page, totalPages, total }, null, 2));
-          } else {
-            console.log("No entries on this page.");
-          }
+          console.log("No episodic memories found in the last " + daysBack + " days.");
           return;
         }
 
@@ -188,7 +173,7 @@ export function registerMemoryCommands(
               preview: body.trim().slice(0, 120).replace(/\n/g, " "),
             };
           });
-          console.log(JSON.stringify({ entries, page, totalPages, total }, null, 2));
+          console.log(JSON.stringify(entries, null, 2));
           return;
         }
 
@@ -202,11 +187,6 @@ export function registerMemoryCommands(
           console.log(`  ${body.trim().slice(0, 120).replace(/\n/g, " ")}`);
           console.log();
         }
-
-        if (totalPages > 1) {
-          console.log(`Page ${page} of ${totalPages} (${total} total entries)`);
-          console.log(`Use --page N to see more`);
-        }
       } catch (e) {
         console.error(`Error: ${e instanceof Error ? e.message : e}`);
         process.exit(1);
@@ -215,7 +195,7 @@ export function registerMemoryCommands(
 
 
   // ---- promote ----
-  ctx.program
+  mem
     .command("promote")
     .description("Promote a memo or episodic snippet to a KB entry")
     .option("--content <text>", "Content to promote (required)")

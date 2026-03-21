@@ -61,4 +61,56 @@ export function registerMemoCommands(ctx: CliContext, memoDir: string): void {
         process.exit(1);
       }
     });
+
+  // ---- mc-memo list ----
+  memo
+    .command("list")
+    .description("List all memo files with previews")
+    .option("--json", "Output as JSON")
+    .action((opts: { json?: boolean }) => {
+      try {
+        if (!fs.existsSync(memoDir)) {
+          console.log("No memos found.");
+          return;
+        }
+
+        const files = fs.readdirSync(memoDir)
+          .filter((f: string) => f.endsWith(".md"))
+          .sort();
+
+        if (files.length === 0) {
+          console.log("No memos found.");
+          return;
+        }
+
+        if (opts.json) {
+          const entries = files.map((file: string) => {
+            const content = fs.readFileSync(path.join(memoDir, file), "utf-8");
+            const lines = content.trim().split("\n").filter((l: string) => l.trim());
+            const lastLine = lines.length > 0 ? lines[lines.length - 1] : "";
+            return {
+              file,
+              cardId: file.replace(/\.md$/, ""),
+              lines: lines.length,
+              preview: lastLine.slice(0, 120).replace(/\n/g, " "),
+            };
+          });
+          console.log(JSON.stringify(entries, null, 2));
+          return;
+        }
+
+        for (const file of files) {
+          const cardId = file.replace(/\.md$/, "");
+          const content = fs.readFileSync(path.join(memoDir, file), "utf-8");
+          const lines = content.trim().split("\n").filter((l: string) => l.trim());
+          const lastLine = lines.length > 0 ? lines[lines.length - 1] : "(empty)";
+          console.log(`[${cardId}] (${lines.length} entries)`);
+          console.log(`  ${lastLine.slice(0, 120).replace(/\n/g, " ")}`);
+          console.log();
+        }
+      } catch (err) {
+        console.error(`Error: ${err instanceof Error ? err.message : err}`);
+        process.exit(1);
+      }
+    });
 }
