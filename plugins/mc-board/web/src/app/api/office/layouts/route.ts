@@ -1,19 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { layoutsDir } from "@/lib/paths";
 
 export const dynamic = "force-dynamic";
 
-function getLayoutsDir(): string {
-  const stateDir =
-    process.env.OPENCLAW_STATE_DIR ??
-    path.join(process.env.HOME ?? "", ".openclaw", "miniclaw");
-  return path.join(stateDir, "USER", "brain", "office-layouts");
-}
-
 export function GET() {
   try {
-    const dir = getLayoutsDir();
+    const dir = layoutsDir();
     if (!fs.existsSync(dir)) {
       return NextResponse.json({ layouts: [] });
     }
@@ -62,7 +56,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "invalid name" }, { status: 400 });
     }
 
-    const dir = getLayoutsDir();
+    const dir = layoutsDir();
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
     const filePath = path.join(dir, `${safeName}.json`);
