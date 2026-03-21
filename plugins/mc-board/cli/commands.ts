@@ -540,12 +540,12 @@ Shipped cards are excluded — they're done.
     .command("archive <id>")
     .description("Archive a card from any column — removes from board, compresses into rotating archive")
     .addHelpText("after", `
-Cards in any column can be archived. The card is removed from
-the active board and written into a gzip-compressed JSONL archive. Nothing
-is deleted — all archived cards remain searchable.
+Cards can be archived from any column. The card is removed from the active
+board and written into a gzip-compressed JSONL archive. Nothing is deleted
+— all archived cards remain searchable.
 
 Archives rotate at 5MB: brain-archive-001.jsonl.gz, 002, etc.
-Location: ~/.openclaw/USER/brain/archive/
+Location: ~/.openclaw/miniclaw/USER/brain/archive/
 
 Examples:
   miniclaw brain archive crd_abc123`)
