@@ -542,9 +542,9 @@ export function renderOffice(
   }
 
   // Layer 3: Non-occluding furniture (rendered behind characters)
-  // BACK furniture occludes characters EXCEPT PC_BACK (monitor, not a physical barrier)
+  // Only chair backs should occlude characters (not sofa backs or PC backs)
   const shouldOcclude = (item: { type: string }) =>
-    item.type.includes("BACK") && !item.type.startsWith("PC_");
+    item.type.includes("CHAIR") && item.type.includes("BACK");
   for (const item of layout.furniture) {
     if (shouldOcclude(item)) continue;
     drawFurnitureItem(item);
