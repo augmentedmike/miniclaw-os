@@ -15,6 +15,16 @@ import {
   markAllProcessed,
   pruneState,
 } from "../src/triage-state.js";
+import {
+  addToList,
+  removeFromList,
+  isBlocked,
+  listAll,
+  getEntry,
+  detectOptOut,
+  detectResubscribe,
+  extractEmail,
+} from "../src/dnc-store.js";
 
 interface Ctx {
   program: Command;
@@ -158,7 +168,8 @@ export function registerEmailCommands(ctx: Ctx): void {
     .option("-b, --body <text>", "Email body text")
     .option("-f, --body-file <path>", "Read email body from file (strips YAML frontmatter)")
     .option("-a, --attach <paths...>", "Attach files (space-separated paths)")
-    .action(async (opts: { to: string; subject: string; body?: string; bodyFile?: string; attach?: string[] }) => {
+    .option("--plain", "Send as plain text only (no HTML part) — required for cold outreach")
+    .action(async (opts: { to: string; subject: string; body?: string; bodyFile?: string; attach?: string[]; plain?: boolean }) => {
       let body = opts.body ?? "";
       if (opts.bodyFile) {
         const fs = await import("node:fs");
@@ -180,6 +191,7 @@ export function registerEmailCommands(ctx: Ctx): void {
         to: opts.to,
         subject: opts.subject,
         body,
+        plain: opts.plain,
         attachments,
       });
       console.log(`Sent. ${id}`);
@@ -228,29 +240,117 @@ export function registerEmailCommands(ctx: Ctx): void {
         skipUids = Object.keys(triageState.processedUids);
       }
 
+      const client = getClient(cfg);
       let processedUids: string[] = [];
-      if (useState) {
+      let messagesToTriage: typeof messages = [];
+      let messages: Awaited<ReturnType<typeof client.listMessages>> = [];
+
+      try {
+        messages = await client.listMessages("INBOX", parseInt(opts.limit, 10));
+        const newMessages = useState
+          ? messages.filter((m) => !skipUids.includes(m.id))
+          : messages;
+        if (!newMessages.length) {
+          console.log("No new unread messages to triage (all already processed).");
+          return;
+        }
+        processedUids = newMessages.map((m) => m.id);
+        messagesToTriage = newMessages;
+        console.log(`Triaging ${newMessages.length} new message(s)${useState ? ` (${skipUids.length} already processed, skipped)` : ""}.`);
+      } catch (err) {
+        console.error("Warning: could not pre-check messages for state tracking, proceeding without filter.", err);
+      }
+
+      // --- DNC pre-processing: handle opt-out, blocked senders, and re-subscribe ---
+      const dncHandledUids: string[] = [];
+      for (const envelope of messagesToTriage) {
+        const senderEmail = extractEmail(envelope.from);
+        if (!senderEmail) continue;
+
+        // Read full message body for DNC analysis
+        let fullMsg: Awaited<ReturnType<typeof client.getMessage>> = null;
         try {
-          const client = getClient(cfg);
-          const messages = await client.listMessages("INBOX", parseInt(opts.limit, 10));
-          const newMessages = messages.filter((m) => !skipUids.includes(m.id));
-          if (!newMessages.length) {
-            console.log("No new unread messages to triage (all already processed).");
-            return;
+          fullMsg = await client.getMessage(envelope.id);
+        } catch {
+          continue; // skip if we can't read the message
+        }
+        if (!fullMsg?.body) continue;
+
+        const senderIsBlocked = isBlocked(senderEmail);
+
+        if (senderIsBlocked && detectResubscribe(fullMsg.body)) {
+          // Re-subscribe: sender is on DNC list and explicitly asks to be removed
+          removeFromList(senderEmail);
+          console.log(`DNC: Removed ${senderEmail} from Do Not Contact list (re-subscribe request).`);
+          if (!opts.dryRun) {
+            try {
+              await client.sendMessage({
+                to: envelope.from,
+                subject: `Re: ${fullMsg.subject}`,
+                body: "You have been removed from our Do Not Contact list. You will now receive normal communications from us again.\n\nIf you wish to opt out again in the future, simply reply asking to be removed.",
+                plain: true,
+                bypassDnc: true,
+              });
+              console.log(`DNC: Sent re-subscribe confirmation to ${senderEmail}.`);
+              await client.archiveMessage(envelope.id);
+            } catch (err) {
+              console.error(`DNC: Failed to send re-subscribe confirmation to ${senderEmail}:`, err);
+            }
           }
-          processedUids = newMessages.map((m) => m.id);
-          console.log(`Triaging ${newMessages.length} new message(s) (${skipUids.length} already processed, skipped).`);
-        } catch (err) {
-          console.error("Warning: could not pre-check messages for state tracking, proceeding without filter.", err);
+          dncHandledUids.push(envelope.id);
+        } else if (senderIsBlocked) {
+          // Blocked sender: auto-reply explaining they are on the list
+          console.log(`DNC: Sender ${senderEmail} is blocked. Sending auto-reply.`);
+          if (!opts.dryRun) {
+            try {
+              await client.sendMessage({
+                to: envelope.from,
+                subject: `Re: ${fullMsg.subject}`,
+                body: "You are on our Do Not Contact list. No further emails will be sent to you.\n\nIf you would like to be removed from this list and resume normal communication, please reply explicitly asking to be removed from the Do Not Contact list.",
+                plain: true,
+                bypassDnc: true,
+              });
+              console.log(`DNC: Sent blocked-sender auto-reply to ${senderEmail}.`);
+              await client.archiveMessage(envelope.id);
+            } catch (err) {
+              console.error(`DNC: Failed to send blocked-sender reply to ${senderEmail}:`, err);
+            }
+          }
+          dncHandledUids.push(envelope.id);
+        } else if (detectOptOut(fullMsg.body)) {
+          // Opt-out: sender wants to be added to DNC list
+          addToList(senderEmail, "Inbound opt-out request", "triage-auto");
+          console.log(`DNC: Added ${senderEmail} to Do Not Contact list (opt-out detected).`);
+          if (!opts.dryRun) {
+            try {
+              await client.sendMessage({
+                to: envelope.from,
+                subject: `Re: ${fullMsg.subject}`,
+                body: "You have been added to our Do Not Contact list. You will no longer receive emails from us.\n\nIf you change your mind and would like to resume communication, please reply explicitly asking to be removed from the Do Not Contact list.",
+                plain: true,
+                bypassDnc: true,
+              });
+              console.log(`DNC: Sent opt-out confirmation to ${senderEmail}.`);
+              await client.archiveMessage(envelope.id);
+            } catch (err) {
+              console.error(`DNC: Failed to send opt-out confirmation to ${senderEmail}:`, err);
+            }
+          }
+          dncHandledUids.push(envelope.id);
         }
       }
 
+      // Filter out DNC-handled messages from further triage
+      const remainingUids = processedUids.filter((uid) => !dncHandledUids.includes(uid));
+      const allSkipUids = [...skipUids, ...dncHandledUids];
+
+      // --- Standard triage via Python script (for non-DNC messages) ---
       const scriptPath = path.join(stateDir, "miniclaw/cron/scripts/email-triage.py");
       const args = ["python3", scriptPath];
       if (opts.dryRun) args.push("--dry-run");
       args.push("--limit", opts.limit);
-      if (useState && skipUids.length > 0) {
-        args.push("--skip-uids", skipUids.join(","));
+      if (allSkipUids.length > 0) {
+        args.push("--skip-uids", allSkipUids.join(","));
       }
 
       const result = spawnSync(args[0], args.slice(1), {
@@ -266,6 +366,64 @@ export function registerEmailCommands(ctx: Ctx): void {
 
       if (result.status !== 0 && !opts.dryRun) {
         process.exit(result.status ?? 1);
+      }
+    });
+
+  // ---- dnc (Do Not Contact) ----
+  const dnc = sub
+    .command("dnc")
+    .description("Manage the Do Not Contact list");
+
+  dnc
+    .command("add <email>")
+    .description("Add an email address to the Do Not Contact list")
+    .option("-r, --reason <text>", "Reason for adding to the list")
+    .action((email: string, opts: { reason?: string }) => {
+      addToList(email, opts.reason, "cli");
+      console.log(`Added ${email.toLowerCase()} to the Do Not Contact list.`);
+    });
+
+  dnc
+    .command("remove <email>")
+    .description("Remove an email address from the Do Not Contact list")
+    .action((email: string) => {
+      const removed = removeFromList(email);
+      if (removed) {
+        console.log(`Removed ${email.toLowerCase()} from the Do Not Contact list.`);
+      } else {
+        console.log(`${email.toLowerCase()} was not on the Do Not Contact list.`);
+      }
+    });
+
+  dnc
+    .command("list")
+    .description("List all entries on the Do Not Contact list")
+    .action(() => {
+      const entries = listAll();
+      if (!entries.length) {
+        console.log("Do Not Contact list is empty.");
+        return;
+      }
+      console.log(`Do Not Contact list (${entries.length} entries):\n`);
+      for (const e of entries) {
+        console.log(`  ${e.email}`);
+        if (e.reason) console.log(`    Reason: ${e.reason}`);
+        console.log(`    Added: ${e.added_at}${e.added_by ? ` by ${e.added_by}` : ""}`);
+        console.log();
+      }
+    });
+
+  dnc
+    .command("check <email>")
+    .description("Check if an email address is on the Do Not Contact list")
+    .action((email: string) => {
+      if (isBlocked(email)) {
+        const entry = getEntry(email);
+        console.log(`BLOCKED: ${email.toLowerCase()} is on the Do Not Contact list.`);
+        if (entry?.reason) console.log(`  Reason: ${entry.reason}`);
+        if (entry?.added_at) console.log(`  Added: ${entry.added_at}`);
+      } else {
+        console.log(`OK: ${email.toLowerCase()} is NOT on the Do Not Contact list.`);
       }
     });
 }

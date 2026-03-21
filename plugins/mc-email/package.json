@@ -8,11 +8,14 @@
     "test": "vitest run",
     "test:watch": "vitest"
   },
-  "dependencies": {},
+  "dependencies": {
+    "better-sqlite3": "^12.8.0"
+  },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@vitest/ui": "^2.0.0",
     "openclaw": "file:../../../openclaw",
-    "vitest": "^2.0.0",
-    "@vitest/ui": "^2.0.0"
+    "vitest": "^2.0.0"
   },
   "openclaw": {
     "extensions": [

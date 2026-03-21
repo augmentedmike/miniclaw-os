@@ -25,6 +25,8 @@ export interface SendEmailOptions {
   from?: string;
   plain?: boolean;
   attachments?: { filename: string; path: string }[];
+  /** When true, skip DNC check — used for system auto-replies (opt-out confirmations, blocked-sender notices). */
+  bypassDnc?: boolean;
 }
 
 export interface ReplyEmailOptions {
