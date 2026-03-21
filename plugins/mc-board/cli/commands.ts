@@ -538,24 +538,20 @@ Shipped cards are excluded — they're done.
   // ---- brain archive <id> ----
   brain
     .command("archive <id>")
-    .description("Archive a shipped card — removes from board, compresses into rotating archive")
+    .description("Archive a card — removes from board, compresses into rotating archive")
     .addHelpText("after", `
-Only cards in the shipped column can be archived. The card is removed from
-the active board and written into a gzip-compressed JSONL archive. Nothing
-is deleted — all archived cards remain searchable.
+Cards can be archived from any column. The card is removed from the active
+board and written into a gzip-compressed JSONL archive. Nothing is deleted
+— all archived cards remain searchable.
 
 Archives rotate at 5MB: brain-archive-001.jsonl.gz, 002, etc.
-Location: ~/.openclaw/USER/brain/archive/
+Location: ~/.openclaw/miniclaw/USER/brain/archive/
 
 Examples:
   miniclaw brain archive crd_abc123`)
     .action((id: string) => {
       try {
         const card = store.findById(id);
-        if (card.column !== "shipped") {
-          console.error(`Card ${card.id} is in "${card.column}" — only shipped cards can be archived.`);
-          process.exit(1);
-        }
         archive.archiveCard(card);
         store.delete(card.id);
         console.log(`Archived ${card.id}: ${card.title}`);
