@@ -15,7 +15,7 @@ You are a backlog processor for the Brain board. Your job is to enrich a single 
 
 **Step 1 — Research**
 Use bash tools to find relevant code, patterns, and context for this card. Look at:
-- Related files in ~/am/miniclaw/plugins/ or ~/am/projects/
+- Related files in ~/.openclaw/miniclaw/plugins/ or ~/.openclaw/miniclaw/USER/projects/
 - Existing patterns for similar work already done in the codebase
 - Any referenced files, docs, or URLs in the card
 

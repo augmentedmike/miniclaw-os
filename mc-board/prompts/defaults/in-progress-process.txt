@@ -16,8 +16,8 @@ Only proceed below if there are unchecked `- [ ]` criteria.
 - YOU do the actual work. NEVER write a guide for a human to follow.
 - NEVER leave "next steps for Mike" or "steps for execution."
 - Writing a guide = FAILURE. Only check a criterion [x] if YOU actually completed it.
-- mc-board / miniclaw plugin work happens in ~/am/miniclaw/plugins/ (the LIVE source). For Git Butler isolation, use ~/am/projects/miniclaw-os as <work_dir> — it is the registered GB project.
-- Other repos live in ~/am/projects/ — check there first, clone there if missing.
+- mc-board / miniclaw plugin work happens in ~/.openclaw/miniclaw/plugins/ (the LIVE source). For Git Butler isolation, use ~/.openclaw/miniclaw/USER/projects/miniclaw-os as <work_dir> — it is the registered GB project.
+- Other repos live in ~/.openclaw/miniclaw/USER/projects/ — check there first, clone there if missing.
 - If card notes reference an implementation guide or workspace file — READ IT before starting.
 - **Playwright MUST always use `headless: true` and `args: ['--no-sandbox']`.** Never launch a visible browser window. Use `chromium.launch({ headless: true, args: ['--no-sandbox'] })`. Same for Python: `p.chromium.launch(headless=True, args=['--no-sandbox'])`. Visible Chrome windows interrupt the user.
 
@@ -30,7 +30,7 @@ If you hit a genuine blocker (CAPTCHA visible, SMS verification required, creden
 **DO THIS — in order:**
 1. Write a detailed memo explaining exactly what the block is:
    ```
-   echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) BLOCKED: <exact reason — e.g. 'Instagram shows CAPTCHA at signup step 3'>" >> ~/am/user/augmentedmike_bot/memos/{{CARD_ID}}.md
+   echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) BLOCKED: <exact reason — e.g. 'Instagram shows CAPTCHA at signup step 3'>" >> ~/.openclaw/miniclaw/USER/memos/{{CARD_ID}}.md
    ```
 2. Update the card notes with what was attempted and what's needed:
    ```
@@ -55,7 +55,7 @@ The only exception: if you made partial progress and can continue next session (
 
 1. **Read memos** — recover what was already tried this run:
    ```
-   cat ~/am/user/augmentedmike_bot/memos/{{CARD_ID}}.md 2>/dev/null || echo "(no memos yet)"
+   cat ~/.openclaw/miniclaw/USER/memos/{{CARD_ID}}.md 2>/dev/null || echo "(no memos yet)"
    ```
 2. **Identify work type** — read the card tags and title. Determine: is this a DESIGN card, DEVELOPMENT card, or RESEARCH card? Follow the matching protocol below.
 
@@ -75,9 +75,9 @@ The only exception: if you made partial progress and can continue next session (
 Design cards require visual artifacts from mc-designer BEFORE writing any code. Do not skip this.
 
 **HARD RULE: A design criterion that mentions "mc-designer" or "attached to card" CANNOT be checked `- [x]` unless:**
-1. The PNG file physically exists at `~/am/media/designer/output/`
+1. The PNG file physically exists at `~/.openclaw/USER/docs/media/designer/`
 2. The attachment curl POST to `/api/cards/{{CARD_ID}}/attachments` returned HTTP 200
-3. You ran `ls ~/am/media/designer/output/ | grep {{CARD_ID}}` and saw the file
+3. You ran `ls ~/.openclaw/USER/docs/media/designer/ | grep {{CARD_ID}}` and saw the file
 
 Do NOT check the criterion based on code alone. Verify the file exists first.
 
@@ -85,22 +85,22 @@ Do NOT check the criterion based on code alone. Verify the file exists first.
 ```
 # Color palette / mood board
 openclaw mc-designer gen "Ghibli-inspired pastel color palette: sage greens, dusty pinks, warm creams, sky blues — watercolor swatch grid" -c {{CARD_ID}}-palette --role background
-openclaw mc-designer composite -c {{CARD_ID}}-palette -o ~/am/media/designer/output/{{CARD_ID}}-palette.png
+openclaw mc-designer composite -c {{CARD_ID}}-palette -o ~/.openclaw/USER/docs/media/designer/{{CARD_ID}}-palette.png
 
 # Background texture or hero image
 openclaw mc-designer gen "<description of background>" -c {{CARD_ID}}-bg --role background
-openclaw mc-designer composite -c {{CARD_ID}}-bg -o ~/am/media/designer/output/{{CARD_ID}}-bg.png
+openclaw mc-designer composite -c {{CARD_ID}}-bg -o ~/.openclaw/USER/docs/media/designer/{{CARD_ID}}-bg.png
 
 # Component mockup (add elements on top of background)
 openclaw mc-designer gen "<UI element description>" -c {{CARD_ID}}-mockup --role element -x 0 -y 0 --w 800 --h 600
-openclaw mc-designer composite -c {{CARD_ID}}-mockup -o ~/am/media/designer/output/{{CARD_ID}}-mockup.png
+openclaw mc-designer composite -c {{CARD_ID}}-mockup -o ~/.openclaw/USER/docs/media/designer/{{CARD_ID}}-mockup.png
 ```
 
 **Step 2 — Attach every generated asset to the card:**
 ```
 curl -s -X POST http://localhost:4220/api/cards/{{CARD_ID}}/attachments \
   -H "Content-Type: application/json" \
-  -d '{"path":"~/am/media/designer/output/{{CARD_ID}}-palette.png","label":"Color palette reference"}'
+  -d '{"path":"~/.openclaw/USER/docs/media/designer/{{CARD_ID}}-palette.png","label":"Color palette reference"}'
 ```
 Attach each PNG. The card must have at least one attached image before any code is written.
 
@@ -190,7 +190,7 @@ Research cards produce written output — a findings document, a decision, or an
 **Step 1 — Define the research question:**
 Read the card's problem statement. Write a 1-sentence question you are answering. Write it to the memo file:
 ```
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) Research question: <question>" >> ~/am/user/augmentedmike_bot/memos/{{CARD_ID}}.md
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) Research question: <question>" >> ~/.openclaw/miniclaw/USER/memos/{{CARD_ID}}.md
 ```
 
 **Step 2 — Gather information:**
@@ -202,9 +202,9 @@ Use these sources in order:
 
 **Step 3 — Write findings to a file:**
 ```
-mkdir -p ~/am/workspace/research
+mkdir -p ~/.openclaw/USER/research
 # Write findings as structured markdown
-cat > ~/am/workspace/research/{{CARD_ID}}-findings.md << 'EOF'
+cat > ~/.openclaw/USER/research/{{CARD_ID}}-findings.md << 'EOF'
 # Research: <title>
 
 ## Question
@@ -224,8 +224,8 @@ EOF
 **Step 4 — Update the card with findings:**
 ```
 openclaw mc-board update {{CARD_ID}} \
-  --notes "Research complete. Findings at ~/am/workspace/research/{{CARD_ID}}-findings.md. Summary: <2-sentence summary>" \
-  --research "$(cat ~/am/workspace/research/{{CARD_ID}}-findings.md)"
+  --notes "Research complete. Findings at ~/.openclaw/USER/research/{{CARD_ID}}-findings.md. Summary: <2-sentence summary>" \
+  --research "$(cat ~/.openclaw/USER/research/{{CARD_ID}}-findings.md)"
 ```
 
 **Step 5 — If the research produces a plan for follow-on work:**
@@ -239,11 +239,11 @@ Write a memo whenever you make a decision or hit a dead end. Read it at session 
 
 ```
 # Write
-mkdir -p ~/am/user/augmentedmike_bot/memos
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) <note>" >> ~/am/user/augmentedmike_bot/memos/{{CARD_ID}}.md
+mkdir -p ~/.openclaw/miniclaw/USER/memos
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) <note>" >> ~/.openclaw/miniclaw/USER/memos/{{CARD_ID}}.md
 
 # Read
-cat ~/am/user/augmentedmike_bot/memos/{{CARD_ID}}.md 2>/dev/null || echo "(no memos yet)"
+cat ~/.openclaw/miniclaw/USER/memos/{{CARD_ID}}.md 2>/dev/null || echo "(no memos yet)"
 ```
 
 Write memos for:
@@ -256,8 +256,8 @@ Write memos for:
 
 ⚠️ ACTIVITY LOGGING — REQUIRED:
 For every action, append a log entry:
-  echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) [in-progress] <what you are doing>" >> ~/am/logs/cards/{{CARD_ID}}.log
-Create the directory if needed: mkdir -p ~/am/logs/cards/
+  echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) [in-progress] <what you are doing>" >> ~/.openclaw/logs/cards/{{CARD_ID}}.log
+Create the directory if needed: mkdir -p ~/.openclaw/logs/cards/
 
 ---
 

@@ -77,7 +77,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
   const [dragOver, setDragOver] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [storageWarning, setStorageWarning] = useState<string | null>(null);
-  const [interruptOverlayVisible, setInterruptOverlayVisible] = useState(false);
+  // interruptOverlayVisible state removed — interrupt button is always visible on streaming bubble
 
   // Mic / voice transcription state
   const [micAvailable, setMicAvailable] = useState(false);
@@ -433,8 +433,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
             if (d.tools?.length) setStreamingTools(d.tools);
             break;
           case "result":
-            setStreaming(false); setStreamingText(""); setStreamingTools([]); setInterruptOverlayVisible(false);
-            if (d.text) {
+            setStreaming(false); setStreamingText(""); setStreamingTools([]);             if (d.text) {
               const insertIdx = streamingInsertIndexRef.current;
               if (insertIdx !== null) {
                 setMessages(prev => [
@@ -449,8 +448,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
             streamingInsertIndexRef.current = null;
             break;
           case "done": case "process_exit":
-            setStreaming(false); setStreamingText(""); setStreamingTools([]); setInterruptOverlayVisible(false);
-            streamingInsertIndexRef.current = null;
+            setStreaming(false); setStreamingText(""); setStreamingTools([]);             streamingInsertIndexRef.current = null;
             break;
           case "error":
             setMessages(prev => [...prev, { role: "system", content: d.message, error: true }]);
@@ -584,7 +582,6 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
 
   const interruptAgent = useCallback(() => {
     stopResponse();
-    setInterruptOverlayVisible(false);
     setMessages(prev => [...prev, { role: "system" as const, content: "⏹ Agent interrupted by user" }]);
   }, [stopResponse]);
 
@@ -679,15 +676,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
           }}>{connected ? "connected" : reconnecting ? "reconnecting…" : "offline"}</span>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          {streaming && (
-            <button
-              onClick={stopResponse}
-              style={{
-                background: "none", border: "1px solid #7c2d12", color: "#f87171", cursor: "pointer",
-                fontSize: 10, padding: "2px 8px", borderRadius: 3, fontFamily: "inherit",
-              }}
-            >stop</button>
-          )}
+          {/* stop button removed — interrupt is on the streaming bubble */}
           {messages.length > 0 && (
             <button
               onClick={() => { setMessages([]); setStorageWarning(null); wsRef.current?.send(JSON.stringify({ type: "new_chat" })); }}
@@ -795,18 +784,14 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
           );
 
           const streamingBlock = streaming ? (
-            <div key="streaming" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", position: "relative" }}
-              onMouseLeave={() => setInterruptOverlayVisible(false)}
-            >
+            <div key="streaming" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
               <div
-                onClick={() => setInterruptOverlayVisible(v => !v)}
                 style={{
                   maxWidth: "92%", padding: "8px 11px",
                   borderRadius: "10px 10px 10px 3px",
                   background: "#18181b", border: "1px solid #27272a",
                   fontSize: 13, color: "#d4d4d8", lineHeight: 1.55,
                   whiteSpace: "pre-wrap", wordBreak: "break-word",
-                  cursor: "pointer",
                   transition: "border-color 0.15s",
                 }}>
                 {streamingTools.length > 0 && (
@@ -823,26 +808,23 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
                   {streamingTools.length > 0 ? "working..." : "thinking..."}
                 </span>}
               </div>
-              {interruptOverlayVisible && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); interruptAgent(); }}
-                  style={{
-                    position: "absolute", bottom: -32, left: 8,
-                    background: "#1a2a1a", border: `1px solid ${accent}`,
-                    borderRadius: 6, color: accent,
-                    fontSize: 11, fontWeight: 600, fontFamily: "inherit",
-                    padding: "4px 14px", cursor: "pointer",
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.5)",
-                    transition: "background 0.15s, color 0.15s",
-                    zIndex: 10,
-                    display: "flex", alignItems: "center", gap: 5,
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.background = "#2a3a2a"; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = "#1a2a1a"; }}
-                >
-                  ⏹ Interrupt
-                </button>
-              )}
+              <button
+                onClick={interruptAgent}
+                style={{
+                  marginTop: 6, marginLeft: 8,
+                  background: "#1a2a1a", border: `1px solid ${accent}`,
+                  borderRadius: 6, color: accent,
+                  fontSize: 11, fontWeight: 600, fontFamily: "inherit",
+                  padding: "4px 14px", cursor: "pointer",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.5)",
+                  transition: "background 0.15s, color 0.15s",
+                  display: "flex", alignItems: "center", gap: 5,
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = "#2a3a2a"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "#1a2a1a"; }}
+              >
+                ⏹ Interrupt
+              </button>
             </div>
           ) : null;
 
