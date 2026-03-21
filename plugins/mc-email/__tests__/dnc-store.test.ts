@@ -192,3 +192,60 @@ describe("Send gating", () => {
     expect(isBlocked("allowed@test.com", dbPath)).toBe(false);
   });
 });
+
+describe("Triage DNC integration logic", () => {
+  it("opt-out detection adds sender to DNC list", () => {
+    const senderEmail = extractEmail("Unhappy User <unhappy@test.com>");
+    const body = "Please stop emailing me. I want to opt out.";
+    expect(detectOptOut(body)).toBe(true);
+    expect(isBlocked(senderEmail, dbPath)).toBe(false);
+
+    // Simulate triage opt-out flow
+    addToList(senderEmail, "Inbound opt-out request", "triage-auto", dbPath);
+    expect(isBlocked(senderEmail, dbPath)).toBe(true);
+    const entry = getEntry(senderEmail, dbPath);
+    expect(entry?.reason).toBe("Inbound opt-out request");
+    expect(entry?.added_by).toBe("triage-auto");
+  });
+
+  it("blocked sender is detected for auto-reply", () => {
+    const senderEmail = extractEmail("Blocked Person <blocked@test.com>");
+    addToList(senderEmail, "previously opted out", "triage-auto", dbPath);
+
+    // Sender sends a normal message (not a resubscribe request)
+    const body = "Hey, just following up on my earlier question.";
+    expect(isBlocked(senderEmail, dbPath)).toBe(true);
+    expect(detectResubscribe(body)).toBe(false);
+    // In triage, this triggers the auto-reply branch
+  });
+
+  it("re-subscribe detection removes sender from DNC list", () => {
+    const senderEmail = extractEmail("Returning User <returning@test.com>");
+    addToList(senderEmail, "opted out", "triage-auto", dbPath);
+    expect(isBlocked(senderEmail, dbPath)).toBe(true);
+
+    const body = "I changed my mind. Please remove me from the do not contact list.";
+    expect(detectResubscribe(body)).toBe(true);
+
+    // Simulate triage re-subscribe flow
+    removeFromList(senderEmail, dbPath);
+    expect(isBlocked(senderEmail, dbPath)).toBe(false);
+  });
+
+  it("opt-out takes priority for new sender, re-subscribe takes priority for blocked sender", () => {
+    const email = "ambiguous@test.com";
+
+    // New sender with opt-out language
+    expect(detectOptOut("unsubscribe me")).toBe(true);
+    expect(isBlocked(email, dbPath)).toBe(false);
+
+    // After adding to DNC
+    addToList(email, "opt-out", "triage-auto", dbPath);
+    expect(isBlocked(email, dbPath)).toBe(true);
+
+    // Blocked sender asking to resubscribe — resubscribe should take priority
+    expect(detectResubscribe("remove me from the DNC list")).toBe(true);
+    removeFromList(email, dbPath);
+    expect(isBlocked(email, dbPath)).toBe(false);
+  });
+});
