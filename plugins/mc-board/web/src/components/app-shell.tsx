@@ -8,7 +8,6 @@ import { AgentsTab } from "./agents-tab";
 import { Modal } from "./modal";
 import { ChatPanel } from "./chat-panel";
 import { WelcomeWizard, useWelcomeWizard } from "./welcome-wizard";
-import { HealthDots } from "./health-dots";
 import { Project, BoardCard } from "@/lib/types";
 
 import useSWR from "swr";
@@ -76,15 +75,6 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
   const [assistantName, setAssistantName] = useState("Am");
   const { data: rolodexCount } = useSWR<{ count: number }>("/api/rolodex/count", fetcher, { refreshInterval: 60000 });
   const { data: memoryStats } = useSWR<{ memoryFiles: number; kbEntries: number; total: number }>("/api/memory/stats", fetcher, { refreshInterval: 60000 });
-  const { data: health } = useSWR<{
-    ok: boolean; version: string; time: string;
-    services?: {
-      web: { status: "ok" | "down" | "unconfigured" };
-      chat: { status: "ok" | "down" | "unconfigured" };
-      telegram: { status: "ok" | "down" | "unconfigured" };
-    };
-  }>("/api/health", fetcher, { refreshInterval: 60000 });
-
   // Fetch assistant name for empty-state message
   useEffect(() => {
     fetch("/api/assistant-name").then(r => r.json()).then(d => {
@@ -302,14 +292,6 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
               fill="currentColor" />
           </svg>
         </button>
-        {/* Health indicator dots */}
-        <HealthDots services={health?.services} />
-
-        {health?.version && (
-          <span className="flex items-center px-3 border-l border-zinc-800 text-zinc-500 text-xs font-mono shrink-0 h-full">
-            v{health.version}
-          </span>
-        )}
       </div>
 
       {/* Main content + Chat panel flex row */}
