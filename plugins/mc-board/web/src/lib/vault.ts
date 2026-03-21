@@ -1,8 +1,8 @@
 import { spawnSync } from "node:child_process";
 import * as path from "node:path";
+import { stateDir } from "./paths";
 
-const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(process.env.HOME || "", ".openclaw");
-const MINICLAW_DIR = path.join(STATE_DIR, "miniclaw");
+const MINICLAW_DIR = path.join(stateDir(), "miniclaw");
 const VAULT_BIN = path.join(MINICLAW_DIR, "vault", "cli");
 const VAULT_ROOT = path.join(MINICLAW_DIR, "SYSTEM", "vault");
 

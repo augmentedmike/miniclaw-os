@@ -7,11 +7,10 @@
 
 import * as net from "node:net";
 import * as path from "node:path";
-import * as os from "node:os";
 import { EventEmitter } from "node:events";
+import { stateDir } from "./paths";
 
-const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
-const SOCKET_PATH = process.env.CHAT_SOCKET ?? path.join(STATE_DIR, "chat.sock");
+const SOCKET_PATH = process.env.CHAT_SOCKET ?? path.join(stateDir(), "chat.sock");
 
 interface ChatEvent {
   type: "delta" | "tool" | "system" | "done" | "error";

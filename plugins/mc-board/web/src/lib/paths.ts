@@ -103,7 +103,57 @@ export function zonesPath(): string {
   return path.join(officeDir(), "zones.json");
 }
 
+/** Brain directory — board DB, chat-history, office layouts, prompts */
+export function brainDir(): string {
+  return path.join(userDir(), "brain");
+}
+
+/** Office layouts directory (alias) */
+export function officeLayoutsDir(): string {
+  return layoutsDir();
+}
+
+/** Office zones JSON path (alias) */
+export function officeZonesPath(): string {
+  return zonesPath();
+}
+
+/** Plugins directory */
+export function pluginsDir(): string {
+  return path.join(stateDir(), "miniclaw", "plugins");
+}
+
+/** Miniclaw MANIFEST.json */
+export function manifestPath(): string {
+  return path.join(stateDir(), "miniclaw", "MANIFEST.json");
+}
+
+/** Temp directory */
+export function tmpDir(): string {
+  return path.join(stateDir(), "tmp");
+}
+
+/** VPN state directory */
+export function vpnStateDir(): string {
+  return path.join(stateDir(), ".vpn");
+}
+
 /** Projects directory */
 export function projectsDir(): string {
   return path.join(userDir(), "projects");
+}
+
+/** miniclaw-os project directory */
+export function minclawOsDir(): string {
+  return path.join(stateDir(), "projects", "miniclaw-os");
+}
+
+/** Voice recordings directory */
+export function voiceDir(): string {
+  return path.join(userDir(), "voice");
+}
+
+/** Whisper models directory */
+export function whisperModelsDir(): string {
+  return path.join(stateDir(), "miniclaw", "SYSTEM", "whisper-models");
 }
