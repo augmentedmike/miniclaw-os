@@ -1,20 +1,14 @@
 {
   "name": "mc-email",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "main": "index.ts",
-  "description": "Gmail integration — read, triage, archive, send via Google OAuth2 + Gmail API",
+  "description": "Email integration — read, triage, archive, send via himalaya CLI",
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest"
   },
-  "dependencies": {
-    "google-auth-library": "^9.0.0",
-    "googleapis": "^144.0.0",
-    "imapflow": "^1.2.12",
-    "mailparser": "^3.9.4",
-    "nodemailer": "^8.0.1"
-  },
+  "dependencies": {},
   "devDependencies": {
     "openclaw": "file:../../../openclaw",
     "vitest": "^2.0.0",

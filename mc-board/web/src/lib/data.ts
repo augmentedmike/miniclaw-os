@@ -204,16 +204,20 @@ function criteriaCountsFromText(text: string): { checked: number; total: number 
 interface SlimRow {
   id: string; title: string; col: string; priority: string; tags: string;
   project_id: string | null; work_type: string | null; linked_card_id: string | null;
-  created_at: string; updated_at: string; depends_on: string; acceptance_criteria: string;
+  created_at: string; updated_at: string; shipped_at: string | null;
+  depends_on: string; acceptance_criteria: string;
 }
 
 export function listBoardCards(projectId?: string): BoardCard[] {
   const db = getDb();
   if (!db) return [];
   try {
+    const sql = `SELECT c.id, c.title, c.col, c.priority, c.tags, c.project_id, c.work_type, c.linked_card_id, c.created_at, c.updated_at, c.depends_on, c.acceptance_criteria,
+        (SELECT h.moved_at FROM card_history h WHERE h.card_id = c.id AND h.col = 'shipped' ORDER BY h.moved_at DESC LIMIT 1) AS shipped_at
+      FROM cards c`;
     const rows = projectId
-      ? db.prepare(`SELECT id, title, col, priority, tags, project_id, work_type, linked_card_id, created_at, updated_at, depends_on, acceptance_criteria FROM cards WHERE project_id = ?`).all(projectId) as SlimRow[]
-      : db.prepare(`SELECT id, title, col, priority, tags, project_id, work_type, linked_card_id, created_at, updated_at, depends_on, acceptance_criteria FROM cards`).all() as SlimRow[];
+      ? db.prepare(sql + ` WHERE c.project_id = ?`).all(projectId) as SlimRow[]
+      : db.prepare(sql).all() as SlimRow[];
     return rows.map(r => {
       const { checked, total } = criteriaCountsFromText(r.acceptance_criteria);
       return {
@@ -227,6 +231,7 @@ export function listBoardCards(projectId?: string): BoardCard[] {
         linked_card_id: r.linked_card_id ?? undefined,
         created_at: r.created_at,
         updated_at: r.updated_at,
+        shipped_at: r.shipped_at ?? undefined,
         depends_on: (() => { try { return JSON.parse(r.depends_on || "[]") as string[]; } catch { return []; } })(),
         criteria_checked: checked,
         criteria_total: total,

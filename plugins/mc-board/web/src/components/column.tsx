@@ -98,6 +98,12 @@ export function Column({ column, cards, globalShippedIds, projects, activeIds, a
       .filter(c => c.column === column)
       .filter(c => showHeld || !c.tags?.some(t => t === "hold" || t === "on-hold" || t === "blocked"))
       .sort((a, b) => {
+        // Shipped: most recently completed first
+        if (column === "shipped") {
+          const aT = a.shipped_at ?? a.updated_at;
+          const bT = b.shipped_at ?? b.updated_at;
+          return bT.localeCompare(aT);
+        }
         const aFocused = a.tags?.includes("focus") ? 0 : 1;
         const bFocused = b.tags?.includes("focus") ? 0 : 1;
         return aFocused - bFocused;

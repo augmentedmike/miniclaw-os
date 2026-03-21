@@ -1,8 +1,13 @@
 {
   "version": "1.0",
   "site": "helloam.bot",
-  "description": "Hello Am — Personal AI companion. Pre-order the device, join the mailing list, apply for the pilot program, book live sessions, and contact the team.",
+  "description": "Hello Am — Personal AI companion. Chat with Am, pre-order the device, join the mailing list, apply for the pilot program, book live sessions, and contact the team.",
   "tools": [
+    {
+      "name": "chat-with-am",
+      "description": "Start a conversation with Am, the AI assistant",
+      "path": "/"
+    },
     {
       "name": "join_helloam_mailing_list",
       "description": "Subscribe to the helloam.bot mailing list for launch updates",
@@ -33,6 +38,7 @@
       "name": "contact_helloam",
       "description": "Send a contact message to the helloam team",
       "endpoint": "/api/contact",
+      "path": "/contact",
       "dynamic": true
     }
   ],

@@ -460,12 +460,41 @@ describe("brain archive", () => {
     expect(() => store.findById(card.id)).toThrow();
   });
 
-  it("rejects archiving a non-shipped card", async () => {
-    const card = await createCard("Not done");
-    await expect(run("mc-board", "archive", card.id)).rejects.toThrow();
-    expect(allErr()).toMatch(/only shipped cards/i);
-    // card still on board
+  it("archives a backlog card", async () => {
+    const card = await createCard("Backlog card");
     expect(store.findById(card.id).column).toBe("backlog");
+    await run("mc-board", "archive", card.id);
+    expect(lastOut()).toMatch(/Archived/);
+    expect(() => store.findById(card.id)).toThrow();
+  });
+
+  it("archives an in-progress card", async () => {
+    const card = await createCard("In progress card");
+    store.update(card.id, {
+      problem_description: "Problem",
+      implementation_plan: "Plan",
+      acceptance_criteria: "- [ ] todo",
+    });
+    await run("mc-board", "move", card.id, "in-progress");
+    expect(store.findById(card.id).column).toBe("in-progress");
+    await run("mc-board", "archive", card.id);
+    expect(lastOut()).toMatch(/Archived/);
+    expect(() => store.findById(card.id)).toThrow();
+  });
+
+  it("archives an in-review card", async () => {
+    const card = await createCard("In review card");
+    store.update(card.id, {
+      problem_description: "Problem",
+      implementation_plan: "Plan",
+      acceptance_criteria: "- [x] done",
+    });
+    await run("mc-board", "move", card.id, "in-progress");
+    await run("mc-board", "move", card.id, "in-review");
+    expect(store.findById(card.id).column).toBe("in-review");
+    await run("mc-board", "archive", card.id);
+    expect(lastOut()).toMatch(/Archived/);
+    expect(() => store.findById(card.id)).toThrow();
   });
 
   it("errors on unknown card id", async () => {

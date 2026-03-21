@@ -9,6 +9,8 @@
  *   - book_helloam_session (imperative — session checkout via Stripe)
  *   - check_helloam_availability (imperative — queries booking /api/slots)
  *   - contact_helloam (imperative — contact form submission)
+ *   - chat-with-am (imperative — chat widget interaction)
+ *   - send-message (declarative — contact form auto-discovered)
  */
 document.addEventListener('DOMContentLoaded', function () {
   if (typeof WebMCP === 'undefined') return;
@@ -16,6 +18,38 @@ document.addEventListener('DOMContentLoaded', function () {
   WebMCP.init({
     site: 'helloam.bot',
     tools: [
+      // --- Chat with Am (imperative — chat widget) ---
+      {
+        name: 'chat-with-am',
+        description: 'Start a conversation with Am, the AI assistant at helloam.bot. Ask questions about services, capabilities, or get help.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            message: {
+              type: 'string',
+              description: 'The message or question to ask Am'
+            }
+          },
+          required: ['message']
+        },
+        execute: function (params) {
+          // Activate the chat widget if present
+          var chatToggle = document.querySelector('#chat-toggle, .chat-widget-toggle, [data-chat-open]');
+          if (chatToggle) chatToggle.click();
+
+          var chatInput = document.querySelector('#chat-input, .chat-input, [data-chat-input]');
+          if (chatInput) {
+            chatInput.value = params.message;
+            chatInput.dispatchEvent(new Event('input', { bubbles: true }));
+            // Try to submit
+            var sendBtn = document.querySelector('#chat-send, .chat-send, [data-chat-send]');
+            if (sendBtn) sendBtn.click();
+            return { content: [{ type: 'text', text: 'Message sent to Am chat widget.' }] };
+          }
+          return { content: [{ type: 'text', text: 'Chat widget not found on this page. Visit helloam.bot to chat.' }] };
+        }
+      },
+
       // --- Pre-Order (imperative — Stripe redirect, not a plain form) ---
       {
         name: 'preorder_helloam_device',
@@ -268,7 +302,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
       },
 
-      // --- Contact (imperative — contact form/API) ---
+      // --- Contact (imperative — contact form/API with declarative fallback) ---
       {
         name: 'contact_helloam',
         description: 'Send a contact message to the helloam team. Requires name, email, and message.',
@@ -283,6 +317,23 @@ document.addEventListener('DOMContentLoaded', function () {
           required: ['name', 'email', 'message']
         },
         execute: function (params) {
+          // Try declarative form first (from main)
+          var form = document.querySelector('form[toolname="send-message"]') ||
+                     document.querySelector('#contact-form');
+          if (form) {
+            Object.keys(params).forEach(function (key) {
+              var field = form.querySelector('[name="' + key + '"]');
+              if (field) {
+                field.value = params[key];
+                field.dispatchEvent(new Event('input', { bubbles: true }));
+              }
+            });
+            if (typeof form.requestSubmit === 'function') { form.requestSubmit(); }
+            else { form.dispatchEvent(new SubmitEvent('submit', { bubbles: true, cancelable: true })); }
+            return { content: [{ type: 'text', text: 'Contact message sent via form.' }] };
+          }
+
+          // Fallback: submit via /api/contact directly
           return fetch('/api/contact', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

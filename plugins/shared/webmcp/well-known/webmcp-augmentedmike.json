@@ -1,0 +1,21 @@
+{
+  "version": "1.0",
+  "site": "augmentedmike.com",
+  "description": "AugmentedMike — AI consulting and automation services by Mike O'Neal. Request demos, send inquiries, and explore AI capabilities.",
+  "tools": [
+    {
+      "name": "request-demo",
+      "description": "Request a demo of AI consulting services",
+      "path": "/demo"
+    },
+    {
+      "name": "send-message",
+      "description": "Send a message to Mike O'Neal via contact form",
+      "path": "/contact"
+    }
+  ],
+  "support": {
+    "declarative": true,
+    "imperative": true
+  }
+}

@@ -6,16 +6,18 @@
   - Discovery meta tags (model-context-protocol, webmcp-version)
   - Core WebMCP library (webmcp-tools.js)
   - Domain-specific tool registration:
+    * chat-with-am (imperative — chat widget interaction)
     * join_helloam_mailing_list (declarative — form auto-discovered)
     * preorder_helloam_device (imperative — Stripe checkout)
     * pilot_program_apply (imperative — contact modal)
     * book_helloam_session (imperative — session checkout)
     * check_helloam_availability (imperative — API call)
-    * contact_helloam (imperative — API call)
+    * contact_helloam (imperative — API call, with declarative form fallback)
 
-  Forms with toolname="join_helloam_mailing_list" are auto-discovered.
+  Forms with toolname="join_helloam_mailing_list" or toolname="send-message" are auto-discovered.
 -->
 <meta name="model-context-protocol" content="supported">
+<meta name="model-context" content="supported">
 <meta name="webmcp-version" content="1.0">
 <meta name="webmcp-site" content="helloam.bot">
 <link rel="webmcp-manifest" href="/.well-known/webmcp.json">

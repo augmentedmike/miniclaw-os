@@ -1,0 +1,17 @@
+<!--
+  WebMCP Integration for augmentedmike.com
+  Add this snippet to your site's <head> section.
+
+  Provides:
+  - Discovery meta tags (model-context, webmcp-version)
+  - Core WebMCP library (webmcp-tools.js)
+  - Domain-specific tool registration (request-demo, send-message)
+
+  Contact forms on any page with toolname="send-message" or toolname="request-demo" will be auto-discovered.
+-->
+<meta name="model-context" content="supported">
+<meta name="webmcp-version" content="1.0">
+<meta name="webmcp-site" content="augmentedmike.com">
+<link rel="webmcp-manifest" href="/.well-known/webmcp.json">
+<script src="/webmcp-tools.js" defer></script>
+<script src="/webmcp-init-augmentedmike.js" defer></script>

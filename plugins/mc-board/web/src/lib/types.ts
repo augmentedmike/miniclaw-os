@@ -125,6 +125,7 @@ export interface BoardCard {
   linked_card_id?: string;
   created_at: string;
   updated_at: string;
+  shipped_at?: string;
   depends_on: string[];
   criteria_checked: number;
   criteria_total: number;
