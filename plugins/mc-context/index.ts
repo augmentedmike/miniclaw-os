@@ -13,6 +13,9 @@ import {
   stripImages,
   pruneImages,
 } from "./src/context.js";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import * as os from "node:os";
 
 // ---- Time filter ----
 
@@ -198,6 +201,53 @@ export default function register(api: OpenClawPluginApi) {
   api.logger.info(
     `mc-context loaded (replaceMessages=${replaceMessages}, window=${windowMinutes}m, maxImages=${maxImagesInHistory})`,
   );
+
+  // ---- Tool awareness fallback ----
+  // Ensures ALL agent sessions (card workers, cron workers, isolated sessions)
+  // have the card-only workflow rule and tool list in their context, even if
+  // the CLAUDE.md in their cwd was generated without it.
+  // This is a low-priority fallback — specific CLAUDE.md writers should include
+  // the shared context template directly, but this catches any spawn path that
+  // misses it.
+  api.on("before_prompt_build", async (_event, ctx) => {
+    // Only inject for non-channel sessions (card workers, cron workers)
+    // Channel sessions get their own context from mc-queue
+    const sessionKey = ctx.sessionKey ?? "";
+    if (isChannelSession(sessionKey)) return;
+
+    // Read the shared agent-base context template
+    const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
+    const templatePath = path.join(stateDir, "miniclaw", "SYSTEM", "context", "agent-base.md");
+    let toolSection = "";
+    try {
+      const template = fs.readFileSync(templatePath, "utf8");
+      // Extract just the tool list and card-only workflow sections
+      const toolMatch = template.match(/## Available CLI tools[\s\S]*?(?=\n## Card-Only|$)/);
+      const workflowMatch = template.match(/## Card-Only Workflow Rule[\s\S]*?(?=\n## [A-Z]|\n*$)/);
+      const parts: string[] = [];
+      if (toolMatch) parts.push(toolMatch[0].trim());
+      if (workflowMatch) parts.push(workflowMatch[0].trim());
+      toolSection = parts.join("\n\n");
+    } catch {
+      // Template missing — inject minimal fallback
+      toolSection = [
+        "## Available CLI tools (use via Bash)",
+        "- `openclaw mc-board` — board management (create, update, move, show, board)",
+        "- `openclaw mc-rolodex` — contact management",
+        "- `openclaw mc-kb` — knowledge base",
+        "- `openclaw mc-email` — email",
+        "- `openclaw mc-vault` — secrets",
+        "- `openclaw mc-backup` — backups",
+        "",
+        "## Card-Only Workflow Rule",
+        "ALL tasks go to cards. Inline work is ONLY for answering direct questions.",
+      ].join("\n");
+    }
+
+    if (toolSection) {
+      return { prependContext: `[mc-context: tool awareness fallback]\n${toolSection}` };
+    }
+  }, { priority: 90 }); // Higher priority = runs earlier, before the windowing hook
 
   api.on("before_prompt_build", async (event, ctx) => {
     const isChannel = isChannelSession(ctx.sessionKey);

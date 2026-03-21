@@ -22,31 +22,43 @@ import { fileURLToPath } from "node:url";
 // ---- Config ----
 
 const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
-const DB_PATH   = process.env.BOARD_DB_PATH ?? path.join(STATE_DIR, "USER", "brain", "board.db");
+const DB_PATH   = process.env.BOARD_DB_PATH ?? path.join(STATE_DIR, "miniclaw", "USER", "brain", "board.db");
 const CLAUDE_BIN    = process.env.CLAUDE_BIN ?? "claude";
 const OPENCLAW_BIN  = process.env.OPENCLAW_BIN ?? "openclaw";
 const POLL_MS       = parseInt(process.env.AGENT_RUNNER_POLL_MS ?? "5000", 10);
 const TICK_MS       = parseInt(process.env.AGENT_RUNNER_TICK_MS ?? "60000", 10);
 const BOARD_PORT    = process.env.BOARD_PORT ?? "4220";
-const COLUMNS_FILE  = path.join(STATE_DIR, "USER", "brain", "board-columns.json");
+const JOBS_FILE     = process.env.BOARD_CRON_JOBS ?? path.join(STATE_DIR, "miniclaw", "USER", "brain", "board-cron.json");
+const COLUMNS_FILE  = process.env.BOARD_COLUMNS_FILE ?? path.join(STATE_DIR, "miniclaw", "USER", "brain", "board-columns.json");
 
-/** Returns per-column max concurrent from board-columns.json (single source of truth). */
+// Read MAX_CONCURRENT from board-columns.json — the same file the web UI writes to.
+// Falls back to AGENT_RUNNER_MAX_CONCURRENT env var, then 3.
+
+/** Returns per-column max concurrent: { backlog: N, 'in-progress': N, 'in-review': N } */
 function getMaxConcurrentPerColumn() {
   const fallback = parseInt(process.env.AGENT_RUNNER_MAX_CONCURRENT ?? "3", 10);
   const result = { backlog: fallback, "in-progress": fallback, "in-review": fallback };
   try {
-    const config = JSON.parse(fs.readFileSync(COLUMNS_FILE, "utf8"));
+    const cols = JSON.parse(fs.readFileSync(COLUMNS_FILE, "utf8"));
     for (const col of Object.keys(result)) {
-      if (config[col] && typeof config[col].maxConcurrency === "number") {
-        result[col] = config[col].maxConcurrency;
+      if (cols[col] && typeof cols[col].maxConcurrency === "number") {
+        result[col] = cols[col].maxConcurrency;
       }
     }
-  } catch {}
+  } catch (err) {
+    log(`warn: board-columns.json parse error, using defaults: ${err.message}`);
+  }
   return result;
 }
 
 // Full-agent columns run claude directly. Other columns delegate to openclaw triage CLI.
 const FULL_AGENT_COLUMNS = new Set(["backlog", "in-progress", "in-review"]);
+
+// Sync OAuth token from Claude Code Keychain on startup
+const oauthSyncBin = path.join(STATE_DIR, "miniclaw", "SYSTEM", "bin", "mc-oauth-sync");
+if (fs.existsSync(oauthSyncBin)) {
+  try { execFileSync(oauthSyncBin, [], { timeout: 10_000, stdio: "pipe" }); } catch {}
+}
 
 // ---- Logging ----
 
@@ -201,7 +213,7 @@ function resetStaleRunning() {
       db.prepare(`UPDATE agent_queue SET status = 'failed', ended_at = ? WHERE id = ?`).run(new Date().toISOString(), row.id);
       failed++;
       log(`resetStaleRunning: failed stale ${row.id} card=${row.card_id} age=${Math.round(age / 1000)}s`);
-      try { runBoard("release", row.card_id, "--worker", "board-worker-in-progress"); } catch {}
+      try { runBoard("release", row.card_id, "--worker", "board-worker-in-progress"); } catch (err) { log(`release failed for stale ${row.card_id}: ${err.message}`); }
     } else {
       db.prepare(`UPDATE agent_queue SET status = 'pending', started_at = NULL WHERE id = ?`).run(row.id);
       reset++;
@@ -214,16 +226,12 @@ function resetStaleRunning() {
 // ---- openclaw CLI helpers ----
 
 function runBoard(...args) {
-  try {
-    execFileSync(OPENCLAW_BIN, ["mc-board", ...args], {
-      encoding: "utf-8",
-      timeout: 30_000,
-      env: { ...process.env, OPENCLAW_STATE_DIR: STATE_DIR },
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-  } catch (err) {
-    log(`board cmd failed [${args.join(" ")}]: ${err.message}`);
-  }
+  return execFileSync(OPENCLAW_BIN, ["mc-board", ...args], {
+    encoding: "utf-8",
+    timeout: 30_000,
+    env: { ...process.env, OPENCLAW_STATE_DIR: STATE_DIR },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
 }
 
 // ---- Agent spawning ----
@@ -234,6 +242,52 @@ function runningCountForCol(col) {
   let n = 0;
   for (const v of running.values()) { if (v.col === col) n++; }
   return n;
+}
+
+/** Read shared agent context template, with embedded fallback */
+function readAgentBaseContext() {
+  const templatePath = path.join(STATE_DIR, "miniclaw", "SYSTEM", "context", "agent-base.md");
+  try {
+    return fs.readFileSync(templatePath, "utf8").trim();
+  } catch {
+    return [
+      "## Available CLI tools (use via Bash)",
+      "- `openclaw mc-board` — board management (create, update, move, show, board, pickup, release, active, context)",
+      "- `openclaw mc-rolodex` — contact management (add, search, list, update, remove)",
+      "- `openclaw mc-kb` — knowledge base (search, add, update, get)",
+      "- `openclaw mc-email` — email (send, inbox, triage)",
+      "- `openclaw mc-vault` — secrets (get, set, list)",
+      "- `openclaw mc-backup` — backups (now, list, restore)",
+      "- `openclaw mc-calendar` — calendar management",
+      "- `openclaw mc-designer` — generate images, palettes, textures, mockups via Gemini",
+      "- `openclaw mc-memory` — search agent knowledge base and episodic memory",
+      "- `openclaw mc-memo` — short-term working memory for sessions",
+      "- `openclaw mc-research` — web research with source citations",
+      "- `openclaw mc-github` — GitHub integration (issues, PRs, repos)",
+      "- `openclaw mc-social` — social media management",
+      "- `openclaw mc-blog` — blog post management",
+      "- `openclaw mc-substack` — Substack publishing",
+      "- `openclaw mc-voice` — voice/audio transcription",
+      "- `openclaw mc-youtube` — YouTube video management",
+      "- `openclaw mc-booking` — appointment scheduling",
+      "- `openclaw mc-tailscale` — network/VPN management",
+      "- `openclaw mc-trust` — agent trust and permissions",
+      "- `openclaw mc-docs` — documentation search",
+      "",
+      "## Card-Only Workflow Rule",
+      "ALL tasks go to cards. Inline work is ONLY for answering direct questions.",
+      "- If someone asks you to DO something (build, fix, create, update, research), create a card: `openclaw mc-board create --title \"...\" --priority medium`",
+      "- If someone asks you a QUESTION, answer it directly in chat.",
+      "- NEVER execute multi-step work inline. Always create a card and let the board worker handle it.",
+      "- This rule applies to ALL agent sessions: Telegram, DMs, channels, and card workers.",
+      "",
+      "## Non-Interactive Automation",
+      "You are a non-interactive automation agent. Execute your instructions immediately using tool calls.",
+      "NEVER ask questions. NEVER generate conversational responses. NEVER summarize the board state.",
+      "If you cannot proceed, exit silently. Do not explain why.",
+      "Update the card via: openclaw mc-board update / move / release",
+    ].join("\n");
+  }
 }
 
 function cardToMarkdown(card) {
@@ -279,43 +333,45 @@ function spawnFullAgent(row, card, project) {
 
   const cardMd = card ? cardToMarkdown(card) : `Card ${row.card_id} (details unavailable)`;
   const systemPrompt = row.prompt.replace("{{CARD}}", "").replace(/\{\{CARD_ID\}\}/g, row.card_id).trim();
+
+  // Issue #7: Reject empty/invalid prompt before spawning claude
+  if (!systemPrompt || systemPrompt.length < 20) {
+    log(`ERROR: empty or invalid prompt for ${row.card_id} (length=${systemPrompt.length}), marking failed`);
+    const fdb = getDb();
+    markFailed(fdb, row.id);
+    fdb.close();
+    return;
+  }
+
   const userPrompt = `Here is the card to work on:\n\n${cardMd}\n\nCard ID: ${row.card_id}\n\nExecute the instructions in your system prompt now. Do not ask questions. Do not summarize. Use tools immediately.`;
   const agentCwd = (project?.work_dir && fs.existsSync(project.work_dir)) ? project.work_dir : runDir;
 
+  const agentContext = readAgentBaseContext();
   fs.writeFileSync(path.join(runDir, "CLAUDE.md"), [
     `# Work Session: ${card?.title ?? row.card_id}`,
-    "",
     `Card: ${row.card_id} (${row.col})`,
     `State dir: ${STATE_DIR}`,
     agentCwd !== runDir ? `Working directory: ${agentCwd}` : "",
     project ? `Project: ${project.name}${project.description ? ` — ${project.description}` : ""}` : "",
     project?.github_repo ? `GitHub repo: ${project.github_repo}` : "",
-    "",
-    "## Ecosystem",
-    "You are building MiniClaw — a plugin ecosystem for an Agentic OS built on top of OpenClaw.",
-    "OpenClaw is the underlying agent runtime. Fork repo: ~/.openclaw/projects/openclaw/",
-    "All MiniClaw plugins live in ~/.openclaw/miniclaw/plugins/ — each is an openclaw plugin package.",
-    "New features must be implemented as MiniClaw plugins in ~/.openclaw/miniclaw/plugins/, not standalone scripts.",
-    "Plugin repo (public, backport target): ~/.openclaw/projects/miniclaw-os/",
-    `Live state dir: ${STATE_DIR}`,
-    "",
-    "You are a non-interactive automation agent. Execute your instructions immediately using tool calls.",
-    "NEVER ask questions. NEVER generate conversational responses. NEVER summarize the board state.",
-    "If you cannot proceed, exit silently. Do not explain why.",
-    "Update the card via: openclaw mc-board update / move / release",
-    "",
-    "## Available CLI tools (use via Bash)",
-    "- `openclaw mc-board` — board management (create, update, move, show, board)",
-    "- `openclaw mc-rolodex` — contact management (add, search, list, update, remove)",
-    "- `openclaw mc-kb` — knowledge base (search, add, update, get)",
-    "- `openclaw mc-email` — email (send, inbox, triage)",
-    "- `openclaw mc-vault` — secrets (get, set, list)",
-    "- `openclaw mc-backup` — backups (now, list, restore)",
+    agentContext,
     `Log progress to: ${path.join(STATE_DIR, "logs", "cards", row.card_id + ".log")}`,
+    `# currentDate`,
+    `Today's date is ${new Date().toISOString().slice(0, 10)}.`,
   ].filter(Boolean).join("\n"));
 
   // Pickup the card now — only mark active when runner actually starts the agent.
-  try { runBoard("pickup", row.card_id, "--worker", row.worker); } catch {}
+  // Issue #2: If pickup fails, do NOT spawn agent — mark queue entry failed.
+  try {
+    runBoard("pickup", row.card_id, "--worker", row.worker);
+  } catch (err) {
+    log(`ERROR: pickup failed for ${row.card_id}: ${err.message} — aborting agent spawn`);
+    const fdb = getDb();
+    markFailed(fdb, row.id);
+    fdb.close();
+    logStream.end();
+    return;
+  }
 
   writeFile(`card:  ${row.card_id} — ${card?.title ?? "(unknown)"}\n`);
   writeFile(`log:   ${logFile}\n`);
@@ -468,7 +524,7 @@ function spawnFullAgent(row, card, project) {
       log(`agent_runs write failed for ${row.card_id}: ${err.message}`);
     }
 
-    try { runBoard("release", row.card_id, "--worker", row.worker); } catch {}
+    try { runBoard("release", row.card_id, "--worker", row.worker); } catch (relErr) { log(`ERROR: release failed for ${row.card_id} after agent close: ${relErr.message}`); }
     logStream.end();
   });
 
@@ -480,7 +536,7 @@ function spawnFullAgent(row, card, project) {
     const db = getDb();
     markFailed(db, row.id);
     db.close();
-    try { runBoard("release", row.card_id, "--worker", row.worker); } catch {}
+    try { runBoard("release", row.card_id, "--worker", row.worker); } catch (relErr) { log(`ERROR: release failed for ${row.card_id} after spawn error: ${relErr.message}`); }
     logStream.end();
   });
 
@@ -497,7 +553,15 @@ function spawnTriage(row) {
 
   const { CLAUDECODE: _cc, ...env } = process.env;
 
-  try { runBoard("pickup", row.card_id, "--worker", row.worker); } catch {}
+  try {
+    runBoard("pickup", row.card_id, "--worker", row.worker);
+  } catch (err) {
+    log(`ERROR: triage pickup failed for ${row.card_id}: ${err.message} — aborting triage spawn`);
+    const fdb = getDb();
+    markFailed(fdb, row.id);
+    fdb.close();
+    return;
+  }
 
   const proc = spawn(OPENCLAW_BIN, [
     "mc-board", "triage", row.card_id,
@@ -530,6 +594,9 @@ function spawnTriage(row) {
 // ---- Poll loop ----
 
 async function poll() {
+  // Clean up stale running entries every poll, not just at startup
+  resetStaleRunning();
+
   // Per-column check: skip poll only if every column is at its limit
   const limits = getMaxConcurrentPerColumn();
   const allFull = Object.entries(limits).every(([col, max]) => runningCountForCol(col) >= max);
@@ -569,6 +636,14 @@ async function poll() {
 
 // ---- Startup ----
 
+// Issue #5: Validate DB path exists at startup — do not silently create empty DB
+if (!fs.existsSync(DB_PATH)) {
+  const msg = `FATAL: DB_PATH does not exist: ${DB_PATH} — refusing to start with empty database`;
+  process.stderr.write(msg + "\n");
+  try { fs.appendFileSync(runnerLog, `[${new Date().toISOString()}] ${msg}\n`); } catch {}
+  process.exit(1);
+}
+
 const startLimits = getMaxConcurrentPerColumn();
 log(`agent-runner starting — db=${DB_PATH} poll=${POLL_MS}ms limits=${JSON.stringify(startLimits)} (per-column, dynamic)`);
 resetStaleRunning();
@@ -578,16 +653,24 @@ poll(); // immediate first poll
 
 // ---- Tick: periodically call /api/cron/tick to enqueue eligible cards ----
 
+let tickFailCount = 0;
+
 async function tick() {
   try {
     const res = await fetch(`http://127.0.0.1:${BOARD_PORT}/api/cron/tick`);
     if (!res.ok) { log(`tick: HTTP ${res.status}`); return; }
     const data = await res.json();
+    tickFailCount = 0; // reset on success
     if (data.fired?.length > 0) log(`tick: enqueued ${data.fired.join(", ")}`);
     if (data.released?.length > 0) log(`tick: released stale ${data.released.join(", ")}`);
     if (data.reactivelyFired?.length > 0) log(`tick: reactive ${data.reactivelyFired.join(", ")}`);
   } catch (err) {
-    // Board web server may not be up — non-fatal
+    tickFailCount++;
+    if (tickFailCount >= 3) {
+      log(`ERROR: tick fetch failed ${tickFailCount} consecutive times — board web server may be down: ${err.message}`);
+    } else {
+      log(`tick: fetch failed (attempt ${tickFailCount}): ${err.message}`);
+    }
   }
 }
 

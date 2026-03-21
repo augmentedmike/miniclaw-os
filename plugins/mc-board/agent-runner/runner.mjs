@@ -332,7 +332,7 @@ function spawnFullAgent(row, card, project) {
   }
 
   const cardMd = card ? cardToMarkdown(card) : `Card ${row.card_id} (details unavailable)`;
-  const systemPrompt = row.prompt.replace("{{CARD}}", cardMd).replace(/\{\{CARD_ID\}\}/g, row.card_id).trim();
+  const systemPrompt = row.prompt.replace("{{CARD}}", "").replace(/\{\{CARD_ID\}\}/g, row.card_id).trim();
 
   // Issue #7: Reject empty/invalid prompt before spawning claude
   if (!systemPrompt || systemPrompt.length < 20) {
