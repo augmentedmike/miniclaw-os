@@ -7,8 +7,8 @@
 import Database from "better-sqlite3";
 import * as path from "node:path";
 import * as fs from "node:fs";
-import * as os from "node:os";
 import * as crypto from "node:crypto";
+import { rolodexDbPath, rolodexJsonPath } from "./paths";
 
 export interface Contact {
   id: string;
@@ -35,15 +35,11 @@ interface ContactRow {
 }
 
 function resolveDbPath(): string {
-  if (process.env.ROLODEX_DB_PATH) return process.env.ROLODEX_DB_PATH;
-  const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
-  return path.join(stateDir, "USER", "rolodex", "contacts.db");
+  return rolodexDbPath();
 }
 
 function resolveJsonPath(): string {
-  if (process.env.ROLODEX_STORAGE_PATH) return process.env.ROLODEX_STORAGE_PATH;
-  const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
-  const jsonPath = path.join(stateDir, "USER", "rolodex", "contacts.json");
+  const jsonPath = rolodexJsonPath();
   const dir = path.dirname(jsonPath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   return jsonPath;

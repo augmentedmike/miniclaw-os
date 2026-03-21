@@ -1,8 +1,8 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { setupStatePath } from "./paths";
 
-const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(process.env.HOME || "", ".openclaw");
-const STATE_FILE = path.join(STATE_DIR, "USER", "setup-state.json");
+const STATE_FILE = setupStatePath();
 
 export interface SetupState {
   complete: boolean;

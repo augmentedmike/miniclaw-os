@@ -5,10 +5,12 @@ import { MemoryTab } from "./memory-tab";
 import { RolodexTab } from "./rolodex-tab";
 import { SettingsPage } from "./settings-page";
 import { AgentsTab } from "./agents-tab";
+import { PixelOfficeTab } from "./pixel-office-tab";
 import { Modal } from "./modal";
 import { ChatPanel } from "./chat-panel";
 import { WelcomeWizard, useWelcomeWizard } from "./welcome-wizard";
 import { Project, BoardCard } from "@/lib/types";
+import { AccentContext, hexToRgb } from "@/lib/accent-context";
 
 import useSWR from "swr";
 
@@ -73,13 +75,24 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
   const [openCardId, setOpenCardId] = useState<string | null>(initialCardId ?? null);
   const { showWelcome, dismissWelcome } = useWelcomeWizard();
   const [assistantName, setAssistantName] = useState("Am");
+  const [accentColor, setAccentColor] = useState("#00E5CC");
   const { data: rolodexCount } = useSWR<{ count: number }>("/api/rolodex/count", fetcher, { refreshInterval: 60000 });
   const { data: memoryStats } = useSWR<{ memoryFiles: number; kbEntries: number; total: number }>("/api/memory/stats", fetcher, { refreshInterval: 60000 });
-  // Fetch assistant name for empty-state message
+  // Fetch assistant name + accent color
   useEffect(() => {
-    fetch("/api/assistant-name").then(r => r.json()).then(d => {
-      if (d.shortName) setAssistantName(d.shortName);
-    }).catch(() => {});
+    const fetchConfig = () => {
+      fetch("/api/assistant-name").then(r => r.json()).then(d => {
+        if (d.shortName) setAssistantName(d.shortName);
+        if (d.accentColor) {
+          setAccentColor(d.accentColor);
+          document.documentElement.style.setProperty("--accent", d.accentColor);
+          document.documentElement.style.setProperty("--accent-rgb", hexToRgb(d.accentColor));
+        }
+      }).catch(() => {});
+    };
+    fetchConfig();
+    const interval = setInterval(fetchConfig, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   const showEmptyState = !showWelcome && counts !== null && allCards.length === 0 && tab === "board";
@@ -148,6 +161,7 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
   };
 
   return (
+    <AccentContext.Provider value={accentColor}>
     <div className="app-body">
       {/* Top bar */}
       <div className="top-bar">
@@ -155,7 +169,7 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
         <div className="flex items-stretch">
           <div className="brand">MiniClaw Brain</div>
           <div className="tab-bar">
-            {(["board", "memory", "rolodex", "agents", "settings"] as Tab[]).map(t => {
+            {(["office", "board", "memory", "rolodex", "agents", "settings"] as Tab[]).map(t => {
               const activeCount = t === "board" && counts ? counts.inProgress + counts.inReview : 0;
               const badgeCount = t === "rolodex" && rolodexCount ? rolodexCount.count : t === "board" ? activeCount : 0;
               const memoryBadge = t === "memory" && memoryStats && memoryStats.total > 0
@@ -164,7 +178,7 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
                 <button key={t} onClick={() => switchTab(t)}
                   className={`tab-btn${tab === t ? " active" : ""}`}
                   style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  {t === "board" ? "Board" : t === "memory" ? "Memory" : t === "rolodex" ? "Contacts" : t === "agents" ? "Agents" : "Settings"}
+                  {t === "office" ? "Office" : t === "board" ? "Board" : t === "memory" ? "Memory" : t === "rolodex" ? "Contacts" : t === "agents" ? "Agents" : "Settings"}
                   {memoryBadge && (
                     <span style={{
                       fontSize: 10,
@@ -278,7 +292,17 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
           </div>
         )}
 
-        {/* Chat toggle — disabled until chat daemon is ready */}
+        {/* Chat toggle */}
+        <button
+          onClick={toggleChat}
+          className="flex items-center justify-center w-11 border-l border-zinc-800 shrink-0 hover:bg-zinc-900 transition-colors h-full"
+          title={chatOpen ? "Close chat" : "Open chat"}
+          style={{ color: chatOpen ? accentColor : "#52525b" }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+        </button>
 
         {/* Far right: alerts icon */}
         <button
@@ -309,6 +333,9 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
               onCardOpen={setOpenCardId}
             />
           </div>
+          <div className={`tab-panel${tab === "office" ? " active" : ""}`}>
+            {tab === "office" && <PixelOfficeTab onSwitchToBoard={() => switchTab("board")} />}
+          </div>
           <div className={`tab-panel${tab === "memory" ? " active" : ""}`}>
             <MemoryTab />
           </div>
@@ -323,7 +350,15 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
           </div>
         </div>
 
-        {/* Chat panel — disabled until chat daemon is ready (next release) */}
+        {/* Chat panel */}
+        <ChatPanel
+          open={chatOpen}
+          onToggle={toggleChat}
+          pendingContext={pendingContext}
+          onContextConsumed={() => setPendingContext(null)}
+          projectId={selectedProject}
+          activeCardId={openCardId ?? undefined}
+        />
       </div>
 
       {/* Toasts */}
@@ -436,5 +471,6 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
         </Modal>
       )}
     </div>
+    </AccentContext.Provider>
   );
 }
