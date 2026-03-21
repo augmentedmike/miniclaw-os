@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "site": "helloam.bot",
-  "description": "Hello Am — AI assistant chat interface. Start conversations, send messages, and interact with Am.",
+  "description": "Hello Am — Personal AI companion. Chat with Am, pre-order the device, join the mailing list, apply for the pilot program, book live sessions, and contact the team.",
   "tools": [
     {
       "name": "chat-with-am",
@@ -9,9 +9,37 @@
       "path": "/"
     },
     {
-      "name": "send-message",
-      "description": "Send a contact message via helloam.bot",
-      "path": "/contact"
+      "name": "join_helloam_mailing_list",
+      "description": "Subscribe to the helloam.bot mailing list for launch updates",
+      "path": "/#waitlist"
+    },
+    {
+      "name": "preorder_helloam_device",
+      "description": "Pre-order the Am device with a deposit via Stripe",
+      "path": "/#device"
+    },
+    {
+      "name": "pilot_program_apply",
+      "description": "Apply for the helloam Pilot Program for early hardware access",
+      "path": "/#pilot"
+    },
+    {
+      "name": "book_helloam_session",
+      "description": "Book a 30-minute live session with the founder",
+      "path": "/#support"
+    },
+    {
+      "name": "check_helloam_availability",
+      "description": "Check available booking slots for helloam sessions",
+      "endpoint": "/api/slots",
+      "dynamic": true
+    },
+    {
+      "name": "contact_helloam",
+      "description": "Send a contact message to the helloam team",
+      "endpoint": "/api/contact",
+      "path": "/contact",
+      "dynamic": true
     }
   ],
   "support": {
