@@ -598,7 +598,8 @@ Examples:
         return;
       }
       for (const card of results) {
-        console.log(`${card.id}  ${card.title}  [shipped ${card.updated_at.slice(0, 10)}]`);
+        const shippedAt = card.history?.filter((h: { column: string; moved_at: string }) => h.column === "shipped").pop()?.moved_at;
+        console.log(`${card.id}  ${card.title}  [shipped ${(shippedAt ?? card.updated_at).slice(0, 10)}]`);
       }
     });
 
