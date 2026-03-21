@@ -77,7 +77,11 @@ export function FileViewModal({ filePath, base, onClose }: Props) {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        e.stopImmediatePropagation();
+        onClose();
+        return;
+      }
       if (e.key === "w" && (e.metaKey || e.altKey)) { e.preventDefault(); setWrap(w => !w); }
     };
     document.addEventListener("keydown", handler);
