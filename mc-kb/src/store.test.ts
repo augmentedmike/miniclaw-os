@@ -226,6 +226,12 @@ describe("KBStore", () => {
       expect(results.length).toBeGreaterThan(0);
     });
 
+    it("returns empty array (not error) for query matching no entries", () => {
+      const results = store.ftsSearch("xyznonexistent12345qqq");
+      expect(Array.isArray(results)).toBe(true);
+      expect(results.length).toBe(0);
+    });
+
     it("respects limit parameter", () => {
       const results = store.ftsSearch("Docker", 1);
       expect(results.length).toBeLessThanOrEqual(1);
@@ -236,6 +242,21 @@ describe("KBStore", () => {
       if (results.length >= 2) {
         // Results should be ordered by rank ascending (more negative = better match)
         expect(results[0].rank).toBeLessThanOrEqual(results[1].rank);
+      }
+    });
+  });
+
+  // ── Vec search (graceful when not loaded) ──────────────────────────
+
+  describe("vecSearch", () => {
+    it("returns empty array when vecLoaded is false", () => {
+      // By default, sqlite-vec may not be available in test env
+      // vecSearch should return empty array, not throw
+      if (!store.isVecLoaded()) {
+        const dummyVec = new Float32Array(768);
+        const results = store.vecSearch(dummyVec, 10);
+        expect(Array.isArray(results)).toBe(true);
+        expect(results.length).toBe(0);
       }
     });
   });
