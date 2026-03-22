@@ -1,8 +1,12 @@
 export const dynamic = "force-dynamic";
 
-import { NextResponse } from "next/server";
 import { execSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
+import * as path from "node:path";
+import { consumeToken } from "@/lib/sensitive-auth";
+import { isSetupComplete } from "@/lib/setup-state";
+import { apiOk, apiError } from "@/lib/api-response";
+import { stateDir } from "@/lib/paths";
 
 const CLAUDE_BIN = "/Users/michaeloneal/.local/bin/claude";
 const HOME = process.env.HOME || "";
@@ -20,7 +24,7 @@ function isAnthropicAuthed(): boolean {
 
   // Fallback: check openclaw auth-profiles
   const candidates = [
-    `${HOME}/.openclaw/agents/main/agent/auth-profiles.json`,
+    path.join(stateDir(), "agents", "main", "agent", "auth-profiles.json"),
   ];
   for (const f of candidates) {
     try {
@@ -38,7 +42,7 @@ function isAnthropicAuthed(): boolean {
 
 // GET: poll for auth status
 export async function GET() {
-  return NextResponse.json({ authed: isAnthropicAuthed() });
+  return apiOk({ authed: isAnthropicAuthed() });
 }
 
 // POST: open Terminal.app running claude setup-token
@@ -56,19 +60,23 @@ export async function POST() {
       timeout: 5000,
       env: { ...cleanEnv, HOME },
     });
-    return NextResponse.json({ ok: true, message: "Sign in via the browser window that opens" });
+    return apiOk({ message: "Sign in via the browser window that opens" });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+    return apiError(msg, 500);
   }
 }
 
-// PUT: paste a session token directly (wizard — no auth)
+// PUT: paste a session token directly
 export async function PUT(req: Request) {
-  const { token } = await req.json();
+  const { token, sensitiveToken } = await req.json();
+
+  if (isSetupComplete() && !consumeToken(sensitiveToken)) {
+    return apiError("Password confirmation required", 403);
+  }
 
   if (!token || typeof token !== "string") {
-    return NextResponse.json({ ok: false, error: "Token is required" }, { status: 400 });
+    return apiError("Token is required");
   }
 
   try {
@@ -83,8 +91,8 @@ export async function PUT(req: Request) {
     );
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: `Failed to store token: ${msg}` }, { status: 500 });
+    return apiError(`Failed to store token: ${msg}`, 500);
   }
 
-  return NextResponse.json({ ok: true });
+  return apiOk();
 }

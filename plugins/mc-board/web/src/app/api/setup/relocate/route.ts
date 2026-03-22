@@ -1,13 +1,14 @@
 export const dynamic = "force-dynamic";
 
-import { NextResponse } from "next/server";
 import { readSetupState } from "@/lib/setup-state";
 import { execSync } from "node:child_process";
 import * as path from "node:path";
 import * as fs from "node:fs";
 import * as os from "node:os";
+import { apiOk, apiError } from "@/lib/api-response";
+import { stateDir } from "@/lib/paths";
 
-const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(process.env.HOME || "", ".openclaw");
+const STATE_DIR = stateDir();
 
 function findRelocateScript(): string {
   const candidates = [
@@ -28,12 +29,12 @@ export async function POST(req: Request) {
   const nickname = (setupState.shortName || "am").toLowerCase().replace(/[^a-z0-9_-]/g, "");
 
   if (!nickname) {
-    return NextResponse.json({ ok: false, error: "No nickname to derive from shortName" }, { status: 400 });
+    return apiError("No nickname to derive from shortName");
   }
 
   // Skip if already relocated
   if (STATE_DIR !== path.join(os.homedir(), ".openclaw")) {
-    return NextResponse.json({ ok: true, skipped: true, stateDir: STATE_DIR });
+    return apiOk({ skipped: true, stateDir: STATE_DIR });
   }
 
   const script = findRelocateScript();
@@ -53,7 +54,7 @@ export async function POST(req: Request) {
     // Extract any warnings from the output
     const warnings = (output.match(/WARNING: .+/g) || []).map((w: string) => w.replace("WARNING: ", ""));
 
-    return NextResponse.json({ ok: true, newStateDir, warnings, output });
+    return apiOk({ newStateDir, warnings, output });
   } catch (err: unknown) {
     const execErr = err as { status?: number; stdout?: string; stderr?: string };
 
@@ -61,17 +62,9 @@ export async function POST(req: Request) {
     if (execErr.status === 2) {
       const conflictMatch = (execErr.stdout || "").match(/CONFLICT_PATH=(.+)/);
       const conflictPath = conflictMatch ? conflictMatch[1].trim() : path.join(os.homedir(), nickname);
-      return NextResponse.json({
-        ok: false,
-        conflict: true,
-        conflictPath,
-        message: `~/${nickname} already exists. It will be backed up and overwritten.`,
-      }, { status: 409 });
+      return apiError(`~/${nickname} already exists. It will be backed up and overwritten. conflictPath=${conflictPath}`, 409);
     }
 
-    return NextResponse.json({
-      ok: false,
-      error: (execErr.stderr || execErr.stdout || "relocate failed").toString().slice(0, 500),
-    }, { status: 500 });
+    return apiError((execErr.stderr || execErr.stdout || "relocate failed").toString().slice(0, 500), 500);
   }
 }
