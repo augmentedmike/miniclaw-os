@@ -269,7 +269,7 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
             onFocus={() => { setSearchOpen(true); setSearchFocused(true); }}
             onBlur={() => setSearchFocused(false)}
             style={{
-              flex: "0 0 auto", width: 280,
+              flex: "1 1 auto", minWidth: 120,
               background: searchFocused ? "#18181b" : "transparent",
               border: searchFocused ? "1px solid #16a34a" : "1px solid rgba(63,63,70,0.4)",
               borderRadius: 4, padding: "5px 8px", color: "#e4e4e7",
@@ -287,15 +287,20 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
           >
             + New Request
           </button>
-          <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer", fontSize: 12, color: showHeld ? "#a8a29e" : "#52525b", userSelect: "none", whiteSpace: "nowrap" }}>
-            <input
-              type="checkbox"
-              checked={showHeld}
-              onChange={e => setShowHeld(e.target.checked)}
-              style={{ accentColor: "#d97706", cursor: "pointer" }}
-            />
-            show held
-          </label>
+          <button
+            onClick={() => setShowHeld(h => !h)}
+            style={{
+              fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 6,
+              background: showHeld ? "#451a03" : "transparent",
+              border: showHeld ? "1px solid #d97706" : "1px solid #a37800",
+              color: showHeld ? "#fbbf24" : "#d4a017", cursor: "pointer", whiteSpace: "nowrap",
+              transition: "background 0.1s, border-color 0.1s, color 0.1s",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = showHeld ? "#451a03" : "#2a2000"; e.currentTarget.style.borderColor = showHeld ? "#fbbf24" : "#d4a017"; e.currentTarget.style.color = showHeld ? "#fbbf24" : "#fbbf24"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = showHeld ? "#451a03" : "transparent"; e.currentTarget.style.borderColor = showHeld ? "#d97706" : "#a37800"; e.currentTarget.style.color = showHeld ? "#fbbf24" : "#d4a017"; }}
+          >
+            {showHeld ? "Hide Held" : "Show Held"}
+          </button>
           <button
             onClick={() => setShowSummary(true)}
             style={{
