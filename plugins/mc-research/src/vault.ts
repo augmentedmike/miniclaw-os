@@ -2,12 +2,15 @@ import { execSync } from "node:child_process";
 import * as path from "node:path";
 import * as os from "node:os";
 
-const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
-const DEFAULT_VAULT_BIN = path.join(STATE_DIR, "miniclaw", "SYSTEM", "bin", "mc-vault");
+function getDefaultVaultBin(): string {
+  const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
+  return path.join(stateDir, "miniclaw", "SYSTEM", "bin", "mc-vault");
+}
 
-export function vaultGet(key: string, vaultBin = DEFAULT_VAULT_BIN): string | null {
+export function vaultGet(key: string, vaultBin?: string): string | null {
+  const bin = vaultBin ?? getDefaultVaultBin();
   try {
-    const out = execSync(`${vaultBin} get ${key}`, {
+    const out = execSync(`${bin} get ${key}`, {
       encoding: "utf8",
       stdio: ["pipe", "pipe", "pipe"],
     }).trim();
