@@ -1081,26 +1081,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
       >↓</button>
       </div>
 
-      {/* Reply preview */}
-      {replyingTo && (
-        <div style={{
-          margin: "0 10px", padding: "6px 10px", borderRadius: 6,
-          background: "#1a1a2e", border: "1px solid #4c1d95",
-          display: "flex", alignItems: "flex-start", gap: 6, flexShrink: 0,
-        }}>
-          <span style={{ fontSize: 10, color: "#8b5cf6", fontWeight: 700, flexShrink: 0, marginTop: 1 }}>↩ reply</span>
-          <div style={{ flex: 1, overflow: "hidden", minWidth: 0 }}>
-            <span style={{ fontSize: 10, color: "#6366f1", fontWeight: 600, textTransform: "capitalize" }}>{replyingTo.role}</span>
-            <div style={{ fontSize: 11, color: "#a78bfa", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {replyingTo.snippet}
-            </div>
-          </div>
-          <button
-            onClick={() => setReplyingTo(null)}
-            style={{ background: "none", border: "none", color: "#52525b", cursor: "pointer", fontSize: 13, lineHeight: 1, padding: 0, flexShrink: 0 }}
-          >✕</button>
-        </div>
-      )}
+      {/* Reply preview — moved into compose area below */}
 
       {/* Context badge */}
       {context && (
@@ -1229,8 +1210,27 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
       {/* Compose */}
       <div style={{
         padding: "10px 10px 12px", borderTop: "1px solid #1f1f1f", flexShrink: 0,
-        display: "flex", flexDirection: "column", gap: 6,
+        display: "flex", flexDirection: "column", gap: 0,
       }}>
+        {/* Reply preview — flush above textarea */}
+        {replyingTo && (
+          <div style={{
+            padding: "5px 10px", marginBottom: 0,
+            borderRadius: "6px 6px 0 0",
+            background: "#1a1a2e", border: "1px solid #4c1d95", borderBottom: "none",
+            display: "flex", alignItems: "center", gap: 6, flexShrink: 0,
+          }}>
+            <span style={{ fontSize: 10, color: "#8b5cf6", fontWeight: 700, flexShrink: 0 }}>↩ reply</span>
+            <span style={{ fontSize: 10, color: "#6366f1", fontWeight: 600, textTransform: "capitalize", flexShrink: 0 }}>{replyingTo.role}</span>
+            <span style={{ fontSize: 11, color: "#a78bfa", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {replyingTo.snippet}
+            </span>
+            <button
+              onClick={() => setReplyingTo(null)}
+              style={{ background: "none", border: "none", color: "#52525b", cursor: "pointer", fontSize: 13, lineHeight: 1, padding: 0, flexShrink: 0 }}
+            >✕</button>
+          </div>
+        )}
         <textarea
           ref={textareaRef}
           value={draft}
@@ -1240,15 +1240,18 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
           placeholder={`Message ${agentName}...`}
           rows={3}
           style={{
-            width: "100%", background: "#18181b", border: "1px solid #3f3f46",
-            borderRadius: 6, color: "#e4e4e7", fontSize: 13, fontFamily: "inherit",
+            width: "100%", background: "#18181b",
+            border: replyingTo ? "1px solid #4c1d95" : "1px solid #3f3f46",
+            borderTop: replyingTo ? "none" : undefined,
+            borderRadius: replyingTo ? "0 0 6px 6px" : 6,
+            color: "#e4e4e7", fontSize: 13, fontFamily: "inherit",
             padding: "7px 10px", outline: "none", resize: "none", lineHeight: 1.5,
             transition: "border-color 0.15s", boxSizing: "border-box",
           }}
           onFocus={e => { e.currentTarget.style.borderColor = "#52525b"; }}
           onBlur={e => { e.currentTarget.style.borderColor = "#3f3f46"; }}
         />
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 6 }}>
           <span style={{ fontSize: 10, color: "#3f3f46" }}>Shift+Enter to send</span>
           <div style={{ display: "flex", gap: 4 }}>
             {micAvailable && (

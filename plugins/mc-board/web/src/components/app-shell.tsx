@@ -14,7 +14,7 @@ import { AccentContext, hexToRgb } from "@/lib/accent-context";
 
 import useSWR from "swr";
 
-type Tab = "board" | "memory" | "rolodex" | "agents" | "settings";
+type Tab = "board" | "office" | "memory" | "rolodex" | "agents" | "settings";
 interface Toast { id: number; icon: string; title: string; sub?: string; exiting?: boolean; }
 interface Counts { backlog: number; inProgress: number; inReview: number; shipped: number; }
 
@@ -44,7 +44,7 @@ function DailyStats() {
   );
 }
 
-const TAB_PATHS: Record<Tab, string> = { board: "/board", memory: "/memory", rolodex: "/rolodex", agents: "/agents", settings: "/settings" };
+const TAB_PATHS: Record<Tab, string> = { board: "/board", office: "/office", memory: "/memory", rolodex: "/rolodex", agents: "/agents", settings: "/settings" };
 
 function getNotifsEnabled(): boolean {
   try { return localStorage.getItem("brain-toasts") !== "false"; } catch { return true; }
@@ -178,7 +178,8 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
                 <button key={t} onClick={() => switchTab(t)}
                   className={`tab-btn${tab === t ? " active" : ""}`}
                   style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  {t === "office" ? "Office" : t === "board" ? "Board" : t === "memory" ? "Memory" : t === "rolodex" ? "Contacts" : t === "agents" ? "Agents" : "Settings"}
+                  {/* eslint-disable-next-line @typescript-eslint/no-unnecessary-condition */}
+                  {(t as string) === "office" ? "Office" : t === "board" ? "Board" : t === "memory" ? "Memory" : t === "rolodex" ? "Contacts" : t === "agents" ? "Agents" : "Settings"}
                   {memoryBadge && (
                     <span style={{
                       fontSize: 10,
