@@ -5,8 +5,8 @@ import { execSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { consumeToken } from "@/lib/sensitive-auth";
 
-const CLAUDE_BIN = "/Users/michaeloneal/.local/bin/claude";
 const HOME = process.env.HOME || "";
+const CLAUDE_BIN = `${HOME}/.local/bin/claude`;
 
 function isAnthropicAuthed(): boolean {
   try {

@@ -4,8 +4,8 @@ import { NextResponse } from "next/server";
 import { execSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 
-const CLAUDE_BIN = "/Users/michaeloneal/.local/bin/claude";
 const HOME = process.env.HOME || "";
+const CLAUDE_BIN = `${HOME}/.local/bin/claude`;
 
 function isAnthropicAuthed(): boolean {
   // Claude Code stores OAuth token in macOS keychain under "Claude Code-credentials"

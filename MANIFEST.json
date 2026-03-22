@@ -1,11 +1,11 @@
 {
   "name": "miniclaw-os",
-  "version": "0.1.9-prerelease",
+  "version": "0.1.9",
   "openclaw": {
     "npm": "@miniclaw_official/openclaw",
     "npmVersion": "2026.3.12",
     "repo": "augmentedmike/openclaw",
-    "tag": "v0.1.9-prerelease"
+    "tag": "v0.1.9"
   },
   "description": "AugmentedMike's AI operating system \u2014 plugins, tools, and infrastructure for OpenClaw",
   "dependencies": {
@@ -120,7 +120,7 @@
       "cli": true,
       "tools": [],
       "config": {
-        "storagePath": "~/.openclaw/miniclaw/USER/rolodex/contacts.json"
+        "storagePath": "~/.openclaw/miniclaw/USER/rolodex/contacts.db"
       }
     },
     {
