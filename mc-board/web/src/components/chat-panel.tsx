@@ -102,6 +102,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
     try { return localStorage.getItem("mc-board:chat-history-open") === "true"; } catch { return false; }
   });
   const [interruptOverlayVisible, setInterruptOverlayVisible] = useState(false);
+  const [topicShift, setTopicShift] = useState<{ suggestedTopic: string; seedMessage: string } | null>(null);
 
   // Edit-last-message state
   const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
@@ -482,13 +483,17 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
             break;
           case "streaming":
             setStreaming(true);
-            if (d.text) setStreamingText(d.text);
+            if (d.text) {
+              const cleanText = d.text.replace(/<topic_shift\s+detected="true"\s+new_topic="[^"]*"\s*\/>/g, "").trimEnd();
+              setStreamingText(cleanText);
+            }
             if (d.tools?.length) setStreamingTools(d.tools);
             break;
           case "result":
             setStreaming(false); setStreamingText(""); setStreamingTools([]); setInterruptOverlayVisible(false); setSentContext(null);
             if (d.text) {
-              const assistantMsg: Message = { id: generateMsgId(), role: "assistant", content: d.text };
+              const resultText = d.text.replace(/<topic_shift\s+detected="true"\s+new_topic="[^"]*"\s*\/>/g, "").trimEnd();
+              const assistantMsg: Message = { id: generateMsgId(), role: "assistant", content: resultText };
               const insertIdx = streamingInsertIndexRef.current;
               if (insertIdx !== null) {
                 setMessages(prev => [
@@ -510,6 +515,9 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
             setMessages(prev => [...prev, { id: generateMsgId(), role: "system", content: d.message, error: true }]);
             setStreaming(false); setInterruptOverlayVisible(false); setSentContext(null);
             streamingInsertIndexRef.current = null;
+            break;
+          case "topic_shift":
+            setTopicShift({ suggestedTopic: d.suggestedTopic, seedMessage: d.seedMessage || "" });
             break;
         }
       };
@@ -1474,11 +1482,10 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
 
       {/* Chat history sidebar — absolute overlay covering the full chat panel */}
       <ChatHistorySidebar
-        isOpen={historyOpen}
+        open={historyOpen}
         onClose={toggleHistory}
-        onResume={resumeChat}
+        onResumeChat={resumeChat}
         currentSessionId={sessionId}
-        serverBaseUrl={`${typeof window !== "undefined" ? window.location.protocol : "http:"}//${typeof window !== "undefined" ? window.location.hostname : "localhost"}:4221`}
       />
     </div>
     </>
