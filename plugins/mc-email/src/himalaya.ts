@@ -263,42 +263,61 @@ export class HimalayaClient {
  * Uses himalaya's password-command feature to call mc-vault.
  */
 export function ensureHimalayaConfig(cfg: EmailConfig): void {
-  const configDir = path.join(os.homedir(), ".config", "himalaya");
-  const configPath = path.join(configDir, "config.toml");
+  // himalaya v1.x reads from ~/Library/Application Support/himalaya/ on macOS,
+  // ~/.config/himalaya/ on Linux. Check both locations.
+  const isMac = process.platform === "darwin";
+  const primaryDir = isMac
+    ? path.join(os.homedir(), "Library", "Application Support", "himalaya")
+    : path.join(os.homedir(), ".config", "himalaya");
+  const legacyDir = path.join(os.homedir(), ".config", "himalaya");
+  const primaryPath = path.join(primaryDir, "config.toml");
+  const legacyPath = path.join(legacyDir, "config.toml");
 
   // If custom config path is specified and exists, skip
   if (cfg.himalayaConfig && fs.existsSync(cfg.himalayaConfig)) return;
 
-  // Check if default config exists and has content
-  if (fs.existsSync(configPath)) {
-    const content = fs.readFileSync(configPath, "utf-8");
-    if (content.includes(cfg.emailAddress)) return; // already configured
+  // Check if config already exists in either location
+  for (const p of [primaryPath, legacyPath]) {
+    if (fs.existsSync(p)) {
+      const content = fs.readFileSync(p, "utf-8");
+      if (content.includes(cfg.emailAddress)) return; // already configured
+    }
   }
 
-  // Generate config with password-command pointing to mc-vault
+  // Generate himalaya v1.x config with vault-based auth
   const isGmail = /@g(oogle)?mail\.com$/i.test(cfg.emailAddress);
   const imapHost = isGmail ? "imap.gmail.com" : "imap.mail.me.com";
   const smtpHost = isGmail ? "smtp.gmail.com" : "smtp.mail.me.com";
+  const smtpPort = isGmail ? 587 : 587;
   const accountName = isGmail ? "gmail" : "default";
+  const vaultExport = `${cfg.vaultBin} export email-app-password`;
 
   const toml = `[accounts.${accountName}]
-default = true
 email = "${cfg.emailAddress}"
 display-name = ""
+default = true
 
-[accounts.${accountName}.imap]
-host = "${imapHost}"
-port = 993
-login = "${cfg.emailAddress}"
-passwd.cmd = "${cfg.vaultBin} get email-app-password"
+backend.type = "imap"
+backend.host = "${imapHost}"
+backend.port = 993
+backend.encryption.type = "tls"
+backend.login = "${cfg.emailAddress}"
+backend.auth.type = "password"
+backend.auth.cmd = "${vaultExport}"
 
-[accounts.${accountName}.smtp]
-host = "${smtpHost}"
-port = 587
-login = "${cfg.emailAddress}"
-passwd.cmd = "${cfg.vaultBin} get email-app-password"
+message.send.backend.type = "smtp"
+message.send.backend.host = "${smtpHost}"
+message.send.backend.port = ${smtpPort}
+message.send.backend.encryption.type = "start-tls"
+message.send.backend.login = "${cfg.emailAddress}"
+message.send.backend.auth.type = "password"
+message.send.backend.auth.cmd = "${vaultExport}"
+
+folder.aliases.sent = "${isGmail ? "[Gmail]/Sent Mail" : "Sent Messages"}"
+folder.aliases.drafts = "${isGmail ? "[Gmail]/Drafts" : "Drafts"}"
+folder.aliases.trash = "${isGmail ? "[Gmail]/Trash" : "Deleted Messages"}"
 `;
 
-  fs.mkdirSync(configDir, { recursive: true });
-  fs.writeFileSync(configPath, toml, "utf-8");
+  fs.mkdirSync(primaryDir, { recursive: true });
+  fs.writeFileSync(primaryPath, toml, "utf-8");
 }
