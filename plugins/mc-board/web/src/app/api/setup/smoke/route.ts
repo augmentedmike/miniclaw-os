@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { spawn } from "node:child_process";
+import { stateDir } from "@/lib/paths";
 
 /**
  * GET /api/setup/smoke
@@ -21,7 +22,7 @@ export async function GET() {
       };
 
       const home = process.env.HOME || "";
-      const stateDir = process.env.OPENCLAW_STATE_DIR || `${home}/.openclaw`;
+      const sd = stateDir();
       // Use bash -c (not -l) to avoid login profile overwriting our PATH
       const proc = spawn("bash", ["-c", "mc-smoke"], {
         env: {
@@ -29,8 +30,8 @@ export async function GET() {
           TERM: "dumb",
           NO_COLOR: "1",
           FORCE_COLOR: "0",
-          PATH: `${stateDir}/miniclaw/SYSTEM/bin:${home}/.local/bin:${home}/.bun/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${process.env.PATH || ""}`,
-          OPENCLAW_STATE_DIR: stateDir,
+          PATH: `${sd}/miniclaw/SYSTEM/bin:${home}/.local/bin:${home}/.bun/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${process.env.PATH || ""}`,
+          OPENCLAW_STATE_DIR: sd,
         },
         stdio: ["pipe", "pipe", "pipe"],
       });
@@ -84,7 +85,7 @@ export async function GET() {
             const doctorProc = spawn("bash", ["-c", "mc-doctor --auto"], {
               env: {
                 ...process.env,
-                PATH: `${stateDir}/miniclaw/SYSTEM/bin:${home}/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${process.env.PATH || ""}`,
+                PATH: `${sd}/miniclaw/SYSTEM/bin:${home}/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${process.env.PATH || ""}`,
               },
               stdio: ["pipe", "pipe", "pipe"],
             });
