@@ -8,6 +8,14 @@ import {
   restoreCheckpoint,
   pruneCheckpoints,
 } from "../src/checkpoint.js";
+import {
+  getHygieneStatus,
+  installHygiene,
+  removeHygiene,
+  loadConfig,
+  saveConfig,
+  type HygieneConfig,
+} from "../src/hygiene.js";
 import { formatPluginError, formatUserError, DOCTOR_SUGGESTION } from "../../shared/errors/format.js";
 
 export interface CliContext {
@@ -294,6 +302,141 @@ export function registerCheckpointCommands(ctx: CliContext, cfg: CheckpointConfi
         console.log(`\n${removed > 0 ? removed + " hook(s) removed" : "No hooks to remove"} in ${repoPath}`);
       } catch (err) {
         console.error(formatPluginError("mc-checkpoint", "auto-remove", err, [DOCTOR_SUGGESTION]));
+        process.exit(1);
+      }
+    });
+
+  // ── mc-checkpoint hygiene ──
+  const hygiene = checkpoint
+    .command("hygiene")
+    .description("Git hygiene enforcement — protected branches, auto-stash, dirty-state warnings");
+
+  // ── mc-checkpoint hygiene status ──
+  hygiene
+    .command("status")
+    .description("Show current repo hygiene state")
+    .option("--repo <path>", "Repository path (default: cwd)")
+    .action((opts: { repo?: string }) => {
+      try {
+        const repoPath = resolveRepo(opts.repo);
+        const status = getHygieneStatus(repoPath);
+
+        if (!status.isGitRepo) {
+          console.error(formatUserError(`Not a git repository: ${repoPath}`));
+          process.exit(1);
+        }
+
+        console.log(`Git Hygiene Status: ${repoPath}\n`);
+        console.log(`  Branch:     ${status.branch}${status.protectedBranch ? " ⚠️  (protected)" : ""}`);
+        console.log(`  State:      ${status.dirty ? "DIRTY" : "CLEAN"}`);
+        if (status.dirty) {
+          console.log(`    Staged:    ${status.stagedCount}`);
+          console.log(`    Unstaged:  ${status.unstagedCount}`);
+          console.log(`    Untracked: ${status.untrackedCount}`);
+        }
+        console.log(`\n  Protected branches: ${status.config.protectedBranches.join(", ") || "(none)"}`);
+        console.log(`  Auto-stash merge:   ${status.config.autoStashOnMerge ? "ON" : "OFF"}`);
+        console.log(`  Auto-stash rebase:  ${status.config.autoStashOnRebase ? "ON" : "OFF"}`);
+        console.log(`  Dirty switch warn:  ${status.config.warnDirtyBranchSwitch ? "ON" : "OFF"}`);
+        console.log(`\n  Hooks installed: ${status.hooksInstalled.length > 0 ? status.hooksInstalled.join(", ") : "(none)"}`);
+      } catch (err) {
+        console.error(formatPluginError("mc-checkpoint", "hygiene status", err, [DOCTOR_SUGGESTION]));
+        process.exit(1);
+      }
+    });
+
+  // ── mc-checkpoint hygiene install ──
+  hygiene
+    .command("install")
+    .description("Install git hygiene hooks in a repository")
+    .option("--repo <path>", "Repository path (default: cwd)")
+    .action((opts: { repo?: string }) => {
+      try {
+        const repoPath = resolveRepo(opts.repo);
+        const result = installHygiene(repoPath);
+
+        if (result.installed.length > 0) {
+          console.log("Installed hygiene hooks:");
+          for (const h of result.installed) console.log(`  ✓ ${h}`);
+        }
+        if (result.skipped.length > 0) {
+          console.log("Already installed:");
+          for (const h of result.skipped) console.log(`  - ${h}`);
+        }
+        console.log(`\nDone. ${result.installed.length} hook(s) installed in ${repoPath}`);
+      } catch (err) {
+        console.error(formatPluginError("mc-checkpoint", "hygiene install", err, [
+          "Ensure you are in a git repository",
+          DOCTOR_SUGGESTION,
+        ]));
+        process.exit(1);
+      }
+    });
+
+  // ── mc-checkpoint hygiene remove ──
+  hygiene
+    .command("remove")
+    .description("Remove git hygiene hooks from a repository")
+    .option("--repo <path>", "Repository path (default: cwd)")
+    .action((opts: { repo?: string }) => {
+      try {
+        const repoPath = resolveRepo(opts.repo);
+        const result = removeHygiene(repoPath);
+
+        if (result.removed.length > 0) {
+          console.log("Removed hygiene hooks:");
+          for (const h of result.removed) console.log(`  ✓ ${h}`);
+        } else {
+          console.log("No hygiene hooks found to remove.");
+        }
+      } catch (err) {
+        console.error(formatPluginError("mc-checkpoint", "hygiene remove", err, [DOCTOR_SUGGESTION]));
+        process.exit(1);
+      }
+    });
+
+  // ── mc-checkpoint hygiene config ──
+  hygiene
+    .command("config")
+    .description("Show or set hygiene configuration for a repository")
+    .option("--repo <path>", "Repository path (default: cwd)")
+    .option("--protected <branches>", "Comma-separated list of protected branches")
+    .option("--auto-stash-merge <bool>", "Auto-stash before merge (true/false)")
+    .option("--auto-stash-rebase <bool>", "Auto-stash before rebase (true/false)")
+    .option("--warn-dirty-switch <bool>", "Warn on dirty branch switch (true/false)")
+    .action((opts: { repo?: string; protected?: string; autoStashMerge?: string; autoStashRebase?: string; warnDirtySwitch?: string }) => {
+      try {
+        const repoPath = resolveRepo(opts.repo);
+        const config = loadConfig(repoPath);
+        let changed = false;
+
+        if (opts.protected !== undefined) {
+          config.protectedBranches = opts.protected.split(",").map(b => b.trim()).filter(Boolean);
+          changed = true;
+        }
+        if (opts.autoStashMerge !== undefined) {
+          config.autoStashOnMerge = opts.autoStashMerge === "true";
+          changed = true;
+        }
+        if (opts.autoStashRebase !== undefined) {
+          config.autoStashOnRebase = opts.autoStashRebase === "true";
+          changed = true;
+        }
+        if (opts.warnDirtySwitch !== undefined) {
+          config.warnDirtyBranchSwitch = opts.warnDirtySwitch === "true";
+          changed = true;
+        }
+
+        if (changed) {
+          saveConfig(repoPath, config);
+          console.log("Configuration updated:");
+        } else {
+          console.log("Current configuration:");
+        }
+
+        console.log(JSON.stringify(config, null, 2));
+      } catch (err) {
+        console.error(formatPluginError("mc-checkpoint", "hygiene config", err, [DOCTOR_SUGGESTION]));
         process.exit(1);
       }
     });
