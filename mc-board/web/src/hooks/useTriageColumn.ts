@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from "react";
 import type { Column } from "@/lib/types";
 
 function jobId(column: Column) { return `board-${column}-triage`; }
-function lsKey(column: Column) { return `mc-board:${column}-triage:enabled`; }
 function jobName(column: Column) {
   const labels: Record<Column, string> = {
     backlog: "Backlog Triage",
@@ -30,19 +29,22 @@ export function useTriageColumn(column: Column): TriageColumnState {
   const [cronLoaded, setCronLoaded] = useState(false);
 
   useEffect(() => {
-    const lsVal = localStorage.getItem(lsKey(column));
-    if (lsVal !== null) setCronEnabled(lsVal === "true");
-
+    // Load state from API (queue_settings DB + cron jobs) — no localStorage
     fetch("/api/cron")
       .then(r => r.json())
       .then(d => {
         const job = (d.jobs ?? []).find((j: { id: string }) => j.id === jobId(column));
         if (job) {
-          const enabled = job.enabled !== false;
+          // queueEnabled comes from the DB-authoritative queue_settings table
+          const enabled = job.queueEnabled !== undefined ? job.queueEnabled : (job.enabled !== false);
           setCronEnabled(enabled);
-          localStorage.setItem(lsKey(column), String(enabled));
-          const m = job.schedule?.match(/^\*\/(\d+) \* \* \* \*$/);
-          setCronMinutes(m ? parseInt(m[1], 10) : 5);
+          // queueIntervalMs comes from DB; fall back to parsing cron schedule
+          if (job.queueIntervalMs) {
+            setCronMinutes(Math.round(job.queueIntervalMs / 60_000));
+          } else {
+            const m = job.schedule?.match(/^\*\/(\d+) \* \* \* \*$/);
+            setCronMinutes(m ? parseInt(m[1], 10) : 5);
+          }
         }
         setCronLoaded(true);
       })
@@ -75,16 +77,16 @@ export function useTriageColumn(column: Column): TriageColumnState {
     if (!cronLoaded) return;
     const next = !cronEnabled;
     setCronEnabled(next);
-    localStorage.setItem(lsKey(column), String(next));
+    // Write to DB via PATCH /api/cron (which now writes to queue_settings too)
     patchCron({ enabled: next }).catch(() => {
       setCronEnabled(!next);
-      localStorage.setItem(lsKey(column), String(!next));
     });
   }, [column, cronEnabled, cronLoaded, patchCron]);
 
   const handleMinutesChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
     const mins = parseInt(e.target.value, 10);
     setCronMinutes(mins);
+    // Write to both cron JSON and queue_settings DB via PATCH /api/cron
     patchCron({ schedule: `*/${mins} * * * *` }).catch(() => {});
   }, [patchCron]);
 
