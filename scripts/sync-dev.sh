@@ -40,7 +40,7 @@ echo "  to:   $MINICLAW_DIR"
 [[ "$DRY_RUN" == true ]] && echo "  (dry-run — no changes)"
 echo ""
 
-RSYNC_FLAGS="-av --exclude='node_modules' --exclude='.git' --exclude='*.log'"
+RSYNC_FLAGS="-av --checksum --exclude='node_modules' --exclude='.git' --exclude='*.log' --exclude='.next'"
 [[ "$DRY_RUN" == true ]] && RSYNC_FLAGS="$RSYNC_FLAGS --dry-run"
 
 # ── Plugins ───────────────────────────────────────────────────────────────────

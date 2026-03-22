@@ -10,6 +10,25 @@ set -e
 DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$DIR"
 
+# ── Drift detection ──────────────────────────────────────────────────────────
+# Compare live plugins dir against the source repo to catch direct-write drift.
+REPO_SRC="$HOME/.openclaw/projects/miniclaw-os/plugins/mc-board/web/src"
+LIVE_SRC="$DIR/src"
+if [ -d "$REPO_SRC" ]; then
+  DRIFT=$(diff -rq "$REPO_SRC" "$LIVE_SRC" \
+    --exclude='node_modules' --exclude='.next' --exclude='*.log' 2>/dev/null \
+    | grep -E '\.(tsx?|ts)' | head -10 || true)
+  if [ -n "$DRIFT" ]; then
+    echo ""
+    echo "⚠️  DRIFT DETECTED — live plugins dir differs from repo:"
+    echo "$DRIFT"
+    echo ""
+    echo "Run: ~/.openclaw/projects/miniclaw-os/scripts/sync-dev.sh"
+    echo "Or manually resolve differences before deploying."
+    echo ""
+  fi
+fi
+
 PLIST="$HOME/Library/LaunchAgents/com.miniclaw.board-web.plist"
 UID_NUM=$(id -u)
 

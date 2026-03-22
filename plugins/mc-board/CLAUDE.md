@@ -27,6 +27,20 @@ Every change needs a GitHub issue first. Branch from it: `fix/N-slug`, `feat/N-s
 
 See [CONTRIBUTING.md](../../CONTRIBUTING.md) for the full workflow.
 
+## ⚠️ CRITICAL: Never write directly to ~/.openclaw/miniclaw/plugins/
+
+Card workers MUST NOT create or overwrite files directly in `~/.openclaw/miniclaw/plugins/`.
+This is the **live plugins directory** — direct writes cause sync drift with the source repo.
+
+**Correct workflow:**
+1. Make changes in `~/.openclaw/projects/miniclaw-os/plugins/` (the source repo)
+2. Commit to the repo
+3. Run `~/.openclaw/projects/miniclaw-os/scripts/sync-dev.sh` to sync to live
+
+**Why:** rsync uses timestamps. If you write a stub directly to the live dir, it becomes
+newer than the repo version and rsync will skip the repo's full file on the next sync.
+This is exactly what caused the chat-history-sidebar.tsx stub to persist over the full component.
+
 ## Web server
 
 The board web UI runs live from `web/src/`. It auto-reloads on file changes.
