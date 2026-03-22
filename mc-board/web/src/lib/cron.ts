@@ -13,6 +13,7 @@ export interface CronJob {
   lastRun?: string;
   nextRun?: string;
   lastRunAtMs?: number;
+  maxConcurrent?: number;
   payload?: { message?: string; messageFile?: string };
 }
 
