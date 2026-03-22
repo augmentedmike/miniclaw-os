@@ -1,0 +1,21 @@
+{
+  "id": "mc-checkpoint",
+  "name": "Miniclaw Git Checkpoint",
+  "description": "Automatic git checkpointing system with easy rollback. Creates lightweight git tags before destructive operations (merge, rebase, reset, force push) so code is never lost.",
+  "version": "0.1.0",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "defaultMaxAgeDays": {
+        "type": "number",
+        "description": "Default max age in days for pruning checkpoints. Default: 30"
+      },
+      "autoRepos": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Repos to auto-install hooks in on plugin load. Paths support ~ expansion."
+      }
+    }
+  }
+}
