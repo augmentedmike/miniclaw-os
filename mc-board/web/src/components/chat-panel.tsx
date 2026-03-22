@@ -795,7 +795,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
           onBlur={e => { e.currentTarget.style.borderColor = "#3f3f46"; }}
         />
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span style={{ fontSize: 10, color: "#3f3f46" }}>Shift+Enter to send</span>
+          <span style={{ fontSize: 10, color: "#e4e4e7" }}>Enter creates a new line · Shift+Enter to send</span>
           <button
             onClick={() => fileInputRef.current?.click()}
             style={{
