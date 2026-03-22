@@ -3,11 +3,11 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { execSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import { consumeToken } from "@/lib/sensitive-auth";
 import { isSetupComplete } from "@/lib/setup-state";
-
-const CLAUDE_BIN = "/Users/michaeloneal/.local/bin/claude";
-const HOME = process.env.HOME || "";
+import { stateDir, claudeBinPath } from "@/lib/paths";
 
 function isAnthropicAuthed(): boolean {
   // Claude Code stores OAuth token in macOS keychain under "Claude Code-credentials"
@@ -22,7 +22,7 @@ function isAnthropicAuthed(): boolean {
 
   // Fallback: check openclaw auth-profiles
   const candidates = [
-    `${HOME}/.openclaw/agents/main/agent/auth-profiles.json`,
+    path.join(stateDir(), "agents", "main", "agent", "auth-profiles.json"),
   ];
   for (const f of candidates) {
     try {
@@ -46,17 +46,19 @@ export async function GET() {
 // POST: open Terminal.app running claude setup-token
 export async function POST() {
   try {
+    const claudeBin = claudeBinPath();
+    const home = os.homedir();
     const { CLAUDECODE: _, ...cleanEnv } = process.env;
     // Open a real Terminal window — customer sees it pop up, claude does the OAuth,
     // browser opens, they sign in, terminal closes automatically
     execSync(`osascript -e '
       tell application "Terminal"
         activate
-        do script "${CLAUDE_BIN} setup-token; exit"
+        do script "${claudeBin} setup-token; exit"
       end tell
     '`, {
       timeout: 5000,
-      env: { ...cleanEnv, HOME },
+      env: { ...cleanEnv, HOME: home },
     });
     return NextResponse.json({ ok: true, message: "Sign in via the browser window that opens" });
   } catch (err: unknown) {
@@ -87,7 +89,7 @@ export async function PUT(req: Request) {
         input: token.trim(),
         encoding: "utf8",
         timeout: 10_000,
-        env: { ...process.env, HOME },
+        env: { ...process.env, HOME: os.homedir() },
       },
     );
   } catch (err: unknown) {
