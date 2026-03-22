@@ -135,7 +135,7 @@ export const CardItem = memo(function CardItem({ card, projectName, isActive, wo
             });
           }}
         >{idCopied ? "copied!" : card.id}</span>
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
           <HoldBadge held={held} onToggle={onHoldToggle ? (e) => { e.stopPropagation(); onHoldToggle(card.id); } : undefined} />
           <FocusBadge focused={focused} onToggle={onFocusToggle ? (e) => { e.stopPropagation(); onFocusToggle(card.id, !focused); } : undefined} />
           <span style={{
