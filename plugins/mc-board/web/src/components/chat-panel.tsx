@@ -678,7 +678,6 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
     }]);
   }, [stopResponse]);
 
-<<<<<<< HEAD
   const startEditMessage = useCallback((msgId: string, content: string) => {
     setEditingMsgId(msgId);
     setEditDraft(content);
@@ -712,7 +711,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
     setEditDraft("");
     setStreaming(true);
   }, [editDraft, editingMsgId, connected, streaming, messages]);
-=======
+
   const startNewChatFromTopicShift = useCallback(() => {
     if (!topicShift || !wsRef.current || !connected) return;
     const seed = topicShift.seedMessage;
@@ -733,7 +732,6 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
       setStreaming(true);
     }
   }, [topicShift, connected]);
->>>>>>> 5b559f8 (feat(mc-web-chat): add topic-shift detection banner to chat panel)
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && e.shiftKey) {
