@@ -83,6 +83,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
   const [draft, setDraft] = useState("");
   const [replyingTo, setReplyingTo] = useState<ReplyTarget | null>(null);
   const [context, setContext] = useState<string | null>(null);
+  const [sentContext, setSentContext] = useState<string | null>(null);
   const [streaming, setStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState("");
   const [streamingTools, setStreamingTools] = useState<{ name: string }[]>([]);
@@ -449,6 +450,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
         setConnected(false);
         setStreaming(false);
         setInterruptOverlayVisible(false);
+        setSentContext(null);
         wsRef.current = null;
         scheduleReconnect();
       };
@@ -479,7 +481,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
             if (d.tools?.length) setStreamingTools(d.tools);
             break;
           case "result":
-            setStreaming(false); setStreamingText(""); setStreamingTools([]); setInterruptOverlayVisible(false);
+            setStreaming(false); setStreamingText(""); setStreamingTools([]); setInterruptOverlayVisible(false); setSentContext(null);
             if (d.text) {
               const assistantMsg: Message = { id: generateMsgId(), role: "assistant", content: d.text };
               const insertIdx = streamingInsertIndexRef.current;
@@ -496,12 +498,12 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
             streamingInsertIndexRef.current = null;
             break;
           case "done": case "process_exit":
-            setStreaming(false); setStreamingText(""); setStreamingTools([]); setInterruptOverlayVisible(false);
+            setStreaming(false); setStreamingText(""); setStreamingTools([]); setInterruptOverlayVisible(false); setSentContext(null);
             streamingInsertIndexRef.current = null;
             break;
           case "error":
             setMessages(prev => [...prev, { id: generateMsgId(), role: "system", content: d.message, error: true }]);
-            setStreaming(false); setInterruptOverlayVisible(false);
+            setStreaming(false); setInterruptOverlayVisible(false); setSentContext(null);
             streamingInsertIndexRef.current = null;
             break;
         }
@@ -589,6 +591,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
       setVisibleCount(20);
       setDraft("");
       setContext(null);
+      setSentContext(null);
       setPendingImages([]);
       setImageError(null);
       setStorageWarning(null);
@@ -600,6 +603,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
     let content = text || "(see attached image)";
     if (context) {
       content = `[Context: ${context}]\n\n${content}`;
+      setSentContext(context);
       setContext(null);
     }
 
@@ -645,7 +649,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
 
   const stopResponse = useCallback(() => {
     wsRef.current?.send(JSON.stringify({ type: "stop" }));
-    setStreaming(false); setStreamingText(""); setStreamingTools([]);
+    setStreaming(false); setStreamingText(""); setStreamingTools([]); setSentContext(null);
   }, []);
 
   const interruptAgent = useCallback(() => {
@@ -819,6 +823,18 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
 
       {/* Messages */}
       <div style={{ flex: 1, position: "relative", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      {sentContext && streaming && (
+        <div style={{
+          margin: "0 10px", padding: "5px 10px", borderRadius: 6,
+          background: "#1a1a2e", border: "1px solid #2d2d5b",
+          display: "flex", alignItems: "center", gap: 6, flexShrink: 0, opacity: 0.8,
+        }}>
+          <span style={{ fontSize: 10, color: "#6366f1", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", flexShrink: 0 }}>📌 ctx</span>
+          <span style={{ fontSize: 11, color: "#818cf8", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {sentContext.slice(0, 80)}{sentContext.length > 80 ? "..." : ""}
+          </span>
+        </div>
+      )}
       <div ref={scrollContainerRef} onScroll={handleScroll} style={{ flex: 1, overflowY: "auto", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 12 }}>
         {messages.length === 0 && !streaming && (
           <div style={{ color: "#3f3f46", fontSize: 12, textAlign: "center", marginTop: 40, lineHeight: 1.6 }}>
