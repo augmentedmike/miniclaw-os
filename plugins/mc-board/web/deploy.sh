@@ -2,9 +2,8 @@
 # deploy.sh — Build and reload the board-web Next.js service.
 #
 # Launch pattern: `next start` (NOT standalone/server.js).
-# The plist at ~/Library/LaunchAgents/com.miniclaw.board-web.plist uses:
-#   /path/to/node /path/to/next start -p 4220
-# with WorkingDirectory set to the web plugin root.
+# Plists are generated from .plist.template files via install-plists.sh.
+# Run install-plists.sh first if plists are not yet in ~/Library/LaunchAgents/.
 # next.config.ts must NOT have output: "standalone" — that mode is incompatible
 # with this launch pattern and caused crash-loops in the past.
 set -e
