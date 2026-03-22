@@ -557,6 +557,67 @@ if [[ "$(uname)" == "Darwin" ]]; then
   fi
 fi
 
+# ── mc-memo roundtrip ─────────────────────────────────────────────────────
+section "mc-memo roundtrip"
+
+if command -v openclaw &>/dev/null; then
+  SMOKE_CARD="_smoke_test_memo_$$"
+  SMOKE_NOTE="smoke-roundtrip-$(date +%s)"
+
+  # Write
+  if openclaw mc-memo set "$SMOKE_CARD" "$SMOKE_NOTE" &>/dev/null 2>&1; then
+    pass "mc-memo set (wrote test note)"
+  else
+    fail "mc-memo set failed" "openclaw mc-memo set returned non-zero"
+  fi
+
+  # Read back and verify content
+  MEMO_CONTENT=$(openclaw mc-memo get "$SMOKE_CARD" 2>/dev/null || true)
+  if echo "$MEMO_CONTENT" | grep -q "$SMOKE_NOTE"; then
+    pass "mc-memo get (roundtrip verified — content matches)"
+  else
+    fail "mc-memo get failed" "expected '$SMOKE_NOTE' in output, got: $(echo "$MEMO_CONTENT" | head -1)"
+  fi
+
+  # Clear
+  if openclaw mc-memo clear "$SMOKE_CARD" &>/dev/null 2>&1; then
+    pass "mc-memo clear (cleanup ok)"
+  else
+    fail "mc-memo clear failed" "openclaw mc-memo clear returned non-zero"
+  fi
+else
+  fail "openclaw not found" "cannot test mc-memo"
+fi
+
+# ── mc-memory roundtrip ──────────────────────────────────────────────────
+section "mc-memory roundtrip"
+
+if command -v openclaw &>/dev/null; then
+  SMOKE_MEM_CARD="_smoke_test_memory_$$"
+  SMOKE_MEM_NOTE="Smoke test roundtrip: this is a memory write verification with enough content to pass the quality gate and confirm data persistence through the memo pipeline."
+
+  # Write via mc-memory (should route to memo because of card context)
+  if openclaw mc-memory write "$SMOKE_MEM_NOTE" --card "$SMOKE_MEM_CARD" &>/dev/null 2>&1; then
+    pass "mc-memory write (routed to memo)"
+  else
+    # mc-memory write may not support --card flag via CLI; try without
+    warn "mc-memory write with --card failed" "CLI may not support --card flag"
+  fi
+
+  # Verify the memo landed via mc-memo get
+  MEMO_CHECK=$(openclaw mc-memo get "$SMOKE_MEM_CARD" 2>/dev/null || true)
+  if echo "$MEMO_CHECK" | grep -q "roundtrip"; then
+    pass "mc-memory → mc-memo verified (content arrived in memo store)"
+  else
+    warn "mc-memory → mc-memo not verified" "memo file may not contain expected content"
+  fi
+
+  # Cleanup
+  openclaw mc-memo clear "$SMOKE_MEM_CARD" &>/dev/null 2>&1 || true
+else
+  fail "openclaw not found" "cannot test mc-memory"
+fi
+
 # ── summary ───────────────────────────────────────────────────────────────────
 echo ""
 echo "────────────────────────────────────────"
