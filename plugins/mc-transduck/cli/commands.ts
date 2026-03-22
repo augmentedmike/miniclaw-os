@@ -105,7 +105,7 @@ Examples:
         }
 
         logger.info(`Warming cache for languages: ${langs.join(", ")}...`);
-        const { translated, errors } = await warmCache(
+        const { translated, errors, failedStrings } = await warmCache(
           entries,
           langs,
           (done, total) => {
@@ -113,10 +113,22 @@ Examples:
               process.stdout.write(`\r  Progress: ${done}/${total}`);
             }
           },
+          (text, lang, err) => {
+            logger.warn(`Failed to translate "${text}" → ${lang}: ${err}`);
+          },
         );
         console.log(
           `\nDone. Translated: ${translated}, Errors: ${errors}`,
         );
+        if (failedStrings.length > 0) {
+          console.log("Failed strings:");
+          for (const f of failedStrings.slice(0, 10)) {
+            console.log(`  "${f.text}" → ${f.lang}: ${f.error}`);
+          }
+          if (failedStrings.length > 10) {
+            console.log(`  ... and ${failedStrings.length - 10} more`);
+          }
+        }
       } catch (err) {
         logger.error(`warm failed: ${err}`);
         process.exit(1);
