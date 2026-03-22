@@ -10,6 +10,11 @@ body {
 }
 a { color: inherit; }
 
+/* ── Chat reply button hover ── */
+.chat-msg-wrapper:hover .chat-reply-btn {
+  opacity: 1 !important;
+}
+
 /* ── Markdown prose (FileViewModal) ── */
 .prose-modal {
   max-width: 72ch;
