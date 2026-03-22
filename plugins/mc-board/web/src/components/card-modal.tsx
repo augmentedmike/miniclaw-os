@@ -612,6 +612,39 @@ export function CardModal({ cardId, projects, activeIds, onClose, onOpenLog, onT
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              {card && card.column === "shipped" && (() => {
+                const handleReopen = async () => {
+                  try {
+                    const res = await fetch("/api/board/action", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ action: "move", cardId: card.id, target: "in-progress" }),
+                    });
+                    if (res.ok) {
+                      onToast?.("↩", "Reopened", `${card.id} moved to in-progress`);
+                      onMutate?.();
+                    } else {
+                      const data = await res.json();
+                      onToast?.("⚠", "Failed", data.error ?? "Move failed");
+                    }
+                  } catch (e) {
+                    onToast?.("⚠", "Error", String(e));
+                  }
+                };
+                return (
+                  <button
+                    onClick={handleReopen}
+                    title="Reopen — move back to in-progress"
+                    style={{
+                      fontSize: 11, padding: "3px 10px", borderRadius: 6, fontWeight: 600,
+                      background: "#1e3a5f", border: "1px solid #60a5fa",
+                      color: "#60a5fa", cursor: "pointer",
+                    }}
+                  >
+                    ↩ Reopen
+                  </button>
+                );
+              })()}
               {card && card.column !== "shipped" && onHold && (() => {
                 const held = card.tags.includes("hold");
                 return (
