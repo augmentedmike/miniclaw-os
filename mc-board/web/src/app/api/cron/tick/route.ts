@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import * as os from "node:os";
 import { listCronJobs, updateCronJob, syncManifestCrons } from "@/lib/cron";
-import { listCards, getActiveWork, getRunningByCol, getDb } from "@/lib/data";
+import { listCards, getActiveWork, getRunningByCol, getDb, getQueueSettingsForColumn } from "@/lib/data";
 import { releaseCard } from "@/lib/actions";
 import { sortCards } from "@/lib/sort";
-import { getColumnMaxConcurrency } from "@/lib/columns";
+import { brainDir, logsDir } from "@/lib/paths";
 
 /**
  * Clear stale agent_queue entries: running entries for cards that have
@@ -28,15 +27,15 @@ function cleanStaleRunning(column: string): void {
       UPDATE agent_queue SET status = 'done'
       WHERE status = 'running' AND col = ? AND started_at < ?
     `).run(column, cutoff);
-  } catch { /* best effort */ }
+  } catch (err) { 
+    console.error(`[cleanStaleRunning] Failed to clean stale entries for column ${column}:`, err);
+  }
 }
 
 export const dynamic = "force-dynamic";
 
-const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
-
 function getBrainDir(): string {
-  return path.join(STATE_DIR, "USER", "brain");
+  return brainDir();
 }
 
 // Parse a job ID into { column, projectId } — supports both:
@@ -69,7 +68,7 @@ const AGENT_RUNNING_MS = 5 * 60 * 1000; // if log modified within 5m, agent is s
 
 function findLatestLogForColumn(cardId: string, column: string): { file: string; mtime: number } | null {
   const dirName = `${column}-process`;
-  const d = path.join(STATE_DIR, "logs", dirName);
+  const d = path.join(logsDir(), dirName);
   if (!fs.existsSync(d)) return null;
   let best: { file: string; mtime: number } | null = null;
   try {
@@ -79,7 +78,9 @@ function findLatestLogForColumn(cardId: string, column: string): { file: string;
       const mtime = fs.statSync(full).mtimeMs;
       if (!best || mtime > best.mtime) best = { file: full, mtime };
     }
-  } catch {}
+  } catch (err) {
+    console.error(`[findLatestLogForColumn] Failed to scan log directory ${d} for card ${cardId}:`, err);
+  }
   return best;
 }
 
@@ -87,7 +88,7 @@ function findLatestLog(cardId: string): string | null {
   const dirs = ["in-progress-process", "in-review-process", "backlog-process"];
   let best: { file: string; mtime: number } | null = null;
   for (const dir of dirs) {
-    const d = path.join(STATE_DIR, "logs", dir);
+    const d = path.join(logsDir(), dir);
     if (!fs.existsSync(d)) continue;
     try {
       for (const f of fs.readdirSync(d)) {
@@ -96,7 +97,9 @@ function findLatestLog(cardId: string): string | null {
         const mtime = fs.statSync(full).mtimeMs;
         if (!best || mtime > best.mtime) best = { file: full, mtime };
       }
-    } catch {}
+    } catch (err) {
+      console.error(`[findLatestLog] Failed to scan log directory ${d} for card ${cardId}:`, err);
+    }
   }
   return best?.file ?? null;
 }
@@ -114,9 +117,14 @@ function agentStillRunning(cardId: string, column: string): boolean {
     const m = content.match(/pid (\d+)/);
     if (m) {
       const pid = parseInt(m[1]);
-      try { process.kill(pid, 0); return true; } catch { return false; }
+      try { process.kill(pid, 0); return true; } catch {
+        // Process does not exist or no permission — agent not running
+        return false;
+      }
     }
-  } catch {}
+  } catch (err) {
+    console.error(`[agentStillRunning] Failed to parse log for card ${cardId}:`, err);
+  }
   return false;
 }
 
@@ -151,7 +159,9 @@ export async function GET(req: Request) {
     const logFile = findLatestLog(entry.cardId);
     const logMtime = logFile ? fs.statSync(logFile).mtimeMs : 0;
     if (logFile && now - logMtime < STALE_MS) continue; // still writing
-    try { releaseCard(entry.cardId, entry.worker ?? "board-worker-web"); released.push(entry.cardId); } catch {}
+    try { releaseCard(entry.cardId, entry.worker ?? "board-worker-web"); released.push(entry.cardId); } catch (err) {
+    console.error(`[cron-auto-release] Failed to release stale card ${entry.cardId}:`, err);
+  }
   }
 
   const activeIds = new Set(active.map(a => a.cardId).filter(id => !released.includes(id)));
@@ -181,7 +191,9 @@ export async function GET(req: Request) {
         });
         reactivelyFired.push(card.id);
         activeIds.add(card.id); // prevent scheduled loop from double-firing
-      } catch {}
+      } catch (err) {
+        console.error(`[reactive-triage] Failed to fire backlog process for card ${card.id}:`, err);
+      }
     }
   }
 
@@ -194,7 +206,12 @@ export async function GET(req: Request) {
     const { column, projectId } = parsed;
     if (!job.enabled) { skipped.push(`${job.id}: disabled`); continue; }
 
-    const intervalMs = scheduleIntervalMs(job.schedule);
+    // Read authoritative settings from queue_settings DB table
+    const qs = getQueueSettingsForColumn(column);
+    const intervalMs = qs?.intervalMs ?? scheduleIntervalMs(job.schedule);
+    const qsEnabled = qs?.enabled ?? true;
+    if (!qsEnabled) { skipped.push(`${job.id}: disabled (queue_settings)`); continue; }
+
     const elapsed = now - (job.lastRunAtMs ?? 0);
     if (elapsed < intervalMs) {
       skipped.push(`${job.id}: not due (${Math.round((intervalMs - elapsed) / 1000)}s remaining)`);
@@ -204,7 +221,7 @@ export async function GET(req: Request) {
     const prompt = readPrompt(column);
     if (!prompt) { skipped.push(`${job.id}: no prompt`); continue; }
 
-    const maxConcurrent = getColumnMaxConcurrency(column);
+    const maxConcurrent = qs?.maxConcurrent ?? job.maxConcurrent ?? 3;
 
     // Clean up stale running entries (cards that shipped or agents that died)
     cleanStaleRunning(column);

@@ -105,6 +105,18 @@ export function openDb(stateDir: string): Database {
     [12, `ALTER TABLE agent_runs ADD COLUMN total_tokens INTEGER DEFAULT 0`],
     [13, `ALTER TABLE agent_runs ADD COLUMN cost_usd REAL DEFAULT 0`],
     [14, `ALTER TABLE cards ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]'`],
+    [15, `
+      CREATE TABLE IF NOT EXISTS queue_settings (
+        col            TEXT PRIMARY KEY,
+        max_concurrent INTEGER NOT NULL DEFAULT 3,
+        interval_ms    INTEGER NOT NULL DEFAULT 300000,
+        enabled        INTEGER NOT NULL DEFAULT 1,
+        updated_at     TEXT NOT NULL DEFAULT ''
+      );
+      INSERT OR IGNORE INTO queue_settings (col, max_concurrent, interval_ms, enabled, updated_at) VALUES ('backlog', 3, 300000, 1, '${new Date().toISOString()}');
+      INSERT OR IGNORE INTO queue_settings (col, max_concurrent, interval_ms, enabled, updated_at) VALUES ('in-progress', 3, 60000, 1, '${new Date().toISOString()}');
+      INSERT OR IGNORE INTO queue_settings (col, max_concurrent, interval_ms, enabled, updated_at) VALUES ('in-review', 3, 60000, 1, '${new Date().toISOString()}');
+    `],
   ];
 
   for (const [version, sql] of migrations) {

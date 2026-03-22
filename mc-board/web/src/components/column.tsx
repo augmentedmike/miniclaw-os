@@ -38,25 +38,26 @@ interface TriageHeaderProps {
 function TriageColumnHeader({ column, topCards, onOpenTriage, onOpenWork }: TriageHeaderProps) {
   const triage = useTriageColumn(column);
 
-  const [maxConcurrent, setMaxConcurrent] = useState(3);
+  const [maxConcurrent, setMaxConcurrent] = useState<number>(3);
 
-  // Load from board-columns.json via /api/columns on mount
+  // Load maxConcurrent from the API (queue_settings DB table) on mount
   useEffect(() => {
-    fetch("/api/columns")
+    fetch("/api/queue-settings")
       .then(r => r.json())
-      .then(data => {
-        const val = data?.[column]?.maxConcurrency;
-        if (typeof val === "number") setMaxConcurrent(val);
+      .then(d => {
+        const setting = (d.settings ?? []).find((s: { col: string }) => s.col === column);
+        if (setting?.maxConcurrent) setMaxConcurrent(setting.maxConcurrent);
       })
       .catch(() => {});
   }, [column]);
 
   const handleMaxChange = useCallback((n: number) => {
     setMaxConcurrent(n);
-    fetch("/api/columns", {
+    // Write to queue_settings DB via API
+    fetch("/api/queue-settings", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ column, maxConcurrency: n }),
+      body: JSON.stringify({ col: column, maxConcurrent: n }),
     }).catch(() => {});
   }, [column]);
 
@@ -103,6 +104,12 @@ export function Column({ column, cards, globalShippedIds, projects, activeIds, a
       .filter(c => c.column === column)
       .filter(c => showHeld || !c.tags?.some(t => t === "hold" || t === "on-hold" || t === "blocked"))
       .sort((a, b) => {
+        // Shipped: most recently completed first
+        if (column === "shipped") {
+          const aT = a.shipped_at ?? a.updated_at;
+          const bT = b.shipped_at ?? b.updated_at;
+          return bT.localeCompare(aT);
+        }
         const aFocused = a.tags?.includes("focus") ? 0 : 1;
         const bFocused = b.tags?.includes("focus") ? 0 : 1;
         return aFocused - bFocused;

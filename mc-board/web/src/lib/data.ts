@@ -9,16 +9,14 @@
 
 import Database from "better-sqlite3";
 import { randomBytes } from "node:crypto";
-import * as path from "node:path";
 import * as fs from "node:fs";
 import type { Card, BoardCard, Column, Priority, Project, ActiveEntry, HistoryEntry, LogEntry, WorkLogEntry, PickupLogEntry, CardTimeline, TimelineEvent, AgentRun } from "./types";
+import { boardDbPath } from "./paths";
 
 // ---- DB path resolution ----
 
 function resolveDbPath(): string {
-  if (process.env.BOARD_DB_PATH) return process.env.BOARD_DB_PATH;
-  const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(require("node:os").homedir(), ".openclaw");
-  return path.join(stateDir, "USER", "brain", "board.db");
+  return boardDbPath();
 }
 
 export function getDbPath(): string { return resolveDbPath(); }
@@ -204,16 +202,20 @@ function criteriaCountsFromText(text: string): { checked: number; total: number 
 interface SlimRow {
   id: string; title: string; col: string; priority: string; tags: string;
   project_id: string | null; work_type: string | null; linked_card_id: string | null;
-  created_at: string; updated_at: string; depends_on: string; acceptance_criteria: string;
+  created_at: string; updated_at: string; shipped_at: string | null;
+  depends_on: string; acceptance_criteria: string;
 }
 
 export function listBoardCards(projectId?: string): BoardCard[] {
   const db = getDb();
   if (!db) return [];
   try {
+    const sql = `SELECT c.id, c.title, c.col, c.priority, c.tags, c.project_id, c.work_type, c.linked_card_id, c.created_at, c.updated_at, c.depends_on, c.acceptance_criteria,
+        (SELECT h.moved_at FROM card_history h WHERE h.card_id = c.id AND h.col = 'shipped' ORDER BY h.moved_at DESC LIMIT 1) AS shipped_at
+      FROM cards c`;
     const rows = projectId
-      ? db.prepare(`SELECT id, title, col, priority, tags, project_id, work_type, linked_card_id, created_at, updated_at, depends_on, acceptance_criteria FROM cards WHERE project_id = ?`).all(projectId) as SlimRow[]
-      : db.prepare(`SELECT id, title, col, priority, tags, project_id, work_type, linked_card_id, created_at, updated_at, depends_on, acceptance_criteria FROM cards`).all() as SlimRow[];
+      ? db.prepare(sql + ` WHERE c.project_id = ?`).all(projectId) as SlimRow[]
+      : db.prepare(sql).all() as SlimRow[];
     return rows.map(r => {
       const { checked, total } = criteriaCountsFromText(r.acceptance_criteria);
       return {
@@ -227,6 +229,7 @@ export function listBoardCards(projectId?: string): BoardCard[] {
         linked_card_id: r.linked_card_id ?? undefined,
         created_at: r.created_at,
         updated_at: r.updated_at,
+        shipped_at: r.shipped_at ?? undefined,
         depends_on: (() => { try { return JSON.parse(r.depends_on || "[]") as string[]; } catch { return []; } })(),
         criteria_checked: checked,
         criteria_total: total,
@@ -454,6 +457,71 @@ export function getRecentAgentRuns(sinceMs = 60 * 60 * 1000): AgentRun[] {
       costUsd: r.cost_usd ?? 0,
     }));
   } catch { return []; }
+}
+
+// ---- Queue settings ----
+
+export interface QueueSettings {
+  col: string;
+  maxConcurrent: number;
+  intervalMs: number;
+  enabled: boolean;
+  updatedAt: string;
+}
+
+export function getQueueSettings(): QueueSettings[] {
+  const db = getDb();
+  if (!db) return [];
+  try {
+    const rows = db.prepare(`SELECT col, max_concurrent, interval_ms, enabled, updated_at FROM queue_settings`).all() as {
+      col: string; max_concurrent: number; interval_ms: number; enabled: number; updated_at: string;
+    }[];
+    return rows.map(r => ({
+      col: r.col,
+      maxConcurrent: r.max_concurrent,
+      intervalMs: r.interval_ms,
+      enabled: r.enabled === 1,
+      updatedAt: r.updated_at,
+    }));
+  } catch { return []; }
+}
+
+export function getQueueSettingsForColumn(col: string): QueueSettings | null {
+  const db = getDb();
+  if (!db) return null;
+  try {
+    const row = db.prepare(`SELECT col, max_concurrent, interval_ms, enabled, updated_at FROM queue_settings WHERE col = ?`).get(col) as {
+      col: string; max_concurrent: number; interval_ms: number; enabled: number; updated_at: string;
+    } | undefined;
+    if (!row) return null;
+    return {
+      col: row.col,
+      maxConcurrent: row.max_concurrent,
+      intervalMs: row.interval_ms,
+      enabled: row.enabled === 1,
+      updatedAt: row.updated_at,
+    };
+  } catch { return null; }
+}
+
+export function updateQueueSettings(col: string, patch: { maxConcurrent?: number; intervalMs?: number; enabled?: boolean }): QueueSettings | null {
+  const db = getDb();
+  if (!db) return null;
+  try {
+    const now = new Date().toISOString();
+    // Upsert: create the row if it doesn't exist
+    db.prepare(`INSERT OR IGNORE INTO queue_settings (col, max_concurrent, interval_ms, enabled, updated_at) VALUES (?, 5, 300000, 1, ?)`).run(col, now);
+    if (patch.maxConcurrent !== undefined) {
+      db.prepare(`UPDATE queue_settings SET max_concurrent = ?, updated_at = ? WHERE col = ?`).run(patch.maxConcurrent, now, col);
+    }
+    if (patch.intervalMs !== undefined) {
+      db.prepare(`UPDATE queue_settings SET interval_ms = ?, updated_at = ? WHERE col = ?`).run(patch.intervalMs, now, col);
+    }
+    if (patch.enabled !== undefined) {
+      db.prepare(`UPDATE queue_settings SET enabled = ?, updated_at = ? WHERE col = ?`).run(patch.enabled ? 1 : 0, now, col);
+    }
+    return getQueueSettingsForColumn(col);
+  } catch { return null; }
 }
 
 export function getRunningByCol(): Record<string, string[]> {
