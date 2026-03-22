@@ -6,8 +6,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { consumeToken } from "@/lib/sensitive-auth";
 import { isSetupComplete } from "@/lib/setup-state";
 
-const CLAUDE_BIN = "/Users/michaeloneal/.local/bin/claude";
 const HOME = process.env.HOME || "";
+const CLAUDE_BIN = `${HOME}/.local/bin/claude`;
 
 function isAnthropicAuthed(): boolean {
   // Claude Code stores OAuth token in macOS keychain under "Claude Code-credentials"

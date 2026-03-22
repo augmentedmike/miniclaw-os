@@ -8,8 +8,8 @@ import { isSetupComplete } from "@/lib/setup-state";
 import { apiOk, apiError } from "@/lib/api-response";
 import { stateDir } from "@/lib/paths";
 
-const CLAUDE_BIN = "/Users/michaeloneal/.local/bin/claude";
 const HOME = process.env.HOME || "";
+const CLAUDE_BIN = `${HOME}/.local/bin/claude`;
 
 function isAnthropicAuthed(): boolean {
   // Claude Code stores OAuth token in macOS keychain under "Claude Code-credentials"
