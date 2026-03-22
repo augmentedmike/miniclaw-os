@@ -1,14 +1,12 @@
 import { NextResponse } from "next/server";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import * as os from "node:os";
+import { brainDir, stateDir } from "@/lib/paths";
 
 export const dynamic = "force-dynamic";
 
-const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
-
 function getBrainDir(): string {
-  return path.join(STATE_DIR, "USER", "brain");
+  return brainDir();
 }
 
 /** Allowed directory for prompt files — all paths validated against this. */
@@ -48,7 +46,7 @@ function writePrompt(text: string): void {
     } catch { /* skip unwritable */ }
   }
   // Also sync to repo if it exists
-  const repoPath = path.join(STATE_DIR, "projects", "miniclaw-os", "plugins", "mc-board", "prompts", "backlog-processor.txt");
+  const repoPath = path.join(stateDir(), "miniclaw", "USER", "projects", "miniclaw-os", "plugins", "mc-board", "prompts", "backlog-processor.txt");
   if (fs.existsSync(path.dirname(repoPath))) {
     try { fs.writeFileSync(repoPath, text, "utf-8"); } catch { /* skip */ }
   }

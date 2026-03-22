@@ -9,7 +9,7 @@ export type ResearchConfig = {
 };
 
 export function resolveConfig(raw: Record<string, unknown>): ResearchConfig {
-  const defaultStateDir = path.join(os.homedir(), ".openclaw", "USER", "research");
+  const defaultStateDir = path.join(os.homedir(), ".openclaw", "miniclaw", "USER", "research");
 
   return {
     stateDir: (raw["stateDir"] as string | undefined) ?? defaultStateDir,

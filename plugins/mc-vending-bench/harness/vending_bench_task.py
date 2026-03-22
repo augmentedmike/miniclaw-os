@@ -38,7 +38,7 @@ from queue import Queue, Empty
 
 
 STATE_DIR = os.environ.get("OPENCLAW_STATE_DIR", os.path.expanduser("~/.openclaw"))
-BENCH_DIR = os.path.join(STATE_DIR, "USER", "benchmarks", "vending-bench")
+BENCH_DIR = os.path.join(STATE_DIR, "miniclaw", "USER", "benchmarks", "vending-bench")
 os.makedirs(BENCH_DIR, exist_ok=True)
 
 
