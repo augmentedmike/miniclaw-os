@@ -1252,7 +1252,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
           onBlur={e => { e.currentTarget.style.borderColor = "#3f3f46"; }}
         />
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 6 }}>
-          <span style={{ fontSize: 10, color: "#3f3f46" }}>Shift+Enter to send</span>
+          <span style={{ fontSize: 10, color: "#e4e4e7" }}>Shift+Enter to send · Enter for new line</span>
           <div style={{ display: "flex", gap: 4 }}>
             {micAvailable && (
               <button
