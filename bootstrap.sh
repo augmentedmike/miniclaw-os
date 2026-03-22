@@ -7,7 +7,7 @@ STATE_DIR="${HOME}/.openclaw"
 WEB_DIR="$STATE_DIR/miniclaw/web"
 APP_PORT=4220
 LOG_FILE="/tmp/miniclaw-bootstrap.log"
-ZIP_URL="https://github.com/augmentedmike/miniclaw-os/releases/download/v0.1.8/MiniClaw-Installer-v0.1.8.zip"
+ZIP_URL="https://github.com/augmentedmike/miniclaw-os/releases/download/v0.1.9-prerelease/miniclaw-os-v0.1.9.zip"
 
 # Detect if running from .app bundle vs curl|bash
 IS_APP=false
@@ -81,12 +81,34 @@ mkdir -p "$EXTRACT_TMP"
 unzip -q -o "$ZIP_TMP" -d "$EXTRACT_TMP"
 rm -f "$ZIP_TMP"
 
-BUNDLED_WEB="$EXTRACT_TMP/miniclaw-installer.app/Contents/Resources/miniclaw-web"
-BUNDLED_PLUGINS="$EXTRACT_TMP/miniclaw-installer.app/Contents/Resources/plugins-prebuilt"
+# v0.1.9+ zip is the repo structure with pre-built .next/standalone
+BUNDLED_WEB="$EXTRACT_TMP/mc-board/web/.next/standalone"
+BUNDLED_PLUGINS="$EXTRACT_TMP/plugins"
+BUNDLED_REPO="$EXTRACT_TMP"
+
+# Also check for nested directory (GitHub zip sometimes wraps in a folder)
+if [[ ! -d "$BUNDLED_WEB" ]]; then
+  NESTED=$(find "$EXTRACT_TMP" -maxdepth 1 -mindepth 1 -type d | head -1)
+  if [[ -d "$NESTED/mc-board/web/.next/standalone" ]]; then
+    BUNDLED_WEB="$NESTED/mc-board/web/.next/standalone"
+    BUNDLED_PLUGINS="$NESTED/plugins"
+    BUNDLED_REPO="$NESTED"
+  fi
+fi
+
 if [[ -d "$BUNDLED_WEB" && -f "$BUNDLED_WEB/server.js" ]]; then
   rm -rf "$WEB_DIR"
   mkdir -p "$(dirname "$WEB_DIR")"
   mv "$BUNDLED_WEB" "$WEB_DIR"
+  # Copy static assets into standalone
+  if [[ -d "$BUNDLED_REPO/mc-board/web/.next/static" ]]; then
+    mkdir -p "$WEB_DIR/.next/static"
+    cp -a "$BUNDLED_REPO/mc-board/web/.next/static/." "$WEB_DIR/.next/static/"
+  fi
+  if [[ -d "$BUNDLED_REPO/mc-board/web/public" ]]; then
+    mkdir -p "$WEB_DIR/public"
+    cp -a "$BUNDLED_REPO/mc-board/web/public/." "$WEB_DIR/public/"
+  fi
 else
   echo "  ERROR: Pre-built app not in zip. Try again or use the .app installer."
   rm -rf "$EXTRACT_TMP"
@@ -97,17 +119,22 @@ fi
 PREBUILT_STAGING="$STATE_DIR/.plugins-prebuilt"
 rm -rf "$PREBUILT_STAGING"
 if [[ -d "$BUNDLED_PLUGINS" ]]; then
-  mv "$BUNDLED_PLUGINS" "$PREBUILT_STAGING"
+  cp -a "$BUNDLED_PLUGINS" "$PREBUILT_STAGING"
   echo "  ✓ Pre-built plugins staged"
 fi
 
-# Stage bundled workspace templates for install.sh to use (fallback if repo clone is slow/offline)
-BUNDLED_WORKSPACE="$EXTRACT_TMP/miniclaw-installer.app/Contents/Resources/workspace"
+# Stage bundled workspace templates for install.sh to use
 WORKSPACE_TEMPLATES_STAGING="$STATE_DIR/.workspace-templates"
 rm -rf "$WORKSPACE_TEMPLATES_STAGING"
-if [[ -d "$BUNDLED_WORKSPACE" ]]; then
-  mv "$BUNDLED_WORKSPACE" "$WORKSPACE_TEMPLATES_STAGING"
+if [[ -d "$BUNDLED_REPO/workspace" ]]; then
+  cp -a "$BUNDLED_REPO/workspace" "$WORKSPACE_TEMPLATES_STAGING"
   echo "  ✓ Workspace templates staged"
+fi
+
+# Copy repo to install dir so install.sh can run
+if [[ -d "$BUNDLED_REPO" && ! -d "$INSTALL_DIR" ]]; then
+  mkdir -p "$(dirname "$INSTALL_DIR")"
+  cp -a "$BUNDLED_REPO" "$INSTALL_DIR"
 fi
 
 rm -rf "$EXTRACT_TMP"
@@ -195,7 +222,9 @@ INSTALL_LOG="/tmp/miniclaw-install.log"
 rm -f "$INSTALL_LOG"
 (
   mkdir -p "$(dirname "$INSTALL_DIR")"
-  [[ -d "$INSTALL_DIR/.git" ]] || git clone -q --depth 1 "$REPO_URL" "$INSTALL_DIR" 2>>"$LOG_FILE"
+  if [[ ! -d "$INSTALL_DIR" ]]; then
+    git clone -q --depth 1 "$REPO_URL" "$INSTALL_DIR" 2>>"$LOG_FILE" || true
+  fi
   if [[ -f "$INSTALL_DIR/install.sh" ]]; then
     OPENCLAW_STATE_DIR="$STATE_DIR" MINICLAW_NONINTERACTIVE=1 bash "$INSTALL_DIR/install.sh" >"$INSTALL_LOG" 2>&1
   fi
