@@ -41,7 +41,7 @@ export function ColumnShell({ column, count, activeCount, headerActions, childre
       <div
         className="column-header"
         onClick={isShipped ? onToggleCollapse : undefined}
-        style={{ cursor: isShipped ? "pointer" : undefined, justifyContent: "flex-start", gap: 8 }}
+        style={{ cursor: isShipped ? "pointer" : undefined }}
       >
         <span className={`column-badge ${badge}`} data-col={column}>{label}</span>
         <span className="column-count">

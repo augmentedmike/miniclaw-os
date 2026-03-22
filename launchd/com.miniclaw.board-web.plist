@@ -7,37 +7,27 @@
   <key>ProgramArguments</key>
   <array>
     <string>/Users/michaeloneal/.nvm/versions/node/v24.9.0/bin/node</string>
-    <string>/Users/michaeloneal/.openclaw/miniclaw/web/node_modules/.bin/next</string>
+    <string>/Users/michaeloneal/.openclaw/miniclaw/plugins/mc-board/web/node_modules/next/dist/bin/next</string>
     <string>start</string>
     <string>-p</string>
     <string>4220</string>
   </array>
   <key>WorkingDirectory</key>
-  <string>/Users/michaeloneal/.openclaw/miniclaw/web</string>
+  <string>/Users/michaeloneal/.openclaw/miniclaw/plugins/mc-board/web</string>
   <key>RunAtLoad</key>
   <true/>
-  <key>KeepAlive</key>
-  <true/>
-  <key>ThrottleInterval</key>
-  <integer>5</integer>
-  <key>StandardOutPath</key>
-  <string>/Users/michaeloneal/.openclaw/logs/miniclaw-board-web.log</string>
-  <key>StandardErrorPath</key>
-  <string>/Users/michaeloneal/.openclaw/logs/miniclaw-board-web.log</string>
   <key>EnvironmentVariables</key>
   <dict>
-    <key>HOME</key>
-    <string>/Users/michaeloneal</string>
     <key>PORT</key>
     <string>4220</string>
-    <key>HOSTNAME</key>
-    <string>0.0.0.0</string>
-    <key>PATH</key>
-    <string>/Users/michaeloneal/.local/bin:/Users/michaeloneal/.nvm/versions/node/v24.9.0/bin:/opt/homebrew/bin:/usr/local/bin:/usr/sbin:/usr/bin:/bin</string>
-    <key>OPENCLAW_STATE_DIR</key>
-    <string>/Users/michaeloneal/.openclaw</string>
     <key>NODE_ENV</key>
     <string>production</string>
   </dict>
+  <key>StandardOutPath</key>
+  <string>/tmp/board-web.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/board-web.err</string>
+  <key>KeepAlive</key>
+  <true/>
 </dict>
 </plist>

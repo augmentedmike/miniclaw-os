@@ -584,7 +584,7 @@ ${session.currentTopic ? `Current conversation topic: ${session.currentTopic}` :
     let session: ChatSession | null = null;
 
     ws.on("message", (raw) => {
-      let msg: { type: string; content?: string; sessionId?: string; images?: ImageAttachment[]; chatId?: string; id?: string; replyTo?: string; seedMessage?: string };
+      let msg: { type: string; content?: string; sessionId?: string; images?: ImageAttachment[]; chatId?: string; id?: string; replyTo?: string; seedMessage?: string; partialText?: string };
       try { msg = JSON.parse(raw.toString()); } catch { return; }
 
       if (msg.type === "join") {
@@ -625,6 +625,22 @@ ${session.currentTopic ? `Current conversation topic: ${session.currentTopic}` :
         session.proc.kill(); session.proc = null;
         session.awaitingResult = false; session.messageQueue = [];
         sendToClient(session, { type: "done" });
+      }
+
+      if (msg.type === "interrupt" && session.proc) {
+        const partial = msg.partialText || "";
+        session.proc.kill(); session.proc = null;
+        session.awaitingResult = false; session.messageQueue = [];
+        // Store the partial response in history so context is preserved
+        if (partial) {
+          session.messages.push({
+            role: "assistant",
+            content: partial + "\n\n[interrupted]",
+            timestamp: Date.now(),
+          });
+          trimHistory(session);
+        }
+        sendToClient(session, { type: "interrupted", partialText: partial });
       }
 
       if (msg.type === "new_chat") {
