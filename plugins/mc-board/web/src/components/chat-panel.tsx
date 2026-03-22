@@ -1082,10 +1082,10 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
                     borderRadius: replySnippet
                       ? (msg.role === "user" ? "0 0 3px 10px" : "0 0 10px 3px")
                       : (msg.role === "user" ? "10px 10px 3px 10px" : "10px 10px 10px 3px"),
-                    background: msg.role === "user" ? "#1d3a2a" : "#18181b",
+                    background: msg.role === "user" ? "#18181b" : "#18181b",
                     border: msg.error ? "1px solid #7c2d12"
                       : msg.role === "user" ? `1px solid ${accent}` : "1px solid #27272a",
-                    fontSize: 13, color: msg.error ? "#f87171" : msg.role === "user" ? "#bbf7d0" : "#d4d4d8",
+                    fontSize: 13, color: msg.error ? "#f87171" : "#d4d4d8",
                     lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-word",
                     position: "relative",
                   }}>
