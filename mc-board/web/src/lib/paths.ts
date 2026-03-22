@@ -9,6 +9,7 @@
 
 import * as path from "node:path";
 import * as os from "node:os";
+import { execFileSync } from "node:child_process";
 
 /** Root openclaw state directory (e.g. ~/.openclaw) */
 export function stateDir(): string {
@@ -156,4 +157,16 @@ export function voiceDir(): string {
 /** Whisper models directory */
 export function whisperModelsDir(): string {
   return path.join(stateDir(), "miniclaw", "SYSTEM", "whisper-models");
+}
+
+/**
+ * Resolve the `claude` CLI binary path.
+ * Priority: (1) CLAUDE_BIN env var, (2) `which claude`, (3) ~/.local/bin/claude fallback.
+ */
+export function claudeBinPath(): string {
+  if (process.env.CLAUDE_BIN) return process.env.CLAUDE_BIN;
+  try {
+    return execFileSync("which", ["claude"], { encoding: "utf8", timeout: 3000 }).trim();
+  } catch {}
+  return path.join(os.homedir(), ".local", "bin", "claude");
 }

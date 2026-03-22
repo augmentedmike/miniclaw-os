@@ -223,7 +223,6 @@ function findRepoDir(): string | null {
   // Known locations
   const known = [
     path.join(STATE_DIR, "projects", "miniclaw-os"),
-    path.join(process.env.HOME || "", "newam", "projects", "miniclaw-os"),
   ];
   for (const k of known) {
     if (fs.existsSync(path.join(k, "install.sh"))) return k;
