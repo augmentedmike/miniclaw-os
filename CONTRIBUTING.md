@@ -1,5 +1,7 @@
 # Contributing to MiniClaw
 
+[中文贡献指南](./CONTRIBUTING.zh-CN.md)
+
 Thanks for your interest in MiniClaw. Here's how to get involved.
 
 ## Ways to contribute
