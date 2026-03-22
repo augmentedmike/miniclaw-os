@@ -5,6 +5,7 @@ import type { Database } from "./db.js";
 import type { Card, Column, Priority, WorkLogEntry } from "./card.js";
 import { generateId, sortCards } from "./card.js";
 import { type TitleConflict, findTitleConflict } from "./dedup.js";
+import { COLUMNS } from "./state.js";
 
 const COL_TO_JOB: Record<string, string> = {
   "backlog": "board-backlog-triage",
@@ -216,7 +217,21 @@ export class CardStore {
 
   move(card: Card, target: Column): Card {
     const now = new Date().toISOString();
-    this.db.prepare(`UPDATE cards SET col=?, updated_at=? WHERE id=?`).run(target, now, card.id);
+
+    // Detect backward transitions and reset acceptance criteria checkmarks
+    const fromIdx = COLUMNS.indexOf(card.column);
+    const toIdx = COLUMNS.indexOf(target);
+    if (toIdx < fromIdx && card.acceptance_criteria) {
+      const resetCriteria = card.acceptance_criteria
+        .split('\n')
+        .map(line => line.replace(/^- \[x\]/, '- [ ]'))
+        .join('\n');
+      this.db.prepare(`UPDATE cards SET col=?, acceptance_criteria=?, updated_at=? WHERE id=?`)
+        .run(target, resetCriteria, now, card.id);
+    } else {
+      this.db.prepare(`UPDATE cards SET col=?, updated_at=? WHERE id=?`).run(target, now, card.id);
+    }
+
     this.db.prepare(
       `INSERT INTO card_history (card_id, col, moved_at) VALUES (?, ?, ?)`,
     ).run(card.id, target, now);
