@@ -652,8 +652,7 @@ Examples:
         return;
       }
       for (const card of results) {
-        const shippedAt = card.history?.filter((h: { column: string; moved_at: string }) => h.column === "shipped").pop()?.moved_at;
-        console.log(`${card.id}  ${card.title}  [shipped ${(shippedAt ?? card.updated_at).slice(0, 10)}]`);
+        console.log(`${card.id}  ${card.title}  [archived ${card.updated_at.slice(0, 10)}]`);
       }
     });
 
@@ -679,7 +678,7 @@ Reads across all archive files. Prefix match on card id.
   brain
     .command("delete <id>")
     .alias("remove")
-    .description("Delete a card from the board (irreversible — use archive for shipped cards)")
+    .description("Delete a card from the board (irreversible — consider archive instead)")
     .option("--force", "Skip confirmation prompt")
     .action((id: string, opts: { force?: boolean }) => {
       try {
