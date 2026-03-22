@@ -1,36 +1,70 @@
 #!/usr/bin/env bash
 # mc-rebuild-web — rebuild the board web app and restart the LaunchAgent
+#
+# Safe rebuild: stops server FIRST, backs up .next, builds, restores on failure.
+# Kills any stale process on :4220 before restarting.
 set -euo pipefail
 
 WEB_DIR="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}/miniclaw/plugins/mc-board/web"
 PLIST="$HOME/Library/LaunchAgents/com.miniclaw.board-web.plist"
+PORT=4220
 
-echo "  Installing deps..."
 cd "$WEB_DIR"
+
+# 1. Stop server FIRST — no serving stale chunks during build
+echo "  Stopping server..."
+launchctl bootout "gui/$(id -u)" "$PLIST" 2>/dev/null || true
+lsof -ti :"$PORT" 2>/dev/null | xargs kill -9 2>/dev/null || true
+sleep 1
+
+# 2. Install deps if needed
+echo "  Installing deps..."
 npm install --silent 2>/dev/null || true
 
+# 3. Backup current build
+if [ -d .next ]; then
+  rm -rf .next-backup
+  cp -a .next .next-backup
+  echo "  Backed up .next"
+fi
+
+# 4. Build
 echo "  Building..."
 rm -rf .next
-node node_modules/next/dist/bin/next build 2>&1 | tail -3
-
-# Verify CSS exists
-CSS_FILE=$(ls .next/static/chunks/*.css 2>/dev/null | head -1)
-if [[ -z "$CSS_FILE" ]]; then
-  echo "  ✗ ERROR: No CSS file in build!"
-  exit 1
-fi
-echo "  CSS: $(basename "$CSS_FILE")"
-
-echo "  Restarting..."
-lsof -ti :4220 2>/dev/null | xargs kill -9 2>/dev/null || true
-sleep 1
-launchctl unload "$PLIST" 2>/dev/null || true
-launchctl load "$PLIST" 2>/dev/null
-sleep 2
-
-if lsof -ti :4220 &>/dev/null; then
-  echo "  ✓ Board web running on :4220"
+if node node_modules/next/dist/bin/next build 2>&1 | tail -5; then
+  # Verify CSS exists
+  CSS_FILE=$(find .next/static -name "*.css" 2>/dev/null | head -1)
+  if [[ -z "$CSS_FILE" ]]; then
+    echo "  ✗ ERROR: No CSS file in build — restoring backup"
+    if [ -d .next-backup ]; then
+      rm -rf .next
+      mv .next-backup .next
+    fi
+  else
+    echo "  ✓ CSS: $(basename "$CSS_FILE")"
+    rm -rf .next-backup
+  fi
 else
-  echo "  ✗ Failed to start — check logs"
+  echo "  ✗ BUILD FAILED — restoring backup"
+  if [ -d .next-backup ]; then
+    rm -rf .next
+    mv .next-backup .next
+  fi
+fi
+
+# 5. Kill anything still on the port (paranoia)
+lsof -ti :"$PORT" 2>/dev/null | xargs kill -9 2>/dev/null || true
+sleep 1
+
+# 6. Start server
+echo "  Starting server..."
+launchctl bootstrap "gui/$(id -u)" "$PLIST" 2>/dev/null || launchctl load "$PLIST" 2>/dev/null
+sleep 3
+
+# 7. Verify
+if curl -s -o /dev/null -w "" --max-time 5 "http://localhost:$PORT/" 2>/dev/null; then
+  echo "  ✓ Board web running on :$PORT"
+else
+  echo "  ✗ Failed to start — check /tmp/board-web.err"
   exit 1
 fi
