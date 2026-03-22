@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, FormEvent, MouseEvent } from "react";
 import { useSWRConfig } from "swr";
+import { registerModal, unregisterModal } from "./modal-stack";
 
 interface Contact {
   id: string;
@@ -177,14 +178,8 @@ function ContactFormModal({
 
   useEffect(() => {
     if (!editing) return;
-    const onKey = (e: globalThis.KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopImmediatePropagation();
-        onClose();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    registerModal(onClose);
+    return () => unregisterModal(onClose);
   }, [editing, onClose]);
 
   const set = <K extends keyof FormData>(k: K, v: FormData[K]) =>
@@ -312,14 +307,8 @@ function ContactModal({
 
   useEffect(() => {
     if (!contact) { setConfirmDelete(false); return; }
-    const onKey = (e: globalThis.KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopImmediatePropagation();
-        onClose();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    registerModal(onClose);
+    return () => unregisterModal(onClose);
   }, [contact, onClose]);
 
   useEffect(() => { setConfirmDelete(false); }, [contact?.id]);

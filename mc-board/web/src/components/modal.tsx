@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { registerModal, unregisterModal } from "./modal-stack";
 
 interface Props {
   onClose: () => void;
@@ -10,14 +11,8 @@ interface Props {
 
 export function Modal({ onClose, children, zIndex = 50 }: Props) {
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopImmediatePropagation();
-        onClose();
-      }
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
+    registerModal(onClose);
+    return () => unregisterModal(onClose);
   }, [onClose]);
 
   return (
