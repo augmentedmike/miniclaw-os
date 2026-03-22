@@ -15,8 +15,11 @@ function discoverPlugins(pluginsDir: string): RepoConfig[] {
   if (!fs.existsSync(pluginsDir)) return [];
   const repos: RepoConfig[] = [];
   for (const entry of fs.readdirSync(pluginsDir, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const pluginPath = path.join(pluginsDir, entry.name);
+    // Follow symlinks — resolve to the actual path
+    if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
+    const pluginPath = entry.isSymbolicLink()
+      ? fs.realpathSync(path.join(pluginsDir, entry.name))
+      : path.join(pluginsDir, entry.name);
     const gitDir = path.join(pluginPath, ".git");
     // Only include plugins that are separate git repos
     if (fs.existsSync(gitDir)) {
@@ -47,7 +50,7 @@ function resolveConfig(api: OpenClawPluginApi): UpdateConfig {
     },
   ];
 
-  // Discover plugin repos
+  // Discover plugin repos (follows symlinks to extensions/)
   const pluginRepos = discoverPlugins(path.join(stateDir, "miniclaw", "plugins"));
 
   const configRepos = raw.repos as RepoConfig[] | undefined;
