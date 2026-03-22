@@ -4,35 +4,24 @@ import { spawn, type ChildProcess, execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { log } from "./logger.js";
 import { ChatDatabase } from "./chat-db.js";
+import {
+  estimateTokens, trimHistory, pruneImageFlags, buildHistoryReplay,
+  shouldRestartForContext, MAX_HISTORY, IMAGE_PLACEHOLDER,
+  CONTEXT_PRESSURE_PCT, TOKEN_BUDGET, MIN_TURNS_BEFORE_RESTART,
+  type HistoryMessage,
+} from "./chat-utils.js";
+
+export type { HistoryMessage };
+export { estimateTokens, trimHistory, pruneImageFlags, buildHistoryReplay, shouldRestartForContext };
+export { MAX_HISTORY, IMAGE_PLACEHOLDER, CONTEXT_PRESSURE_PCT, TOKEN_BUDGET, MIN_TURNS_BEFORE_RESTART };
 
 export interface ChatServerOptions {
   port: number;
   claudeBin: string;
   workspaceDir: string;
   stateDir?: string;
-}
-
-// ---- Context management config ----
-export const MAX_HISTORY = 30;          // rolling window of messages kept server-side
-export const MAX_IMAGES_IN_HISTORY = 2; // only keep last N images; older ones get placeholder
-export const IMAGE_PLACEHOLDER = "[image was shared earlier in conversation]";
-export const CONTEXT_PRESSURE_PCT = 80; // at 80% usage, proactively restart with summary
-export const TOKEN_BUDGET = 800_000;    // Claude Code uses 1M context; leave 200k headroom
-export const MIN_TURNS_BEFORE_RESTART = 4; // don't check pressure until Nth turn (avoids restart loop from replay)
-
-// ---- Token estimator (~4 chars per token, images ~1000 tokens) ----
-export function estimateTokens(text: string): number {
-  return Math.ceil(text.length / 4);
-}
-
-export interface HistoryMessage {
-  id?: string;
-  role: "user" | "assistant";
-  content: string;
-  hasImage?: boolean; // flag — actual image data is never stored
-  timestamp: number;
-  replyTo?: string; // ID of the message being replied to
 }
 
 export function startChatServer(opts: ChatServerOptions) {
@@ -47,22 +36,24 @@ export function startChatServer(opts: ChatServerOptions) {
     try {
       chatDb.archiveSession(session.id, session.messages, session.totalCost);
     } catch (err) {
-      console.log(`[mc-web-chat] failed to archive session ${session.id}: ${err}`);
+      log.error(`failed to archive session ${session.id}: ${err}`);
     }
   }
 
   // ---- Workspace loader ----
   function loadWorkspacePrompt(): string {
+    const done = log.time("workspace load");
     try {
       const files = readdirSync(workspaceDir).filter((f) => f.endsWith(".md")).sort();
       const parts = files.map((f) => {
         const content = readFileSync(join(workspaceDir, f), "utf-8");
         return `# ${f}\n${content}`;
       });
-      console.log(`[mc-web-chat] workspace loaded ${files.length} files`);
+      log.info(`workspace loaded ${files.length} files`);
+      done();
       return parts.join("\n\n");
     } catch (e) {
-      console.log(`[mc-web-chat] workspace not found: ${e}`);
+      log.warn(`workspace not found: ${e}`);
       return "";
     }
   }
@@ -101,6 +92,7 @@ export function startChatServer(opts: ChatServerOptions) {
     messages: HistoryMessage[];
     currentTopic: string | null; // tracks the current conversation topic
     pendingSeedMessage: string | null; // message to auto-send after new_chat from topic shift
+    turnTimer: (() => void) | null; // elapsed-time logger for current turn
   }
 
   const chatSessions = new Map<string, ChatSession>();
@@ -112,120 +104,18 @@ export function startChatServer(opts: ChatServerOptions) {
       totalCost: 0, contextWindow: TOKEN_BUDGET, lastReportedContextUsed: 0,
       turnCount: 0, awaitingResult: false, messageQueue: [], procHasContext: false,
       lastActivity: Date.now(), messages: [],
-      currentTopic: null, pendingSeedMessage: null,
+      currentTopic: null, pendingSeedMessage: null, turnTimer: null,
     };
   }
 
-  // ---- Context management functions ----
-
-  function trimHistory(session: ChatSession) {
-    if (session.messages.length > MAX_HISTORY) {
-      const dropped = session.messages.length - MAX_HISTORY;
-      session.messages = session.messages.slice(-MAX_HISTORY);
-      console.log(`[mc-web-chat] trimmed ${dropped} old messages, keeping ${MAX_HISTORY}`);
-    }
-  }
-
-  /**
-   * Prune image flags from older messages.
-   * We never store actual image data — but we track which messages HAD images
-   * so we can tell Claude "an image was shared here" vs nothing.
-   * Only the last MAX_IMAGES_IN_HISTORY messages keep their hasImage flag.
-   */
-  function pruneImageFlags(messages: HistoryMessage[]): void {
-    let imagesKept = 0;
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].hasImage) {
-        if (imagesKept >= MAX_IMAGES_IN_HISTORY) {
-          messages[i].hasImage = false; // strip flag from old ones
-        } else {
-          imagesKept++;
-        }
-      }
-    }
-  }
-
-  /**
-   * Build conversation history for replay when process restarts.
-   * This is the key function — it creates a condensed summary that fits
-   * in a single first-turn message without blowing context.
-   */
-  function buildHistoryReplay(messages: HistoryMessage[]): string {
-    if (messages.length === 0) return "";
-
-    // Estimate total tokens for full replay
-    let totalTokens = 0;
-    for (const m of messages) {
-      totalTokens += estimateTokens(m.content) + 10; // +10 for role prefix overhead
-    }
-
-    // If full replay fits in ~40k tokens, use it verbatim
-    const MAX_REPLAY_TOKENS = 40_000;
-    let replayMessages = messages;
-
-    if (totalTokens > MAX_REPLAY_TOKENS) {
-      // Too big — keep first 2 (establishes topic) + last N that fit
-      const first = messages.slice(0, 2);
-      const firstTokens = first.reduce((sum, m) => sum + estimateTokens(m.content) + 10, 0);
-      const budget = MAX_REPLAY_TOKENS - firstTokens - 200; // 200 for separator
-
-      const recent: HistoryMessage[] = [];
-      let used = 0;
-      for (let i = messages.length - 1; i >= 2; i--) {
-        const cost = estimateTokens(messages[i].content) + 10;
-        if (used + cost > budget) break;
-        recent.unshift(messages[i]);
-        used += cost;
-      }
-
-      const dropped = messages.length - first.length - recent.length;
-      replayMessages = [
-        ...first,
-        { role: "assistant" as const, content: `[...${dropped} earlier messages omitted...]`, timestamp: 0 },
-        ...recent,
-      ];
-    }
-
-    const lines = replayMessages.map((m) => {
-      let line = `[${m.role}]: ${m.content}`;
-      if (m.hasImage) line += ` ${IMAGE_PLACEHOLDER}`;
-      if (m.replyTo) {
-        const target = messages.find(t => t.id === m.replyTo);
-        if (target) {
-          const snippet = target.content.slice(0, 60) + (target.content.length > 60 ? "..." : "");
-          line = `[${m.role} replying to ${target.role}: "${snippet}"]: ${m.content}`;
-        } else {
-          line = `[${m.role} replying to a pruned message]: ${m.content}`;
-        }
-      }
-      return line;
-    });
-
-    return `<conversation-history>\n${lines.join("\n\n")}\n</conversation-history>`;
-  }
-
-  /**
-   * Check if context pressure is high enough to warrant a proactive restart.
-   * Returns true if we should kill the process and replay history on next message.
-   */
-  function shouldRestartForContext(session: ChatSession): boolean {
-    if (!session.proc || session.lastReportedContextUsed === 0) return false;
-    // Don't restart on early turns — the history replay inflates the first few results
-    if (session.turnCount <= MIN_TURNS_BEFORE_RESTART) return false;
-    const pct = (session.lastReportedContextUsed / session.contextWindow) * 100;
-    if (pct >= CONTEXT_PRESSURE_PCT) {
-      console.log(`[mc-web-chat] context pressure ${pct.toFixed(0)}% >= ${CONTEXT_PRESSURE_PCT}% — scheduling restart (turn ${session.turnCount})`);
-      return true;
-    }
-    return false;
-  }
+  // ---- Context management functions (imported from chat-utils.ts) ----
 
   /**
    * Proactively restart the Claude process with a clean context.
    * Kills the current process; next sendMessageToProcess will spawn fresh + replay.
    */
   function proactiveRestart(session: ChatSession) {
-    console.log(`[mc-web-chat] context full — killing session ${session.id} (${session.messages.length} messages, turn ${session.turnCount})`);
+    log.warn(`context full — killing session ${session.id} (${session.messages.length} messages, turn ${session.turnCount})`);
     if (session.proc) {
       session.proc.kill();
       session.proc = null;
@@ -260,7 +150,7 @@ export function startChatServer(opts: ChatServerOptions) {
       "--verbose", "--dangerously-skip-permissions",
     ], { stdio: ["pipe", "pipe", "pipe"] });
 
-    console.log(`[mc-web-chat] spawning claude for session ${session.id}`);
+    log.info(`spawning claude for session ${session.id}`);
 
     proc.stdout!.on("data", (chunk: Buffer) => {
       session.buffer += chunk.toString();
@@ -307,7 +197,7 @@ export function startChatServer(opts: ChatServerOptions) {
               detectedTopicShift = topicMatch[1];
               // Strip the tag from the result text
               resultText = resultText.replace(topicShiftRegex, "").trimEnd();
-              console.log(`[mc-web-chat] topic shift detected: "${detectedTopicShift}" (was: "${session.currentTopic}")`);
+              log.info(`topic shift detected: "${detectedTopicShift}" (was: "${session.currentTopic}")`);
             }
 
             // Extract topic label from first response if not set yet
@@ -369,6 +259,7 @@ export function startChatServer(opts: ChatServerOptions) {
             }
 
             session.awaitingResult = false;
+            if (session.turnTimer) { session.turnTimer(); session.turnTimer = null; }
 
             // Check context pressure AFTER sending result
             if (shouldRestartForContext(session)) {
@@ -385,11 +276,11 @@ export function startChatServer(opts: ChatServerOptions) {
 
     proc.stderr!.on("data", (chunk: Buffer) => {
       const msg = chunk.toString().trim();
-      if (msg) console.log(`[mc-web-chat stderr] ${msg}`);
+      if (msg) log.warn(`stderr: ${msg}`);
     });
 
     proc.on("exit", (code) => {
-      console.log(`[mc-web-chat] claude exited: ${code}`);
+      log.info(`claude exited: ${code}`);
       session.proc = null;
       session.awaitingResult = false;
       session.procHasContext = false;
@@ -471,11 +362,12 @@ ${session.currentTopic ? `Current conversation topic: ${session.currentTopic}` :
     // Images only for current turn — never persisted in history
     const messageContent = buildMessageContent(msg, images);
     const hasImages = images && images.length > 0;
-    console.log(
-      `[mc-web-chat] turn ${session.turnCount}: sending message` +
+    log.info(
+      `turn ${session.turnCount}: sending message` +
       `${hasImages ? ` (${images.length} image${images.length > 1 ? "s" : ""})` : ""}` +
       ` [history: ${session.messages.length}, ctx: ${session.lastReportedContextUsed}/${session.contextWindow}]`
     );
+    session.turnTimer = log.time(`turn ${session.turnCount} response`);
     proc.stdin!.write(JSON.stringify({ type: "user", message: { role: "user", content: messageContent } }) + "\n");
   }
 
@@ -941,7 +833,7 @@ ${session.currentTopic ? `Current conversation topic: ${session.currentTopic}` :
       client.ping();
       setTimeout(() => {
         if (alive.value === true && (client as any).__pongAlive === alive) {
-          console.log("[mc-web-chat] terminating unresponsive client (no pong)");
+          log.warn("terminating unresponsive client (no pong)");
           client.terminate();
         }
       }, PONG_TIMEOUT);
@@ -960,7 +852,7 @@ ${session.currentTopic ? `Current conversation topic: ${session.currentTopic}` :
     const now = Date.now();
     for (const [id, sess] of chatSessions) {
       if (!sess.ws && !sess.proc && (now - sess.lastActivity) > SESSION_TTL) {
-        console.log(`[mc-web-chat] cleaning up stale session ${id} (idle ${Math.round((now - sess.lastActivity) / 60000)}min)`);
+        log.info(`cleaning up stale session ${id} (idle ${Math.round((now - sess.lastActivity) / 60000)}min)`);
         archiveSession(sess);
         chatSessions.delete(id);
       }
@@ -968,7 +860,7 @@ ${session.currentTopic ? `Current conversation topic: ${session.currentTopic}` :
   }, 5 * 60 * 1000);
 
   server.listen(port, () => {
-    console.log(`[mc-web-chat] WebSocket server on ws://127.0.0.1:${port}`);
+    log.info(`WebSocket server on ws://127.0.0.1:${port} — log file: ${log.file}`);
   });
 
   server.on("close", () => {
