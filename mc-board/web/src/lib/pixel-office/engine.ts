@@ -914,14 +914,14 @@ export async function initOffice(
   }
   seats.push(...autoBookSpots);
 
-  // Deduplicate
+  // Deduplicate and filter to walkable tiles only
   for (const zone of Object.keys(zoneWaypoints) as Zone[]) {
     const seen = new Set<string>();
     zoneWaypoints[zone] = zoneWaypoints[zone].filter(p => {
       const k = `${p.col},${p.row}`;
       if (seen.has(k)) return false;
       seen.add(k);
-      return true;
+      return isWalkable(p.col, p.row, layout.tiles, layout.cols, layout.rows, blocked);
     });
   }
 
@@ -1049,7 +1049,8 @@ export function syncAgents(
     // Always filter out blocked tiles and seat positions to avoid spawning on furniture
     const seatPositions = new Set(state.seats.map(s => `${s.col},${s.row}`));
     const isSafeSpawn = (t: { col: number; row: number }) =>
-      !state.blocked.has(`${t.col},${t.row}`) && !seatPositions.has(`${t.col},${t.row}`);
+      isWalkable(t.col, t.row, state.layout.tiles, state.layout.cols, state.layout.rows, state.blocked) &&
+      !seatPositions.has(`${t.col},${t.row}`);
 
     const zoneWps = state.zoneWaypoints[zone];
     const rawPool = state.spawnTiles.length > 0
@@ -1063,18 +1064,27 @@ export function syncAgents(
       ? safeWalkable[Math.floor(Math.random() * safeWalkable.length)]
       : state.walkable.length > 0
         ? state.walkable[Math.floor(Math.random() * state.walkable.length)]
-        : { col: 5, row: 5 };
+        : null;
     const spawn = spawnPool.length > 0
       ? spawnPool[Math.floor(Math.random() * spawnPool.length)]
       : fallback;
+
+    if (!spawn) {
+      console.warn(`[pixel-office] No walkable spawn tile for agent ${agent.worker} — skipping`);
+      continue;
+    }
+
+    // Clamp spawn position within grid bounds
+    const clampedCol = Math.max(0, Math.min(spawn.col, state.layout.cols - 1));
+    const clampedRow = Math.max(0, Math.min(spawn.row, state.layout.rows - 1));
 
     const ch = createCharacter(
       agent.worker,
       agent.worker,
       sprites,
       idx,
-      spawn.col,
-      spawn.row
+      clampedCol,
+      clampedRow
     );
     ch.isActive = true;
     ch.cardId = agent.cardId;
@@ -1085,7 +1095,7 @@ export function syncAgents(
 
     // Assign a seat in the character's zone
     {
-      const freeSeat = findFreeSeatInZone(state, zone, spawn.col, spawn.row);
+      const freeSeat = findFreeSeatInZone(state, zone, clampedCol, clampedRow);
       if (freeSeat) {
         freeSeat.assigned = true;
         freeSeat.assignedTo = agent.worker;
@@ -1236,6 +1246,7 @@ export function applyZoneMap(
     const zone = COLUMN_TO_ZONE[column];
     if (!zone) continue;
     const [col, row] = key.split(",").map(Number);
+    if (!isWalkable(col, row, state.layout.tiles, state.layout.cols, state.layout.rows, state.blocked)) continue;
     zoneWaypoints[zone].push({ col, row });
   }
   if (Object.keys(zoneMap).length > 0) {
