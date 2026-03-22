@@ -16,7 +16,7 @@ import {
   validateCardTags,
 } from "../src/board.js";
 import type { Column, Priority } from "../src/card.js";
-import { spawn } from "node:child_process";
+import { spawn, execSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
@@ -506,6 +506,62 @@ Examples:
           }
         }
 
+        // ---- Pre-ship verification (hard gates before moving to shipped) ----
+        if (target === "shipped" && !opts.force) {
+          // 1. Live HTTP check on verify_url
+          if (card.verify_url && card.verify_url.trim()) {
+            try {
+              const httpStatus = execSync(
+                `curl -sI -o /dev/null -w '%{http_code}' --connect-timeout 5 --max-time 10 ${JSON.stringify(card.verify_url)}`,
+                { encoding: "utf-8", timeout: 15000 },
+              ).trim();
+              const statusCode = parseInt(httpStatus, 10);
+              if (isNaN(statusCode) || statusCode < 200 || statusCode >= 300) {
+                process.stderr.write(
+                  `SHIP BLOCKED: verify_url ${card.verify_url} returned HTTP ${httpStatus} (expected 2xx).\n` +
+                  `The code must be live before shipping. Fix the deploy and retry.\n`,
+                );
+                process.exit(1);
+              }
+            } catch (err) {
+              process.stderr.write(
+                `SHIP BLOCKED: verify_url ${card.verify_url} is unreachable.\n` +
+                `Error: ${err instanceof Error ? err.message : String(err)}\n` +
+                `The code must be live before shipping. Fix the deploy and retry.\n`,
+              );
+              process.exit(1);
+            }
+          }
+
+          // 2. Verify commit hash exists on origin/main when project has github_repo
+          if (card.project_id) {
+            try {
+              const project = projects.findById(card.project_id);
+              if (project.github_repo && project.work_dir) {
+                const shaMatch = card.review_notes.match(/\b([0-9a-f]{7,40})\b/i);
+                if (shaMatch) {
+                  const commitHash = shaMatch[1];
+                  try {
+                    execSync(`git -C ${JSON.stringify(project.work_dir)} fetch origin --quiet`, { timeout: 30000, stdio: "pipe" });
+                  } catch { /* fetch may fail if offline — continue with local state */ }
+                  try {
+                    execSync(
+                      `git -C ${JSON.stringify(project.work_dir)} log origin/main --oneline | grep -q ${commitHash.slice(0, 7)}`,
+                      { timeout: 10000, stdio: "pipe" },
+                    );
+                  } catch {
+                    process.stderr.write(
+                      `SHIP BLOCKED: commit ${commitHash.slice(0, 7)} not found on origin/main in ${project.work_dir}.\n` +
+                      `Push the commit to main before shipping. Use --force to override.\n`,
+                    );
+                    process.exit(1);
+                  }
+                }
+              }
+            } catch { /* project not found — skip git check */ }
+          }
+        }
+
         store.move(card, target);
         console.log(`Moved ${card.id} → ${target}`);
 
@@ -957,6 +1013,105 @@ Useful for auditing which agent processed which ticket and when.
     .option("--fix", "No-op with SQLite storage (kept for script compatibility)")
     .action(() => {
       console.log("SQLite store: duplicate IDs are structurally impossible. Board integrity OK.");
+    });
+
+  // ---- brain verify-ship ----
+  brain
+    .command("verify-ship <cardId>")
+    .description("Verify a shipped/reviewed card: commit on main, code in live plugins, PR merged")
+    .option("--repo <path>", "Path to miniclaw-os repo", path.join(ctx.stateDir, "miniclaw", "USER", "projects", "miniclaw-os"))
+    .option("--plugins <path>", "Path to live plugins dir", path.join(ctx.stateDir, "miniclaw", "plugins"))
+    .action((cardId: string, opts: { repo: string; plugins: string }) => {
+      const card = store.findById(cardId);
+      if (!card) {
+        console.error(`Card not found: ${cardId}`);
+        process.exit(1);
+      }
+
+      const checks: { name: string; pass: boolean; detail: string }[] = [];
+
+      // 1. Extract commit hash from review_notes
+      const shaMatch = card.review_notes.match(/\b([0-9a-f]{7,40})\b/i);
+      const commitHash = shaMatch ? shaMatch[1] : null;
+      if (!commitHash) {
+        checks.push({ name: "commit_hash_present", pass: false, detail: "No commit hash found in review_notes" });
+      } else {
+        checks.push({ name: "commit_hash_present", pass: true, detail: `Found: ${commitHash}` });
+
+        // 2. Check if commit exists on main branch in repo
+        try {
+          const { execSync } = require("node:child_process");
+          const gitLog = execSync(
+            `git -C "${opts.repo}" log main --oneline --format=%H 2>/dev/null`,
+            { encoding: "utf8", timeout: 10000 }
+          );
+          const onMain = gitLog.includes(commitHash);
+          checks.push({
+            name: "commit_on_main",
+            pass: onMain,
+            detail: onMain ? `${commitHash} found on main` : `${commitHash} NOT on main branch`,
+          });
+        } catch (e: any) {
+          checks.push({ name: "commit_on_main", pass: false, detail: `git check failed: ${e.message}` });
+        }
+      }
+
+      // 3. Check PR merge evidence
+      const prPattern = /PR\s*#(\d+)\s*(merged|MERGED)|merged.*PR\s*#(\d+)|no-pr/i;
+      const prMatch = card.review_notes.match(prPattern);
+      if (prMatch) {
+        checks.push({ name: "pr_evidence", pass: true, detail: prMatch[0] });
+      } else {
+        checks.push({ name: "pr_evidence", pass: false, detail: "No PR merge evidence or 'no-pr' marker in review_notes" });
+      }
+
+      // 4. Check if card's project plugin exists in live plugins dir
+      const pluginDirs = fs.readdirSync(opts.plugins).filter(d => d.startsWith("mc-"));
+      const hasLivePlugins = pluginDirs.length > 0;
+      checks.push({
+        name: "live_plugins_exist",
+        pass: hasLivePlugins,
+        detail: hasLivePlugins ? `Live plugins: ${pluginDirs.join(", ")}` : "No mc-* plugins in live dir",
+      });
+
+      // 5. Check if repo and live plugins are in sync (compare a key file if project is mc-board)
+      if (card.project_id) {
+        const project = projects.findById(card.project_id);
+        if (project) {
+          const projectName = project.name.toLowerCase().replace(/\s+/g, "-");
+          const repoSrc = path.join(opts.repo, projectName, "src");
+          const liveSrc = path.join(opts.plugins, projectName, "src");
+          if (fs.existsSync(repoSrc) && fs.existsSync(liveSrc)) {
+            try {
+              const { execSync } = require("node:child_process");
+              const diff = execSync(
+                `diff -rq "${repoSrc}" "${liveSrc}" 2>/dev/null | head -5`,
+                { encoding: "utf8", timeout: 10000 }
+              ).trim();
+              const inSync = diff === "";
+              checks.push({
+                name: "repo_live_sync",
+                pass: inSync,
+                detail: inSync ? "Repo and live plugins in sync" : `Differences found:\n${diff}`,
+              });
+            } catch {
+              checks.push({ name: "repo_live_sync", pass: false, detail: "diff command failed" });
+            }
+          }
+        }
+      }
+
+      // Report
+      let allPass = true;
+      console.log(`\nverify-ship: ${cardId} — ${card.title}\n`);
+      for (const c of checks) {
+        const icon = c.pass ? "✓" : "✗";
+        console.log(`  ${icon} ${c.name}: ${c.detail}`);
+        if (!c.pass) allPass = false;
+      }
+      console.log(`\n${allPass ? "PASS" : "FAIL"}: ${allPass ? "Card is properly shipped" : "Ship verification failed — see details above"}`);
+
+      if (!allPass) process.exit(1);
     });
 
   // ---- brain triage ----

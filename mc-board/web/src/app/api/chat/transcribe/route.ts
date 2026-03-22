@@ -21,6 +21,8 @@ function resolveWhisperBin(): string | null {
     "/usr/local/bin/whisper-cli",
     "/opt/homebrew/bin/whisper-cpp",
     "/usr/local/bin/whisper-cpp",
+    "/opt/homebrew/bin/whisper",
+    "/usr/local/bin/whisper",
   ];
 
   for (const bin of candidates) {

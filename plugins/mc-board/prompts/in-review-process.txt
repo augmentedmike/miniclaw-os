@@ -49,6 +49,15 @@ git -C <work_dir> status
 
 5. **Decide: PASS or REJECT**
 
+   ⚠️ **GATE REQUIREMENTS** — the ship gate will REJECT the move to shipped unless review_notes contain:
+   - A commit SHA (7+ hex chars) proving code was committed (e.g. `abc1234`)
+   - PR evidence: `PR #N merged` or `no-pr` if direct push
+   - If card has `verify_url`: verification evidence (e.g. `HTTP/1.1 200`, `verified live`, `status: 200`)
+
+   The CLI also performs live checks before shipping:
+   - If `verify_url` is set: curl must return HTTP 2xx or the move fails
+   - If project has `github_repo`: the commit hash must exist on `origin/main` or the move fails
+
    **PASS** — all criteria met. Before moving to shipped, run the git ship sequence:
 
    ```

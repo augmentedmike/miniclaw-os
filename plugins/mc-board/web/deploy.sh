@@ -15,6 +15,7 @@ UID_NUM=$(id -u)
 
 # Stop the server FIRST — no more serving stale chunks during build
 launchctl bootout "gui/$UID_NUM" "$PLIST" 2>/dev/null || true
+pgrep -f "next-server|next start.*4220" 2>/dev/null | xargs kill -9 2>/dev/null || true
 sleep 1
 
 # Back up the current build in case this one fails
@@ -36,7 +37,11 @@ else
   fi
 fi
 
+# Kill anything still on the port
+pgrep -f "next-server|next start.*4220" 2>/dev/null | xargs kill -9 2>/dev/null || true
+sleep 1
+
 # Start the server (with new or restored build)
-launchctl bootstrap "gui/$UID_NUM" "$PLIST"
+launchctl bootstrap "gui/$UID_NUM" "$PLIST" 2>/dev/null || launchctl load "$PLIST" 2>/dev/null
 
 echo "deployed"
