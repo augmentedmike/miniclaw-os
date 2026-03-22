@@ -5,16 +5,16 @@ import { startChatServer } from "./server.js";
 
 const home = homedir();
 
-function findClaudeBin(): string {
+function resolveClaudeBin(): string {
   if (process.env.CLAUDE_BIN) return process.env.CLAUDE_BIN;
   try {
     return execFileSync("which", ["claude"], { encoding: "utf8", timeout: 3000 }).trim();
-  } catch { /* which failed */ }
+  } catch {}
   return join(home, ".local", "bin", "claude");
 }
 
 startChatServer({
   port: parseInt(process.env.MC_WEB_CHAT_PORT || "4221", 10),
-  claudeBin: findClaudeBin(),
+  claudeBin: resolveClaudeBin(),
   workspaceDir: join(home, ".openclaw", "workspace"),
 });

@@ -1,8 +1,8 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { WebSocketServer, WebSocket } from "ws";
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, type ChildProcess, execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { ChatDatabase } from "./chat-db.js";
 
@@ -14,19 +14,19 @@ export interface ChatServerOptions {
 }
 
 // ---- Context management config ----
-const MAX_HISTORY = 30;          // rolling window of messages kept server-side
-const MAX_IMAGES_IN_HISTORY = 2; // only keep last N images; older ones get placeholder
-const IMAGE_PLACEHOLDER = "[image was shared earlier in conversation]";
-const CONTEXT_PRESSURE_PCT = 80; // at 80% usage, proactively restart with summary
-const TOKEN_BUDGET = 800_000;    // Claude Code uses 1M context; leave 200k headroom
-const MIN_TURNS_BEFORE_RESTART = 4; // don't check pressure until Nth turn (avoids restart loop from replay)
+export const MAX_HISTORY = 30;          // rolling window of messages kept server-side
+export const MAX_IMAGES_IN_HISTORY = 2; // only keep last N images; older ones get placeholder
+export const IMAGE_PLACEHOLDER = "[image was shared earlier in conversation]";
+export const CONTEXT_PRESSURE_PCT = 80; // at 80% usage, proactively restart with summary
+export const TOKEN_BUDGET = 800_000;    // Claude Code uses 1M context; leave 200k headroom
+export const MIN_TURNS_BEFORE_RESTART = 4; // don't check pressure until Nth turn (avoids restart loop from replay)
 
 // ---- Token estimator (~4 chars per token, images ~1000 tokens) ----
-function estimateTokens(text: string): number {
+export function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
-interface HistoryMessage {
+export interface HistoryMessage {
   id?: string;
   role: "user" | "assistant";
   content: string;
@@ -502,7 +502,34 @@ ${session.currentTopic ? `Current conversation topic: ${session.currentTopic}` :
     sendMessageToProcess(session, content, images);
   }
 
-  // ---- HTTP server (health + stats + chat history API) ----
+  // ---- Git helpers ----
+
+  function gitExec(repoPath: string, args: string[]): string {
+    return execFileSync("git", ["-C", repoPath, ...args], {
+      encoding: "utf-8",
+      timeout: 15_000,
+    }).trim();
+  }
+
+  function isGitRepo(repoPath: string): boolean {
+    try {
+      gitExec(repoPath, ["rev-parse", "--git-dir"]);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function resolveRepoParam(url: URL): { repo: string; error?: string } {
+    const repo = url.searchParams.get("repo");
+    if (!repo) return { repo: "", error: "Missing ?repo= parameter" };
+    const resolved = repo.startsWith("~") ? join(process.env.HOME || "", repo.slice(1)) : repo;
+    if (!existsSync(resolved)) return { repo: resolved, error: `Path does not exist: ${resolved}` };
+    if (!isGitRepo(resolved)) return { repo: resolved, error: `Not a git repository: ${resolved}` };
+    return { repo: resolved };
+  }
+
+  // ---- HTTP server (health + stats + chat history + git API) ----
 
   function jsonResponse(res: ServerResponse, status: number, data: unknown) {
     res.writeHead(status, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
@@ -564,6 +591,104 @@ ${session.currentTopic ? `Current conversation topic: ${session.currentTopic}` :
       } else {
         jsonResponse(res, 404, { error: "Chat not found" });
       }
+    // ---- Git API endpoints ----
+    } else if (path === "/git/status" && req.method === "GET") {
+      const { repo, error } = resolveRepoParam(url);
+      if (error) { jsonResponse(res, 400, { error }); return; }
+      try {
+        const branch = gitExec(repo, ["rev-parse", "--abbrev-ref", "HEAD"]);
+        const porcelain = gitExec(repo, ["status", "--porcelain"]);
+        const staged: string[] = [];
+        const unstaged: string[] = [];
+        const untracked: string[] = [];
+        for (const line of porcelain.split("\n")) {
+          if (!line) continue;
+          const x = line[0], y = line[1];
+          const file = line.slice(3);
+          if (x === "?") { untracked.push(file); }
+          else {
+            if (x !== " " && x !== "?") staged.push(file);
+            if (y !== " " && y !== "?") unstaged.push(file);
+          }
+        }
+        const dirty = staged.length > 0 || unstaged.length > 0 || untracked.length > 0;
+        jsonResponse(res, 200, { branch, dirty, staged, unstaged, untracked });
+      } catch (err: unknown) {
+        jsonResponse(res, 500, { error: `git status failed: ${err instanceof Error ? err.message : err}` });
+      }
+
+    } else if (path === "/git/log" && req.method === "GET") {
+      const { repo, error } = resolveRepoParam(url);
+      if (error) { jsonResponse(res, 400, { error }); return; }
+      try {
+        const limit = Math.min(parseInt(url.searchParams.get("limit") || "20", 10), 100);
+        const log = gitExec(repo, ["log", `--max-count=${limit}`, "--oneline", "--graph", "--decorate", "--color=never"]);
+        const commits: { graph: string; sha: string; message: string }[] = [];
+        for (const line of log.split("\n")) {
+          if (!line) continue;
+          // Parse graph lines: graph chars then short SHA then message
+          const match = line.match(/^([*|/\\ ]+)\s*([0-9a-f]{7,12})\s+(.*)$/);
+          if (match) {
+            commits.push({ graph: match[1], sha: match[2], message: match[3] });
+          } else {
+            commits.push({ graph: "", sha: "", message: line });
+          }
+        }
+        jsonResponse(res, 200, { commits });
+      } catch (err: unknown) {
+        jsonResponse(res, 500, { error: `git log failed: ${err instanceof Error ? err.message : err}` });
+      }
+
+    } else if (path === "/git/branches" && req.method === "GET") {
+      const { repo, error } = resolveRepoParam(url);
+      if (error) { jsonResponse(res, 400, { error }); return; }
+      try {
+        const current = gitExec(repo, ["rev-parse", "--abbrev-ref", "HEAD"]);
+        const raw = gitExec(repo, ["branch", "-a", "--no-color"]);
+        const branches: { name: string; current: boolean; remote: boolean }[] = [];
+        for (const line of raw.split("\n")) {
+          if (!line.trim()) continue;
+          const isCurrent = line.startsWith("*");
+          const name = line.replace(/^\*?\s+/, "").trim();
+          if (name.includes("HEAD ->")) continue; // skip detached HEAD pointer
+          branches.push({ name, current: isCurrent, remote: name.startsWith("remotes/") });
+        }
+        jsonResponse(res, 200, { current, branches });
+      } catch (err: unknown) {
+        jsonResponse(res, 500, { error: `git branches failed: ${err instanceof Error ? err.message : err}` });
+      }
+
+    } else if (path === "/git/diff" && req.method === "GET") {
+      const { repo, error } = resolveRepoParam(url);
+      if (error) { jsonResponse(res, 400, { error }); return; }
+      try {
+        const file = url.searchParams.get("file");
+        const args = ["diff", "--stat"];
+        if (file) args.push("--", file);
+        const stat = gitExec(repo, args);
+        // Also get full diff (truncated)
+        const fullArgs = ["diff"];
+        if (file) fullArgs.push("--", file);
+        let diff: string;
+        try {
+          diff = execFileSync("git", ["-C", repo, ...fullArgs], {
+            encoding: "utf-8", timeout: 15_000, maxBuffer: 512 * 1024,
+          }).trim();
+        } catch {
+          diff = "(diff too large or failed)";
+        }
+        // Truncate to 50KB max
+        const maxLen = 50 * 1024;
+        const truncated = diff.length > maxLen;
+        jsonResponse(res, 200, {
+          stat,
+          diff: truncated ? diff.slice(0, maxLen) + "\n... (truncated)" : diff,
+          truncated,
+        });
+      } catch (err: unknown) {
+        jsonResponse(res, 500, { error: `git diff failed: ${err instanceof Error ? err.message : err}` });
+      }
+
     } else {
       res.writeHead(404);
       res.end();
@@ -620,6 +745,30 @@ ${session.currentTopic ? `Current conversation topic: ${session.currentTopic}` :
       if (!session) return;
 
       if (msg.type === "chat" && msg.content) handleChat(session, msg.content, msg.images, msg.id, msg.replyTo);
+
+      if (msg.type === "edit_message" && msg.content) {
+        // Find the last user message index
+        let lastUserIdx = -1;
+        for (let i = session.messages.length - 1; i >= 0; i--) {
+          if (session.messages[i].role === "user") { lastUserIdx = i; break; }
+        }
+        if (lastUserIdx >= 0) {
+          // Truncate: remove the last user message and everything after it
+          session.messages = session.messages.slice(0, lastUserIdx);
+          // Kill current process so next send replays clean history
+          if (session.proc) {
+            try { session.proc.kill(); } catch {}
+            session.proc = null;
+          }
+          session.awaitingResult = false;
+          session.messageQueue = [];
+          session.procHasContext = false;
+          // Acknowledge the edit
+          sendToClient(session, { type: "message_edited", truncatedAt: lastUserIdx });
+          // Re-send with the new content
+          handleChat(session, msg.content, msg.images, msg.id);
+        }
+      }
 
       if (msg.type === "stop" && session.proc) {
         session.proc.kill(); session.proc = null;
@@ -704,10 +853,81 @@ ${session.currentTopic ? `Current conversation topic: ${session.currentTopic}` :
           ws.send(JSON.stringify({ type: "error", message: "Chat not found in archive" }));
         }
       }
+
+      // Git status subscription
+      if (msg.type === "git_subscribe" && (msg as any).repo) {
+        const repoPath = (msg as any).repo as string;
+        const resolved = repoPath.startsWith("~") ? join(process.env.HOME || "", repoPath.slice(1)) : repoPath;
+        (ws as any).__gitRepo = resolved;
+        // Send initial status immediately
+        try {
+          if (isGitRepo(resolved)) {
+            const branch = gitExec(resolved, ["rev-parse", "--abbrev-ref", "HEAD"]);
+            const porcelain = gitExec(resolved, ["status", "--porcelain"]);
+            const staged: string[] = [], unstaged: string[] = [], untracked: string[] = [];
+            for (const line of porcelain.split("\n")) {
+              if (!line) continue;
+              const x = line[0], y = line[1], file = line.slice(3);
+              if (x === "?") untracked.push(file);
+              else {
+                if (x !== " " && x !== "?") staged.push(file);
+                if (y !== " " && y !== "?") unstaged.push(file);
+              }
+            }
+            ws.send(JSON.stringify({
+              type: "git_status",
+              branch, dirty: staged.length + unstaged.length + untracked.length > 0,
+              staged, unstaged, untracked,
+            }));
+          }
+        } catch { /* ignore git errors for subscription init */ }
+      }
+
+      if (msg.type === "git_unsubscribe") {
+        delete (ws as any).__gitRepo;
+      }
     });
 
     ws.on("close", () => { if (session) { session.ws = null; } });
   });
+
+  // ---- Git status polling for subscribed clients ----
+  const GIT_POLL_INTERVAL = 30_000;
+  const lastGitState = new Map<WebSocket, string>(); // hash of last sent state per client
+
+  const gitPollInterval = setInterval(() => {
+    for (const client of wss.clients) {
+      if (client.readyState !== WebSocket.OPEN) continue;
+      const repo = (client as any).__gitRepo;
+      if (!repo) continue;
+      try {
+        if (!isGitRepo(repo)) continue;
+        const branch = gitExec(repo, ["rev-parse", "--abbrev-ref", "HEAD"]);
+        const porcelain = gitExec(repo, ["status", "--porcelain"]);
+        const headSha = gitExec(repo, ["rev-parse", "--short", "HEAD"]);
+        const stateKey = `${branch}:${headSha}:${porcelain}`;
+        const prevState = lastGitState.get(client);
+        if (prevState === stateKey) continue; // no change
+        lastGitState.set(client, stateKey);
+
+        const staged: string[] = [], unstaged: string[] = [], untracked: string[] = [];
+        for (const line of porcelain.split("\n")) {
+          if (!line) continue;
+          const x = line[0], y = line[1], file = line.slice(3);
+          if (x === "?") untracked.push(file);
+          else {
+            if (x !== " " && x !== "?") staged.push(file);
+            if (y !== " " && y !== "?") unstaged.push(file);
+          }
+        }
+        client.send(JSON.stringify({
+          type: "git_status",
+          branch, headSha, dirty: staged.length + unstaged.length + untracked.length > 0,
+          staged, unstaged, untracked,
+        }));
+      } catch { /* silently skip failing repos */ }
+    }
+  }, GIT_POLL_INTERVAL);
 
   // ---- Heartbeat ----
   const PING_INTERVAL = 30_000;
@@ -754,6 +974,7 @@ ${session.currentTopic ? `Current conversation topic: ${session.currentTopic}` :
   server.on("close", () => {
     clearInterval(pingInterval);
     clearInterval(cleanupInterval);
+    clearInterval(gitPollInterval);
   });
 
   return { server, wss };
