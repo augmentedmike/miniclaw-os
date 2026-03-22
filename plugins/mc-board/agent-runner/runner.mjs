@@ -12,7 +12,7 @@
  */
 
 import Database from "better-sqlite3";
-import { spawn, execFileSync } from "node:child_process";
+import { spawn, execSync, execFileSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
@@ -69,6 +69,97 @@ function log(msg) {
   const line = `[${new Date().toISOString()}] ${msg}\n`;
   process.stdout.write(line);
   fs.appendFileSync(runnerLog, line);
+}
+
+// ---- PID file tracking ----
+
+const PID_DIR = path.join(STATE_DIR, "tmp", "pids");
+fs.mkdirSync(PID_DIR, { recursive: true });
+
+/** Write a PID file for a spawned agent so orphans can be reaped on restart */
+function writePidFile(cardId, pids) {
+  const pidFile = path.join(PID_DIR, `${cardId}.json`);
+  fs.writeFileSync(pidFile, JSON.stringify({ cardId, pids, ts: Date.now() }));
+}
+
+/** Remove PID file when agent exits cleanly */
+function removePidFile(cardId) {
+  const pidFile = path.join(PID_DIR, `${cardId}.json`);
+  try { fs.unlinkSync(pidFile); } catch { /* non-fatal */ }
+}
+
+/** Kill a process tree (process group) safely */
+function killProcessTree(pid, signal = "SIGTERM") {
+  try { process.kill(-pid, signal); return true; } catch {
+    // Not a process group leader — try individual kill
+    try { process.kill(pid, signal); return true; } catch { return false; }
+  }
+}
+
+/** Reap orphaned processes from previous runner instances on startup */
+function reapOrphans() {
+  let killed = 0;
+
+  // 1. Kill processes recorded in PID files from previous runner sessions
+  try {
+    const pidFiles = fs.readdirSync(PID_DIR).filter(f => f.endsWith(".json"));
+    for (const f of pidFiles) {
+      try {
+        const data = JSON.parse(fs.readFileSync(path.join(PID_DIR, f), "utf8"));
+        for (const pid of (data.pids || [])) {
+          try { process.kill(pid, 0); } catch { continue; } // not alive
+          log(`reapOrphans: killing orphaned pid ${pid} from card ${data.cardId}`);
+          killProcessTree(pid, "SIGKILL");
+          killed++;
+        }
+        fs.unlinkSync(path.join(PID_DIR, f));
+      } catch { /* skip corrupt pidfile */ }
+    }
+  } catch { /* PID_DIR might not exist yet */ }
+
+  // 2. Kill any openclaw-mc-board processes whose PPID is 1 (reparented orphans)
+  try {
+    const psOut = execSync("ps -eo pid,ppid,command", { encoding: "utf8", timeout: 5000 });
+    for (const line of psOut.split("\n")) {
+      const match = line.match(/^\s*(\d+)\s+1\s+(openclaw-mc-board|openclaw-mc-rebuild)/);
+      if (match) {
+        const pid = parseInt(match[1], 10);
+        log(`reapOrphans: killing orphaned process ${pid} (${match[2]}, ppid=1)`);
+        killProcessTree(pid, "SIGKILL");
+        killed++;
+      }
+    }
+  } catch (err) { log(`reapOrphans: ps scan failed: ${err.message}`); }
+
+  // 3. Kill orphaned tail -f processes tailing agent log files (ppid=1)
+  try {
+    const psOut = execSync("ps -eo pid,ppid,command", { encoding: "utf8", timeout: 5000 });
+    for (const line of psOut.split("\n")) {
+      const match = line.match(/^\s*(\d+)\s+1\s+tail -f.*openclaw\/logs/);
+      if (match) {
+        const pid = parseInt(match[1], 10);
+        log(`reapOrphans: killing orphaned tail ${pid}`);
+        try { process.kill(pid, "SIGKILL"); } catch {}
+        killed++;
+      }
+    }
+  } catch {}
+
+  // 4. Kill orphaned /bin/zsh wrappers for openclaw commands (ppid=1)
+  try {
+    const psOut = execSync("ps -eo pid,ppid,command", { encoding: "utf8", timeout: 5000 });
+    for (const line of psOut.split("\n")) {
+      const match = line.match(/^\s*(\d+)\s+1\s+\/bin\/zsh -c.*openclaw/);
+      if (match) {
+        const pid = parseInt(match[1], 10);
+        log(`reapOrphans: killing orphaned zsh wrapper ${pid}`);
+        try { process.kill(pid, "SIGKILL"); } catch {}
+        killed++;
+      }
+    }
+  } catch {}
+
+  if (killed > 0) log(`reapOrphans: killed ${killed} orphaned processes`);
 }
 
 // ---- DB helpers ----
@@ -201,26 +292,41 @@ function resetStaleRunning() {
   const rows = db.prepare(`SELECT id, pid, card_id, started_at FROM agent_queue WHERE status = 'running'`).all();
   let reset = 0;
   let failed = 0;
+  let killed = 0;
   const now = Date.now();
   for (const row of rows) {
-    let alive = false;
-    if (row.pid) {
-      try { process.kill(row.pid, 0); alive = true; } catch { /* gone */ }
+    // Only trust processes we spawned in THIS runner instance.
+    // process.kill(pid, 0) can false-positive on recycled PIDs.
+    const ownedEntry = running.get(row.id);
+    if (ownedEntry) {
+      // We spawned it — check if OUR child process is still alive
+      try { process.kill(row.pid, 0); continue; } catch { /* our child died */ }
     }
-    if (alive) continue;
+    // Not owned by us, or our child died — mark stale
     const age = row.started_at ? now - new Date(row.started_at).getTime() : Infinity;
-    if (!row.pid || age > STALE_MS) {
-      db.prepare(`UPDATE agent_queue SET status = 'failed', ended_at = ? WHERE id = ?`).run(new Date().toISOString(), row.id);
-      failed++;
-      log(`resetStaleRunning: failed stale ${row.id} card=${row.card_id} age=${Math.round(age / 1000)}s`);
-      try { runBoard("release", row.card_id, "--worker", "board-worker-in-progress"); } catch (err) { log(`release failed for stale ${row.card_id}: ${err.message}`); }
-    } else {
-      db.prepare(`UPDATE agent_queue SET status = 'pending', started_at = NULL WHERE id = ?`).run(row.id);
-      reset++;
+
+    // Actually kill the orphaned process if it's still alive
+    if (row.pid) {
+      try {
+        process.kill(row.pid, 0); // check if alive
+        log(`resetStaleRunning: killing orphaned process ${row.pid} for card=${row.card_id}`);
+        killProcessTree(row.pid, "SIGTERM");
+        // Give it a moment, then force kill
+        setTimeout(() => { killProcessTree(row.pid, "SIGKILL"); }, 3000);
+        killed++;
+      } catch { /* already dead — fine */ }
     }
+
+    // Clean up PID file
+    removePidFile(row.card_id);
+
+    db.prepare(`UPDATE agent_queue SET status = 'failed', ended_at = ? WHERE id = ?`).run(new Date().toISOString(), row.id);
+    failed++;
+    log(`resetStaleRunning: failed stale ${row.id} card=${row.card_id} age=${Math.round(age / 1000)}s`);
+    try { runBoard("release", row.card_id, "--worker", "board-worker-in-progress"); } catch (err) { log(`release failed for stale ${row.card_id}: ${err.message}`); }
   }
   db.close();
-  if (rows.length > 0) log(`resetStaleRunning: ${rows.length} rows — ${reset} reset, ${failed} failed, ${rows.length - reset - failed} alive`);
+  if (rows.length > 0) log(`resetStaleRunning: ${rows.length} rows — ${reset} reset, ${failed} failed, ${killed} killed, ${rows.length - reset - failed} alive`);
 }
 
 // ---- openclaw CLI helpers ----
@@ -430,9 +536,13 @@ function spawnFullAgent(row, card, project) {
   const usageAccum = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, costUsd: 0 };
   const NOISE = /ENOENT|Broken symlink|detectFileEncoding|managed-settings|settings\.local|\[DEBUG\]/;
 
+  // Track all child PIDs for cleanup
+  const childPids = [proc.pid];
+
   // Tail debug file (unref so it doesn't block runner exit)
   const tail = spawn("tail", ["-f", debugFile]);
   tail.unref();
+  childPids.push(tail.pid);
   tail.stdout.on("data", (chunk) => {
     for (const line of chunk.toString().split("\n").filter(l => l.trim())) {
       if (NOISE.test(line)) continue;
@@ -447,6 +557,10 @@ function spawnFullAgent(row, card, project) {
   // Tail the raw jsonl file for real-time JSON parsing (replaces proc.stdout pipe)
   const tailOut = spawn("tail", ["-f", rawJsonlFile]);
   tailOut.unref();
+  childPids.push(tailOut.pid);
+
+  // Write PID file for orphan reaping on restart
+  writePidFile(row.card_id, childPids);
   tailOut.stdout.on("data", (chunk) => {
     buf += chunk.toString();
     const lines = buf.split("\n");
@@ -484,6 +598,7 @@ function spawnFullAgent(row, card, project) {
   // If the runner restarts first, the audit row is not written — acceptable tradeoff.
   proc.on("close", (code) => {
     running.delete(row.id);
+    removePidFile(row.card_id);
     setTimeout(() => { tail.kill(); tailOut.kill(); }, 300);
     writeFile(`\n[${ts()}] done (exit ${code})\n`);
     log(`agent done for ${row.card_id} exit=${code}`);
@@ -530,6 +645,7 @@ function spawnFullAgent(row, card, project) {
 
   proc.on("error", (err) => {
     running.delete(row.id);
+    removePidFile(row.card_id);
     tail.kill();
     tailOut.kill();
     log(`spawn error for ${row.card_id}: ${err.message}`);
@@ -571,9 +687,11 @@ function spawnTriage(row) {
   proc.unref();
 
   log(`spawned triage for ${row.card_id} pid=${proc.pid}`);
+  writePidFile(row.card_id, [proc.pid]);
 
   proc.on("close", (code) => {
     running.delete(row.id);
+    removePidFile(row.card_id);
     log(`triage done for ${row.card_id} exit=${code}`);
     const db = getDb();
     markDone(db, row.id, code, proc.pid);
@@ -582,6 +700,7 @@ function spawnTriage(row) {
 
   proc.on("error", (err) => {
     running.delete(row.id);
+    removePidFile(row.card_id);
     log(`triage spawn error for ${row.card_id}: ${err.message}`);
     const db = getDb();
     markFailed(db, row.id);
@@ -646,6 +765,7 @@ if (!fs.existsSync(DB_PATH)) {
 
 const startLimits = getMaxConcurrentPerColumn();
 log(`agent-runner starting — db=${DB_PATH} poll=${POLL_MS}ms limits=${JSON.stringify(startLimits)} (per-column, dynamic)`);
+reapOrphans();
 resetStaleRunning();
 
 setInterval(poll, POLL_MS);
@@ -677,6 +797,33 @@ async function tick() {
 setInterval(tick, TICK_MS);
 tick(); // immediate first tick
 
-// Graceful shutdown
-process.on("SIGTERM", () => { log("SIGTERM — shutting down"); process.exit(0); });
-process.on("SIGINT",  () => { log("SIGINT — shutting down");  process.exit(0); });
+// Graceful shutdown — kill all child process groups before exiting
+function gracefulShutdown(signal) {
+  log(`${signal} — shutting down, killing ${running.size} child processes`);
+  for (const [id, entry] of running) {
+    const pid = entry.proc?.pid;
+    if (!pid) continue;
+    log(`shutdown: sending SIGTERM to process group for ${entry.cardId} (pid=${pid})`);
+    killProcessTree(pid, "SIGTERM");
+  }
+  // Give children 3s to exit, then force kill
+  setTimeout(() => {
+    for (const [id, entry] of running) {
+      const pid = entry.proc?.pid;
+      if (!pid) continue;
+      try { process.kill(pid, 0); } catch { continue; } // already dead
+      log(`shutdown: force killing ${entry.cardId} (pid=${pid})`);
+      killProcessTree(pid, "SIGKILL");
+    }
+    // Clean up all PID files
+    try {
+      const pidFiles = fs.readdirSync(PID_DIR).filter(f => f.endsWith(".json"));
+      for (const f of pidFiles) {
+        try { fs.unlinkSync(path.join(PID_DIR, f)); } catch {}
+      }
+    } catch {}
+    process.exit(0);
+  }, 3000);
+}
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT",  () => gracefulShutdown("SIGINT"));
