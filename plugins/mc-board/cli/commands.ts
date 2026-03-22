@@ -1019,8 +1019,8 @@ Useful for auditing which agent processed which ticket and when.
   brain
     .command("verify-ship <cardId>")
     .description("Verify a shipped/reviewed card: commit on main, code in live plugins, PR merged")
-    .option("--repo <path>", "Path to miniclaw-os repo", path.join(ctx.stateDir, "miniclaw", "USER", "projects", "miniclaw-os"))
-    .option("--plugins <path>", "Path to live plugins dir", path.join(ctx.stateDir, "miniclaw", "plugins"))
+    .option("--repo <path>", "Path to miniclaw-os repo", path.join(os.homedir(), ".openclaw", "miniclaw", "USER", "projects", "miniclaw-os"))
+    .option("--plugins <path>", "Path to live plugins dir", path.join(os.homedir(), ".openclaw", "miniclaw", "plugins"))
     .action((cardId: string, opts: { repo: string; plugins: string }) => {
       const card = store.findById(cardId);
       if (!card) {
