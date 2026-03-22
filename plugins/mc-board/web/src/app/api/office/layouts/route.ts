@@ -24,7 +24,7 @@ export function GET() {
           cols: data.cols ?? 0,
           rows: data.rows ?? 0,
         };
-      } catch {
+      } catch { // layout JSON unreadable or malformed — return safe defaults
         return { name: path.basename(f, ".json"), cols: 0, rows: 0 };
       }
     });

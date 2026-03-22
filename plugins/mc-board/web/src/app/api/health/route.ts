@@ -11,7 +11,7 @@ function getVersion(): string {
   try {
     const manifest = JSON.parse(fs.readFileSync(path.join(stateDir, "miniclaw", "MANIFEST.json"), "utf-8"));
     return manifest.version || "0.0.0";
-  } catch {
+  } catch { // MANIFEST.json missing or malformed
     return "0.0.0";
   }
 }
@@ -24,7 +24,7 @@ async function checkWeb(): Promise<{ status: "ok" | "down" }> {
     clearTimeout(timer);
     if (res.ok) return { status: "ok" };
     return { status: "down" };
-  } catch {
+  } catch { // fetch failed — network error or timeout
     return { status: "down" };
   }
 }
@@ -49,7 +49,7 @@ async function checkChat(): Promise<{ status: "ok" | "down" }> {
         sock.destroy();
         resolve({ status: "down" });
       });
-    } catch {
+    } catch { // socket setup failed unexpectedly
       resolve({ status: "down" });
     }
   });
@@ -74,7 +74,7 @@ async function checkTelegram(): Promise<{ status: "ok" | "down" | "unconfigured"
       // Token exists but API unreachable — still "configured but down"
       return { status: "down" };
     }
-  } catch {
+  } catch { // setup-state.json missing or malformed
     return { status: "unconfigured" };
   }
 }

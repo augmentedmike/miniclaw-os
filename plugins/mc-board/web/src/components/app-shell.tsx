@@ -4,7 +4,6 @@ import { Board } from "./board";
 import { MemoryTab } from "./memory-tab";
 import { RolodexTab } from "./rolodex-tab";
 import { SettingsPage } from "./settings-page";
-import { AgentsTab } from "./agents-tab";
 import { PixelOfficeTab } from "./pixel-office-tab";
 import { Modal } from "./modal";
 import { ChatPanel } from "./chat-panel";
@@ -14,7 +13,7 @@ import { AccentContext, hexToRgb } from "@/lib/accent-context";
 
 import useSWR from "swr";
 
-type Tab = "board" | "memory" | "rolodex" | "agents" | "settings";
+type Tab = "office" | "board" | "memory" | "rolodex" | "settings";
 interface Toast { id: number; icon: string; title: string; sub?: string; exiting?: boolean; }
 interface Counts { backlog: number; inProgress: number; inReview: number; shipped: number; }
 
@@ -24,6 +23,12 @@ function fmtK(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
   return String(n);
+}
+
+function VersionBadge() {
+  const { data } = useSWR<{ version: string }>("/api/health", fetcher, { refreshInterval: 60000 });
+  if (!data?.version) return null;
+  return <span className="stat-pill" title={`MiniClaw ${data.version}`}>v<b>{data.version}</b></span>;
 }
 
 function DailyStats() {
@@ -44,7 +49,7 @@ function DailyStats() {
   );
 }
 
-const TAB_PATHS: Record<Tab, string> = { board: "/board", memory: "/memory", rolodex: "/rolodex", agents: "/agents", settings: "/settings" };
+const TAB_PATHS: Record<Tab, string> = { office: "/office", board: "/board", memory: "/memory", rolodex: "/rolodex", settings: "/settings" };
 
 function getNotifsEnabled(): boolean {
   try { return localStorage.getItem("brain-toasts") !== "false"; } catch { return true; }
@@ -166,10 +171,10 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
       {/* Top bar */}
       <div className="top-bar">
         {/* Left: brand + tabs */}
-        <div className="flex items-stretch">
+        <div className="flex items-stretch min-w-0 overflow-hidden">
           <div className="brand">MiniClaw Brain</div>
           <div className="tab-bar">
-            {(["office", "board", "memory", "rolodex", "agents", "settings"] as Tab[]).map(t => {
+            {(["office", "board", "memory", "rolodex", "settings"] as Tab[]).map(t => {
               const activeCount = t === "board" && counts ? counts.inProgress + counts.inReview : 0;
               const badgeCount = t === "rolodex" && rolodexCount ? rolodexCount.count : t === "board" ? activeCount : 0;
               const memoryBadge = t === "memory" && memoryStats && memoryStats.total > 0
@@ -178,7 +183,7 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
                 <button key={t} onClick={() => switchTab(t)}
                   className={`tab-btn${tab === t ? " active" : ""}`}
                   style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  {t === "office" ? "Office" : t === "board" ? "Board" : t === "memory" ? "Memory" : t === "rolodex" ? "Contacts" : t === "agents" ? "Agents" : "Settings"}
+                  {t === "office" ? "Office" : t === "board" ? "Board" : t === "memory" ? "Memory" : t === "rolodex" ? "Contacts" : "Settings"}
                   {memoryBadge && (
                     <span style={{
                       fontSize: 10,
@@ -292,6 +297,9 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
           </div>
         )}
 
+        {/* Version badge — always visible, immediately before chat icon */}
+        <VersionBadge />
+
         {/* Chat toggle */}
         <button
           onClick={toggleChat}
@@ -341,9 +349,6 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
           </div>
           <div className={`tab-panel${tab === "rolodex" ? " active" : ""}`}>
             <RolodexTab />
-          </div>
-          <div className={`tab-panel${tab === "agents" ? " active" : ""}`}>
-            <AgentsTab />
           </div>
           <div className={`tab-panel${tab === "settings" ? " active" : ""}`}>
             <SettingsPage />

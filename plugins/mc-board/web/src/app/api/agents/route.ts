@@ -71,7 +71,7 @@ export function GET() {
   let manifest: Manifest;
   try {
     manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
-  } catch {
+  } catch { // MANIFEST.json unreadable or malformed
     return NextResponse.json({ ok: false, error: "Failed to parse MANIFEST.json" }, { status: 500 });
   }
 

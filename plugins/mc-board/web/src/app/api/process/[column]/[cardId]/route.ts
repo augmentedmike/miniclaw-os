@@ -26,7 +26,7 @@ function countCardsInColumn(column: string): number {
   try {
     const row = db.prepare(`SELECT COUNT(*) as cnt FROM cards WHERE col = ?`).get(column) as { cnt: number };
     return row.cnt;
-  } catch { return 0; }
+  } catch { return 0; } // db query failed — treat as empty column
 }
 
 function countQueuedOrRunning(column: string): number {
@@ -37,7 +37,7 @@ function countQueuedOrRunning(column: string): number {
       `SELECT COUNT(*) as cnt FROM agent_queue WHERE col = ? AND status IN ('pending', 'running')`,
     ).get(column) as { cnt: number };
     return row.cnt;
-  } catch { return 0; }
+  } catch { return 0; } // db query failed — treat as no queued agents
 }
 
 export async function POST(

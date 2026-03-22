@@ -36,7 +36,7 @@ export async function GET(req: Request) {
       offset: allLines.length,
       done,
     });
-  } catch {
+  } catch { // log file read failed — return empty state
     return Response.json({ lines: [], offset: 0, done: false });
   }
 }

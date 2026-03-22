@@ -1,12 +1,16 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useAccent } from "@/lib/accent-context";
+import { AgentMessageModal, type ContentBlock } from "./agent-message-modal";
+import { ChatHistorySidebar } from "./chat-history-sidebar";
 
 interface Message {
   role: "user" | "assistant" | "system";
   content: string;
   images?: string[]; // base64 data URLs for display
   error?: boolean;
+  blocks?: ContentBlock[]; // raw content blocks for agent modal expansion
 }
 
 interface PendingImage {
@@ -55,6 +59,7 @@ interface Props {
 }
 
 export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, projectId, activeCardId, agentName = "AM" }: Props) {
+  const accent = useAccent();
   const [messages, setMessages] = useState<Message[]>(() => {
     if (typeof window === "undefined") return [];
     try { return JSON.parse(localStorage.getItem("mc-chat-messages") || "[]"); } catch { return []; }
@@ -75,9 +80,28 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
   const [dragOver, setDragOver] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [storageWarning, setStorageWarning] = useState<string | null>(null);
+  const [interrupted, setInterrupted] = useState(false);
+
+  // Mic / voice transcription state
+  const [micAvailable, setMicAvailable] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [transcribing, setTranscribing] = useState(false);
+  const [micError, setMicError] = useState<string | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recordingStartRef = useRef<number>(0);
+  const recordingIntentRef = useRef<boolean>(false);
+  const MIN_RECORDING_MS = 500;
+  const MAX_RECORDING_SECONDS = 60;
 
   const [isAtBottom, setIsAtBottom] = useState(true);
   const isAtBottomRef = useRef(true);
+  const [expandedBlocks, setExpandedBlocks] = useState<ContentBlock[] | null>(null);
+  const [topicShift, setTopicShift] = useState<{ suggestedTopic: string; seedMessage: string } | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const streamingBlocksRef = useRef<ContentBlock[]>([]);
 
   const wsRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -129,6 +153,159 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
     if (sessionId) localStorage.setItem("mc-chat-session", sessionId);
     else localStorage.removeItem("mc-chat-session");
   }, [sessionId]);
+
+  // Check mic/transcription availability on mount
+  useEffect(() => {
+    let cancelled = false;
+    async function checkMic() {
+      // Check browser support
+      if (!navigator.mediaDevices?.getUserMedia) return;
+      try {
+        const resp = await fetch("/api/chat/transcribe");
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (!cancelled && data.available) setMicAvailable(true);
+      } catch { /* server unavailable — mic stays hidden */ }
+    }
+    checkMic();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Cleanup recording resources on unmount
+  useEffect(() => {
+    return () => {
+      recordingIntentRef.current = false;
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        const stream = mediaRecorderRef.current.stream;
+        mediaRecorderRef.current.stop();
+        stream?.getTracks().forEach(t => t.stop());
+      }
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  // Recording helpers
+  const stopRecording = useCallback(() => {
+    recordingIntentRef.current = false;
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== "inactive") {
+      // Enforce minimum recording duration to avoid empty/tiny blobs
+      const elapsed = Date.now() - recordingStartRef.current;
+      if (elapsed < MIN_RECORDING_MS) {
+        // Delay stop so whisper gets enough audio
+        setTimeout(() => {
+          if (recorder.state !== "inactive") recorder.stop();
+        }, MIN_RECORDING_MS - elapsed);
+      } else {
+        recorder.stop();
+      }
+    }
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    setRecording(false);
+    setRecordingDuration(0);
+  }, []);
+
+  const transcribeAudio = useCallback(async (blob: Blob) => {
+    setTranscribing(true);
+    setMicError(null);
+    try {
+      const formData = new FormData();
+      formData.append("audio", blob, "recording.webm");
+      const resp = await fetch("/api/chat/transcribe", { method: "POST", body: formData });
+      const data = await resp.json();
+      if (!resp.ok) {
+        setMicError(data.error || "Transcription failed");
+        return;
+      }
+      const text = (data.text || "").trim();
+      if (!text || text === "[BLANK_AUDIO]") {
+        setMicError("No speech detected");
+        return;
+      }
+      setDraft(prev => prev ? prev + " " + text : text);
+      textareaRef.current?.focus();
+    } catch {
+      setMicError("Transcription request failed");
+    } finally {
+      setTranscribing(false);
+    }
+  }, []);
+
+  const startRecording = useCallback(async () => {
+    recordingIntentRef.current = true;
+    setMicError(null);
+    let stream: MediaStream | null = null;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      // If user released before getUserMedia resolved, abandon
+      if (!recordingIntentRef.current) {
+        stream.getTracks().forEach(t => t.stop());
+        return;
+      }
+
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/mp4")
+          ? "audio/mp4"
+          : "";
+
+      let recorder: MediaRecorder;
+      try {
+        recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      } catch {
+        // MediaRecorder constructor failure — release stream tracks
+        stream.getTracks().forEach(t => t.stop());
+        setMicError("Could not start recording");
+        recordingIntentRef.current = false;
+        return;
+      }
+
+      audioChunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = () => {
+        stream!.getTracks().forEach(t => t.stop());
+        const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType });
+        if (blob.size > 0) transcribeAudio(blob);
+      };
+
+      recorder.start(250); // collect chunks every 250ms
+      mediaRecorderRef.current = recorder;
+      recordingStartRef.current = Date.now();
+      setRecording(true);
+      setRecordingDuration(0);
+
+      // Duration timer
+      recordingTimerRef.current = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - recordingStartRef.current) / 1000);
+        setRecordingDuration(elapsed);
+        if (elapsed >= MAX_RECORDING_SECONDS) {
+          stopRecording();
+        }
+      }, 500);
+    } catch (err: unknown) {
+      // Release stream tracks on any error path
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      recordingIntentRef.current = false;
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("Permission") || msg.includes("NotAllowed")) {
+        setMicError("Mic permission denied");
+        setMicAvailable(false); // hide for this session
+      } else {
+        setMicError("Could not access microphone");
+      }
+    }
+  }, [transcribeAudio, stopRecording]);
 
   // Image processing helpers
   const processFile = useCallback((file: File) => {
@@ -259,28 +436,58 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
             break;
           case "streaming":
             setStreaming(true);
-            if (d.text) setStreamingText(d.text);
+            if (d.text) setStreamingText(d.text.replace(/<topic_shift\s+detected="true"\s+new_topic="[^"]+"\s*\/>/g, "").trimEnd());
             if (d.tools?.length) setStreamingTools(d.tools);
+            if (d.blocks?.length) streamingBlocksRef.current = d.blocks;
             break;
-          case "result":
+          case "result": {
             setStreaming(false); setStreamingText(""); setStreamingTools([]);
-            if (d.text) {
+            const finalBlocks = d.blocks?.length ? d.blocks : (streamingBlocksRef.current.length > 0 ? streamingBlocksRef.current : undefined);
+            streamingBlocksRef.current = [];
+            // Strip any topic_shift tags from displayed text
+            const cleanText = (d.text || "").replace(/<topic_shift\s+detected="true"\s+new_topic="[^"]+"\s*\/>/g, "").trimEnd();
+            if (cleanText) {
               const insertIdx = streamingInsertIndexRef.current;
+              const newMsg: Message = { role: "assistant", content: cleanText, blocks: finalBlocks };
               if (insertIdx !== null) {
                 setMessages(prev => [
                   ...prev.slice(0, insertIdx),
-                  { role: "assistant", content: d.text },
+                  newMsg,
                   ...prev.slice(insertIdx),
                 ]);
               } else {
-                setMessages(prev => [...prev, { role: "assistant", content: d.text }]);
+                setMessages(prev => [...prev, newMsg]);
               }
             }
             streamingInsertIndexRef.current = null;
             break;
+          }
+          case "interrupted": {
+            setStreaming(false); setStreamingText(""); setStreamingTools([]);
+            setInterrupted(true);
+            setTimeout(() => setInterrupted(false), 1500);
+            const partial = d.partialText || "";
+            if (partial) {
+              const iIdx = streamingInsertIndexRef.current;
+              if (iIdx !== null) {
+                setMessages(prev => [
+                  ...prev.slice(0, iIdx),
+                  { role: "assistant", content: partial + "\n\n[interrupted]" },
+                  ...prev.slice(iIdx),
+                ]);
+              } else {
+                setMessages(prev => [...prev, { role: "assistant", content: partial + "\n\n[interrupted]" }]);
+              }
+            }
+            streamingInsertIndexRef.current = null;
+            break;
+          }
           case "done": case "process_exit":
             setStreaming(false); setStreamingText(""); setStreamingTools([]);
             streamingInsertIndexRef.current = null;
+            break;
+          case "topic_shift":
+            setTopicShift({ suggestedTopic: d.suggestedTopic, seedMessage: d.seedMessage || "" });
             break;
           case "error":
             setMessages(prev => [...prev, { role: "system", content: d.message, error: true }]);
@@ -363,6 +570,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
       setPendingImages([]);
       setImageError(null);
       setStorageWarning(null);
+      setTopicShift(null);
       streamingInsertIndexRef.current = null;
       return;
     }
@@ -412,6 +620,10 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
     setStreaming(false); setStreamingText(""); setStreamingTools([]);
   }, []);
 
+  const interruptResponse = useCallback(() => {
+    wsRef.current?.send(JSON.stringify({ type: "interrupt", partialText: streamingText }));
+  }, [streamingText]);
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && e.shiftKey) {
       e.preventDefault();
@@ -420,6 +632,29 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
   };
 
   const clearContext = () => setContext(null);
+
+  const startNewChatFromTopicShift = useCallback(() => {
+    if (!topicShift || !wsRef.current || !connected) return;
+    const seed = topicShift.seedMessage;
+    wsRef.current.send(JSON.stringify({ type: "new_chat", seedMessage: seed }));
+    setMessages(seed ? [{ role: "user", content: seed }] : []);
+    setSessionId(null);
+    setVisibleCount(20);
+    setTopicShift(null);
+    setStorageWarning(null);
+    setStreaming(!!seed); // will be streaming if seed message was sent
+    streamingInsertIndexRef.current = seed ? 1 : null;
+  }, [topicShift, connected]);
+
+  const resumeChat = useCallback((chatId: string) => {
+    if (!wsRef.current || !connected) return;
+    wsRef.current.send(JSON.stringify({ type: "resume_chat", sessionId: chatId }));
+    setMessages([]);
+    setSessionId(chatId);
+    setVisibleCount(20);
+    setStorageWarning(null);
+    streamingInsertIndexRef.current = null;
+  }, [connected]);
 
   // Collapsed state — vertical "CHAT" label
   if (!open) {
@@ -447,7 +682,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
           fontSize: 11,
           fontWeight: 700,
           letterSpacing: "0.15em",
-          color: connected ? "#4ade80" : reconnecting ? "#fbbf24" : "#52525b",
+          color: connected ? accent : reconnecting ? "#fbbf24" : "#52525b",
           textTransform: "uppercase",
         }}>
           CHAT
@@ -498,11 +733,28 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
           <span style={{
             fontSize: 10, padding: "1px 6px", borderRadius: 3,
             background: connected ? "#1a2a1a" : reconnecting ? "#2a2a1a" : "#2a1a1a",
-            color: connected ? "#4ade80" : reconnecting ? "#fbbf24" : "#f87171",
+            color: connected ? accent : reconnecting ? "#fbbf24" : "#f87171",
             fontWeight: 600,
           }}>{connected ? "connected" : reconnecting ? "reconnecting…" : "offline"}</span>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <button
+            onClick={() => setHistoryOpen(o => !o)}
+            title="Chat history"
+            style={{
+              background: historyOpen ? "#27272a" : "none", border: "none",
+              color: historyOpen ? accent : "#52525b", cursor: "pointer",
+              fontSize: 11, padding: "2px 6px", borderRadius: 3, fontFamily: "inherit",
+              transition: "color 0.15s, background 0.15s",
+            }}
+            onMouseEnter={e => { if (!historyOpen) e.currentTarget.style.color = "#a1a1aa"; }}
+            onMouseLeave={e => { if (!historyOpen) e.currentTarget.style.color = "#52525b"; }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+          </button>
           {messages.length > 0 && (
             <button
               onClick={() => { setMessages([]); setStorageWarning(null); setTopicShift(null); wsRef.current?.send(JSON.stringify({ type: "new_chat" })); }}
@@ -597,7 +849,17 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
             ? Math.max(0, Math.min(insertIdx - visibleStartIdx, visible.length))
             : null;
 
-          const renderMsg = (msg: Message, i: number) => (
+          const truncate = (text: string, maxLines: number) => {
+            const lines = text.split("\n");
+            if (lines.length <= maxLines) return text;
+            return lines.slice(0, maxLines).join("\n") + "…";
+          };
+
+          const renderMsg = (msg: Message, i: number) => {
+            const hasBlocks = msg.role === "assistant" && msg.blocks && msg.blocks.length > 0;
+            const isCompact = hasBlocks;
+
+            return (
             <div key={`msg-${i}`} style={{
               display: "flex", flexDirection: "column",
               alignItems: msg.role === "user" ? "flex-end" : "flex-start",
@@ -607,15 +869,22 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
                   {msg.content}
                 </div>
               ) : (
-                <div style={{
-                  maxWidth: "92%", padding: "8px 11px",
-                  borderRadius: msg.role === "user" ? "10px 10px 3px 10px" : "10px 10px 10px 3px",
-                  background: msg.role === "user" ? "#1d3a2a" : "#18181b",
-                  border: msg.error ? "1px solid #7c2d12"
-                    : msg.role === "user" ? "1px solid #16a34a" : "1px solid #27272a",
-                  fontSize: 13, color: msg.error ? "#f87171" : msg.role === "user" ? "#bbf7d0" : "#d4d4d8",
-                  lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-word",
-                }}>
+                <div
+                  onClick={hasBlocks ? () => setExpandedBlocks(msg.blocks!) : undefined}
+                  style={{
+                    maxWidth: "92%", padding: "8px 11px",
+                    borderRadius: msg.role === "user" ? "10px 10px 3px 10px" : "10px 10px 10px 3px",
+                    background: msg.role === "user" ? "#1d3a2a" : "#18181b",
+                    border: msg.error ? "1px solid #7c2d12"
+                      : msg.role === "user" ? `1px solid ${accent}` : "1px solid #27272a",
+                    fontSize: 13, color: msg.error ? "#f87171" : msg.role === "user" ? "#bbf7d0" : "#d4d4d8",
+                    lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-word",
+                    cursor: hasBlocks ? "pointer" : undefined,
+                    transition: "border-color 0.15s, background 0.15s",
+                  }}
+                  onMouseEnter={hasBlocks ? e => { e.currentTarget.style.borderColor = "#52525b"; e.currentTarget.style.background = "#1f1f23"; } : undefined}
+                  onMouseLeave={hasBlocks ? e => { e.currentTarget.style.borderColor = "#27272a"; e.currentTarget.style.background = "#18181b"; } : undefined}
+                >
                   {msg.images && msg.images.length > 0 && msg.images[0] !== "[image]" && (
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6 }}>
                       {msg.images.map((src, imgIdx) => (
@@ -634,21 +903,32 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
                       ))}
                     </div>
                   )}
-                  {msg.content}
+                  {isCompact ? truncate(msg.content, 3) : msg.content}
+                  {hasBlocks && (
+                    <div style={{
+                      marginTop: 6, fontSize: 11, color: "#6366f1",
+                      display: "flex", alignItems: "center", gap: 4,
+                    }}>
+                      <span>▸ {msg.blocks!.length} step{msg.blocks!.length !== 1 ? "s" : ""} · click to expand</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
-          );
+          )};
+
 
           const streamingBlock = streaming ? (
             <div key="streaming" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
               <div style={{
-                maxWidth: "92%", padding: "8px 11px",
-                borderRadius: "10px 10px 10px 3px",
-                background: "#18181b", border: "1px solid #27272a",
-                fontSize: 13, color: "#d4d4d8", lineHeight: 1.55,
-                whiteSpace: "pre-wrap", wordBreak: "break-word",
-              }}>
+                  maxWidth: "92%", padding: "8px 11px",
+                  borderRadius: "10px 10px 10px 3px",
+                  background: "#18181b", border: "1px solid #27272a",
+                  fontSize: 13, color: "#d4d4d8", lineHeight: 1.55,
+                  whiteSpace: "pre-wrap", wordBreak: "break-word",
+                  transition: "border-color 0.15s",
+                  position: "relative" as const,
+                }}>
                 {streamingTools.length > 0 && (
                   <div style={{ marginBottom: 6, display: "flex", flexWrap: "wrap", gap: 4 }}>
                     {streamingTools.map((t, i) => (
@@ -659,25 +939,27 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
                     ))}
                   </div>
                 )}
-                {streamingText || <span style={{ color: "#52525b", animation: "pulse 1.5s infinite" }}>
-                  {streamingTools.length > 0 ? "working..." : "thinking..."}
-                </span>}
+                <div style={{ paddingRight: 60 }}>
+                  {streamingText || <span style={{ color: "#52525b", animation: "pulse 1.5s infinite" }}>
+                    {streamingTools.length > 0 ? "working..." : "thinking..."}
+                  </span>}
+                </div>
+                <button
+                  onClick={interrupted ? undefined : interruptResponse}
+                  style={{
+                    position: "absolute" as const,
+                    top: 6, right: 6,
+                    background: interrupted ? "#7c2d12" : "rgba(39,39,42,0.8)",
+                    border: `1px solid ${interrupted ? "#7c2d12" : "#3f3f46"}`,
+                    color: interrupted ? "#fef2f2" : "#f87171",
+                    cursor: interrupted ? "default" : "pointer",
+                    fontSize: 9, padding: "2px 6px", borderRadius: 3, fontFamily: "inherit",
+                    transition: "all 0.3s ease",
+                    opacity: interrupted ? 0.7 : 1,
+                    zIndex: 1,
+                  }}
+                >{interrupted ? "interrupted" : "interrupt"}</button>
               </div>
-              {/* Interrupt button — always visible below bubble during streaming */}
-              <button
-                onClick={stopResponse}
-                style={{
-                  marginTop: 6,
-                  background: "#7c2d12", border: "1px solid #dc2626",
-                  borderRadius: 6, color: "#fca5a5",
-                  fontSize: 11, fontWeight: 600, fontFamily: "inherit",
-                  padding: "4px 12px", cursor: "pointer",
-                  transition: "background 0.15s, color 0.15s",
-                  whiteSpace: "nowrap",
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background = "#991b1b"; e.currentTarget.style.color = "#fef2f2"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "#7c2d12"; e.currentTarget.style.color = "#fca5a5"; }}
-              >⏹ Interrupt</button>
             </div>
           ) : null;
 
@@ -807,6 +1089,58 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
         }}
       />
 
+      {/* Recording indicator */}
+      {recording && (
+        <div style={{
+          margin: "0 10px", padding: "6px 10px", borderRadius: 4,
+          background: "#1a1a2a", border: "1px solid #4c1d95",
+          fontSize: 12, color: "#c4b5fd", flexShrink: 0,
+          display: "flex", alignItems: "center", gap: 8,
+        }}>
+          <span style={{
+            display: "inline-block", width: 8, height: 8, borderRadius: "50%",
+            background: "#ef4444",
+            animation: "mic-pulse 1s ease-in-out infinite",
+          }} />
+          <span>Recording... {recordingDuration}s / {MAX_RECORDING_SECONDS}s</span>
+          <button
+            onClick={stopRecording}
+            style={{
+              marginLeft: "auto", background: "none", border: "1px solid #7c3aed",
+              borderRadius: 4, color: "#c4b5fd", fontSize: 11, padding: "1px 8px",
+              cursor: "pointer", fontFamily: "inherit",
+            }}
+          >stop</button>
+        </div>
+      )}
+
+      {/* Transcribing indicator */}
+      {transcribing && (
+        <div style={{
+          margin: "0 10px", padding: "4px 10px", borderRadius: 4,
+          background: "#1a1a2a", border: "1px solid #4c1d95",
+          fontSize: 11, color: "#a78bfa", flexShrink: 0,
+        }}>
+          Transcribing audio...
+        </div>
+      )}
+
+      {/* Mic error */}
+      {micError && (
+        <div style={{
+          margin: "0 10px", padding: "4px 10px", borderRadius: 4,
+          background: "#2a1a1a", border: "1px solid #7c2d12",
+          fontSize: 11, color: "#f87171", flexShrink: 0,
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+        }}>
+          <span>{micError}</span>
+          <button
+            onClick={() => setMicError(null)}
+            style={{ background: "none", border: "none", color: "#f87171", cursor: "pointer", fontSize: 11 }}
+          >dismiss</button>
+        </div>
+      )}
+
       {/* Compose */}
       <div style={{
         padding: "10px 10px 12px", borderTop: "1px solid #1f1f1f", flexShrink: 0,
@@ -831,17 +1165,78 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
         />
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span style={{ fontSize: 10, color: "#3f3f46" }}>Shift+Enter to send</span>
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            style={{
-              background: "none", border: "1px solid #3f3f46", borderRadius: 4,
-              color: "#71717a", fontSize: 11, padding: "2px 8px", cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-            title="Attach image"
-          >attach</button>
+          <div style={{ display: "flex", gap: 4 }}>
+            {micAvailable && (
+              <button
+                onMouseDown={!recording && !transcribing ? startRecording : undefined}
+                onMouseUp={recording ? stopRecording : undefined}
+                onMouseLeave={recording ? stopRecording : undefined}
+                onTouchStart={!recording && !transcribing ? startRecording : undefined}
+                onTouchEnd={recording ? stopRecording : undefined}
+                onTouchCancel={recording ? stopRecording : undefined}
+                disabled={transcribing}
+                style={{
+                  background: recording ? "#7c3aed" : "none",
+                  border: `1px solid ${recording ? "#7c3aed" : "#3f3f46"}`,
+                  borderRadius: 4,
+                  color: recording ? "#fff" : transcribing ? "#52525b" : "#71717a",
+                  fontSize: 11, padding: "4px 6px", cursor: transcribing ? "wait" : "pointer",
+                  fontFamily: "inherit",
+                  transition: "all 0.15s",
+                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                }}
+                aria-label={recording ? "Release to stop recording" : transcribing ? "Transcribing audio" : "Hold to record"}
+                title={recording ? "Release to stop" : transcribing ? "Transcribing..." : "Hold to record"}
+              >{recording ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="#ef4444" stroke="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="12" cy="12" r="7">
+                    <animate attributeName="opacity" values="1;0.4;1" dur="1s" repeatCount="indefinite" />
+                  </circle>
+                </svg>
+              ) : transcribing ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="6" cy="12" r="2"><animate attributeName="opacity" values="1;0.3;1" dur="0.8s" repeatCount="indefinite" begin="0s" /></circle>
+                  <circle cx="12" cy="12" r="2"><animate attributeName="opacity" values="1;0.3;1" dur="0.8s" repeatCount="indefinite" begin="0.2s" /></circle>
+                  <circle cx="18" cy="12" r="2"><animate attributeName="opacity" values="1;0.3;1" dur="0.8s" repeatCount="indefinite" begin="0.4s" /></circle>
+                </svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="9" y="1" width="6" height="11" rx="3" />
+                  <path d="M19 10v1a7 7 0 0 1-14 0v-1" />
+                  <line x1="12" y1="19" x2="12" y2="23" />
+                  <line x1="8" y1="23" x2="16" y2="23" />
+                </svg>
+              )}</button>
+            )}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                background: "none", border: "1px solid #3f3f46", borderRadius: 4,
+                color: "#71717a", fontSize: 11, padding: "4px 6px", cursor: "pointer",
+                fontFamily: "inherit",
+                display: "inline-flex", alignItems: "center", justifyContent: "center",
+              }}
+              aria-label="Attach image"
+              title="Attach image"
+            ><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" xmlns="http://www.w3.org/2000/svg">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+              </svg></button>
+          </div>
         </div>
       </div>
+
+      {/* Chat history sidebar (overlay within chat panel) */}
+      <ChatHistorySidebar
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        onResumeChat={resumeChat}
+        currentSessionId={sessionId}
+      />
+
+      {/* Agent message expansion modal */}
+      {expandedBlocks && (
+        <AgentMessageModal blocks={expandedBlocks} onClose={() => setExpandedBlocks(null)} />
+      )}
     </div>
   );
 }
