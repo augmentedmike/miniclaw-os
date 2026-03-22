@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import type { CardStore } from "../src/store.js";
 import type { ProjectStore } from "../src/project-store.js";
-import { formatConflictError, formatConflictList } from "../src/dedup.js";
+import { formatConflictError } from "../src/dedup.js";
 import { ActiveWorkStore } from "../src/active-work.js";
 import { ArchiveStore } from "../src/archive.js";
 import { COLUMNS, canTransition, canTransitionSystem, checkGate, formatGateError } from "../src/state.js";
@@ -121,9 +121,9 @@ Examples:
         linked_card_id = opts.linkedCardId;
       }
       // Pre-create similar card check
-      const similarCards = store.checkSimilarCards(opts.title, opts.problem, { projectId: opts.project });
-      if (similarCards.length > 0 && !opts.force) {
-        console.error(formatConflictList(opts.title, similarCards));
+      const conflict = store.checkTitleConflict(opts.title, { projectId: opts.project });
+      if (conflict !== null && !opts.force) {
+        console.error(formatConflictError(opts.title, conflict));
         // If stdin is a TTY, prompt for confirmation; otherwise exit
         if (process.stdin.isTTY) {
           const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
