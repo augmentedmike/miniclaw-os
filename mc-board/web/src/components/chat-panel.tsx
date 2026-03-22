@@ -757,7 +757,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
           </button>
           {messages.length > 0 && (
             <button
-              onClick={() => { setMessages([]); setStorageWarning(null); wsRef.current?.send(JSON.stringify({ type: "new_chat" })); }}
+              onClick={() => { setMessages([]); setStorageWarning(null); setTopicShift(null); wsRef.current?.send(JSON.stringify({ type: "new_chat" })); }}
               title="New chat"
               style={{
                 background: "none", border: "none", color: "#52525b", cursor: "pointer",
@@ -787,6 +787,37 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
           <button
             onClick={() => setStorageWarning(null)}
             style={{ background: "none", border: "none", color: "#854d0e", cursor: "pointer", fontSize: 13, lineHeight: 1, padding: 0 }}
+          >×</button>
+        </div>
+      )}
+
+      {/* Topic shift banner */}
+      {topicShift && (
+        <div style={{
+          margin: 0, padding: "8px 14px", flexShrink: 0,
+          background: "#1a1a2e", borderBottom: "1px solid #3b3b6b",
+          fontSize: 12, color: "#a5b4fc", display: "flex", alignItems: "center", gap: 8,
+        }}>
+          <span style={{ flex: 1 }}>
+            This looks like a new topic: <strong>{topicShift.suggestedTopic}</strong>
+          </span>
+          <button
+            onClick={startNewChatFromTopicShift}
+            style={{
+              background: "#312e81", border: "1px solid #4338ca", borderRadius: 4,
+              color: "#c7d2fe", cursor: "pointer", fontSize: 11, padding: "3px 10px",
+              fontFamily: "inherit", fontWeight: 600, whiteSpace: "nowrap",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = "#3730a3"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "#312e81"; }}
+          >Start new chat</button>
+          <button
+            onClick={() => setTopicShift(null)}
+            style={{
+              background: "none", border: "none", color: "#4338ca", cursor: "pointer",
+              fontSize: 14, lineHeight: 1, padding: 0, flexShrink: 0,
+            }}
+            title="Dismiss"
           >×</button>
         </div>
       )}
