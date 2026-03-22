@@ -177,7 +177,8 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
     files.forEach(f => {
       if (f.type.startsWith("image/")) processFile(f);
     });
-  }, [processFile]);
+    setTimeout(() => textareaRef.current?.focus(), 50);
+  }, [processFile, textareaRef]);
 
   // Paste handler for images
   const handlePaste = useCallback((e: React.ClipboardEvent) => {
@@ -189,7 +190,8 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
       const file = item.getAsFile();
       if (file) processFile(file);
     });
-  }, [processFile]);
+    setTimeout(() => textareaRef.current?.focus(), 50);
+  }, [processFile, textareaRef]);
 
   // WebSocket connection with auto-reconnect
   useEffect(() => {
