@@ -469,6 +469,9 @@ a { color: inherit; }
 .card--held:hover { border-color: rgba(217,119,6,.5); }
 .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
 .card-id { font-size: 11px; color: #52525b; font-family: monospace; }
+.card-id--clickable { cursor: pointer; user-select: none; transition: color 0.15s; }
+.card-id--clickable:hover { color: #a1a1aa; }
+.card-id--copied { color: #22c55e !important; }
 .priority-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
 .card-worker {
   display: none;

@@ -381,7 +381,7 @@ function spawnFullAgent(row, card, project) {
   if (!env.TMPDIR) env.TMPDIR = os.tmpdir();
   // Ensure SYSTEM/bin and USER/bin are on PATH so agents can find mc-smoke, mc-vault, etc.
   const systemBin = path.join(STATE_DIR, "miniclaw", "SYSTEM", "bin");
-  const userBin = path.join(STATE_DIR, "USER", "bin");
+  const userBin = path.join(STATE_DIR, "miniclaw", "USER", "bin");
   if (env.PATH && !env.PATH.includes(systemBin)) {
     env.PATH = `${systemBin}:${userBin}:${env.PATH}`;
   }

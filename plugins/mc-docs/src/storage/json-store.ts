@@ -15,8 +15,8 @@ export class DocumentStore {
   constructor(options: StorageOptions = {}) {
     this.basePath = options.basePath ||
       (process.env.OPENCLAW_STATE_DIR
-        ? join(process.env.OPENCLAW_STATE_DIR, 'USER', 'docs')
-        : join(homedir(), '.openclaw', 'USER', 'docs'));
+        ? join(process.env.OPENCLAW_STATE_DIR, 'miniclaw', 'USER', 'docs')
+        : join(homedir(), '.openclaw', 'miniclaw', 'USER', 'docs'));
 
     // Ensure directory exists
     if (!existsSync(this.basePath)) {

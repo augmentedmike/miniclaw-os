@@ -75,6 +75,7 @@ export const CardItem = memo(function CardItem({ card, projectName, isActive, wo
   const accent = useAccent();
   const { checked, total } = { checked: card.criteria_checked, total: card.criteria_total };
   const pct = total > 0 ? Math.round((checked / total) * 100) : -1;
+  const [idCopied, setIdCopied] = useState(false);
   const focused = card.tags.includes("focus");
   const held = card.tags.includes("hold");
 
@@ -113,7 +114,27 @@ export const CardItem = memo(function CardItem({ card, projectName, isActive, wo
 
       {/* Header: id + focus badge + priority badge */}
       <div className="card-header">
-        <span className="card-id">{card.id}</span>
+        <span
+          className={`card-id card-id--clickable${idCopied ? " card-id--copied" : ""}`}
+          title="Click to reference in chat"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (onInjectContext) {
+              const lines = [
+                `[Card: ${card.id}] ${card.title}`,
+                `Column: ${card.column}`,
+                `Priority: ${card.priority}`,
+              ];
+              if (card.tags.length > 0) lines.push(`Tags: ${card.tags.join(", ")}`);
+              if (total > 0) lines.push(`Criteria: ${checked}/${total} done`);
+              onInjectContext(lines.join("\n"));
+            }
+            navigator.clipboard.writeText(card.id).then(() => {
+              setIdCopied(true);
+              setTimeout(() => setIdCopied(false), 1600);
+            });
+          }}
+        >{idCopied ? "copied!" : card.id}</span>
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <HoldBadge held={held} onToggle={onHoldToggle ? (e) => { e.stopPropagation(); onHoldToggle(card.id); } : undefined} />
           <FocusBadge focused={focused} onToggle={onFocusToggle ? (e) => { e.stopPropagation(); onFocusToggle(card.id, !focused); } : undefined} />

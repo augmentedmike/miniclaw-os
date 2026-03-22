@@ -114,9 +114,19 @@ export const CardItem = memo(function CardItem({ card, projectName, isActive, wo
       <div className="card-header">
         <span
           className={`card-id card-id--clickable${idCopied ? " card-id--copied" : ""}`}
-          title="Right click the card number to reference it in web chat"
+          title="Click to reference in chat"
           onClick={(e) => {
             e.stopPropagation();
+            if (onInjectContext) {
+              const lines = [
+                `[Card: ${card.id}] ${card.title}`,
+                `Column: ${card.column}`,
+                `Priority: ${card.priority}`,
+              ];
+              if (card.tags.length > 0) lines.push(`Tags: ${card.tags.join(", ")}`);
+              if (total > 0) lines.push(`Criteria: ${checked}/${total} done`);
+              onInjectContext(lines.join("\n"));
+            }
             navigator.clipboard.writeText(card.id).then(() => {
               setIdCopied(true);
               setTimeout(() => setIdCopied(false), 1600);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { registerModal, unregisterModal } from "./modal-stack";
 import hljs from "highlight.js";
 import { marked } from "marked";
 import { markedHighlight } from "marked-highlight";
@@ -76,13 +77,17 @@ export function FileViewModal({ filePath, base, onClose }: Props) {
   const [wrap, setWrap] = useState(false);
 
   useEffect(() => {
+    registerModal(onClose);
+    return () => unregisterModal(onClose);
+  }, [onClose]);
+
+  useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
       if (e.key === "w" && (e.metaKey || e.altKey)) { e.preventDefault(); setWrap(w => !w); }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [onClose]);
+  }, []);
 
   useEffect(() => {
     setData(null); setError(null); setIsImage(false); setImageUrl(null);

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useAccent } from "@/lib/accent-context";
+import { ChatHistorySidebar } from "./chat-history-sidebar";
 
 interface Message {
   role: "user" | "assistant" | "system";
@@ -77,6 +78,9 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
   const [dragOver, setDragOver] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [storageWarning, setStorageWarning] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(() => {
+    try { return localStorage.getItem("mc-board:chat-history-open") === "true"; } catch { return false; }
+  });
 
   // Mic / voice transcription state
   const [micAvailable, setMicAvailable] = useState(false);
@@ -299,6 +303,27 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
     }
   }, [transcribeAudio, stopRecording]);
 
+  const toggleHistory = useCallback(() => {
+    setHistoryOpen(on => {
+      const next = !on;
+      try { localStorage.setItem("mc-board:chat-history-open", next ? "true" : "false"); } catch {}
+      return next;
+    });
+  }, []);
+
+  const resumeChat = useCallback((chatId: string) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    // Archive current session and load archived one
+    wsRef.current.send(JSON.stringify({ type: "resume_chat", sessionId: chatId }));
+    setMessages([]);
+    setStreamingText("");
+    setStreamingTools([]);
+    setStreaming(false);
+    streamingInsertIndexRef.current = null;
+    setHistoryOpen(false);
+    try { localStorage.setItem("mc-board:chat-history-open", "false"); } catch {}
+  }, []);
+
   // Image processing helpers
   const processFile = useCallback((file: File) => {
     setImageError(null);
@@ -495,6 +520,18 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
     setTimeout(() => textareaRef.current?.focus(), 50);
   }, [pendingContext, onContextConsumed]);
 
+  // Cmd+H keyboard shortcut to toggle history
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "h" && open) {
+        e.preventDefault();
+        toggleHistory();
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [open, toggleHistory]);
+
   // Track scroll position to detect when user is not at bottom
   const handleScroll = useCallback(() => {
     const el = scrollContainerRef.current;
@@ -683,8 +720,8 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
           )}
           {messages.length > 0 && (
             <button
-              onClick={() => { setMessages([]); setStorageWarning(null); wsRef.current?.send(JSON.stringify({ type: "new_chat" })); }}
-              title="New chat"
+              onClick={() => { setMessages([]); setStorageWarning(null); wsRef.current?.send(JSON.stringify({ type: "new_chat" })); streamingInsertIndexRef.current = null; }}
+              title="New chat (archives current)"
               style={{
                 background: "none", border: "none", color: "#52525b", cursor: "pointer",
                 fontSize: 11, padding: "2px 6px", borderRadius: 3, fontFamily: "inherit",
@@ -693,6 +730,29 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
               onMouseLeave={e => (e.currentTarget.style.color = "#52525b")}
             >new</button>
           )}
+          {/* History toggle button */}
+          <button
+            onClick={toggleHistory}
+            title={`Chat history (⌘H)`}
+            style={{
+              background: historyOpen ? "#27272a" : "none",
+              border: "none",
+              color: historyOpen ? accent : "#52525b",
+              cursor: "pointer",
+              fontSize: 11,
+              padding: "3px 5px",
+              borderRadius: 3,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              lineHeight: 1,
+            }}
+            onMouseEnter={e => { if (!historyOpen) e.currentTarget.style.color = "#a1a1aa"; }}
+            onMouseLeave={e => { if (!historyOpen) e.currentTarget.style.color = "#52525b"; }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+          </button>
           <button
             onClick={onToggle}
             style={{ background: "none", border: "none", color: "#52525b", cursor: "pointer", fontSize: 18, lineHeight: 1 }}
@@ -1074,6 +1134,15 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
           </div>
         </div>
       </div>
+
+      {/* Chat history sidebar — absolute overlay covering the full chat panel */}
+      <ChatHistorySidebar
+        isOpen={historyOpen}
+        onClose={toggleHistory}
+        onResume={resumeChat}
+        currentSessionId={sessionId}
+        serverBaseUrl={`${typeof window !== "undefined" ? window.location.protocol : "http:"}//${typeof window !== "undefined" ? window.location.hostname : "localhost"}:4221`}
+      />
     </div>
   );
 }
