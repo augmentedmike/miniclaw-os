@@ -5,10 +5,28 @@ import { useAccent } from "@/lib/accent-context";
 import { ChatHistorySidebar } from "./chat-history-sidebar";
 
 interface Message {
+  id: string;
   role: "user" | "assistant" | "system";
   content: string;
   images?: string[]; // base64 data URLs for display
   error?: boolean;
+  replyTo?: string; // ID of the message being replied to
+}
+
+interface ReplyTarget {
+  id: string;
+  role: string;
+  snippet: string;
+}
+
+let _msgCounter = 0;
+function generateMsgId(): string {
+  return `msg-${Date.now()}-${++_msgCounter}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+/** Ensure every message has an id (backfill old messages from localStorage) */
+function ensureIds(messages: Message[]): Message[] {
+  return messages.map(m => m.id ? m : { ...m, id: generateMsgId() });
 }
 
 interface PendingImage {
@@ -60,9 +78,10 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
   const accent = useAccent();
   const [messages, setMessages] = useState<Message[]>(() => {
     if (typeof window === "undefined") return [];
-    try { return JSON.parse(localStorage.getItem("mc-chat-messages") || "[]"); } catch { return []; }
+    try { return ensureIds(JSON.parse(localStorage.getItem("mc-chat-messages") || "[]")); } catch { return []; }
   });
   const [draft, setDraft] = useState("");
+  const [replyingTo, setReplyingTo] = useState<ReplyTarget | null>(null);
   const [context, setContext] = useState<string | null>(null);
   const [streaming, setStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState("");
@@ -81,6 +100,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
   const [historyOpen, setHistoryOpen] = useState(() => {
     try { return localStorage.getItem("mc-board:chat-history-open") === "true"; } catch { return false; }
   });
+  const [interruptOverlayVisible, setInterruptOverlayVisible] = useState(false);
 
   // Mic / voice transcription state
   const [micAvailable, setMicAvailable] = useState(false);
@@ -428,6 +448,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
         if (didUnmount) return;
         setConnected(false);
         setStreaming(false);
+        setInterruptOverlayVisible(false);
         wsRef.current = null;
         scheduleReconnect();
       };
@@ -445,8 +466,9 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
             // If server sent message history on reconnect, merge it
             if (d.resumed && d.history && Array.isArray(d.history) && d.history.length > 0) {
               setMessages(prev => {
-                if (prev.length === 0) return d.history;
-                if (d.history.length >= prev.length) return d.history;
+                const serverMsgs = ensureIds(d.history);
+                if (prev.length === 0) return serverMsgs;
+                if (serverMsgs.length >= prev.length) return serverMsgs;
                 return prev;
               });
             }
@@ -457,28 +479,29 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
             if (d.tools?.length) setStreamingTools(d.tools);
             break;
           case "result":
-            setStreaming(false); setStreamingText(""); setStreamingTools([]);
+            setStreaming(false); setStreamingText(""); setStreamingTools([]); setInterruptOverlayVisible(false);
             if (d.text) {
+              const assistantMsg: Message = { id: generateMsgId(), role: "assistant", content: d.text };
               const insertIdx = streamingInsertIndexRef.current;
               if (insertIdx !== null) {
                 setMessages(prev => [
                   ...prev.slice(0, insertIdx),
-                  { role: "assistant", content: d.text },
+                  assistantMsg,
                   ...prev.slice(insertIdx),
                 ]);
               } else {
-                setMessages(prev => [...prev, { role: "assistant", content: d.text }]);
+                setMessages(prev => [...prev, assistantMsg]);
               }
             }
             streamingInsertIndexRef.current = null;
             break;
           case "done": case "process_exit":
-            setStreaming(false); setStreamingText(""); setStreamingTools([]);
+            setStreaming(false); setStreamingText(""); setStreamingTools([]); setInterruptOverlayVisible(false);
             streamingInsertIndexRef.current = null;
             break;
           case "error":
-            setMessages(prev => [...prev, { role: "system", content: d.message, error: true }]);
-            setStreaming(false);
+            setMessages(prev => [...prev, { id: generateMsgId(), role: "system", content: d.message, error: true }]);
+            setStreaming(false); setInterruptOverlayVisible(false);
             streamingInsertIndexRef.current = null;
             break;
         }
@@ -569,6 +592,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
       setPendingImages([]);
       setImageError(null);
       setStorageWarning(null);
+      setReplyingTo(null);
       streamingInsertIndexRef.current = null;
       return;
     }
@@ -580,12 +604,16 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
     }
 
     // Build user message with image previews for display
+    const msgId = generateMsgId();
     const imagePreviews = pendingImages.map(img => img.preview);
+    const currentReply = replyingTo;
     setMessages(prev => {
       const next = [...prev, {
+        id: msgId,
         role: "user" as const,
         content: text || "(image)",
         images: imagePreviews.length > 0 ? imagePreviews : undefined,
+        replyTo: currentReply?.id,
       }];
       // Track where the streaming assistant response should be inserted.
       // Only set on the FIRST send that starts streaming — subsequent sends
@@ -598,7 +626,8 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
     });
 
     // Send via WS with image data
-    const wsMsg: Record<string, unknown> = { type: "chat", content };
+    const wsMsg: Record<string, unknown> = { type: "chat", content, id: msgId };
+    if (currentReply) wsMsg.replyTo = currentReply.id;
     if (pendingImages.length > 0) {
       wsMsg.images = pendingImages.map(img => ({
         base64: img.base64,
@@ -610,13 +639,24 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
     setDraft("");
     setPendingImages([]);
     setImageError(null);
+    setReplyingTo(null);
     setStreaming(true);
-  }, [draft, context, connected, pendingImages, streaming]);
+  }, [draft, context, connected, pendingImages, streaming, replyingTo]);
 
   const stopResponse = useCallback(() => {
     wsRef.current?.send(JSON.stringify({ type: "stop" }));
     setStreaming(false); setStreamingText(""); setStreamingTools([]);
   }, []);
+
+  const interruptAgent = useCallback(() => {
+    stopResponse();
+    setInterruptOverlayVisible(false);
+    setMessages(prev => [...prev, {
+      id: generateMsgId(),
+      role: "system" as const,
+      content: "⏹ Agent interrupted by user",
+    }]);
+  }, [stopResponse]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && e.shiftKey) {
@@ -720,7 +760,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
           )}
           {messages.length > 0 && (
             <button
-              onClick={() => { setMessages([]); setStorageWarning(null); wsRef.current?.send(JSON.stringify({ type: "new_chat" })); streamingInsertIndexRef.current = null; }}
+              onClick={() => { setMessages([]); setStorageWarning(null); setReplyingTo(null); wsRef.current?.send(JSON.stringify({ type: "new_chat" })); streamingInsertIndexRef.current = null; }}
               title="New chat (archives current)"
               style={{
                 background: "none", border: "none", color: "#52525b", cursor: "pointer",
@@ -804,58 +844,137 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
             ? Math.max(0, Math.min(insertIdx - visibleStartIdx, visible.length))
             : null;
 
-          const renderMsg = (msg: Message, i: number) => (
-            <div key={`msg-${i}`} style={{
+          const scrollToMessage = (msgId: string) => {
+            const el = document.getElementById(`chat-msg-${msgId}`);
+            if (el) {
+              el.scrollIntoView({ behavior: "smooth", block: "center" });
+              el.style.outline = `2px solid ${accent}`;
+              el.style.outlineOffset = "2px";
+              setTimeout(() => { el.style.outline = "none"; el.style.outlineOffset = "0"; }, 1500);
+            }
+          };
+
+          const handleReply = (msg: Message) => {
+            const snippet = msg.content.slice(0, 80) + (msg.content.length > 80 ? "…" : "");
+            setReplyingTo({ id: msg.id, role: msg.role, snippet });
+            textareaRef.current?.focus();
+          };
+
+          const renderMsg = (msg: Message, i: number) => {
+            // Find the referenced message for reply header
+            const replyTarget = msg.replyTo ? messages.find(m => m.id === msg.replyTo) : null;
+            const replySnippet = replyTarget
+              ? replyTarget.content.slice(0, 60) + (replyTarget.content.length > 60 ? "…" : "")
+              : msg.replyTo ? "(original message no longer available)" : null;
+
+            return (
+            <div key={msg.id || `msg-${i}`} id={`chat-msg-${msg.id}`} className="chat-msg-wrapper" style={{
               display: "flex", flexDirection: "column",
               alignItems: msg.role === "user" ? "flex-end" : "flex-start",
+              position: "relative",
             }}>
               {msg.role === "system" ? (
                 <div style={{ fontSize: 11, color: "#52525b", textAlign: "center", width: "100%", padding: "4px 0" }}>
                   {msg.content}
                 </div>
               ) : (
-                <div style={{
-                  maxWidth: "92%", padding: "8px 11px",
-                  borderRadius: msg.role === "user" ? "10px 10px 3px 10px" : "10px 10px 10px 3px",
-                  background: msg.role === "user" ? "#1d3a2a" : "#18181b",
-                  border: msg.error ? "1px solid #7c2d12"
-                    : msg.role === "user" ? `1px solid ${accent}` : "1px solid #27272a",
-                  fontSize: 13, color: msg.error ? "#f87171" : msg.role === "user" ? "#bbf7d0" : "#d4d4d8",
-                  lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-word",
-                }}>
-                  {msg.images && msg.images.length > 0 && msg.images[0] !== "[image]" && (
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6 }}>
-                      {msg.images.map((src, imgIdx) => (
-                        src !== "[image]" ? (
-                          <img key={imgIdx} src={src} alt="" style={{
-                            width: 64, height: 64, objectFit: "cover", borderRadius: 4,
-                            border: "1px solid #27272a",
-                          }} />
-                        ) : (
-                          <span key={imgIdx} style={{
-                            width: 64, height: 64, display: "flex", alignItems: "center", justifyContent: "center",
-                            borderRadius: 4, border: "1px solid #27272a", background: "#27272a",
-                            fontSize: 10, color: "#71717a",
-                          }}>image</span>
-                        )
-                      ))}
+                <>
+                  {/* Reply reference header */}
+                  {replySnippet && (
+                    <div
+                      onClick={() => replyTarget ? scrollToMessage(replyTarget.id) : undefined}
+                      style={{
+                        maxWidth: "92%", padding: "3px 10px", marginBottom: 2,
+                        borderRadius: "6px 6px 0 0",
+                        background: "#1a1a2e",
+                        border: "1px solid #27273a", borderBottom: "none",
+                        fontSize: 11, color: "#71717a",
+                        cursor: replyTarget ? "pointer" : "default",
+                        display: "flex", alignItems: "center", gap: 4,
+                        overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis",
+                      }}
+                      title={replyTarget ? "Click to scroll to original message" : "Original message was pruned"}
+                    >
+                      <span style={{ color: "#525280", fontSize: 10, flexShrink: 0 }}>↩</span>
+                      <span style={{ color: "#6366f1", fontWeight: 600, flexShrink: 0, fontSize: 10 }}>
+                        {replyTarget ? replyTarget.role : "???"}
+                      </span>
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{replySnippet}</span>
                     </div>
                   )}
-                  {msg.content}
-                </div>
+                  <div style={{
+                    maxWidth: "92%", padding: "8px 11px",
+                    borderRadius: replySnippet
+                      ? (msg.role === "user" ? "0 0 3px 10px" : "0 0 10px 3px")
+                      : (msg.role === "user" ? "10px 10px 3px 10px" : "10px 10px 10px 3px"),
+                    background: msg.role === "user" ? "#1d3a2a" : "#18181b",
+                    border: msg.error ? "1px solid #7c2d12"
+                      : msg.role === "user" ? `1px solid ${accent}` : "1px solid #27272a",
+                    fontSize: 13, color: msg.error ? "#f87171" : msg.role === "user" ? "#bbf7d0" : "#d4d4d8",
+                    lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-word",
+                    position: "relative",
+                  }}>
+                    {msg.images && msg.images.length > 0 && msg.images[0] !== "[image]" && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6 }}>
+                        {msg.images.map((src, imgIdx) => (
+                          src !== "[image]" ? (
+                            <img key={imgIdx} src={src} alt="" style={{
+                              width: 64, height: 64, objectFit: "cover", borderRadius: 4,
+                              border: "1px solid #27272a",
+                            }} />
+                          ) : (
+                            <span key={imgIdx} style={{
+                              width: 64, height: 64, display: "flex", alignItems: "center", justifyContent: "center",
+                              borderRadius: 4, border: "1px solid #27272a", background: "#27272a",
+                              fontSize: 10, color: "#71717a",
+                            }}>image</span>
+                          )
+                        ))}
+                      </div>
+                    )}
+                    {msg.content}
+                  </div>
+                  {/* Reply button — visible on hover via CSS */}
+                  <button
+                    className="chat-reply-btn"
+                    onClick={() => handleReply(msg)}
+                    title="Reply to this message"
+                    style={{
+                      position: "absolute",
+                      top: replySnippet ? 24 : 4,
+                      [msg.role === "user" ? "left" : "right"]: -28,
+                      width: 22, height: 22,
+                      background: "#27272a", border: "1px solid #3f3f46", borderRadius: 4,
+                      color: "#71717a", fontSize: 12,
+                      cursor: "pointer",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      opacity: 0, transition: "opacity 0.15s",
+                      padding: 0, lineHeight: 1,
+                    }}
+                  >↩</button>
+                </>
               )}
             </div>
           );
+          };
 
           const streamingBlock = streaming ? (
-            <div key="streaming" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
-              <div style={{
-                maxWidth: "92%", padding: "8px 11px",
-                borderRadius: "10px 10px 10px 3px",
-                background: "#18181b", border: "1px solid #27272a",
-                fontSize: 13, color: "#d4d4d8", lineHeight: 1.55,
-                whiteSpace: "pre-wrap", wordBreak: "break-word",
-              }}>
+            <div
+              key="streaming"
+              style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", position: "relative" }}
+              onMouseLeave={() => setInterruptOverlayVisible(false)}
+            >
+              <div
+                onClick={() => setInterruptOverlayVisible(v => !v)}
+                style={{
+                  maxWidth: "92%", padding: "8px 11px",
+                  borderRadius: "10px 10px 10px 3px",
+                  background: "#18181b", border: "1px solid #27272a",
+                  fontSize: 13, color: "#d4d4d8", lineHeight: 1.55,
+                  whiteSpace: "pre-wrap", wordBreak: "break-word",
+                  cursor: "pointer",
+                  transition: "border-color 0.15s",
+                }}>
                 {streamingTools.length > 0 && (
                   <div style={{ marginBottom: 6, display: "flex", flexWrap: "wrap", gap: 4 }}>
                     {streamingTools.map((t, i) => (
@@ -870,6 +989,25 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
                   {streamingTools.length > 0 ? "working..." : "thinking..."}
                 </span>}
               </div>
+              {/* Interrupt overlay */}
+              {interruptOverlayVisible && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); interruptAgent(); }}
+                  style={{
+                    position: "absolute", top: -6, left: 8,
+                    background: "#7c2d12", border: "1px solid #dc2626",
+                    borderRadius: 6, color: "#fca5a5",
+                    fontSize: 11, fontWeight: 600, fontFamily: "inherit",
+                    padding: "4px 12px", cursor: "pointer",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.5)",
+                    zIndex: 10,
+                    transition: "background 0.15s, color 0.15s",
+                    whiteSpace: "nowrap",
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = "#991b1b"; e.currentTarget.style.color = "#fef2f2"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "#7c2d12"; e.currentTarget.style.color = "#fca5a5"; }}
+                >⏹ Interrupt</button>
+              )}
             </div>
           ) : null;
 
@@ -926,6 +1064,27 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
         onMouseLeave={e => { e.currentTarget.style.background = "#27272a"; e.currentTarget.style.color = "#a1a1aa"; }}
       >↓</button>
       </div>
+
+      {/* Reply preview */}
+      {replyingTo && (
+        <div style={{
+          margin: "0 10px", padding: "6px 10px", borderRadius: 6,
+          background: "#1a1a2e", border: "1px solid #4c1d95",
+          display: "flex", alignItems: "flex-start", gap: 6, flexShrink: 0,
+        }}>
+          <span style={{ fontSize: 10, color: "#8b5cf6", fontWeight: 700, flexShrink: 0, marginTop: 1 }}>↩ reply</span>
+          <div style={{ flex: 1, overflow: "hidden", minWidth: 0 }}>
+            <span style={{ fontSize: 10, color: "#6366f1", fontWeight: 600, textTransform: "capitalize" }}>{replyingTo.role}</span>
+            <div style={{ fontSize: 11, color: "#a78bfa", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {replyingTo.snippet}
+            </div>
+          </div>
+          <button
+            onClick={() => setReplyingTo(null)}
+            style={{ background: "none", border: "none", color: "#52525b", cursor: "pointer", fontSize: 13, lineHeight: 1, padding: 0, flexShrink: 0 }}
+          >✕</button>
+        </div>
+      )}
 
       {/* Context badge */}
       {context && (
