@@ -230,6 +230,12 @@ function updateCharacter(
 ): void {
   ch.frameTimer += dt;
 
+  // Decrement fade-out timer for inactive (released) characters
+  if (!ch.isActive && ch.inactiveTimer !== undefined && ch.inactiveTimer > 0) {
+    ch.inactiveTimer -= dt;
+    if (ch.inactiveTimer < 0) ch.inactiveTimer = 0;
+  }
+
   if (ch.bubbleTimer > 0) {
     ch.bubbleTimer -= dt;
     if (ch.bubbleTimer <= 0) ch.bubbleText = null;
@@ -542,7 +548,7 @@ export function renderOffice(
   }
 
   // Layer 3: Non-occluding furniture (rendered behind characters)
-  // Only CHAIR BACK items occlude characters (SOFA_BACK and PC_BACK render behind)
+  // Only chair backs should occlude characters (not sofa backs or PC backs)
   const shouldOcclude = (item: { type: string }) =>
     item.type.includes("CHAIR") && item.type.includes("BACK");
   for (const item of layout.furniture) {
@@ -620,7 +626,15 @@ function renderCharacter(
   const drawX = Math.round(offsetX + (ch.x - TILE_SIZE / 2) * zoom);
   const drawY = Math.round(offsetY + (ch.y - TILE_SIZE + sittingOff) * zoom);
 
+  // Fade out inactive (released) characters over the last 2 seconds of their wander
+  if (!ch.isActive && ch.inactiveTimer !== undefined) {
+    ctx.globalAlpha = Math.min(1, ch.inactiveTimer / 2);
+  }
+
   ctx.drawImage(cached, drawX, drawY);
+
+  // Always restore alpha after drawing
+  ctx.globalAlpha = 1;
 }
 
 function renderBubble(
@@ -628,6 +642,9 @@ function renderBubble(
   ch: Character,
   state: OfficeState
 ): void {
+  // Don't render bubble for inactive (released/fading) characters
+  if (!ch.isActive) return;
+
   const { zoom, offsetX, offsetY } = state;
   const text = ch.bubbleText || ch.label || ch.name;
   if (!text) return;
@@ -914,14 +931,14 @@ export async function initOffice(
   }
   seats.push(...autoBookSpots);
 
-  // Deduplicate
+  // Deduplicate and filter to walkable tiles only
   for (const zone of Object.keys(zoneWaypoints) as Zone[]) {
     const seen = new Set<string>();
     zoneWaypoints[zone] = zoneWaypoints[zone].filter(p => {
       const k = `${p.col},${p.row}`;
       if (seen.has(k)) return false;
       seen.add(k);
-      return true;
+      return isWalkable(p.col, p.row, layout.tiles, layout.cols, layout.rows, blocked);
     });
   }
 
@@ -993,12 +1010,22 @@ export function syncAgents(
   const existingIds = new Set(state.characters.map((c) => c.id));
   const activeIds = new Set(agents.map((a) => a.worker));
 
-  // Remove characters for agents that are no longer active
+  // Mark characters inactive for agents that are no longer active
   for (const ch of state.characters) {
-    if (!activeIds.has(ch.id)) {
+    if (!activeIds.has(ch.id) && ch.isActive) {
       ch.isActive = false;
       ch.bubbleText = null;
-      // Don't remove immediately — let them wander a bit then fade
+      ch.bubbleTimer = 0;
+      ch.inactiveTimer = 8; // wander + fade for 8 seconds
+      // Free the seat immediately so new workers can use it
+      if (ch.seatId) {
+        const seat = state.seats.find((s) => s.uid === ch.seatId);
+        if (seat) { seat.assigned = false; seat.assignedTo = null; }
+        ch.seatId = null;
+        // Switch to idle walk so they wander instead of staying seated
+        ch.state = CharacterState.IDLE;
+        ch.wanderTimer = 0;
+      }
     }
   }
 
@@ -1049,7 +1076,8 @@ export function syncAgents(
     // Always filter out blocked tiles and seat positions to avoid spawning on furniture
     const seatPositions = new Set(state.seats.map(s => `${s.col},${s.row}`));
     const isSafeSpawn = (t: { col: number; row: number }) =>
-      !state.blocked.has(`${t.col},${t.row}`) && !seatPositions.has(`${t.col},${t.row}`);
+      isWalkable(t.col, t.row, state.layout.tiles, state.layout.cols, state.layout.rows, state.blocked) &&
+      !seatPositions.has(`${t.col},${t.row}`);
 
     const zoneWps = state.zoneWaypoints[zone];
     const rawPool = state.spawnTiles.length > 0
@@ -1063,18 +1091,27 @@ export function syncAgents(
       ? safeWalkable[Math.floor(Math.random() * safeWalkable.length)]
       : state.walkable.length > 0
         ? state.walkable[Math.floor(Math.random() * state.walkable.length)]
-        : { col: 5, row: 5 };
+        : null;
     const spawn = spawnPool.length > 0
       ? spawnPool[Math.floor(Math.random() * spawnPool.length)]
       : fallback;
+
+    if (!spawn) {
+      console.warn(`[pixel-office] No walkable spawn tile for agent ${agent.worker} — skipping`);
+      continue;
+    }
+
+    // Clamp spawn position within grid bounds
+    const clampedCol = Math.max(0, Math.min(spawn.col, state.layout.cols - 1));
+    const clampedRow = Math.max(0, Math.min(spawn.row, state.layout.rows - 1));
 
     const ch = createCharacter(
       agent.worker,
       agent.worker,
       sprites,
       idx,
-      spawn.col,
-      spawn.row
+      clampedCol,
+      clampedRow
     );
     ch.isActive = true;
     ch.cardId = agent.cardId;
@@ -1085,7 +1122,7 @@ export function syncAgents(
 
     // Assign a seat in the character's zone
     {
-      const freeSeat = findFreeSeatInZone(state, zone, spawn.col, spawn.row);
+      const freeSeat = findFreeSeatInZone(state, zone, clampedCol, clampedRow);
       if (freeSeat) {
         freeSeat.assigned = true;
         freeSeat.assignedTo = agent.worker;
@@ -1098,10 +1135,12 @@ export function syncAgents(
     state.characters.push(ch);
   }
 
-  // Remove inactive characters immediately — no ghosts
+  // Remove inactive characters only after their fade-out timer has expired
   state.characters = state.characters.filter((ch) => {
     if (ch.isActive) return true;
-    // Free the seat
+    // Keep alive while they still have time left to wander/fade
+    if (ch.inactiveTimer !== undefined && ch.inactiveTimer > 0) return true;
+    // Fully faded — clean up any lingering seat reference and remove
     const seat = state.seats.find((s) => s.assignedTo === ch.id);
     if (seat) { seat.assigned = false; seat.assignedTo = null; }
     return false;
@@ -1236,6 +1275,7 @@ export function applyZoneMap(
     const zone = COLUMN_TO_ZONE[column];
     if (!zone) continue;
     const [col, row] = key.split(",").map(Number);
+    if (!isWalkable(col, row, state.layout.tiles, state.layout.cols, state.layout.rows, state.blocked)) continue;
     zoneWaypoints[zone].push({ col, row });
   }
   if (Object.keys(zoneMap).length > 0) {
