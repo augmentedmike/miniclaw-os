@@ -27,10 +27,10 @@ export async function POST(req: Request) {
       });
       const sensitiveToken = issueToken();
       return NextResponse.json({ ok: true, sensitiveToken });
-    } catch {
+    } catch { // sudo validation failed — wrong password
       return NextResponse.json({ ok: false, error: "Incorrect password" }, { status: 401 });
     }
-  } catch {
+  } catch { // request body parse failure or missing fields
     return NextResponse.json({ ok: false, error: "Invalid request" }, { status: 400 });
   }
 }
