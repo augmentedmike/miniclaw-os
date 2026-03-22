@@ -1,0 +1,38 @@
+{
+  "id": "mc-transduck",
+  "name": "MiniClaw Transduck",
+  "description": "AI translation framework for MiniClaw i18n",
+  "version": "0.1.0",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "dbDir": {
+        "type": "string",
+        "description": "Directory for SQLite translation cache"
+      },
+      "provider": {
+        "type": "string",
+        "description": "AI backend provider (openai or anthropic)",
+        "enum": ["openai", "anthropic"]
+      },
+      "apiKeyEnv": {
+        "type": "string",
+        "description": "Environment variable name for the API key"
+      },
+      "defaultSourceLang": {
+        "type": "string",
+        "description": "Default source language code (e.g. EN)"
+      },
+      "defaultTargetLangs": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Default target language codes (e.g. [DE, ES, FR])"
+      },
+      "backendModel": {
+        "type": "string",
+        "description": "AI model to use for translation"
+      }
+    }
+  }
+}
