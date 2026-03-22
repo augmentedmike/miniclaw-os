@@ -54,9 +54,28 @@ function gateSubmit(card: Card): GateFailure[] {
 }
 
 function gateApprove(card: Card): GateFailure[] {
+  const f: GateFailure[] = [];
   if (!card.review_notes.trim())
-    return [{ field: "review_notes", reason: "empty — complete the audit/critic pass first" }];
-  return [];
+    f.push({ field: "review_notes", reason: "empty — complete the audit/critic pass first" });
+
+  // Require commit hash evidence in review_notes (short or full SHA)
+  const shaPattern = /\b[0-9a-f]{7,40}\b/i;
+  if (card.review_notes.trim() && !shaPattern.test(card.review_notes))
+    f.push({ field: "review_notes", reason: "no commit hash found — include the SHA from `git log` to prove code landed on main" });
+
+  // Require PR merged evidence or explicit "no-pr" marker
+  const prPattern = /PR\s*#\d+\s*(merged|MERGED)|merged.*PR|no-pr/i;
+  if (card.review_notes.trim() && !prPattern.test(card.review_notes))
+    f.push({ field: "review_notes", reason: "no PR merge evidence — include 'PR #N merged' or 'no-pr' if direct push" });
+
+  // Require verify_url evidence if the card has a verify_url set
+  if (card.verify_url && card.verify_url.trim()) {
+    const verifyPattern = /verify.*(pass|ok|2\d\d|live|confirmed)|HTTP\/[\d.]+ 2\d\d|curl.*2\d\d|status[:\s]+2\d\d|verified live/i;
+    if (card.review_notes.trim() && !verifyPattern.test(card.review_notes))
+      f.push({ field: "verify_url", reason: `card has verify_url (${card.verify_url}) but review_notes contain no verification evidence — include HTTP status or 'verified live'` });
+  }
+
+  return f;
 }
 
 function gateNone(_card: Card): GateFailure[] { return []; }
@@ -153,8 +172,12 @@ export function formatGateError(from: Column, to: Column, failures: GateFailure[
     lines.push(`  miniclaw brain update CARD_ID --criteria "- [x] thing one\\n- [x] thing two"`);
     lines.push(`  miniclaw brain move CARD_ID ${to}`);
   } else if (to === "shipped") {
-    lines.push(`  miniclaw brain update CARD_ID --review "Audit passed. Logic correct, no edge cases missed."`);
+    lines.push(`  miniclaw brain update CARD_ID --review "Audit passed. Commit abc1234 on main. PR #N merged. verified live — HTTP 200."`);
     lines.push(`  miniclaw brain move CARD_ID ${to}`);
+    lines.push(`\nRequired evidence in review_notes:`);
+    lines.push(`  • Commit SHA (7+ hex chars)`);
+    lines.push(`  • PR evidence: 'PR #N merged' or 'no-pr'`);
+    lines.push(`  • If verify_url set: verification result (HTTP status or 'verified live')`);
   }
 
   return lines.join("\n");
