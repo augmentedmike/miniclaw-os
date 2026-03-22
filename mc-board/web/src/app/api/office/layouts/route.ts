@@ -30,7 +30,7 @@ export function GET() {
           cols: data.cols ?? 0,
           rows: data.rows ?? 0,
         };
-      } catch {
+      } catch { /* malformed layout JSON — return defaults */
         return { name: path.basename(f, ".json"), cols: 0, rows: 0 };
       }
     });

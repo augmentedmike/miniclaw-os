@@ -16,9 +16,8 @@ function isInstallRunning(): boolean {
     // Check if process is alive
     process.kill(pid, 0);
     return true;
-  } catch {
-    // Process not running or file doesn't exist
-    try { fs.unlinkSync(LOCK_FILE); } catch { /* ignore */ }
+  } catch { /* process-not-running */
+    try { fs.unlinkSync(LOCK_FILE); } catch { /* file-missing */ }
     return false;
   }
 }

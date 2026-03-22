@@ -19,7 +19,7 @@ export async function PATCH(
   let body: Record<string, unknown>;
   try {
     body = await req.json();
-  } catch {
+  } catch { /* malformed JSON body */
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 

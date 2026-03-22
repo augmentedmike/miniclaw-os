@@ -5,8 +5,14 @@
  * a running plugin runtime or embedder model.
  */
 
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import * as os from "node:os";
 import { route } from "./src/router.js";
+import { episodicQualityGate } from "./src/writer.js";
+import { write } from "./src/writer.js";
+import type { KBStore, Embedder, KBEntry, KBEntryCreate } from "./src/types.js";
 
 describe("mc-memory router", () => {
   it("routes card-scoped failure notes to memo", () => {
@@ -81,5 +87,86 @@ describe("mc-memory router", () => {
     );
     expect(result.target).toBe("kb");
     expect(result.kbType).toBe("fact");
+  });
+});
+
+describe("mc-memory episodic quality gate", () => {
+  it("rejects content shorter than 50 chars", () => {
+    const reason = episodicQualityGate("short");
+    expect(reason).not.toBeNull();
+    expect(reason).toContain("too short");
+  });
+
+  it("rejects content with no alphabetic words", () => {
+    const reason = episodicQualityGate("1234567890 !@#$%^&*() 1234567890 !@#$%^&*() 1234567890");
+    expect(reason).not.toBeNull();
+    expect(reason).toContain("no alphabetic words");
+  });
+
+  it("accepts valid multi-sentence content", () => {
+    const reason = episodicQualityGate(
+      "Today I learned that the deployment pipeline requires three stages. Each stage validates the build artifacts before promotion.",
+    );
+    expect(reason).toBeNull();
+  });
+
+  it("respects custom minLength override", () => {
+    const reason = episodicQualityGate("This is short but valid text", 10);
+    expect(reason).toBeNull();
+  });
+});
+
+describe("mc-memory writeEpisodic integration", () => {
+  let tmpDir: string;
+  const mockStore: KBStore = {
+    add: (entry: KBEntryCreate) => ({ ...entry, id: "test-id", created_at: "", updated_at: "", tags: entry.tags ?? [] }) as KBEntry,
+    update: () => ({} as KBEntry),
+    get: () => undefined,
+    list: () => [],
+    ftsSearch: () => [],
+    vecSearch: () => [],
+    isVecLoaded: () => false,
+  };
+  const mockEmbedder: Embedder = {
+    isReady: () => false,
+    embed: async () => null,
+    load: async () => {},
+    getDims: () => 0,
+  };
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mc-memory-test-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("rejects short garbage content via write()", async () => {
+    const memoDir = path.join(tmpDir, "memos");
+    const episodicDir = path.join(tmpDir, "episodic");
+    const result = await write(mockStore, mockEmbedder, memoDir, episodicDir, "junk", {});
+    expect(result.stored_in).toBe("rejected");
+    expect(result.reason).toBeDefined();
+  });
+
+  it("accepts valid content and writes episodic file", async () => {
+    const memoDir = path.join(tmpDir, "memos");
+    const episodicDir = path.join(tmpDir, "episodic");
+    const content = "Today I configured the CI pipeline to run integration tests before deployment. This ensures broken builds never reach production.";
+    const result = await write(mockStore, mockEmbedder, memoDir, episodicDir, content, {});
+    expect(result.stored_in).toBe("episodic");
+    expect(result.path).toBeDefined();
+    expect(fs.existsSync(result.path!)).toBe(true);
+  });
+
+  it("applies quality gate even when forceTarget is episodic", async () => {
+    const memoDir = path.join(tmpDir, "memos");
+    const episodicDir = path.join(tmpDir, "episodic");
+    const result = await write(mockStore, mockEmbedder, memoDir, episodicDir, "x", {
+      forceTarget: "episodic",
+    });
+    expect(result.stored_in).toBe("rejected");
+    expect(result.reason).toContain("too short");
   });
 });

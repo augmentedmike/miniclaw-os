@@ -37,7 +37,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ col
   try {
     const prompt = fs.existsSync(p) ? fs.readFileSync(p, "utf8") : DEFAULT_PROCESS_PROMPT;
     return NextResponse.json({ prompt, path: p });
-  } catch {
+  } catch { /* prompt-file-unreadable */
     return NextResponse.json({ prompt: DEFAULT_PROCESS_PROMPT, path: p });
   }
 }

@@ -61,11 +61,12 @@ export interface Embedder {
 // mc-memory specific types
 
 export interface WriteResult {
-  stored_in: "memo" | "kb" | "episodic";
+  stored_in: "memo" | "kb" | "episodic" | "rejected";
   id?: string;       // KB entry ID if stored in KB
   cardId?: string;    // card ID if stored in memo
   date?: string;      // date if stored in episodic
   path?: string;      // file path where stored
+  reason?: string;    // rejection reason if stored_in is 'rejected'
 }
 
 export interface RecallResult {

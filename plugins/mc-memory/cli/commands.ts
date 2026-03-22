@@ -52,13 +52,20 @@ export function registerMemoryCommands(
     .option("--card <cardId>", "Card ID for card-scoped context")
     .option("--force <target>", "Force target: memo, kb, or episodic")
     .option("--source <source>", "Source identifier")
-    .action(async (content: string, opts: { card?: string; force?: string; source?: string }) => {
+    .option("--min-length <chars>", "Minimum content length for episodic writes (default 50)", "50")
+    .action(async (content: string, opts: { card?: string; force?: string; source?: string; minLength?: string }) => {
       try {
         const result = await write(store, embedder, memoDir, episodicDir, content, {
           cardId: opts.card,
           forceTarget: opts.force as any,
           source: opts.source,
+          minLength: parseInt(opts.minLength ?? "50", 10),
         });
+
+        if (result.stored_in === "rejected") {
+          console.error(`Write rejected: ${result.reason}`);
+          process.exit(1);
+        }
 
         console.log(`Stored in: ${result.stored_in}`);
         if (result.id) console.log(`KB ID: ${result.id}`);

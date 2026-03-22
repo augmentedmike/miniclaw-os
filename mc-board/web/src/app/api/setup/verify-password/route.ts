@@ -30,10 +30,10 @@ export async function POST(req: Request) {
       // Issue a single-use token for the subsequent save request
       const sensitiveToken = issueToken();
       return NextResponse.json({ ok: true, sensitiveToken });
-    } catch {
+    } catch { /* invalid-password */
       return NextResponse.json({ ok: false, error: "Incorrect password" }, { status: 401 });
     }
-  } catch {
+  } catch { /* malformed-request */
     return NextResponse.json({ ok: false, error: "Invalid request" }, { status: 400 });
   }
 }
