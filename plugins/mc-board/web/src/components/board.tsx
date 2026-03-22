@@ -55,6 +55,9 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
+  const [showNewWork, setShowNewWork] = useState(false);
+  const [newWorkDesc, setNewWorkDesc] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   // Track which log keys we've already toasted (cardId:action:at)
   const seenLogKeys = useRef<Set<string>>(new Set());
@@ -225,6 +228,26 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
     }, 100);
   };
 
+  async function handleSubmitWork(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newWorkDesc.trim() || submitting) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description: newWorkDesc.trim() }),
+      });
+      if (res.ok) {
+        setNewWorkDesc("");
+        setShowNewWork(false);
+        mutate();
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   if (isLoading && !data) {
     return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flex: 1, color: "#52525b", fontSize: 13 }}>Loading...</div>;
   }
@@ -254,15 +277,30 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
               transition: "background 0.15s ease, border-color 0.15s ease",
             }}
           />
-          <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer", fontSize: 12, color: showHeld ? "#a8a29e" : "#52525b", userSelect: "none", whiteSpace: "nowrap" }}>
-            <input
-              type="checkbox"
-              checked={showHeld}
-              onChange={e => setShowHeld(e.target.checked)}
-              style={{ accentColor: "#d97706", cursor: "pointer" }}
-            />
-            show held
-          </label>
+          <button
+            onClick={() => setShowNewWork(true)}
+            style={{
+              background: "#3b82f6", border: "none", color: "#fff", borderRadius: 4,
+              padding: "4px 12px", cursor: "pointer", fontSize: 12, fontWeight: 600,
+              whiteSpace: "nowrap",
+            }}
+          >
+            + New Request
+          </button>
+          <button
+            onClick={() => setShowHeld(h => !h)}
+            style={{
+              fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 6,
+              background: showHeld ? "#451a03" : "transparent",
+              border: showHeld ? "1px solid #d97706" : "1px solid #2a2a33",
+              color: showHeld ? "#fbbf24" : "#6b6baf", cursor: "pointer", whiteSpace: "nowrap",
+              transition: "background 0.1s, border-color 0.1s, color 0.1s",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = showHeld ? "#451a03" : "#1a1a2e"; e.currentTarget.style.borderColor = showHeld ? "#fbbf24" : "#4a4a8f"; e.currentTarget.style.color = showHeld ? "#fbbf24" : "#a5a5ff"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = showHeld ? "#451a03" : "transparent"; e.currentTarget.style.borderColor = showHeld ? "#d97706" : "#2a2a33"; e.currentTarget.style.color = showHeld ? "#fbbf24" : "#6b6baf"; }}
+          >
+            {showHeld ? "Hide Held" : "Show Held"}
+          </button>
           <button
             onClick={() => setShowSummary(true)}
             style={{
@@ -357,6 +395,52 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
           />
         );
       })()}
+
+      {/* New work request modal */}
+      {showNewWork && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 100,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }} onClick={(e) => { if (e.target === e.currentTarget) setShowNewWork(false); }}>
+          <form onSubmit={handleSubmitWork} style={{
+            background: "#18181b", border: "1px solid #27272a", borderRadius: 8,
+            padding: 24, width: 480, maxWidth: "90vw", display: "flex", flexDirection: "column", gap: 16,
+          }}>
+            <h3 style={{ color: "#e4e4e7", fontSize: 16, fontWeight: 600, margin: 0 }}>New Work Request</h3>
+            <p style={{ color: "#71717a", fontSize: 13, margin: 0 }}>
+              Describe what you need done. The board will handle triaging, planning, and execution.
+            </p>
+            <textarea
+              autoFocus
+              value={newWorkDesc}
+              onChange={(e) => setNewWorkDesc(e.target.value)}
+              placeholder="What do you need done?"
+              rows={5}
+              style={{
+                background: "#09090b", border: "1px solid #27272a", borderRadius: 6, color: "#e4e4e7",
+                padding: 12, fontSize: 14, resize: "vertical", fontFamily: "inherit",
+              }}
+            />
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button type="button" onClick={() => setShowNewWork(false)}
+                style={{
+                  background: "#27272a", border: "1px solid #3f3f46", color: "#a1a1aa",
+                  borderRadius: 6, padding: "8px 16px", cursor: "pointer", fontSize: 13,
+                }}>
+                Cancel
+              </button>
+              <button type="submit" disabled={submitting || !newWorkDesc.trim()}
+                style={{
+                  background: submitting ? "#1e40af" : "#3b82f6", border: "none", color: "#fff",
+                  borderRadius: 6, padding: "8px 16px", cursor: "pointer", fontSize: 13, fontWeight: 600,
+                  opacity: !newWorkDesc.trim() ? 0.5 : 1,
+                }}>
+                {submitting ? "Creating..." : "Submit"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
