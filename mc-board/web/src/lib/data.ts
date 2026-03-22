@@ -459,6 +459,71 @@ export function getRecentAgentRuns(sinceMs = 60 * 60 * 1000): AgentRun[] {
   } catch { return []; }
 }
 
+// ---- Queue settings ----
+
+export interface QueueSettings {
+  col: string;
+  maxConcurrent: number;
+  intervalMs: number;
+  enabled: boolean;
+  updatedAt: string;
+}
+
+export function getQueueSettings(): QueueSettings[] {
+  const db = getDb();
+  if (!db) return [];
+  try {
+    const rows = db.prepare(`SELECT col, max_concurrent, interval_ms, enabled, updated_at FROM queue_settings`).all() as {
+      col: string; max_concurrent: number; interval_ms: number; enabled: number; updated_at: string;
+    }[];
+    return rows.map(r => ({
+      col: r.col,
+      maxConcurrent: r.max_concurrent,
+      intervalMs: r.interval_ms,
+      enabled: r.enabled === 1,
+      updatedAt: r.updated_at,
+    }));
+  } catch { return []; }
+}
+
+export function getQueueSettingsForColumn(col: string): QueueSettings | null {
+  const db = getDb();
+  if (!db) return null;
+  try {
+    const row = db.prepare(`SELECT col, max_concurrent, interval_ms, enabled, updated_at FROM queue_settings WHERE col = ?`).get(col) as {
+      col: string; max_concurrent: number; interval_ms: number; enabled: number; updated_at: string;
+    } | undefined;
+    if (!row) return null;
+    return {
+      col: row.col,
+      maxConcurrent: row.max_concurrent,
+      intervalMs: row.interval_ms,
+      enabled: row.enabled === 1,
+      updatedAt: row.updated_at,
+    };
+  } catch { return null; }
+}
+
+export function updateQueueSettings(col: string, patch: { maxConcurrent?: number; intervalMs?: number; enabled?: boolean }): QueueSettings | null {
+  const db = getDb();
+  if (!db) return null;
+  try {
+    const now = new Date().toISOString();
+    // Upsert: create the row if it doesn't exist
+    db.prepare(`INSERT OR IGNORE INTO queue_settings (col, max_concurrent, interval_ms, enabled, updated_at) VALUES (?, 5, 300000, 1, ?)`).run(col, now);
+    if (patch.maxConcurrent !== undefined) {
+      db.prepare(`UPDATE queue_settings SET max_concurrent = ?, updated_at = ? WHERE col = ?`).run(patch.maxConcurrent, now, col);
+    }
+    if (patch.intervalMs !== undefined) {
+      db.prepare(`UPDATE queue_settings SET interval_ms = ?, updated_at = ? WHERE col = ?`).run(patch.intervalMs, now, col);
+    }
+    if (patch.enabled !== undefined) {
+      db.prepare(`UPDATE queue_settings SET enabled = ?, updated_at = ? WHERE col = ?`).run(patch.enabled ? 1 : 0, now, col);
+    }
+    return getQueueSettingsForColumn(col);
+  } catch { return null; }
+}
+
 export function getRunningByCol(): Record<string, string[]> {
   const db = getDb();
   if (!db) return {};
