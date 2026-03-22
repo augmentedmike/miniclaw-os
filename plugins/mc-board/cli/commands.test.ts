@@ -114,7 +114,7 @@ async function fullCycleCard(title: string): Promise<Card> {
   });
   await run("mc-board", "move", card.id, "in-progress");
   await run("mc-board", "move", card.id, "in-review");
-  store.update(card.id, { review_notes: "LGTM" });
+  store.update(card.id, { review_notes: "Commit abc1234 on main. no-pr. LGTM" });
   await run("mc-board", "move", card.id, "shipped");
   return store.findById(card.id);
 }
