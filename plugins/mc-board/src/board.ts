@@ -143,6 +143,9 @@ export function renderCardDetail(card: Card): string {
     `**Tags:** ${card.tags.length > 0 ? card.tags.join(", ") : "(none)"}`,
     `**Created:** ${card.created_at}`,
     `**Updated:** ${card.updated_at}`,
+    ...(card.column === "shipped"
+      ? [`**Shipped:** ${(card.history.filter(h => h.column === "shipped").pop()?.moved_at) ?? card.updated_at}`]
+      : []),
     `project_id: ${card.project_id ?? ""}`,
     ``,
     `## Problem Description`,

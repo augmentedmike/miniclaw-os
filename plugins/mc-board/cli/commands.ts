@@ -652,7 +652,9 @@ Examples:
         return;
       }
       for (const card of results) {
-        console.log(`${card.id}  ${card.title}  [archived ${card.updated_at.slice(0, 10)}]`);
+        const shippedAt = card.history?.filter(h => h.column === "shipped").pop()?.moved_at;
+        const displayDate = shippedAt ?? card.updated_at;
+        console.log(`${card.id}  ${card.title}  [shipped ${displayDate.slice(0, 10)}]`);
       }
     });
 
