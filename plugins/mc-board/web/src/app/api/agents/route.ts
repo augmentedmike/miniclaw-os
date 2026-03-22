@@ -26,7 +26,6 @@ function findManifest(): string | null {
   const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(process.env.HOME || "", ".openclaw");
   const candidates = [
     path.join(STATE_DIR, "projects", "miniclaw-os", "MANIFEST.json"),
-    path.join(process.env.HOME || "", "newam", "projects", "miniclaw-os", "MANIFEST.json"),
   ];
   if (process.env.MINICLAW_OS_DIR) {
     candidates.unshift(path.join(process.env.MINICLAW_OS_DIR, "MANIFEST.json"));

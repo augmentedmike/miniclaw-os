@@ -3,11 +3,12 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { execSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
+import * as os from "node:os";
 import { consumeToken } from "@/lib/sensitive-auth";
 import { isSetupComplete } from "@/lib/setup-state";
+import { stateDir, claudeBinPath } from "@/lib/paths";
 
-const CLAUDE_BIN = "/Users/michaeloneal/.local/bin/claude";
-const HOME = process.env.HOME || "";
+const HOME = os.homedir();
 
 function isAnthropicAuthed(): boolean {
   // Claude Code stores OAuth token in macOS keychain under "Claude Code-credentials"
@@ -52,7 +53,7 @@ export async function POST() {
     execSync(`osascript -e '
       tell application "Terminal"
         activate
-        do script "${CLAUDE_BIN} setup-token; exit"
+        do script "${claudeBinPath()} setup-token; exit"
       end tell
     '`, {
       timeout: 5000,
