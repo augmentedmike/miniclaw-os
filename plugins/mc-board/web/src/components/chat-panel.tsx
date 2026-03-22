@@ -98,6 +98,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
   const [dragOver, setDragOver] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [storageWarning, setStorageWarning] = useState<string | null>(null);
+  const [topicShift, setTopicShift] = useState<{ suggestedTopic: string; seedMessage: string } | null>(null);
   const [historyOpen, setHistoryOpen] = useState(() => {
     try { return localStorage.getItem("mc-board:chat-history-open") === "true"; } catch { return false; }
   });
@@ -477,13 +478,17 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
             break;
           case "streaming":
             setStreaming(true);
-            if (d.text) setStreamingText(d.text);
+            if (d.text) {
+              const cleanText = d.text.replace(/<topic_shift\s+detected="true"\s+new_topic="[^"]*"\s*\/>/g, "").trimEnd();
+              setStreamingText(cleanText);
+            }
             if (d.tools?.length) setStreamingTools(d.tools);
             break;
-          case "result":
+          case "result": {
             setStreaming(false); setStreamingText(""); setStreamingTools([]); setInterruptOverlayVisible(false); setSentContext(null);
-            if (d.text) {
-              const assistantMsg: Message = { id: generateMsgId(), role: "assistant", content: d.text };
+            const resultText = d.text ? d.text.replace(/<topic_shift\s+detected="true"\s+new_topic="[^"]*"\s*\/>/g, "").trimEnd() : "";
+            if (resultText) {
+              const assistantMsg: Message = { id: generateMsgId(), role: "assistant", content: resultText };
               const insertIdx = streamingInsertIndexRef.current;
               if (insertIdx !== null) {
                 setMessages(prev => [
@@ -497,6 +502,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
             }
             streamingInsertIndexRef.current = null;
             break;
+          }
           case "done": case "process_exit":
             setStreaming(false); setStreamingText(""); setStreamingTools([]); setInterruptOverlayVisible(false); setSentContext(null);
             streamingInsertIndexRef.current = null;
@@ -505,6 +511,9 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
             setMessages(prev => [...prev, { id: generateMsgId(), role: "system", content: d.message, error: true }]);
             setStreaming(false); setInterruptOverlayVisible(false); setSentContext(null);
             streamingInsertIndexRef.current = null;
+            break;
+          case "topic_shift":
+            setTopicShift({ suggestedTopic: d.suggestedTopic, seedMessage: d.seedMessage || "" });
             break;
         }
       };
@@ -595,6 +604,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
       setPendingImages([]);
       setImageError(null);
       setStorageWarning(null);
+      setTopicShift(null);
       setReplyingTo(null);
       streamingInsertIndexRef.current = null;
       return;
@@ -661,6 +671,27 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
       content: "⏹ Agent interrupted by user",
     }]);
   }, [stopResponse]);
+
+  const startNewChatFromTopicShift = useCallback(() => {
+    if (!topicShift || !wsRef.current || !connected) return;
+    const seed = topicShift.seedMessage;
+    setTopicShift(null);
+    setMessages([]);
+    setSessionId(null);
+    setVisibleCount(20);
+    setContext(null);
+    setSentContext(null);
+    setPendingImages([]);
+    setImageError(null);
+    setStorageWarning(null);
+    setReplyingTo(null);
+    streamingInsertIndexRef.current = null;
+    wsRef.current.send(JSON.stringify({ type: "new_chat", seedMessage: seed }));
+    if (seed) {
+      setMessages([{ id: generateMsgId(), role: "user", content: seed }]);
+      setStreaming(true);
+    }
+  }, [topicShift, connected]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && e.shiftKey) {
@@ -764,7 +795,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
           )}
           {messages.length > 0 && (
             <button
-              onClick={() => { setMessages([]); setStorageWarning(null); setReplyingTo(null); wsRef.current?.send(JSON.stringify({ type: "new_chat" })); streamingInsertIndexRef.current = null; }}
+              onClick={() => { setMessages([]); setStorageWarning(null); setReplyingTo(null); setTopicShift(null); wsRef.current?.send(JSON.stringify({ type: "new_chat" })); streamingInsertIndexRef.current = null; }}
               title="New chat (archives current)"
               style={{
                 background: "none", border: "none", color: "#52525b", cursor: "pointer",
@@ -817,6 +848,37 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
           <button
             onClick={() => setStorageWarning(null)}
             style={{ background: "none", border: "none", color: "#854d0e", cursor: "pointer", fontSize: 13, lineHeight: 1, padding: 0 }}
+          >×</button>
+        </div>
+      )}
+
+      {/* Topic shift banner */}
+      {topicShift && (
+        <div style={{
+          margin: 0, padding: "8px 14px", flexShrink: 0,
+          background: "#1a1a2e", borderBottom: "1px solid #3b3b6b",
+          fontSize: 12, color: "#a5b4fc", display: "flex", alignItems: "center", gap: 8,
+        }}>
+          <span style={{ flex: 1 }}>
+            This looks like a new topic: <strong>{topicShift.suggestedTopic}</strong>
+          </span>
+          <button
+            onClick={startNewChatFromTopicShift}
+            style={{
+              background: "#312e81", border: "1px solid #4338ca", borderRadius: 4,
+              color: "#c7d2fe", cursor: "pointer", fontSize: 11, padding: "3px 10px",
+              fontFamily: "inherit", fontWeight: 600, whiteSpace: "nowrap",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = "#3730a3"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "#312e81"; }}
+          >Start new chat</button>
+          <button
+            onClick={() => setTopicShift(null)}
+            style={{
+              background: "none", border: "none", color: "#4338ca", cursor: "pointer",
+              fontSize: 14, lineHeight: 1, padding: 0, flexShrink: 0,
+            }}
+            title="Dismiss"
           >×</button>
         </div>
       )}
