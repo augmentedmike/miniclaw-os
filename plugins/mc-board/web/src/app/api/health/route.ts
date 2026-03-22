@@ -11,7 +11,7 @@ function getVersion(): string {
   try {
     const manifest = JSON.parse(fs.readFileSync(path.join(stateDir, "miniclaw", "MANIFEST.json"), "utf-8"));
     return manifest.version || "0.0.0";
-  } catch { // MANIFEST.json missing or unreadable — return default version
+  } catch { /* manifest-missing */
     return "0.0.0";
   }
 }
@@ -24,7 +24,7 @@ async function checkWeb(): Promise<{ status: "ok" | "down" }> {
     clearTimeout(timer);
     if (res.ok) return { status: "ok" };
     return { status: "down" };
-  } catch { // fetch failed — web service unreachable or timed out
+  } catch { /* unavailable */
     return { status: "down" };
   }
 }
@@ -49,7 +49,7 @@ async function checkChat(): Promise<{ status: "ok" | "down" }> {
         sock.destroy();
         resolve({ status: "down" });
       });
-    } catch { // socket connection setup failed — chat service down
+    } catch { /* unavailable */
       resolve({ status: "down" });
     }
   });
@@ -70,10 +70,10 @@ async function checkTelegram(): Promise<{ status: "ok" | "down" | "unconfigured"
       clearTimeout(timer);
       const data = await res.json();
       return { status: data.ok ? "ok" : "down" };
-    } catch { // Telegram API unreachable or timed out — token exists but service down
+    } catch { /* token exists but API unreachable */
       return { status: "down" };
     }
-  } catch { // setup-state.json missing or malformed — Telegram not configured
+  } catch { /* setup-state missing or unreadable */
     return { status: "unconfigured" };
   }
 }

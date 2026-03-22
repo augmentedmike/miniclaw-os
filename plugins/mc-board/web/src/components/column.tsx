@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import type { BoardCard, Column as ColumnType, Project } from "@/lib/types";
 import { ColumnShell } from "./column-shell";
 import { TriageControls } from "./triage-controls";
@@ -10,8 +10,6 @@ import { WorkModal } from "./work-modal";
 import { useTriageColumn } from "@/hooks/useTriageColumn";
 
 const TRIAGE_COLUMNS = new Set<ColumnType>(["backlog", "in-progress", "in-review"]);
-
-function lsMaxKey(column: ColumnType) { return `mc-board:${column}-triage:maxConcurrent`; }
 
 interface Props {
   column: ColumnType;
@@ -40,18 +38,26 @@ interface TriageHeaderProps {
 function TriageColumnHeader({ column, topCards, onOpenTriage, onOpenWork }: TriageHeaderProps) {
   const triage = useTriageColumn(column);
 
-  const [maxConcurrent, setMaxConcurrent] = useState<number>(() => {
-    if (typeof window === "undefined") return 3;
-    return parseInt(localStorage.getItem(lsMaxKey(column)) ?? "3", 10);
-  });
+  const [maxConcurrent, setMaxConcurrent] = useState<number>(3);
+
+  // Load maxConcurrent from the API (queue_settings DB table) on mount
+  useEffect(() => {
+    fetch("/api/queue-settings")
+      .then(r => r.json())
+      .then(d => {
+        const setting = (d.settings ?? []).find((s: { col: string }) => s.col === column);
+        if (setting?.maxConcurrent) setMaxConcurrent(setting.maxConcurrent);
+      })
+      .catch(() => {});
+  }, [column]);
 
   const handleMaxChange = useCallback((n: number) => {
     setMaxConcurrent(n);
-    localStorage.setItem(lsMaxKey(column), String(n));
-    fetch("/api/cron", {
+    // Write to queue_settings DB via API
+    fetch("/api/queue-settings", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: `board-${column}-triage`, maxConcurrent: n }),
+      body: JSON.stringify({ col: column, maxConcurrent: n }),
     }).catch(() => {});
   }, [column]);
 

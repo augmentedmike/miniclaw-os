@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useState, useCallback } from "react";
+import { useAccent } from "@/lib/accent-context";
 import useSWR from "swr";
 import type { ActiveAgent, OfficeLayout } from "@/lib/pixel-office/types";
 import type { Card } from "@/lib/types";
@@ -38,6 +39,7 @@ interface Props {
 }
 
 export function PixelOfficeTab({ onSwitchToBoard }: Props) {
+  const accent = useAccent();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const stateRef = useRef<OfficeState | null>(null);
@@ -253,8 +255,8 @@ export function PixelOfficeTab({ onSwitchToBoard }: Props) {
         <span style={{ fontSize: 16 }}>🏢</span>
         <span style={{ fontWeight: 600, color: "#e4e4e7" }}>Agent Office</span>
         <span style={{
-          background: agentCount > 0 ? "#22c55e22" : "#3f3f4622",
-          color: agentCount > 0 ? "#22c55e" : "#71717a",
+          background: agentCount > 0 ? `${accent}22` : "#3f3f4622",
+          color: agentCount > 0 ? accent : "#71717a",
           padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 600,
         }}>
           {agentCount} active
@@ -343,11 +345,11 @@ export function PixelOfficeTab({ onSwitchToBoard }: Props) {
             <div key={ch.id} onClick={() => ch.cardId && setOpenCardId(ch.cardId)}
               style={{
                 display: "flex", alignItems: "center", gap: 6, padding: "3px 8px",
-                background: ch.isActive ? "#22c55e11" : "#27272a",
-                border: `1px solid ${ch.isActive ? "#22c55e33" : "#3f3f46"}`,
+                background: ch.isActive ? `${accent}11` : "#27272a",
+                border: `1px solid ${ch.isActive ? `${accent}33` : "#3f3f46"}`,
                 borderRadius: 4, cursor: ch.cardId ? "pointer" : "default",
               }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: ch.isActive ? "#22c55e" : "#52525b", flexShrink: 0 }} />
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: ch.isActive ? accent : "#52525b", flexShrink: 0 }} />
               <span style={{ color: ch.isActive ? "#e4e4e7" : "#71717a" }}>{ch.cardId ?? ch.name}</span>
               {ch.column && <span style={{ color: "#52525b", fontSize: 10 }}>{ch.column}</span>}
             </div>

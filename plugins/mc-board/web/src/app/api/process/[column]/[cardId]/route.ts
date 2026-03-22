@@ -1,23 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCard, getDb } from "@/lib/data";
+import { getCard, getDb, getQueueSettingsForColumn } from "@/lib/data";
 import { pickupCard } from "@/lib/actions";
 import { enqueue } from "@/lib/agent-queue";
-import { listCronJobs } from "@/lib/cron";
 
 export const dynamic = "force-dynamic";
 
-const COL_TO_JOB: Record<string, string> = {
-  "backlog": "board-backlog-triage",
-  "in-progress": "board-in-progress-triage",
-  "in-review": "board-in-review-triage",
-};
-
 function getCapacityLimitForColumn(column: string): number {
-  const jobId = COL_TO_JOB[column];
-  if (!jobId) return 3;
-  const jobs = listCronJobs();
-  const job = jobs.find(j => j.id === jobId);
-  return job?.maxConcurrent ?? 3;
+  const qs = getQueueSettingsForColumn(column);
+  return qs?.maxConcurrent ?? 3;
 }
 
 function countCardsInColumn(column: string): number {

@@ -8,6 +8,7 @@ import { markedHighlight } from "marked-highlight";
 import hljs from "highlight.js";
 import { Modal } from "./modal";
 import { FileViewModal } from "./file-view-modal";
+import { useAccent } from "@/lib/accent-context";
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
 
@@ -26,7 +27,7 @@ if (marked.defaults.renderer) {
   marked.defaults.renderer.listitem = function(token) {
     if (token.task) {
       const checkbox = token.checked
-        ? '<span class="text-emerald-400">✓</span>'
+        ? '<span style="color:var(--accent)">✓</span>'
         : '<span class="text-zinc-600">☐</span>';
       const textClass = token.checked ? "line-through text-zinc-500" : "";
       return `<li class="flex gap-2">${checkbox}<span class="${textClass}">${token.text}</span></li>`;
@@ -83,6 +84,7 @@ interface Props {
 }
 
 function WatchLive({ cardId }: { cardId: string }) {
+  const accent = useAccent();
   const [lines, setLines] = useState<string[]>([]);
   const [connected, setConnected] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
@@ -107,7 +109,7 @@ function WatchLive({ cardId }: { cardId: string }) {
   return (
     <div style={{ borderTop: "1px solid #27272a", padding: "12px 0" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-        <span style={{ width: 7, height: 7, borderRadius: "50%", background: connected ? "#22c55e" : "#71717a", display: "inline-block" }} />
+        <span style={{ width: 7, height: 7, borderRadius: "50%", background: connected ? accent : "#71717a", display: "inline-block" }} />
         <span style={{ fontSize: 11, color: "#71717a", fontFamily: "monospace" }}>
           {connected ? "live" : "connecting..."} — ~/.openclaw/logs/cards/{cardId}.log
         </span>
@@ -131,10 +133,11 @@ const COLUMN_COLORS: Record<string, { bg: string; text: string }> = {
   "in-progress": { bg: "#1e3a5f", text: "#60a5fa" },
   "in-review": { bg: "#451a03", text: "#fb923c" },
   "on-hold":   { bg: "#1c1917", text: "#a8a29e" },
-  shipped:     { bg: "#052e16", text: "#4ade80" },
+  shipped:     { bg: "#052e16", text: "var(--accent)" },
 };
 
 function TimelineSection({ cardId }: { cardId: string }) {
+  const accent = useAccent();
   const { data: timeline, isLoading } = useSWR<CardTimeline>(
     `/api/card/${cardId}/timeline`,
     fetcher,
@@ -196,7 +199,7 @@ function TimelineSection({ cardId }: { cardId: string }) {
                       border: `2px solid ${ev.kind === "column"
                         ? (COLUMN_COLORS[ev.column]?.text ?? "#52525b")
                         : ev.kind === "pickup"
-                          ? (ev.action === "pickup" ? "#4ade80" : "#78716c")
+                          ? (ev.action === "pickup" ? accent : "#78716c")
                           : "#3f3f46"}`,
                     }} />
                     <div style={{ flex: 1, minWidth: 0, paddingBottom: 4 }}>
@@ -216,7 +219,7 @@ function TimelineSection({ cardId }: { cardId: string }) {
                             <span style={{
                               fontSize: 10, padding: "1px 6px", borderRadius: 4, fontWeight: 600,
                               background: ev.action === "pickup" ? "#14532d" : "#1c1917",
-                              color: ev.action === "pickup" ? "#4ade80" : "#78716c",
+                              color: ev.action === "pickup" ? accent : "#78716c",
                             }}>
                               {ev.action}
                             </span>
@@ -441,6 +444,7 @@ function AttachmentsSection({ card, onOpenFile, onInjectContext, onMutate, onToa
 }
 
 function AgentRunsSection({ cardId }: { cardId: string }) {
+  const accent = useAccent();
   const { data: runs, isLoading } = useSWR<AgentRun[]>(
     `/api/card/${cardId}/runs`,
     fetcher,
@@ -510,7 +514,7 @@ function AgentRunsSection({ cardId }: { cardId: string }) {
                       </span>
                       <span style={{ color: "#a1a1aa" }}>{fmtDuration(run.durationMs)}</span>
                       <span style={{
-                        color: run.exitCode === 0 ? "#4ade80" : run.exitCode === null ? "#71717a" : "#f87171",
+                        color: run.exitCode === 0 ? accent : run.exitCode === null ? "#71717a" : "#f87171",
                         fontWeight: 600,
                       }}>
                         exit {run.exitCode ?? "?"}
@@ -553,6 +557,7 @@ function AgentRunsSection({ cardId }: { cardId: string }) {
 }
 
 export function CardModal({ cardId, projects, activeIds, onClose, onOpenLog, onToast, onMutate, onInjectContext, onHold }: Props) {
+  const accent = useAccent();
   const { data: card } = useSWR<Card>(
     cardId ? `/api/card/${cardId}` : null,
     fetcher,
@@ -560,7 +565,6 @@ export function CardModal({ cardId, projects, activeIds, onClose, onOpenLog, onT
   );
 
   const [fileModal, setFileModal] = useState<{ path: string; base?: string } | null>(null);
-  const [idCopied, setIdCopied] = useState(false);
 
   const projectMap = Object.fromEntries(projects.map(p => [p.id, p.name]));
   const isActive = cardId ? (activeIds?.has(cardId) ?? false) : false;
@@ -596,8 +600,8 @@ export function CardModal({ cardId, projects, activeIds, onClose, onOpenLog, onT
                 <span className="text-xs text-zinc-500 uppercase tracking-wide">{card.column.replace("-", " ")}</span>
                 {isActive && (
                   <span className="flex items-center gap-1">
-                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", display: "inline-block" }} />
-                    <span className="text-xs text-emerald-400">active</span>
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: accent, display: "inline-block" }} />
+                    <span className="text-xs" style={{ color: accent }}>active</span>
                   </span>
                 )}
                 {card.project_id && (
@@ -612,39 +616,6 @@ export function CardModal({ cardId, projects, activeIds, onClose, onOpenLog, onT
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              {card && card.column === "shipped" && (() => {
-                const handleReopen = async () => {
-                  try {
-                    const res = await fetch("/api/board/action", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ action: "move", cardId: card.id, target: "in-progress" }),
-                    });
-                    if (res.ok) {
-                      onToast?.("↩", "Reopened", `${card.id} moved to in-progress`);
-                      onMutate?.();
-                    } else {
-                      const data = await res.json();
-                      onToast?.("⚠", "Failed", data.error ?? "Move failed");
-                    }
-                  } catch (e) {
-                    onToast?.("⚠", "Error", String(e));
-                  }
-                };
-                return (
-                  <button
-                    onClick={handleReopen}
-                    title="Reopen — move back to in-progress"
-                    style={{
-                      fontSize: 11, padding: "3px 10px", borderRadius: 6, fontWeight: 600,
-                      background: "#1e3a5f", border: "1px solid #60a5fa",
-                      color: "#60a5fa", cursor: "pointer",
-                    }}
-                  >
-                    ↩ Reopen
-                  </button>
-                );
-              })()}
               {card && card.column !== "shipped" && onHold && (() => {
                 const held = card.tags.includes("hold");
                 return (
@@ -794,17 +765,7 @@ export function CardModal({ cardId, projects, activeIds, onClose, onOpenLog, onT
       {/* Footer */}
       {card && (
         <div className="border-t border-zinc-800 px-6 py-3 flex-shrink-0">
-          <div
-            className="text-xs font-mono card-id--clickable"
-            style={{ color: idCopied ? "#22c55e" : "#52525b", cursor: "pointer", userSelect: "none", display: "inline-block" }}
-            title="Right click the card number to reference it in web chat"
-            onClick={() => {
-              navigator.clipboard.writeText(card.id).then(() => {
-                setIdCopied(true);
-                setTimeout(() => setIdCopied(false), 1600);
-              });
-            }}
-          >{idCopied ? "copied!" : card.id}</div>
+          <div className="text-xs text-zinc-600 font-mono">{card.id}</div>
         </div>
       )}
     </Modal>

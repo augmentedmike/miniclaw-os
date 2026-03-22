@@ -2,6 +2,7 @@
 
 import { BoardCard, Priority } from "@/lib/types";
 import { memo, useState } from "react";
+import { useAccent } from "@/lib/accent-context";
 
 function HoldBadge({ held, onToggle }: { held: boolean; onToggle?: (e: React.MouseEvent) => void }) {
   const [hovered, setHovered] = useState(false);
@@ -54,8 +55,8 @@ function fmtDate(iso: string): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-const PROG_COLOR = (pct: number) =>
-  pct >= 100 ? "#22c55e" : pct >= 50 ? "#3b82f6" : "#f97316";
+const PROG_COLOR = (pct: number, accent = "#00E5CC") =>
+  pct >= 100 ? accent : pct >= 50 ? "#3b82f6" : "#f97316";
 
 interface Props {
   card: BoardCard;
@@ -71,11 +72,12 @@ interface Props {
 }
 
 export const CardItem = memo(function CardItem({ card, projectName, isActive, worker, blockedBy, onClick, onWatchClick, onFocusToggle, onHoldToggle, onInjectContext }: Props) {
+  const accent = useAccent();
   const { checked, total } = { checked: card.criteria_checked, total: card.criteria_total };
   const pct = total > 0 ? Math.round((checked / total) * 100) : -1;
+  const [idCopied, setIdCopied] = useState(false);
   const focused = card.tags.includes("focus");
   const held = card.tags.includes("hold");
-  const [idCopied, setIdCopied] = useState(false);
 
   const handleContextMenu = (e: React.MouseEvent) => {
     if (!onInjectContext) return;
@@ -106,7 +108,7 @@ export const CardItem = memo(function CardItem({ card, projectName, isActive, wo
         style={isActive && onWatchClick ? { cursor: "pointer" } : undefined}
         title={isActive ? "View live log" : undefined}
       >
-        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", flexShrink: 0, display: "inline-block" }} />
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: accent, flexShrink: 0, display: "inline-block" }} />
         {worker ?? "agent working"}
       </div>
 
@@ -133,7 +135,7 @@ export const CardItem = memo(function CardItem({ card, projectName, isActive, wo
             });
           }}
         >{idCopied ? "copied!" : card.id}</span>
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
           <HoldBadge held={held} onToggle={onHoldToggle ? (e) => { e.stopPropagation(); onHoldToggle(card.id); } : undefined} />
           <FocusBadge focused={focused} onToggle={onFocusToggle ? (e) => { e.stopPropagation(); onFocusToggle(card.id, !focused); } : undefined} />
           <span style={{
@@ -206,7 +208,7 @@ export const CardItem = memo(function CardItem({ card, projectName, isActive, wo
       {pct >= 0 && (
         <div style={{ marginBottom: 4 }}>
           <div className="criteria-bar">
-            <div className="criteria-fill" style={{ width: `${pct}%`, background: PROG_COLOR(pct) }} />
+            <div className="criteria-fill" style={{ width: `${pct}%`, background: PROG_COLOR(pct, accent) }} />
           </div>
           <span className="criteria-label">{checked}/{total} criteria</span>
         </div>

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { listCronJobs, updateCronJob, syncManifestCrons } from "@/lib/cron";
-import { listCards, getActiveWork, getRunningByCol, getDb } from "@/lib/data";
+import { listCards, getActiveWork, getRunningByCol, getDb, getQueueSettingsForColumn } from "@/lib/data";
 import { releaseCard } from "@/lib/actions";
 import { sortCards } from "@/lib/sort";
 import { brainDir, logsDir } from "@/lib/paths";
@@ -205,7 +205,12 @@ export async function GET(req: Request) {
     const { column, projectId } = parsed;
     if (!job.enabled) { skipped.push(`${job.id}: disabled`); continue; }
 
-    const intervalMs = scheduleIntervalMs(job.schedule);
+    // Read authoritative settings from queue_settings DB table
+    const qs = getQueueSettingsForColumn(column);
+    const intervalMs = qs?.intervalMs ?? scheduleIntervalMs(job.schedule);
+    const qsEnabled = qs?.enabled ?? true;
+    if (!qsEnabled) { skipped.push(`${job.id}: disabled (queue_settings)`); continue; }
+
     const elapsed = now - (job.lastRunAtMs ?? 0);
     if (elapsed < intervalMs) {
       skipped.push(`${job.id}: not due (${Math.round((intervalMs - elapsed) / 1000)}s remaining)`);
@@ -215,7 +220,7 @@ export async function GET(req: Request) {
     const prompt = readPrompt(column);
     if (!prompt) { skipped.push(`${job.id}: no prompt`); continue; }
 
-    const maxConcurrent = job.maxConcurrent ?? 3;
+    const maxConcurrent = qs?.maxConcurrent ?? job.maxConcurrent ?? 3;
 
     // Clean up stale running entries (cards that shipped or agents that died)
     cleanStaleRunning(column);

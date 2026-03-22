@@ -11,7 +11,7 @@ const COL_COLOR: Record<string, { bg: string; text: string }> = {
   backlog:       { bg: "#3b0764", text: "#c084fc" },
   "in-progress": { bg: "#1e3a5f", text: "#60a5fa" },
   "in-review":   { bg: "#451a03", text: "#fb923c" },
-  shipped:       { bg: "#052e16", text: "#4ade80" },
+  shipped:       { bg: "#052e16", text: "var(--accent)" },
 };
 
 function ColBadge({ col }: { col: string }) {

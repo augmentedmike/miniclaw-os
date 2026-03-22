@@ -17,7 +17,7 @@ if (marked.defaults.renderer) {
   marked.defaults.renderer.listitem = function(token) {
     if (token.task) {
       const checkbox = token.checked
-        ? '<span class="text-emerald-400">✓</span>'
+        ? '<span style="color:var(--accent)">✓</span>'
         : '<span class="text-zinc-600">☐</span>';
       const textClass = token.checked ? "line-through text-zinc-500" : "";
       return `<li class="flex gap-2">${checkbox}<span class="${textClass}">${token.text}</span></li>`;

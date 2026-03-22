@@ -4,5 +4,5 @@ import { AppShell } from "@/components/app-shell";
 export const metadata: Metadata = { title: "Agent Office" };
 
 export default function OfficePage() {
-  return <AppShell initialTab="board" />;
+  return <AppShell initialTab="office" />;
 }

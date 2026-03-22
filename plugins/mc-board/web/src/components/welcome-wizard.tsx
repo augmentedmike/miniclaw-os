@@ -144,7 +144,12 @@ export function WelcomeWizard({ onDone }: { onDone: () => void }) {
         body: JSON.stringify({ id, name: labels[column] || column, schedule: "*/5 * * * *", enabled: true }),
       }).catch(() => {});
     }
-    localStorage.setItem(`mc-board:${column}-triage:enabled`, "true");
+    // Write enabled state to queue_settings DB via API (no more localStorage)
+    fetch("/api/queue-settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ col: column, enabled: true }),
+    }).catch(() => {});
   };
 
   const handleNext = () => {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { stateDir, pluginsDir as getPluginsDir } from "@/lib/paths";
 
 export const dynamic = "force-dynamic";
 
@@ -23,10 +24,8 @@ interface Manifest {
 }
 
 function findManifest(): string | null {
-  const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(process.env.HOME || "", ".openclaw");
   const candidates = [
-    path.join(STATE_DIR, "projects", "miniclaw-os", "MANIFEST.json"),
-    path.join(process.env.HOME || "", "newam", "projects", "miniclaw-os", "MANIFEST.json"),
+    path.join(stateDir(), "projects", "miniclaw-os", "MANIFEST.json"),
   ];
   if (process.env.MINICLAW_OS_DIR) {
     candidates.unshift(path.join(process.env.MINICLAW_OS_DIR, "MANIFEST.json"));
@@ -50,11 +49,10 @@ function findManifest(): string | null {
 }
 
 function getInstalledPlugins(): Set<string> {
-  const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(process.env.HOME || "", ".openclaw");
-  const pluginsDir = path.join(STATE_DIR, "miniclaw", "plugins");
+  const pDir = getPluginsDir();
   const installed = new Set<string>();
   try {
-    const entries = fs.readdirSync(pluginsDir, { withFileTypes: true });
+    const entries = fs.readdirSync(pDir, { withFileTypes: true });
     for (const e of entries) {
       if (e.isDirectory()) installed.add(e.name);
     }
@@ -71,7 +69,7 @@ export function GET() {
   let manifest: Manifest;
   try {
     manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
-  } catch { // MANIFEST.json unreadable or contains invalid JSON
+  } catch { /* malformed MANIFEST.json */
     return NextResponse.json({ ok: false, error: "Failed to parse MANIFEST.json" }, { status: 500 });
   }
 

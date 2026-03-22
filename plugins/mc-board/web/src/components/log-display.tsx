@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useAccent } from "@/lib/accent-context";
 
 interface Props {
   lines: string[];
@@ -79,7 +80,7 @@ export function LogDisplay({
             cursor: "pointer",
             padding: 2,
             fontSize: 14,
-            color: copied ? "#4ade80" : "#555",
+            color: copied ? accent : "#555",
             transition: "color 0.2s",
           }}
         >
@@ -146,7 +147,7 @@ function strip(s: string): string {
 }
 
 function lineColor(l: string): string {
-  if (l.includes("[✓]") || l.includes("✓")) return "#4ade80";
+  if (l.includes("[✓]") || l.includes("✓")) return "var(--accent)";
   if (l.includes("[✗]") || l.includes("✗")) return "#FF5252";
   if (l.includes("[!]") || l.includes("⚠")) return "#fbbf24";
   if (l.includes("[i]")) return "#60a5fa";

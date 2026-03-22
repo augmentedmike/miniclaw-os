@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import "highlight.js/styles/atom-one-dark.css";
@@ -27,7 +26,6 @@ export const metadata: Metadata = {
     ],
     apple: "/apple-touch-icon.png",
   },
-  other: {},
 };
 
 export default function RootLayout({
@@ -37,7 +35,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head />
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

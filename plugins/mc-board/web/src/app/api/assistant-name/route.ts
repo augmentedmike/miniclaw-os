@@ -10,11 +10,13 @@ const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".op
 export function GET() {
   const stateFile = path.join(STATE_DIR, "USER", "setup-state.json");
   let shortName = "Am";
+  let accentColor = "#00E5CC";
   try {
     if (fs.existsSync(stateFile)) {
       const data = JSON.parse(fs.readFileSync(stateFile, "utf-8"));
       shortName = data.shortName || data.assistantName || "Am";
+      accentColor = data.accentColor || "#00E5CC";
     }
   } catch { /* default */ }
-  return NextResponse.json({ shortName });
+  return NextResponse.json({ shortName, accentColor });
 }

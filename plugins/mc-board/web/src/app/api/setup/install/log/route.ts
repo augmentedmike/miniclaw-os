@@ -36,7 +36,7 @@ export async function GET(req: Request) {
       offset: allLines.length,
       done,
     });
-  } catch { // log file read failed — may have been removed
+  } catch { /* log-file-unreadable */
     return Response.json({ lines: [], offset: 0, done: false });
   }
 }

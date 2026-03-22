@@ -574,6 +574,17 @@ PLUGIN_COUNT=0
 for plugin_src in "$REPO_DIR/plugins"/*/; do
   plugin_name="$(basename "$plugin_src")"
   plugin_dest="$MINICLAW_DIR/plugins/$plugin_name"
+  # Skip overwriting plugins that have their own .git repo or are symlinks
+  if [[ -L "$plugin_dest" ]]; then
+    info "Skipping $plugin_name — symlink (managed separately)"
+    PLUGIN_COUNT=$((PLUGIN_COUNT + 1))
+    continue
+  fi
+  if [[ -d "$plugin_dest/.git" ]]; then
+    info "Skipping $plugin_name — has .git repo (managed by mc-update)"
+    PLUGIN_COUNT=$((PLUGIN_COUNT + 1))
+    continue
+  fi
   rsync -a --exclude='node_modules' --exclude='.git' "$plugin_src" "$plugin_dest/"
   PLUGIN_COUNT=$((PLUGIN_COUNT + 1))
 done
@@ -638,6 +649,14 @@ for plugin_dir in "$PLUGINS_DIR"/mc-*/; do
   [[ ! -f "$plugin_dir/openclaw.plugin.json" ]] && { warn "$plugin_name missing manifest — skipped"; continue; }
 
   ext_dest="$EXTENSIONS_DIR/$plugin_name"
+
+  # Skip overwriting extensions that have their own .git repo (prevents silent loss of local changes)
+  if [[ -d "$ext_dest/.git" ]]; then
+    info "Skipping $plugin_name extension — has .git repo (local changes preserved)"
+    ok "Installed $plugin_name (skipped — git-tracked)"
+    REGISTERED=$((REGISTERED + 1))
+    continue
+  fi
 
   if [[ -d "$PREBUILT_DIR/$plugin_name" ]]; then
     # Use pre-built plugin source (deps are in shared node_modules above)
@@ -1338,9 +1357,13 @@ CHAT_PLIST="$HOME/Library/LaunchAgents/com.miniclaw.web-chat.plist"
 CHAT_EXT_DIR="$STATE_DIR/extensions/mc-web-chat"
 
 if [[ -f "$CHAT_DIR/server.ts" ]]; then
-  # Copy to extensions
+  # Copy to extensions — but skip if extensions/ has its own .git repo
   mkdir -p "$CHAT_EXT_DIR"
-  cp "$CHAT_DIR/server.ts" "$CHAT_DIR/run.ts" "$CHAT_DIR/package.json" "$CHAT_DIR/openclaw.plugin.json" "$CHAT_EXT_DIR/" 2>/dev/null
+  if [[ -d "$CHAT_EXT_DIR/.git" ]]; then
+    info "mc-web-chat extension has .git repo — skipping file copy (local changes preserved)"
+  else
+    cp "$CHAT_DIR/server.ts" "$CHAT_DIR/run.ts" "$CHAT_DIR/package.json" "$CHAT_DIR/openclaw.plugin.json" "$CHAT_EXT_DIR/" 2>/dev/null
+  fi
   (cd "$CHAT_EXT_DIR" && run_quiet npm install --production 2>/dev/null && run_quiet npm install tsx 2>/dev/null) || true
 
   launchctl unload "$CHAT_PLIST" 2>/dev/null || true
