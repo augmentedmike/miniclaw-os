@@ -1,0 +1,140 @@
+<!--
+  WebMCP-annotated Contact Form Embed
+  Include on any domain page to provide a send-message tool for AI agents.
+
+  Usage:
+    <iframe src="/contact-embed.html" width="100%" height="500" frameborder="0"></iframe>
+    — OR —
+    Copy the <form> into your page layout directly.
+
+  The form has declarative toolname/tooldescription attributes so Chrome 146+
+  agents can discover the send-message tool via DOM inspection.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="model-context" content="supported">
+  <meta name="webmcp-version" content="1.0">
+  <title>Contact</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0a; color: #e5e5e5; }
+    .container { max-width: 520px; margin: 0 auto; padding: 2rem 1rem; }
+    h2 { font-size: 1.25rem; margin-bottom: 0.5rem; }
+    .subtitle { color: #888; margin-bottom: 1.5rem; font-size: 0.875rem; }
+    .form { display: flex; flex-direction: column; gap: 0.75rem; }
+    .form input, .form textarea { background: #1a1a1a; border: 1px solid #333; color: #e5e5e5; padding: 0.75rem; border-radius: 6px; font-size: 0.875rem; font-family: inherit; }
+    .form input:focus, .form textarea:focus { outline: none; border-color: #10b981; }
+    .form textarea { resize: vertical; min-height: 100px; }
+    .submit-btn { background: #10b981; color: #000; border: none; padding: 0.75rem; border-radius: 6px; font-size: 1rem; font-weight: 600; cursor: pointer; }
+    .submit-btn:hover { background: #059669; }
+    .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .success { text-align: center; padding: 2rem; display: none; }
+    .success h3 { color: #10b981; margin-bottom: 0.5rem; }
+    .error { color: #ef4444; font-size: 0.875rem; margin-top: 0.25rem; display: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Get in Touch</h2>
+    <p class="subtitle">Send a message — we'll get back to you shortly.</p>
+
+    <form class="form" id="contact-form"
+          toolname="send-message"
+          tooldescription="Send a message or inquiry. Provide your name, email, and message.">
+      <input type="text" name="name" placeholder="Your name" aria-label="Your name" required />
+      <input type="email" name="email" placeholder="Your email" aria-label="Your email address" required />
+      <input type="text" name="subject" placeholder="Subject (optional)" aria-label="Message subject" />
+      <textarea name="message" placeholder="Your message..." aria-label="Your message" required></textarea>
+      <div id="form-error" class="error"></div>
+      <button type="submit" class="submit-btn" id="submit-btn">Send Message</button>
+    </form>
+
+    <div id="success" class="success">
+      <h3>Message Sent!</h3>
+      <p>Thanks for reaching out. We'll respond soon.</p>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('contact-form').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      var form = e.target;
+      var errEl = document.getElementById('form-error');
+      var btn = document.getElementById('submit-btn');
+      errEl.style.display = 'none';
+
+      btn.disabled = true;
+      btn.textContent = 'Sending...';
+
+      try {
+        var data = {
+          name: form.name.value,
+          email: form.email.value,
+          subject: form.subject ? form.subject.value : '',
+          message: form.message.value
+        };
+
+        var res = await fetch(window.location.origin + '/api/contact', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+
+        if (!res.ok) {
+          var result = await res.json();
+          throw new Error(result.error || 'Failed to send message');
+        }
+
+        form.style.display = 'none';
+        document.getElementById('success').style.display = 'block';
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Send Message';
+      }
+    });
+
+    // WebMCP: Register send-message tool via navigator.modelContext (Chrome 146+)
+    (function() {
+      if (typeof navigator !== 'undefined' && navigator.modelContext && typeof navigator.modelContext.registerTool === 'function') {
+        navigator.modelContext.registerTool({
+          name: 'send-message',
+          description: 'Send a message or inquiry. Provide name, email, and message text.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              name: { type: 'string', description: 'Your name' },
+              email: { type: 'string', format: 'email', description: 'Your email address' },
+              subject: { type: 'string', description: 'Message subject (optional)' },
+              message: { type: 'string', description: 'Your message' }
+            },
+            required: ['name', 'email', 'message']
+          },
+          execute: function(params) {
+            var form = document.getElementById('contact-form');
+            if (!form) return { content: [{ type: 'text', text: 'Contact form not available.' }] };
+            Object.keys(params).forEach(function(key) {
+              var field = form.querySelector('[name="' + key + '"]');
+              if (field) {
+                field.value = params[key];
+                field.dispatchEvent(new Event('input', { bubbles: true }));
+              }
+            });
+            if (typeof form.requestSubmit === 'function') {
+              form.requestSubmit();
+            } else {
+              form.dispatchEvent(new SubmitEvent('submit', { bubbles: true, cancelable: true, submitter: form.querySelector('button[type="submit"]') }));
+            }
+            return { content: [{ type: 'text', text: 'Message submitted successfully.' }] };
+          }
+        });
+        console.log('[WebMCP] Registered tool: send-message');
+      }
+    })();
+  </script>
+</body>
+</html>

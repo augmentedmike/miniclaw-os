@@ -9,6 +9,7 @@ import { Modal } from "./modal";
 import { ChatPanel } from "./chat-panel";
 import { WelcomeWizard, useWelcomeWizard } from "./welcome-wizard";
 import { Project, BoardCard } from "@/lib/types";
+import { AccentContext, hexToRgb } from "@/lib/accent-context";
 
 import useSWR from "swr";
 
@@ -72,17 +73,30 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
   const [pendingContext, setPendingContext] = useState<string | null>(null);
   const [openCardId, setOpenCardId] = useState<string | null>(initialCardId ?? null);
   const { showWelcome, dismissWelcome } = useWelcomeWizard();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [assistantName, setAssistantName] = useState("Am");
+  const [accentColor, setAccentColor] = useState("#00E5CC");
   const { data: rolodexCount } = useSWR<{ count: number }>("/api/rolodex/count", fetcher, { refreshInterval: 60000 });
   const { data: memoryStats } = useSWR<{ memoryFiles: number; kbEntries: number; total: number }>("/api/memory/stats", fetcher, { refreshInterval: 60000 });
   const { data: healthData } = useSWR<{ ok: boolean; version: string; time: string }>("/api/health", fetcher, { refreshInterval: 60000 });
 
-  // Fetch assistant name for empty-state message
+  // Fetch assistant name + accent color
   useEffect(() => {
     fetch("/api/assistant-name").then(r => r.json()).then(d => {
       if (d.shortName) setAssistantName(d.shortName);
+      if (d.accentColor) {
+        setAccentColor(d.accentColor);
+        document.documentElement.style.setProperty("--accent", d.accentColor);
+        document.documentElement.style.setProperty("--accent-rgb", hexToRgb(d.accentColor));
+      }
     }).catch(() => {});
   }, []);
+
+  // Re-sync CSS variable when accentColor changes
+  useEffect(() => {
+    document.documentElement.style.setProperty("--accent", accentColor);
+    document.documentElement.style.setProperty("--accent-rgb", hexToRgb(accentColor));
+  }, [accentColor]);
 
   const showEmptyState = !showWelcome && counts !== null && allCards.length === 0 && tab === "board";
 
@@ -146,16 +160,33 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
 
   const switchTab = (t: Tab) => {
     setTab(t);
+    setMobileMenuOpen(false);
     try { history.pushState(null, "", TAB_PATHS[t]); } catch {}
   };
 
   return (
+    <AccentContext.Provider value={accentColor}>
     <div className="app-body">
       {/* Top bar */}
       <div className="top-bar">
+        {/* Hamburger menu button — mobile only */}
+        <button
+          className="mobile-menu-btn"
+          onClick={() => setMobileMenuOpen(o => !o)}
+          aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            {mobileMenuOpen ? (
+              <><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></>
+            ) : (
+              <><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></>
+            )}
+          </svg>
+        </button>
+
         {/* Left: brand + tabs */}
         <div className="flex items-stretch">
-          <div className="brand">MiniClaw Brain</div>
+          <div className="brand"><span className="brand-full">MiniClaw Brain</span><span className="brand-short">Brain</span></div>
           <div className="tab-bar">
             {(["office", "board", "memory", "rolodex", "settings"] as Tab[]).map(t => {
               const activeCount = t === "board" && counts ? counts.backlog + counts.inProgress + counts.inReview : 0;
@@ -184,17 +215,18 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
         </div>
 
         {/* Center: project button (board only) */}
-        <div className="flex flex-1 items-center justify-center px-4" data-tour="projects">
+        <div className="top-bar-center" data-tour="projects">
           {tab === "board" && projects.length > 0 && (() => {
             const proj = selectedProject ? projects.find(p => p.id === selectedProject) : null;
             const pCards = proj ? allCards.filter(c => c.project_id === proj.id) : [];
-            const colColors: Record<string, string> = { backlog: "#7c3aed", "in-progress": "#3b82f6", "in-review": "#f59e0b", shipped: "#22c55e" };
+            const colColors: Record<string, string> = { backlog: "#7c3aed", "in-progress": "#3b82f6", "in-review": "#f59e0b", shipped: accentColor };
             const countPills = (["in-progress", "in-review", "backlog", "shipped"] as const)
               .map(col => ({ col, n: pCards.filter(c => c.column === col).length }))
               .filter(x => x.n > 0);
             return (
               <button
-                onClick={() => setProjectsOpen(true)}
+                onClick={() => { setProjectsOpen(true); setMobileMenuOpen(false); }}
+                className="project-selector-btn"
                 style={{
                   background: proj ? "#27272a" : "transparent",
                   border: "1px solid #3f3f46",
@@ -271,9 +303,9 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
         {/* Chat toggle */}
         <button
           onClick={toggleChat}
-          className="flex items-center justify-center w-11 border-l border-zinc-800 shrink-0 hover:bg-zinc-900 transition-colors h-full"
+          className="top-bar-icon-btn"
           title={chatOpen ? "Close chat" : "Open chat"}
-          style={{ color: chatOpen ? "#4ade80" : "#52525b" }}
+          style={{ color: chatOpen ? accentColor : "#52525b" }}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -281,26 +313,12 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
         </button>
 
         {/* Far right: version badge + alerts icon */}
-        {healthData?.version && (
-          <span
-            style={{
-              fontSize: 11,
-              fontWeight: 500,
-              color: "#71717a",
-              padding: "2px 8px",
-              borderLeft: "1px solid #27272a",
-              display: "flex",
-              alignItems: "center",
-              fontFamily: "monospace",
-            }}
-            title={`Version ${healthData.version}`}
-          >
-            v{healthData.version}
-          </span>
-        )}
+        <span className="version-badge">
+          {healthData?.version && <>v{healthData.version}</>}
+        </span>
         <button
           onClick={toggleNotifs}
-          className="flex items-center justify-center w-11 border-l border-zinc-800 shrink-0 hover:bg-zinc-900 transition-colors h-full"
+          className="top-bar-icon-btn"
           title={notifsEnabled ? "Alerts on — click to mute" : "Alerts muted — click to enable"}
         >
           <svg width="18" height="18" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg"
@@ -310,6 +328,51 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
           </svg>
         </button>
       </div>
+
+      {/* Mobile dropdown menu — slides down below top bar */}
+      {mobileMenuOpen && (
+        <div className="top-bar-mobile-menu">
+          <div className="mobile-menu-tabs">
+            {(["office", "board", "memory", "rolodex", "settings"] as Tab[]).map(t => {
+              const activeCount = t === "board" && counts ? counts.backlog + counts.inProgress + counts.inReview : 0;
+              const memoryCount = t === "memory" && memoryStats ? memoryStats.total : 0;
+              const badgeCount = t === "rolodex" && rolodexCount ? rolodexCount.count : t === "memory" ? memoryCount : activeCount;
+              return (
+                <button key={t} onClick={() => switchTab(t)}
+                  className={`mobile-tab-btn${tab === t ? " active" : ""}`}>
+                  {t === "board" ? "Board" : t === "office" ? "Office" : t === "memory" ? "Memory" : t === "rolodex" ? "Contacts" : "Settings"}
+                  {badgeCount > 0 && (
+                    <span className="mobile-tab-badge">{badgeCount}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Mobile project selector */}
+          {tab === "board" && projects.length > 0 && (
+            <div className="mobile-menu-project">
+              <button
+                onClick={() => { setProjectsOpen(true); setMobileMenuOpen(false); }}
+                className="mobile-project-btn"
+              >
+                <span style={{ fontSize: 11, opacity: 0.6 }}>◈</span>
+                <span>{selectedProject ? projects.find(p => p.id === selectedProject)?.name ?? "Projects" : "Projects"}</span>
+              </button>
+            </div>
+          )}
+
+          {/* Mobile stat pills */}
+          {counts && (
+            <div className="mobile-menu-stats">
+              <span className="mobile-stat"><b>{counts.backlog}</b> backlog</span>
+              <span className="mobile-stat"><b>{counts.inProgress}</b> in progress</span>
+              <span className="mobile-stat"><b>{counts.inReview}</b> review</span>
+              <span className="mobile-stat"><b>{counts.shipped}</b> shipped</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Main content + Chat panel flex row */}
       <div style={{ display: "flex", flex: 1, minHeight: 0, overflow: "hidden" }}>
@@ -440,7 +503,7 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
                         {(["backlog","in-progress","in-review","shipped"] as const).map(col => {
                           const n = pCards.filter(c => c.column === col).length;
                           if (!n) return null;
-                          const colors: Record<string, string> = { backlog: "#7c3aed", "in-progress": "#3b82f6", "in-review": "#f59e0b", shipped: "#22c55e" };
+                          const colors: Record<string, string> = { backlog: "#7c3aed", "in-progress": "#3b82f6", "in-review": "#f59e0b", shipped: accentColor };
                           const label = col === "in-progress" ? "prog" : col === "in-review" ? "rev" : col;
                           return (
                             <span key={col} style={{ fontSize: 11, color: colors[col] ?? "#71717a" }}>
@@ -459,5 +522,6 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
         </Modal>
       )}
     </div>
+    </AccentContext.Provider>
   );
 }
