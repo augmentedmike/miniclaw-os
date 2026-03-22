@@ -12,7 +12,7 @@ export function GET() {
       const data = JSON.parse(fs.readFileSync(zp, "utf-8"));
       return NextResponse.json(data);
     }
-  } catch {}
+  } catch { /* zones file missing or malformed */ }
   return NextResponse.json({ zones: {} });
 }
 

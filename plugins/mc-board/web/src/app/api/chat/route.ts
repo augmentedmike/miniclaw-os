@@ -16,13 +16,13 @@ function getAssistantName(): string {
   try {
     const raw = JSON.parse(fs.readFileSync(path.join(STATE_DIR, "USER", "setup-state.json"), "utf-8"));
     return raw.shortName || raw.assistantName || "Assistant";
-  } catch {
+  } catch { // setup-state.json not found or invalid JSON — fall back to default
     return "Assistant";
   }
 }
 
 function readWorkspaceFile(filename: string): string {
-  try { return fs.readFileSync(path.join(STATE_DIR, "workspace", filename), "utf-8").trim(); } catch { return ""; }
+  try { return fs.readFileSync(path.join(STATE_DIR, "workspace", filename), "utf-8").trim(); } catch { return ""; } // file not found or unreadable
 }
 
 function getSystemPrompt(): string {
@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
     const stream = new ReadableStream({
       start(controller) {
         const send = (obj: object) => {
-          try { controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`)); } catch {}
+          try { controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`)); } catch { /* client-disconnected */ }
         };
 
         send({ type: "session", sessionId: sid });
@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
           send(evt);
           if (evt.type === "done") {
             session.removeListener("event", handler);
-            try { controller.close(); } catch {}
+            try { controller.close(); } catch { /* client-disconnected */ }
           }
         };
 
@@ -136,12 +136,12 @@ export async function POST(req: NextRequest) {
         session.send(userText, imagePaths.length > 0 ? imagePaths : undefined).catch((err) => {
           send({ type: "error", text: String(err) });
           session.removeListener("event", handler);
-          try { controller.close(); } catch {}
+          try { controller.close(); } catch { /* client-disconnected */ }
         });
 
         req.signal.addEventListener("abort", () => {
           session.removeListener("event", handler);
-          try { controller.close(); } catch {}
+          try { controller.close(); } catch { /* client-disconnected */ }
         });
       },
     });

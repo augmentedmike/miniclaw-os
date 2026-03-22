@@ -28,7 +28,7 @@ function getSubscription(): { plan: string; tier: string; price: number; multipl
       multiplier: info.multiplier,
       discount_factor: 1 / info.multiplier,
     };
-  } catch {
+  } catch { /* keychain-unavailable */
     return { plan: "pro", tier: "default_claude_pro", price: 20, multiplier: 1, discount_factor: 1 };
   }
 }

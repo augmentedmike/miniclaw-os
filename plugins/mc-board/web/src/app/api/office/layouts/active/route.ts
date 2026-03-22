@@ -16,7 +16,7 @@ export function GET() {
       const data = JSON.parse(fs.readFileSync(filePath, "utf-8"));
       return NextResponse.json({ active: data.active ?? "default" });
     }
-  } catch {}
+  } catch { /* _active.json missing or malformed */ }
   return NextResponse.json({ active: "default" });
 }
 

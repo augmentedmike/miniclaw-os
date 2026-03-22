@@ -15,7 +15,7 @@ export function GET() {
       const data = JSON.parse(fs.readFileSync(ZONES_PATH, "utf-8"));
       return NextResponse.json(data);
     }
-  } catch {}
+  } catch { /* zones file missing or malformed */ }
   return NextResponse.json({ zones: {} });
 }
 

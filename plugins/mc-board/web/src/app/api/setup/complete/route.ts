@@ -79,7 +79,7 @@ function configureGateway(botId: string, botToken: string, chatId?: string) {
 function findBin(name: string): string | null {
   try {
     return execSync(`which ${name}`, { encoding: "utf-8" }).trim() || null;
-  } catch {
+  } catch { // binary not found in PATH
     return null;
   }
 }
@@ -272,8 +272,7 @@ function ensureProjectsFolder(): { ok: boolean; path: string; symlink: string } 
       fs.unlinkSync(symlinkPath);
       fs.symlinkSync(projectsDir, symlinkPath);
     }
-  } catch {
-    // symlink doesn't exist or isn't a symlink — create it
+  } catch { // symlink doesn't exist or isn't a symlink — create it
     try { fs.unlinkSync(symlinkPath); } catch { /* ignore */ }
     fs.symlinkSync(projectsDir, symlinkPath);
   }

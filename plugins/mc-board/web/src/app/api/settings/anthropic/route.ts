@@ -16,7 +16,7 @@ function isAnthropicAuthed(): boolean {
     ).trim();
     const creds = JSON.parse(raw);
     if (creds?.claudeAiOauth?.accessToken) return true;
-  } catch {}
+  } catch { /* keychain lookup failed */ }
 
   const candidates = [
     `${HOME}/.openclaw/agents/main/agent/auth-profiles.json`,
@@ -29,7 +29,7 @@ function isAnthropicAuthed(): boolean {
       if (Object.keys(profiles).some((k) => k.startsWith("anthropic") && profiles[k]?.token)) {
         return true;
       }
-    } catch {}
+    } catch { /* auth profile unreadable */ }
   }
 
   return false;

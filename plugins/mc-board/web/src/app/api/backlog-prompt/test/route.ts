@@ -208,7 +208,7 @@ export async function POST(req: Request) {
           writeStream(msg.result);
           writeFile(msg.result);
         }
-      } catch {
+      } catch { // JSON parse failed — raw line from agent, pass through as-is
         writeStream(line + "\n");
         writeFile(line + "\n");
       }

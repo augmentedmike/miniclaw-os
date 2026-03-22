@@ -117,8 +117,7 @@ function agentStillRunning(cardId: string, column: string): boolean {
     const m = content.match(/pid (\d+)/);
     if (m) {
       const pid = parseInt(m[1]);
-      try { process.kill(pid, 0); return true; } catch {
-        // Process does not exist or no permission — agent not running
+      try { process.kill(pid, 0); return true; } catch { // process does not exist or no permission — agent not running
         return false;
       }
     }
