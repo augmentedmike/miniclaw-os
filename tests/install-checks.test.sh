@@ -107,8 +107,8 @@ else
   fail "mc-smoke doesn't check for duplicate crons" "add cron dedup check"
 fi
 
-# #38: cron dedup handles {jobs:[]} format
-if grep -q 'Array.isArray' "$REPO_DIR/plugins/mc-board/web/src/app/api/setup/complete/route.ts"; then
+# #38: cron dedup handles {jobs:[]} format (logic now in cron.ts after refactor)
+if grep -q 'Array.isArray' "$REPO_DIR/plugins/mc-board/web/src/lib/cron.ts"; then
   pass "#38 cron dedup handles both array and {jobs:[]} formats"
 else
   fail "#38 cron dedup doesn't handle {jobs:[]} format" "fix JSON parsing in registerCronJobs"
