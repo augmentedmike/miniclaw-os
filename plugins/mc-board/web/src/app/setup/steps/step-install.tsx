@@ -281,7 +281,7 @@ export default function StepInstall({ onDone, accent }: Props) {
 }
 
 function lineClass(line: string): string {
-  if (line.includes("[✓]") || line.includes("✓")) return "text-[#4ade80]";
+  if (line.includes("[✓]") || line.includes("✓")) return "text-[var(--accent)]";
   if (line.includes("[✗]") || line.includes("✗")) return "text-[#FF5252]";
   if (line.includes("[!]") || line.includes("⚠")) return "text-[#fbbf24]";
   if (line.includes("[i]")) return "text-[#60a5fa]";

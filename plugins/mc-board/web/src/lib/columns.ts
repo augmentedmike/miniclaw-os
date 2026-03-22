@@ -1,8 +1,9 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { userDir } from "./paths";
+import * as os from "node:os";
 
-const COLUMNS_FILE = path.join(userDir(), "brain", "board-columns.json");
+const _STATE = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
+const COLUMNS_FILE = path.join(_STATE, "USER", "brain", "board-columns.json");
 
 export interface ColumnConfig {
   maxConcurrency: number;

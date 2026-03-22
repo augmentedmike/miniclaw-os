@@ -49,12 +49,11 @@ function isPathAllowed(resolved: string): boolean {
       try {
         const realRoot = fs.realpathSync(root);
         return real.startsWith(realRoot + path.sep) || real === realRoot;
-      } catch { // root doesn't exist or unreadable — not allowed
+      } catch { /* root-path-not-found */
         return false;
       }
     });
-  } catch {
-    // File doesn't exist yet — validate the directory
+  } catch { /* path-not-found — file doesn't exist yet, validate the directory */
     const dir = path.dirname(resolved);
     try {
       const realDir = fs.realpathSync(dir);
@@ -62,11 +61,11 @@ function isPathAllowed(resolved: string): boolean {
         try {
           const realRoot = fs.realpathSync(root);
           return realDir.startsWith(realRoot + path.sep) || realDir === realRoot;
-        } catch { // root dir doesn't exist — can't match, skip
+        } catch { /* root-path-not-found */
           return false;
         }
       });
-    } catch { // parent directory doesn't exist — path is invalid
+    } catch { /* parent-dir-not-found */
       return false;
     }
   }
@@ -93,7 +92,7 @@ function findInRoot(roots: string[], relativePath: string, maxDepth = 8): string
     let entries: fs.Dirent[];
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
-    } catch { // directory unreadable or doesn't exist — skip
+    } catch { /* directory-unreadable */
       return null;
     }
     for (const entry of entries) {

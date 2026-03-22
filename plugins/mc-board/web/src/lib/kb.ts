@@ -1,13 +1,14 @@
 import Database from "better-sqlite3";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { kbDbPath, memoryDir } from "./paths";
+
+const _STATE = process.env.OPENCLAW_STATE_DIR ?? path.join(require("node:os").homedir(), ".openclaw");
 
 function _getKbDb(): string {
-  return kbDbPath();
+  return process.env.BOARD_KB_DB ?? path.join(_STATE, "USER", "kb", "kb.db");
 }
 function _getQmdDir(): string {
-  return memoryDir();
+  return process.env.BOARD_QMD_DIR ?? path.join(_STATE, "USER", "memory");
 }
 
 export interface KbEntry {

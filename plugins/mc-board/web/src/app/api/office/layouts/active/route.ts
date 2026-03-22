@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { layoutsDir } from "@/lib/paths";
 
 export const dynamic = "force-dynamic";
 
 function getActivePath(): string {
-  return path.join(layoutsDir(), "_active.json");
+  const stateDir =
+    process.env.OPENCLAW_STATE_DIR ??
+    path.join(process.env.HOME ?? "", ".openclaw", "miniclaw");
+  return path.join(stateDir, "USER", "brain", "office-layouts", "_active.json");
 }
 
 export function GET() {

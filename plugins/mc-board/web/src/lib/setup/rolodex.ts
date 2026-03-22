@@ -17,7 +17,7 @@ import { STATE_DIR } from "./constants";
  */
 export function seedRolodexContacts() {
   const setupState = readSetupState();
-  const rolodexDir = path.join(STATE_DIR, "miniclaw", "USER", "rolodex");
+  const rolodexDir = path.join(STATE_DIR, "USER", "rolodex");
   const contactsPath = path.join(rolodexDir, "contacts.json");
 
   // Skip if contacts.json already has data

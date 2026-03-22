@@ -1,16 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { layoutsDir } from "@/lib/paths";
 
 export const dynamic = "force-dynamic";
+
+function getLayoutsDir(): string {
+  const stateDir =
+    process.env.OPENCLAW_STATE_DIR ??
+    path.join(process.env.HOME ?? "", ".openclaw", "miniclaw");
+  return path.join(stateDir, "USER", "brain", "office-layouts");
+}
 
 function safeName(name: string): string {
   return name.replace(/[^a-zA-Z0-9_-]/g, "");
 }
 
 function getLayoutPath(name: string): string {
-  return path.join(layoutsDir(), `${safeName(name)}.json`);
+  return path.join(getLayoutsDir(), `${safeName(name)}.json`);
 }
 
 export async function GET(

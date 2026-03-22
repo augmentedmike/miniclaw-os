@@ -8,10 +8,17 @@
  */
 
 import Database from "better-sqlite3";
-import { boardDbPath } from "./paths";
+import * as path from "node:path";
+import * as os from "node:os";
+
+function resolveDbPath(): string {
+  if (process.env.BOARD_DB_PATH) return process.env.BOARD_DB_PATH;
+  const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
+  return path.join(stateDir, "USER", "brain", "board.db");
+}
 
 export function getQueueDb(): Database.Database {
-  const db = new Database(boardDbPath());
+  const db = new Database(resolveDbPath());
   db.pragma("journal_mode = WAL");
   db.exec(`
     CREATE TABLE IF NOT EXISTS agent_queue (

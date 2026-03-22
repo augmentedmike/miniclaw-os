@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Modal } from "./modal";
 import type { Column } from "@/lib/types";
+import { useAccent } from "@/lib/accent-context";
 
 interface Props {
   column: Column;
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export function ProcessModal({ column, cardId, cardTitle, onClose }: Props) {
+  const accent = useAccent();
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
@@ -85,7 +87,7 @@ export function ProcessModal({ column, cardId, cardTitle, onClose }: Props) {
             <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-zinc-700 text-zinc-400">{column}</span>
             <span className="text-xs px-1.5 py-0.5 rounded font-mono bg-zinc-800 text-zinc-500">{cardId}</span>
             <span className="text-xs text-zinc-500">Haiku</span>
-            {saved && <span className="text-xs text-emerald-500">saved</span>}
+            {saved && <span className="text-xs" style={{ color: accent }}>saved</span>}
           </div>
           <h2 className="text-lg font-semibold text-zinc-100 truncate">Process: {cardTitle}</h2>
         </div>

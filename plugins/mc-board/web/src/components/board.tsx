@@ -1,7 +1,8 @@
 "use client";
 
-import useSWR from "swr";
+import useSWR, { useSWRConfig } from "swr";
 import { BoardData, BoardCard, Project } from "@/lib/types";
+import { useAccent } from "@/lib/accent-context";
 import { Column } from "./column";
 import { CardModal } from "./card-modal";
 import { WatchModal } from "./watch-modal";
@@ -46,23 +47,26 @@ const COL_LABEL: Record<string, string> = {
 };
 
 export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, onBoardData, onInjectContext, onCardOpen }: Props) {
+  const accent = useAccent();
   const [openCardId, setOpenCardId] = useState<string | null>(initialCardId ?? null);
   const [watchCardId, setWatchCardId] = useState<string | null>(null);
   const [logOpen, setLogOpen] = useState(false);
   const [shippedOpen, setShippedOpen] = useState(false);
-  const [showHeld, setShowHeld] = useState(false);
+  const [showHeld, setShowHeld] = useState(() => {
+    try { return localStorage.getItem("mc-board:show-held") === "true"; } catch { return false; }
+  });
   const [showSummary, setShowSummary] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
-  const [showNewWork, setShowNewWork] = useState(false);
-  const [newWorkDesc, setNewWorkDesc] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [activeColIdx, setActiveColIdx] = useState(0);
+  const boardScrollRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
   // Track which log keys we've already toasted (cardId:action:at)
   const seenLogKeys = useRef<Set<string>>(new Set());
   const initialized = useRef(false);
 
+  const { mutate: globalMutate } = useSWRConfig();
   const qs = selectedProject ? `?project=${encodeURIComponent(selectedProject)}` : "";
   const { data, isLoading, mutate } = useSWR<BoardData>(
     `/api/board${qs}`,
@@ -165,6 +169,27 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
     return () => document.removeEventListener("mousedown", onDown);
   }, []);
 
+  // Track which column is visible for mobile dot indicators
+  useEffect(() => {
+    const el = boardScrollRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      const scrollLeft = el.scrollLeft;
+      const colWidth = el.scrollWidth / COLS.length;
+      const idx = Math.round(scrollLeft / colWidth);
+      setActiveColIdx(Math.min(idx, COLS.length - 1));
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
+  const scrollToCol = useCallback((idx: number) => {
+    const el = boardScrollRef.current;
+    if (!el) return;
+    const colWidth = el.scrollWidth / COLS.length;
+    el.scrollTo({ left: colWidth * idx, behavior: "smooth" });
+  }, []);
+
   const handleFocusToggle = useCallback((cardId: string, setFocused: boolean) => {
     // Optimistic update — read from live cache to avoid stale-data races
     mutate(current => {
@@ -174,7 +199,7 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
         cards: current.cards.map(c => {
           if (c.id !== cardId) return c;
           const newTags = setFocused
-            ? [...c.tags.filter(t => t !== "focus"), "focus"]
+            ? [...c.tags.filter(t => t !== "focus" && t !== "hold"), "focus"]
             : c.tags.filter(t => t !== "focus");
           return { ...c, tags: newTags };
         }),
@@ -183,7 +208,7 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
 
     // Use add-tags/remove-tags for atomic CLI operation (avoids full tag replacement from stale cache)
     const updateBody = setFocused
-      ? { action: "update", cardId, "add-tags": "focus" }
+      ? { action: "update", cardId, "add-tags": "focus", "remove-tags": "hold" }
       : { action: "update", cardId, "remove-tags": "focus" };
 
     fetch("/api/board/action", {
@@ -204,7 +229,7 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
           if (c.id !== cardId) return c;
           const isHeld = c.tags.includes("hold");
           wasHeld = isHeld;
-          const newTags = isHeld ? c.tags.filter(t => t !== "hold") : [...c.tags.filter(t => t !== "hold"), "hold"];
+          const newTags = isHeld ? c.tags.filter(t => t !== "hold") : [...c.tags.filter(t => t !== "hold" && t !== "focus"), "hold"];
           return { ...c, tags: newTags };
         }),
       };
@@ -213,9 +238,11 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
     fetch("/api/board/action", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "update", cardId, [wasHeld ? "remove-tags" : "add-tags"]: "hold" }),
-    }).then(() => mutate()).catch(() => mutate());
-  }, [mutate]);
+      body: JSON.stringify(wasHeld
+        ? { action: "update", cardId, "remove-tags": "hold" }
+        : { action: "update", cardId, "add-tags": "hold", "remove-tags": "focus" }),
+    }).then(() => { mutate(); globalMutate(`/api/card/${cardId}`); }).catch(() => { mutate(); globalMutate(`/api/card/${cardId}`); });
+  }, [mutate, globalMutate]);
 
   const handleSearchSelect = (cardId: string) => {
     setSearchQuery("");
@@ -228,26 +255,6 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
     }, 100);
   };
 
-  async function handleSubmitWork(e: React.FormEvent) {
-    e.preventDefault();
-    if (!newWorkDesc.trim() || submitting) return;
-    setSubmitting(true);
-    try {
-      const res = await fetch("/api/request", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ description: newWorkDesc.trim() }),
-      });
-      if (res.ok) {
-        setNewWorkDesc("");
-        setShowNewWork(false);
-        mutate();
-      }
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
   if (isLoading && !data) {
     return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flex: 1, color: "#52525b", fontSize: 13 }}>Loading...</div>;
   }
@@ -259,8 +266,8 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
   return (
     <div className="board-tab">
       {/* Search bar */}
-      <div ref={searchRef} className="relative" data-tour="search" style={{ padding: "0 0 10px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div ref={searchRef} className="relative" data-tour="search" style={{ padding: "0 8px 10px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <input
             type="text"
             placeholder="Search cards…"
@@ -269,37 +276,35 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
             onFocus={() => { setSearchOpen(true); setSearchFocused(true); }}
             onBlur={() => setSearchFocused(false)}
             style={{
-              flex: "1 1 auto", minWidth: 120,
+              flex: "1 1 200px", maxWidth: 280, minWidth: 0,
               background: searchFocused ? "#18181b" : "transparent",
-              border: searchFocused ? "1px solid #16a34a" : "1px solid rgba(63,63,70,0.4)",
+              border: searchFocused ? `1px solid ${accent}` : "1px solid rgba(63,63,70,0.4)",
               borderRadius: 4, padding: "5px 8px", color: "#e4e4e7",
               fontSize: 13, outline: "none", boxSizing: "border-box",
               transition: "background 0.15s ease, border-color 0.15s ease",
             }}
           />
           <button
-            onClick={() => setShowNewWork(true)}
-            style={{
-              background: "#3b82f6", border: "none", color: "#fff", borderRadius: 4,
-              padding: "4px 12px", cursor: "pointer", fontSize: 12, fontWeight: 600,
-              whiteSpace: "nowrap",
+            onClick={() => {
+              setShowHeld(on => {
+                const next = !on;
+                try { localStorage.setItem("mc-board:show-held", next ? "true" : "false"); } catch {}
+                return next;
+              });
             }}
-          >
-            + New Request
-          </button>
-          <button
-            onClick={() => setShowHeld(h => !h)}
             style={{
               fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 6,
-              background: showHeld ? "#451a03" : "transparent",
-              border: showHeld ? "1px solid #d97706" : "1px solid #a37800",
-              color: showHeld ? "#fbbf24" : "#d4a017", cursor: "pointer", whiteSpace: "nowrap",
+              background: showHeld ? "#1c1917" : "transparent",
+              border: showHeld ? "1px solid #d97706" : "1px solid #2a2a33",
+              color: showHeld ? "#fbbf24" : "#52525b",
+              cursor: "pointer", whiteSpace: "nowrap",
               transition: "background 0.1s, border-color 0.1s, color 0.1s",
             }}
-            onMouseEnter={e => { e.currentTarget.style.background = showHeld ? "#451a03" : "#2a2000"; e.currentTarget.style.borderColor = showHeld ? "#fbbf24" : "#d4a017"; e.currentTarget.style.color = showHeld ? "#fbbf24" : "#fbbf24"; }}
-            onMouseLeave={e => { e.currentTarget.style.background = showHeld ? "#451a03" : "transparent"; e.currentTarget.style.borderColor = showHeld ? "#d97706" : "#a37800"; e.currentTarget.style.color = showHeld ? "#fbbf24" : "#d4a017"; }}
+            onMouseEnter={e => { if (!showHeld) { e.currentTarget.style.borderColor = "#3f3f46"; e.currentTarget.style.color = "#a1a1aa"; } }}
+            onMouseLeave={e => { if (!showHeld) { e.currentTarget.style.borderColor = "#2a2a33"; e.currentTarget.style.color = "#52525b"; } }}
+            title={showHeld ? "Hide held/blocked cards" : "Show held/blocked cards"}
           >
-            {showHeld ? "Hide Held" : "Show Held"}
+            {showHeld ? "Hide held" : "Show held"}
           </button>
           <button
             onClick={() => setShowSummary(true)}
@@ -344,7 +349,7 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
           </div>
         )}
       </div>
-      <div className="board">
+      <div className="board" ref={boardScrollRef}>
         {COLS.map(col => (
           <Column
             key={col}
@@ -362,6 +367,18 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
             onInjectContext={onInjectContext}
             collapsed={col === "shipped" ? !shippedOpen : undefined}
             onToggleCollapse={col === "shipped" ? () => setShippedOpen(o => !o) : undefined}
+          />
+        ))}
+      </div>
+
+      {/* Mobile dot indicators */}
+      <div className="board-dots">
+        {COLS.map((col, i) => (
+          <button
+            key={col}
+            className={`board-dot${activeColIdx === i ? " active" : ""}`}
+            onClick={() => scrollToCol(i)}
+            title={COL_LABEL[col]}
           />
         ))}
       </div>
@@ -395,52 +412,6 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
           />
         );
       })()}
-
-      {/* New work request modal */}
-      {showNewWork && (
-        <div style={{
-          position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 100,
-          display: "flex", alignItems: "center", justifyContent: "center",
-        }} onClick={(e) => { if (e.target === e.currentTarget) setShowNewWork(false); }}>
-          <form onSubmit={handleSubmitWork} style={{
-            background: "#18181b", border: "1px solid #27272a", borderRadius: 8,
-            padding: 24, width: 480, maxWidth: "90vw", display: "flex", flexDirection: "column", gap: 16,
-          }}>
-            <h3 style={{ color: "#e4e4e7", fontSize: 16, fontWeight: 600, margin: 0 }}>New Work Request</h3>
-            <p style={{ color: "#71717a", fontSize: 13, margin: 0 }}>
-              Describe what you need done. The board will handle triaging, planning, and execution.
-            </p>
-            <textarea
-              autoFocus
-              value={newWorkDesc}
-              onChange={(e) => setNewWorkDesc(e.target.value)}
-              placeholder="What do you need done?"
-              rows={5}
-              style={{
-                background: "#09090b", border: "1px solid #27272a", borderRadius: 6, color: "#e4e4e7",
-                padding: 12, fontSize: 14, resize: "vertical", fontFamily: "inherit",
-              }}
-            />
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button type="button" onClick={() => setShowNewWork(false)}
-                style={{
-                  background: "#27272a", border: "1px solid #3f3f46", color: "#a1a1aa",
-                  borderRadius: 6, padding: "8px 16px", cursor: "pointer", fontSize: 13,
-                }}>
-                Cancel
-              </button>
-              <button type="submit" disabled={submitting || !newWorkDesc.trim()}
-                style={{
-                  background: submitting ? "#1e40af" : "#3b82f6", border: "none", color: "#fff",
-                  borderRadius: 6, padding: "8px 16px", cursor: "pointer", fontSize: 13, fontWeight: 600,
-                  opacity: !newWorkDesc.trim() ? 0.5 : 1,
-                }}>
-                {submitting ? "Creating..." : "Submit"}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
     </div>
   );
 }

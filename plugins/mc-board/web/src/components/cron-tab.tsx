@@ -25,7 +25,7 @@ export function CronTab() {
             {jobs.length === 0 && <div className="text-xs text-zinc-600">No jobs</div>}
             {jobs.map(job => (
               <div key={job.id} className="bg-zinc-900 border border-zinc-800 rounded px-3 py-2 flex items-center gap-3">
-                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${job.enabled ? "bg-emerald-400" : "bg-zinc-600"}`} />
+                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: job.enabled ? "var(--accent)" : undefined }} />
                 <div className="flex-1 min-w-0">
                   <div className="text-xs text-zinc-300 font-medium truncate">{job.name}</div>
                   <div className="text-[10px] text-zinc-600 font-mono mt-0.5">{job.schedule}</div>
@@ -38,7 +38,7 @@ export function CronTab() {
             {runs.length === 0 && <div className="text-xs text-zinc-600">No runs</div>}
             {runs.map(run => (
               <div key={run.id} className="flex items-center gap-3 px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded">
-                <span className={`text-[10px] font-medium ${run.status === "ok" ? "text-emerald-400" : run.status === "error" ? "text-red-400" : "text-zinc-600"}`}>
+                <span className="text-[10px] font-medium" style={{ color: run.status === "ok" ? "var(--accent)" : run.status === "error" ? "#f87171" : "#52525b" }}>
                   {run.status.toUpperCase()}
                 </span>
                 <span className="text-xs text-zinc-500 font-mono truncate">{run.id.slice(0, 8)}</span>

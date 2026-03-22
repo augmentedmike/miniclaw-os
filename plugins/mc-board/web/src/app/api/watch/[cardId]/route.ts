@@ -25,7 +25,7 @@ function findActiveLog(cardId: string): string | null {
         const { mtimeMs } = fs.statSync(full);
         if (!best || mtimeMs > best.mtime) best = { file: full, mtime: mtimeMs };
       }
-    } catch { /* log dir scan failed */ }
+    } catch { /* directory-unreadable */ }
   }
   return best?.file ?? null;
 }
@@ -46,7 +46,7 @@ function readNewBytes(file: string, lastSize: number): { text: string; size: num
     fs.readSync(fd, buf, 0, newBytes, lastSize);
     fs.closeSync(fd);
     return { text: buf.toString("utf8"), size: stat.size };
-  } catch { // file read failed — return empty
+  } catch { /* file-missing or read error */
     return { text: "", size: lastSize };
   }
 }
@@ -64,7 +64,7 @@ export async function GET(
   const cardsLog = cardsLogPath(cardId);
 
   // Start cards log offset at current end so we only show new lines
-  try { lastCardsSize = fs.statSync(cardsLog).size; } catch { /* cards log doesn't exist yet */ }
+  try { lastCardsSize = fs.statSync(cardsLog).size; } catch { /* file-missing */ }
 
   const stream = new ReadableStream({
     start(controller) {
@@ -109,7 +109,7 @@ export async function GET(
       req.signal.addEventListener("abort", () => {
         closed = true;
         clearInterval(interval);
-        try { controller.close(); } catch { /* client-disconnected */ }
+        try { controller.close(); } catch { /* already-closed */ }
       });
     },
   });

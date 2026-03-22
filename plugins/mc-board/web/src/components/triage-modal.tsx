@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Modal } from "./modal";
 import type { Column } from "@/lib/types";
+import { useAccent } from "@/lib/accent-context";
 
 interface Props {
   column: Column;
@@ -16,6 +17,7 @@ const COLUMN_LABEL: Record<string, string> = {
 };
 
 export function TriageModal({ column, onClose }: Props) {
+  const accent = useAccent();
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
@@ -90,7 +92,7 @@ export function TriageModal({ column, onClose }: Props) {
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-zinc-700 text-zinc-400">{column}</span>
             <span className="text-xs text-zinc-500">Haiku</span>
-            {saved && <span className="text-xs text-emerald-500">saved</span>}
+            {saved && <span className="text-xs" style={{ color: accent }}>saved</span>}
           </div>
           <h2 className="text-lg font-semibold text-zinc-100">{label} Triage Prompt</h2>
         </div>
@@ -118,7 +120,7 @@ export function TriageModal({ column, onClose }: Props) {
           }}>
             <div style={{ padding: "8px 12px", borderBottom: "1px solid #18181b", display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
               <span style={{ fontSize: 11, fontWeight: 600, color: "#52525b", textTransform: "uppercase", letterSpacing: "0.08em" }}>Test Output</span>
-              {testing && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", display: "inline-block", animation: "pulse 1s infinite" }} />}
+              {testing && <span style={{ width: 6, height: 6, borderRadius: "50%", background: accent, display: "inline-block", animation: "pulse 1s infinite" }} />}
               <label style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#52525b", cursor: "pointer", userSelect: "none" }}>
                 <input type="checkbox" checked={showDebug} onChange={e => setShowDebug(e.target.checked)} style={{ accentColor: "#52525b" }} />
                 debug
@@ -129,7 +131,7 @@ export function TriageModal({ column, onClose }: Props) {
                     const text = showDebug ? testLog : testLog.split("\n").filter(l => !l.startsWith("  [dbg]")).join("\n");
                     navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); });
                   }}
-                  style={{ fontSize: 11, color: copied ? "#22c55e" : "#52525b", background: "none", border: "none", cursor: "pointer", padding: "0 2px" }}
+                  style={{ fontSize: 11, color: copied ? accent : "#52525b", background: "none", border: "none", cursor: "pointer", padding: "0 2px" }}
                   title="Copy to clipboard"
                 >
                   {copied ? "✓" : "⎘"}

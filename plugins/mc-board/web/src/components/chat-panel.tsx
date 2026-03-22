@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useAccent } from "@/lib/accent-context";
-import { ChatHistorySidebar } from "./chat-history-sidebar";
 
 interface Message {
   id: string;
@@ -98,10 +97,6 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
   const [dragOver, setDragOver] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [storageWarning, setStorageWarning] = useState<string | null>(null);
-  const [historyOpen, setHistoryOpen] = useState(() => {
-    try { return localStorage.getItem("mc-board:chat-history-open") === "true"; } catch { return false; }
-  });
-  const [interruptOverlayVisible, setInterruptOverlayVisible] = useState(false);
 
   // Mic / voice transcription state
   const [micAvailable, setMicAvailable] = useState(false);
@@ -324,27 +319,6 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
     }
   }, [transcribeAudio, stopRecording]);
 
-  const toggleHistory = useCallback(() => {
-    setHistoryOpen(on => {
-      const next = !on;
-      try { localStorage.setItem("mc-board:chat-history-open", next ? "true" : "false"); } catch {}
-      return next;
-    });
-  }, []);
-
-  const resumeChat = useCallback((chatId: string) => {
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
-    // Archive current session and load archived one
-    wsRef.current.send(JSON.stringify({ type: "resume_chat", sessionId: chatId }));
-    setMessages([]);
-    setStreamingText("");
-    setStreamingTools([]);
-    setStreaming(false);
-    streamingInsertIndexRef.current = null;
-    setHistoryOpen(false);
-    try { localStorage.setItem("mc-board:chat-history-open", "false"); } catch {}
-  }, []);
-
   // Image processing helpers
   const processFile = useCallback((file: File) => {
     setImageError(null);
@@ -392,7 +366,8 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
     files.forEach(f => {
       if (f.type.startsWith("image/")) processFile(f);
     });
-  }, [processFile]);
+    setTimeout(() => textareaRef.current?.focus(), 50);
+  }, [processFile, textareaRef]);
 
   // Paste handler for images
   const handlePaste = useCallback((e: React.ClipboardEvent) => {
@@ -404,7 +379,8 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
       const file = item.getAsFile();
       if (file) processFile(file);
     });
-  }, [processFile]);
+    setTimeout(() => textareaRef.current?.focus(), 50);
+  }, [processFile, textareaRef]);
 
   // WebSocket connection with auto-reconnect
   useEffect(() => {
@@ -448,9 +424,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
       ws.onclose = () => {
         if (didUnmount) return;
         setConnected(false);
-        setStreaming(false);
-        setInterruptOverlayVisible(false);
-        setSentContext(null);
+        setStreaming(false); setSentContext(null);
         wsRef.current = null;
         scheduleReconnect();
       };
@@ -481,7 +455,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
             if (d.tools?.length) setStreamingTools(d.tools);
             break;
           case "result":
-            setStreaming(false); setStreamingText(""); setStreamingTools([]); setInterruptOverlayVisible(false); setSentContext(null);
+            setStreaming(false); setStreamingText(""); setStreamingTools([]); setSentContext(null);
             if (d.text) {
               const assistantMsg: Message = { id: generateMsgId(), role: "assistant", content: d.text };
               const insertIdx = streamingInsertIndexRef.current;
@@ -498,12 +472,12 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
             streamingInsertIndexRef.current = null;
             break;
           case "done": case "process_exit":
-            setStreaming(false); setStreamingText(""); setStreamingTools([]); setInterruptOverlayVisible(false); setSentContext(null);
+            setStreaming(false); setStreamingText(""); setStreamingTools([]); setSentContext(null);
             streamingInsertIndexRef.current = null;
             break;
           case "error":
             setMessages(prev => [...prev, { id: generateMsgId(), role: "system", content: d.message, error: true }]);
-            setStreaming(false); setInterruptOverlayVisible(false); setSentContext(null);
+            setStreaming(false); setSentContext(null);
             streamingInsertIndexRef.current = null;
             break;
         }
@@ -544,18 +518,6 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
     onContextConsumed();
     setTimeout(() => textareaRef.current?.focus(), 50);
   }, [pendingContext, onContextConsumed]);
-
-  // Cmd+H keyboard shortcut to toggle history
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "h" && open) {
-        e.preventDefault();
-        toggleHistory();
-      }
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [open, toggleHistory]);
 
   // Track scroll position to detect when user is not at bottom
   const handleScroll = useCallback(() => {
@@ -654,7 +616,6 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
 
   const interruptAgent = useCallback(() => {
     stopResponse();
-    setInterruptOverlayVisible(false);
     setMessages(prev => [...prev, {
       id: generateMsgId(),
       role: "system" as const,
@@ -753,19 +714,10 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
           }}>{connected ? "connected" : reconnecting ? "reconnecting…" : "offline"}</span>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          {streaming && (
-            <button
-              onClick={stopResponse}
-              style={{
-                background: "none", border: "1px solid #7c2d12", color: "#f87171", cursor: "pointer",
-                fontSize: 10, padding: "2px 8px", borderRadius: 3, fontFamily: "inherit",
-              }}
-            >stop</button>
-          )}
           {messages.length > 0 && (
             <button
-              onClick={() => { setMessages([]); setStorageWarning(null); setReplyingTo(null); wsRef.current?.send(JSON.stringify({ type: "new_chat" })); streamingInsertIndexRef.current = null; }}
-              title="New chat (archives current)"
+              onClick={() => { setMessages([]); setStorageWarning(null); setReplyingTo(null); wsRef.current?.send(JSON.stringify({ type: "new_chat" })); }}
+              title="New chat"
               style={{
                 background: "none", border: "none", color: "#52525b", cursor: "pointer",
                 fontSize: 11, padding: "2px 6px", borderRadius: 3, fontFamily: "inherit",
@@ -774,29 +726,6 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
               onMouseLeave={e => (e.currentTarget.style.color = "#52525b")}
             >new</button>
           )}
-          {/* History toggle button */}
-          <button
-            onClick={toggleHistory}
-            title={`Chat history (⌘H)`}
-            style={{
-              background: historyOpen ? "#27272a" : "none",
-              border: "none",
-              color: historyOpen ? accent : "#52525b",
-              cursor: "pointer",
-              fontSize: 11,
-              padding: "3px 5px",
-              borderRadius: 3,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              lineHeight: 1,
-            }}
-            onMouseEnter={e => { if (!historyOpen) e.currentTarget.style.color = "#a1a1aa"; }}
-            onMouseLeave={e => { if (!historyOpen) e.currentTarget.style.color = "#52525b"; }}
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-              strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
-          </button>
           <button
             onClick={onToggle}
             style={{ background: "none", border: "none", color: "#52525b", cursor: "pointer", fontSize: 18, lineHeight: 1 }}
@@ -823,13 +752,15 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
 
       {/* Messages */}
       <div style={{ flex: 1, position: "relative", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      {/* Persistent context indicator — visible while agent is responding with context */}
       {sentContext && streaming && (
         <div style={{
           margin: "0 10px", padding: "5px 10px", borderRadius: 6,
           background: "#1a1a2e", border: "1px solid #2d2d5b",
-          display: "flex", alignItems: "center", gap: 6, flexShrink: 0, opacity: 0.8,
+          display: "flex", alignItems: "center", gap: 6, flexShrink: 0,
+          opacity: 0.85,
         }}>
-          <span style={{ fontSize: 10, color: "#6366f1", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", flexShrink: 0 }}>📌 ctx</span>
+          <span style={{ fontSize: 9, color: "#6366f1", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", flexShrink: 0 }}>ctx</span>
           <span style={{ fontSize: 11, color: "#818cf8", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {sentContext.slice(0, 80)}{sentContext.length > 80 ? "..." : ""}
           </span>
@@ -949,23 +880,25 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
                       </div>
                     )}
                     {msg.content}
-                    {/* Reply button — inline at bottom of bubble */}
-                    <div style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-start" : "flex-end", marginTop: 4 }}>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleReply(msg); }}
-                        title="Reply to this message"
-                        style={{
-                          background: "none", border: "none",
-                          color: "#52525b", fontSize: 10, cursor: "pointer",
-                          padding: "1px 4px", borderRadius: 3,
-                          display: "flex", alignItems: "center", gap: 3,
-                          transition: "color 0.15s",
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.color = "#a1a1aa"; }}
-                        onMouseLeave={e => { e.currentTarget.style.color = "#52525b"; }}
-                      >↩ reply</button>
-                    </div>
                   </div>
+                  {/* Reply button — visible on hover via CSS */}
+                  <button
+                    className="chat-reply-btn"
+                    onClick={() => handleReply(msg)}
+                    title="Reply to this message"
+                    style={{
+                      position: "absolute",
+                      top: replySnippet ? 24 : 4,
+                      [msg.role === "user" ? "left" : "right"]: -28,
+                      width: 22, height: 22,
+                      background: "#27272a", border: "1px solid #3f3f46", borderRadius: 4,
+                      color: "#71717a", fontSize: 12,
+                      cursor: "pointer",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      opacity: 0, transition: "opacity 0.15s",
+                      padding: 0, lineHeight: 1,
+                    }}
+                  >↩</button>
                 </>
               )}
             </div>
@@ -975,19 +908,15 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
           const streamingBlock = streaming ? (
             <div
               key="streaming"
-              style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", position: "relative" }}
-              onMouseLeave={() => setInterruptOverlayVisible(false)}
+              style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}
             >
               <div
-                onClick={() => setInterruptOverlayVisible(v => !v)}
                 style={{
                   maxWidth: "92%", padding: "8px 11px",
                   borderRadius: "10px 10px 10px 3px",
                   background: "#18181b", border: "1px solid #27272a",
                   fontSize: 13, color: "#d4d4d8", lineHeight: 1.55,
                   whiteSpace: "pre-wrap", wordBreak: "break-word",
-                  cursor: "pointer",
-                  transition: "border-color 0.15s",
                 }}>
                 {streamingTools.length > 0 && (
                   <div style={{ marginBottom: 6, display: "flex", flexWrap: "wrap", gap: 4 }}>
@@ -1003,25 +932,21 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
                   {streamingTools.length > 0 ? "working..." : "thinking..."}
                 </span>}
               </div>
-              {/* Interrupt overlay */}
-              {interruptOverlayVisible && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); interruptAgent(); }}
-                  style={{
-                    position: "absolute", top: -6, left: 8,
-                    background: "#7c2d12", border: "1px solid #dc2626",
-                    borderRadius: 6, color: "#fca5a5",
-                    fontSize: 11, fontWeight: 600, fontFamily: "inherit",
-                    padding: "4px 12px", cursor: "pointer",
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.5)",
-                    zIndex: 10,
-                    transition: "background 0.15s, color 0.15s",
-                    whiteSpace: "nowrap",
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.background = "#991b1b"; e.currentTarget.style.color = "#fef2f2"; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = "#7c2d12"; e.currentTarget.style.color = "#fca5a5"; }}
-                >⏹ Interrupt</button>
-              )}
+              {/* Interrupt button — always visible below bubble during streaming */}
+              <button
+                onClick={interruptAgent}
+                style={{
+                  marginTop: 6,
+                  background: "#7c2d12", border: "1px solid #dc2626",
+                  borderRadius: 6, color: "#fca5a5",
+                  fontSize: 11, fontWeight: 600, fontFamily: "inherit",
+                  padding: "4px 12px", cursor: "pointer",
+                  transition: "background 0.15s, color 0.15s",
+                  whiteSpace: "nowrap",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = "#991b1b"; e.currentTarget.style.color = "#fef2f2"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "#7c2d12"; e.currentTarget.style.color = "#fca5a5"; }}
+              >⏹ Interrupt</button>
             </div>
           ) : null;
 
@@ -1079,7 +1004,26 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
       >↓</button>
       </div>
 
-      {/* Reply preview — moved into compose area below */}
+      {/* Reply preview */}
+      {replyingTo && (
+        <div style={{
+          margin: "0 10px", padding: "6px 10px", borderRadius: 6,
+          background: "#1a1a2e", border: "1px solid #4c1d95",
+          display: "flex", alignItems: "flex-start", gap: 6, flexShrink: 0,
+        }}>
+          <span style={{ fontSize: 10, color: "#8b5cf6", fontWeight: 700, flexShrink: 0, marginTop: 1 }}>↩ reply</span>
+          <div style={{ flex: 1, overflow: "hidden", minWidth: 0 }}>
+            <span style={{ fontSize: 10, color: "#6366f1", fontWeight: 600, textTransform: "capitalize" }}>{replyingTo.role}</span>
+            <div style={{ fontSize: 11, color: "#a78bfa", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {replyingTo.snippet}
+            </div>
+          </div>
+          <button
+            onClick={() => setReplyingTo(null)}
+            style={{ background: "none", border: "none", color: "#52525b", cursor: "pointer", fontSize: 13, lineHeight: 1, padding: 0, flexShrink: 0 }}
+          >✕</button>
+        </div>
+      )}
 
       {/* Context badge */}
       {context && (
@@ -1208,27 +1152,8 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
       {/* Compose */}
       <div style={{
         padding: "10px 10px 12px", borderTop: "1px solid #1f1f1f", flexShrink: 0,
-        display: "flex", flexDirection: "column", gap: 0,
+        display: "flex", flexDirection: "column", gap: 6,
       }}>
-        {/* Reply preview — flush above textarea */}
-        {replyingTo && (
-          <div style={{
-            padding: "5px 10px", marginBottom: 0,
-            borderRadius: "6px 6px 0 0",
-            background: "#1a1a2e", border: "1px solid #4c1d95", borderBottom: "none",
-            display: "flex", alignItems: "center", gap: 6, flexShrink: 0,
-          }}>
-            <span style={{ fontSize: 10, color: "#8b5cf6", fontWeight: 700, flexShrink: 0 }}>↩ reply</span>
-            <span style={{ fontSize: 10, color: "#6366f1", fontWeight: 600, textTransform: "capitalize", flexShrink: 0 }}>{replyingTo.role}</span>
-            <span style={{ fontSize: 11, color: "#a78bfa", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {replyingTo.snippet}
-            </span>
-            <button
-              onClick={() => setReplyingTo(null)}
-              style={{ background: "none", border: "none", color: "#52525b", cursor: "pointer", fontSize: 13, lineHeight: 1, padding: 0, flexShrink: 0 }}
-            >✕</button>
-          </div>
-        )}
         <textarea
           ref={textareaRef}
           value={draft}
@@ -1238,19 +1163,16 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
           placeholder={`Message ${agentName}...`}
           rows={3}
           style={{
-            width: "100%", background: "#18181b",
-            border: replyingTo ? "1px solid #4c1d95" : "1px solid #3f3f46",
-            borderTop: replyingTo ? "none" : undefined,
-            borderRadius: replyingTo ? "0 0 6px 6px" : 6,
-            color: "#e4e4e7", fontSize: 13, fontFamily: "inherit",
+            width: "100%", background: "#18181b", border: "1px solid #3f3f46",
+            borderRadius: 6, color: "#e4e4e7", fontSize: 13, fontFamily: "inherit",
             padding: "7px 10px", outline: "none", resize: "none", lineHeight: 1.5,
             transition: "border-color 0.15s", boxSizing: "border-box",
           }}
           onFocus={e => { e.currentTarget.style.borderColor = "#52525b"; }}
           onBlur={e => { e.currentTarget.style.borderColor = "#3f3f46"; }}
         />
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 6 }}>
-          <span style={{ fontSize: 10, color: "#e4e4e7" }}>Shift+Enter to send · Enter for new line</span>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ fontSize: 10, color: "#3f3f46" }}>Shift+Enter to send</span>
           <div style={{ display: "flex", gap: 4 }}>
             {micAvailable && (
               <button
@@ -1310,15 +1232,6 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
           </div>
         </div>
       </div>
-
-      {/* Chat history sidebar — absolute overlay covering the full chat panel */}
-      <ChatHistorySidebar
-        isOpen={historyOpen}
-        onClose={toggleHistory}
-        onResume={resumeChat}
-        currentSessionId={sessionId}
-        serverBaseUrl={`${typeof window !== "undefined" ? window.location.protocol : "http:"}//${typeof window !== "undefined" ? window.location.hostname : "localhost"}:4221`}
-      />
     </div>
   );
 }

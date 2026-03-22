@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Modal } from "./modal";
 import type { BoardCard, Column } from "@/lib/types";
+import { useAccent } from "@/lib/accent-context";
 
 interface CardStream {
   card: BoardCard;
@@ -19,6 +20,7 @@ interface Props {
 const FULL_AGENT_COLUMNS = new Set<Column>(["in-progress", "in-review"]);
 
 export function WorkModal({ column, cards, onClose }: Props) {
+  const accent = useAccent();
   const [prompt, setPrompt] = useState("");
   const [promptLoaded, setPromptLoaded] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -147,8 +149,8 @@ export function WorkModal({ column, cards, onClose }: Props) {
             <span className="text-xs text-zinc-500">
               {isFullAgent ? "Full agent" : "Haiku"} · {cards.length} card{cards.length === 1 ? "" : "s"}
             </span>
-            {saved && <span className="text-xs text-emerald-500">saved</span>}
-            {allDone && started && <span className="text-xs text-emerald-500">{isFullAgent ? "launched" : "all done"}</span>}
+            {saved && <span className="text-xs" style={{ color: accent }}>saved</span>}
+            {allDone && started && <span className="text-xs" style={{ color: accent }}>{isFullAgent ? "launched" : "all done"}</span>}
           </div>
           <h2 className="text-lg font-semibold text-zinc-100">Work</h2>
         </div>
@@ -166,7 +168,7 @@ export function WorkModal({ column, cards, onClose }: Props) {
               background: activeTab === i ? "#18181b" : "transparent",
               border: `1px solid ${activeTab === i ? "#3f3f46" : "transparent"}`,
               borderBottom: activeTab === i ? "1px solid #18181b" : "1px solid transparent",
-              color: s.done ? "#22c55e" : anyRunning && !s.done ? "#f59e0b" : "#71717a",
+              color: s.done ? accent : anyRunning && !s.done ? "#f59e0b" : "#71717a",
               cursor: "pointer", maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
             }}
             title={s.card.title}

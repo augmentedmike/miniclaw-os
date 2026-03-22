@@ -23,7 +23,7 @@ function getDiscountFactor(): { plan: string; multiplier: number; discount: numb
     const tier = oauth.rateLimitTier ?? "default_claude_pro";
     const info = tiers[tier] ?? tiers["default_claude_pro"];
     return { plan: info.plan, multiplier: info.mult, discount: 1 / info.mult };
-  } catch { // keychain lookup failed — no Claude credentials or macOS security unavailable
+  } catch { /* keychain-unavailable */
     return { plan: "Pro ($20)", multiplier: 1, discount: 1 };
   }
 }
@@ -62,7 +62,7 @@ export async function GET() {
       plan,
       multiplier,
     });
-  } catch { // DB open or query failed — return empty stats
+  } catch { /* db-unavailable */
     return NextResponse.json(EMPTY);
   }
 }

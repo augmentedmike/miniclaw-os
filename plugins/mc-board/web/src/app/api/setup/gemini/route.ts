@@ -1,10 +1,18 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { writeSetupState } from "@/lib/setup-state";
+import { writeSetupState, isSetupComplete } from "@/lib/setup-state";
+import { consumeToken } from "@/lib/sensitive-auth";
 
 export async function POST(req: Request) {
-  const { apiKey } = await req.json();
+  const { apiKey, sensitiveToken } = await req.json();
+
+  if (isSetupComplete() && !consumeToken(sensitiveToken)) {
+    return NextResponse.json(
+      { ok: false, error: "Password confirmation required" },
+      { status: 403 },
+    );
+  }
 
   if (!apiKey) {
     return NextResponse.json({ ok: false, error: "API key is required" }, { status: 400 });

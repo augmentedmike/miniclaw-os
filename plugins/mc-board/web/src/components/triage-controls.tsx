@@ -1,6 +1,7 @@
 "use client";
 
 import type { TriageColumnState } from "@/hooks/useTriageColumn";
+import { useAccent } from "@/lib/accent-context";
 
 interface Props extends TriageColumnState {
   column?: string;
@@ -22,6 +23,7 @@ export function TriageControls({
   maxConcurrent, onMaxConcurrentChange,
   showTriageButton = true,
 }: Props) {
+  const accent = useAccent();
   const t = (id: string) => column ? `${column}-${id}` : undefined;
   if (!cronLoaded) return null;
 
@@ -35,7 +37,7 @@ export function TriageControls({
       >
         <span style={{
           width: 5, height: 5, borderRadius: "50%",
-          background: cronEnabled ? "#22c55e" : "#52525b",
+          background: cronEnabled ? accent : "#52525b",
           display: "inline-block", flexShrink: 0,
         }} />
         <span className="triage-label">{cronEnabled ? "on" : "off"}</span>

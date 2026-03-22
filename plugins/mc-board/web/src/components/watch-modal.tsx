@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Modal } from "./modal";
+import { useAccent } from "@/lib/accent-context";
 
 interface Props {
   cardId: string;
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export function WatchModal({ cardId, cardTitle, worker, onClose }: Props) {
+  const accent = useAccent();
   const [log, setLog] = useState<string>("");
   const [connected, setConnected] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
@@ -54,12 +56,12 @@ export function WatchModal({ cardId, cardTitle, worker, onClose }: Props) {
       <div className="border-b border-zinc-800 px-6 py-4 flex items-start gap-3 flex-shrink-0">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#22c55e", display: "inline-block", flexShrink: 0, position: "relative" }}>
-              <span style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "#22c55e", animation: "dot-ping 1.3s cubic-bezier(0,0,.2,1) infinite" }} />
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: accent, display: "inline-block", flexShrink: 0, position: "relative" }}>
+              <span style={{ position: "absolute", inset: 0, borderRadius: "50%", background: accent, animation: "dot-ping 1.3s cubic-bezier(0,0,.2,1) infinite" }} />
             </span>
             <span className="text-xs px-1.5 py-0.5 rounded font-mono bg-zinc-800 text-zinc-500">{cardId}</span>
             {worker && <span className="text-xs text-zinc-500">{worker}</span>}
-            {connected && <span className="text-xs text-emerald-600">live</span>}
+            {connected && <span className="text-xs" style={{ color: accent }}>live</span>}
           </div>
           <h2 className="text-lg font-semibold text-zinc-100 truncate">{cardTitle}</h2>
         </div>

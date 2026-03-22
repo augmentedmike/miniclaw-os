@@ -10,11 +10,6 @@ body {
 }
 a { color: inherit; }
 
-/* ── Chat reply button hover ── */
-.chat-msg-wrapper:hover .chat-reply-btn {
-  opacity: 1 !important;
-}
-
 /* ── Markdown prose (FileViewModal) ── */
 .prose-modal {
   max-width: 72ch;
@@ -294,7 +289,7 @@ a { color: inherit; }
 .card--active { border-color: rgba(34,197,94,.35); }
 .card--held { border-color: rgba(217,119,6,.35); background: rgba(28,25,23,.85); }
 .card--held:hover { border-color: rgba(217,119,6,.5); }
-.card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; flex-wrap: wrap; gap: 4px; }
 .card-id { font-size: 11px; color: #52525b; font-family: monospace; }
 .card-id--clickable { cursor: pointer; user-select: none; transition: color 0.15s; }
 .card-id--clickable:hover { color: #a1a1aa; }
@@ -309,7 +304,7 @@ a { color: inherit; }
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 100%;
+  width: 100%;
   margin-bottom: 4px;
 }
 .card--active .card-worker { display: flex; }

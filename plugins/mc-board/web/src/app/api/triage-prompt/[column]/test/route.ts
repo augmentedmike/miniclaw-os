@@ -90,10 +90,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ col
 
   function writeStream(msg: string) {
     if (!msg) return;
-    try { writer.write(enc.encode(msg)); } catch (err) {
-    // client-disconnected — stream already closed
-    console.debug(`[triage-prompt/test] Failed to write to stream:`, err);
-  }
+    try { writer.write(enc.encode(msg)); } catch { /* client-disconnected */ }
     if (msg.length > 0) streamAtLineStart = msg[msg.length - 1] === "\n";
   }
 
@@ -157,13 +154,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ col
         const entry = JSON.parse(line);
         const msg = entry.message ?? entry.msg ?? line;
         if (!NOISE.test(msg)) logDbg(msg);
-      } catch (err) {
-
-      // Failed to parse as JSON — treat as raw debug line
-
-      logDbg(line);
-
-      }
+      } catch { /* not valid JSON — log raw line */ logDbg(line); }
     }
   });
 
@@ -194,11 +185,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ col
           writeStream(msg.result);
           writeFile(msg.result);
         }
-      } catch (err) {
-
-      // Failed to parse as JSON — write raw line (likely incomplete or binary data)
-      writeStream(line + "\n"); writeFile(line + "\n");
-      }
+      } catch { /* not valid JSON — pass through raw line */ writeStream(line + "\n"); writeFile(line + "\n"); }
     }
   });
 

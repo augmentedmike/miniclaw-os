@@ -3,12 +3,10 @@ export const dynamic = "force-dynamic";
 import { spawn, spawnSync } from "node:child_process";
 import * as path from "node:path";
 import * as fs from "node:fs";
-import { apiError, apiOk } from "@/lib/api-response";
-import { stateDir } from "@/lib/paths";
 
-const STATE_DIR = stateDir();
+const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(process.env.HOME || "", ".openclaw");
 
-const LOCK_FILE = path.join(STATE_DIR, ".install-lock");
+const LOCK_FILE = path.join(process.env.OPENCLAW_STATE_DIR ?? path.join(process.env.HOME || "", ".openclaw"), ".install-lock");
 
 function isInstallRunning(): boolean {
   try {
@@ -18,9 +16,8 @@ function isInstallRunning(): boolean {
     // Check if process is alive
     process.kill(pid, 0);
     return true;
-  } catch {
-    // Process not running or file doesn't exist
-    try { fs.unlinkSync(LOCK_FILE); } catch { /* ignore */ }
+  } catch { /* process-not-running */
+    try { fs.unlinkSync(LOCK_FILE); } catch { /* file-missing */ }
     return false;
   }
 }
@@ -40,7 +37,10 @@ function isInstallRunning(): boolean {
  */
 export async function POST(req: Request) {
   if (isInstallRunning()) {
-    return apiError("Install already running", 409);
+    return new Response(JSON.stringify({ ok: false, error: "Install already running" }), {
+      status: 409,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 
   let password: string | undefined;
@@ -57,7 +57,10 @@ export async function POST(req: Request) {
       timeout: 10_000,
     });
     if (sudoCheck.status !== 0) {
-      return apiError("Incorrect password", 401);
+      return new Response(JSON.stringify({ ok: false, error: "Incorrect password" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
     }
   }
 
@@ -65,7 +68,8 @@ export async function POST(req: Request) {
   let repoDir = findRepoDir();
   if (!repoDir) {
     const fs = require("node:fs");
-    const expected = path.join(STATE_DIR, "projects", "miniclaw-os", "install.sh");
+    const STATE_DIR_LOCAL = process.env.OPENCLAW_STATE_DIR ?? path.join(process.env.HOME || "", ".openclaw");
+    const expected = path.join(STATE_DIR_LOCAL, "projects", "miniclaw-os", "install.sh");
     for (let i = 0; i < 60; i++) {
       await new Promise((r) => setTimeout(r, 1000));
       if (fs.existsSync(expected)) {
@@ -75,7 +79,10 @@ export async function POST(req: Request) {
     }
   }
   if (!repoDir) {
-    return apiError("Repo still downloading — click Retry in a moment", 503);
+    return new Response(JSON.stringify({ ok: false, error: "Repo still downloading — click Retry in a moment" }), {
+      status: 503,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 
   // Will write PID to lock file when process starts
@@ -189,9 +196,11 @@ export async function GET() {
     }
   }
 
-  return apiOk({
+  return new Response(JSON.stringify({
     running: isInstallRunning(),
     evacuatedInstall: evacPath,
+  }), {
+    headers: { "Content-Type": "application/json" },
   });
 }
 

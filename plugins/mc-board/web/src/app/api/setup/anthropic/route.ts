@@ -1,15 +1,13 @@
 export const dynamic = "force-dynamic";
 
+import { NextResponse } from "next/server";
 import { execSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 import { consumeToken } from "@/lib/sensitive-auth";
 import { isSetupComplete } from "@/lib/setup-state";
-import { apiOk, apiError } from "@/lib/api-response";
-import { stateDir } from "@/lib/paths";
-
-const HOME = process.env.HOME || "";
-const CLAUDE_BIN = `${HOME}/.local/bin/claude`;
+import { stateDir, claudeBinPath } from "@/lib/paths";
 
 function isAnthropicAuthed(): boolean {
   // Claude Code stores OAuth token in macOS keychain under "Claude Code-credentials"
@@ -20,7 +18,7 @@ function isAnthropicAuthed(): boolean {
     ).trim();
     const creds = JSON.parse(raw);
     if (creds?.claudeAiOauth?.accessToken) return true;
-  } catch { /* keychain lookup failed */ }
+  } catch { /* keychain-unavailable */ }
 
   // Fallback: check openclaw auth-profiles
   const candidates = [
@@ -34,7 +32,7 @@ function isAnthropicAuthed(): boolean {
       if (Object.keys(profiles).some((k) => k.startsWith("anthropic") && profiles[k]?.token)) {
         return true;
       }
-    } catch { /* auth profile unreadable */ }
+    } catch { /* auth-profile unreadable */ }
   }
 
   return false;
@@ -42,28 +40,30 @@ function isAnthropicAuthed(): boolean {
 
 // GET: poll for auth status
 export async function GET() {
-  return apiOk({ authed: isAnthropicAuthed() });
+  return NextResponse.json({ authed: isAnthropicAuthed() });
 }
 
 // POST: open Terminal.app running claude setup-token
 export async function POST() {
   try {
+    const claudeBin = claudeBinPath();
+    const home = os.homedir();
     const { CLAUDECODE: _, ...cleanEnv } = process.env;
     // Open a real Terminal window — customer sees it pop up, claude does the OAuth,
     // browser opens, they sign in, terminal closes automatically
     execSync(`osascript -e '
       tell application "Terminal"
         activate
-        do script "${CLAUDE_BIN} setup-token; exit"
+        do script "${claudeBin} setup-token; exit"
       end tell
     '`, {
       timeout: 5000,
-      env: { ...cleanEnv, HOME },
+      env: { ...cleanEnv, HOME: home },
     });
-    return apiOk({ message: "Sign in via the browser window that opens" });
+    return NextResponse.json({ ok: true, message: "Sign in via the browser window that opens" });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    return apiError(msg, 500);
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }
 
@@ -72,11 +72,14 @@ export async function PUT(req: Request) {
   const { token, sensitiveToken } = await req.json();
 
   if (isSetupComplete() && !consumeToken(sensitiveToken)) {
-    return apiError("Password confirmation required", 403);
+    return NextResponse.json(
+      { ok: false, error: "Password confirmation required" },
+      { status: 403 },
+    );
   }
 
   if (!token || typeof token !== "string") {
-    return apiError("Token is required");
+    return NextResponse.json({ ok: false, error: "Token is required" }, { status: 400 });
   }
 
   try {
@@ -86,13 +89,13 @@ export async function PUT(req: Request) {
         input: token.trim(),
         encoding: "utf8",
         timeout: 10_000,
-        env: { ...process.env, HOME },
+        env: { ...process.env, HOME: os.homedir() },
       },
     );
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    return apiError(`Failed to store token: ${msg}`, 500);
+    return NextResponse.json({ ok: false, error: `Failed to store token: ${msg}` }, { status: 500 });
   }
 
-  return apiOk();
+  return NextResponse.json({ ok: true });
 }
