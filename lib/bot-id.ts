@@ -6,5 +6,5 @@ import * as os from "node:os";
  */
 export function resolveUserDir(): string {
   const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
-  return path.join(stateDir, "USER");
+  return path.join(stateDir, "miniclaw", "USER");
 }

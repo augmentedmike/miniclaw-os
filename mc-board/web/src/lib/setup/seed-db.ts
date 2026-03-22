@@ -5,7 +5,7 @@ import { execSync } from "node:child_process";
 import { STATE_DIR } from "./constants";
 
 export function seedBoardDb() {
-  const dbDir = path.join(STATE_DIR, "USER", "brain");
+  const dbDir = path.join(STATE_DIR, "miniclaw", "USER", "brain");
   fs.mkdirSync(dbDir, { recursive: true });
   const dbPath = path.join(dbDir, "board.db");
 
@@ -44,7 +44,7 @@ conn.close()
  * name and preferred email address, then update the rolodex accordingly.
  */
 export function seedOnboardingCard() {
-  const dbPath = path.join(STATE_DIR, "USER", "brain", "board.db");
+  const dbPath = path.join(STATE_DIR, "miniclaw", "USER", "brain", "board.db");
   if (!fs.existsSync(dbPath)) return;
 
   const script = `import sqlite3

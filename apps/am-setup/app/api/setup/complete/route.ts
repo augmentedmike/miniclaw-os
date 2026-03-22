@@ -84,7 +84,7 @@ function findBin(name: string): string | null {
 }
 
 function seedBoardDb() {
-  const dbDir = path.join(STATE_DIR, "USER", "brain");
+  const dbDir = path.join(STATE_DIR, "miniclaw", "USER", "brain");
   fs.mkdirSync(dbDir, { recursive: true });
   const dbPath = path.join(dbDir, "board.db");
 
@@ -189,7 +189,7 @@ function applyGithubAuth(): { ok: boolean; error?: string } {
  * Only called when a GH token is present and auth succeeded.
  */
 function seedGithubSetupCard() {
-  const dbPath = path.join(STATE_DIR, "USER", "brain", "board.db");
+  const dbPath = path.join(STATE_DIR, "miniclaw", "USER", "brain", "board.db");
   if (!fs.existsSync(dbPath)) return;
 
   const script = `import sqlite3
@@ -381,7 +381,7 @@ print(f"Personalized: {name} ({pronouns})")
  * Uses INSERT OR IGNORE so re-running setup is safe.
  */
 function seedKb() {
-  const dbPath = path.join(STATE_DIR, "USER", "kb", "kb.db");
+  const dbPath = path.join(STATE_DIR, "miniclaw", "USER", "kb", "kb.db");
   if (!fs.existsSync(dbPath)) return;
 
   const CODING_AXIOMS_CONTENT = `# Coding Axioms

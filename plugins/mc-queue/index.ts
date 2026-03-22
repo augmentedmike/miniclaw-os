@@ -35,15 +35,17 @@ import * as path from "node:path";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 
 // Resolve the active OpenClaw state directory from env var (set by LaunchAgent)
-const OPENCLAW_STATE_DIR = (process.env.OPENCLAW_STATE_DIR ?? "").trim()
-  || path.join(os.homedir(), ".openclaw");
+function getOpenClawStateDir(): string {
+  const fromEnv = (process.env.OPENCLAW_STATE_DIR ?? "").trim();
+  return fromEnv || path.join(os.homedir(), ".openclaw");
+}
 
 // ---- Load workspace soul files at startup ----
 
 function readWorkspaceFile(filename: string): string {
   try {
     return fs.readFileSync(
-      path.join(OPENCLAW_STATE_DIR, "workspace", filename),
+      path.join(getOpenClawStateDir(), "workspace", filename),
       "utf8",
     ).trim();
   } catch {
@@ -128,7 +130,7 @@ type BoardEvent =
 /** Look up a card's project_id from the brain cards directory. Best-effort, returns "" if not found. */
 function lookupCardProjectId(cardId: string): string {
   try {
-    const cardsDir = path.join(OPENCLAW_STATE_DIR, "USER", "brain", "cards");
+    const cardsDir = path.join(getOpenClawStateDir(), "miniclaw", "USER", "brain", "cards");
     const files = fs.readdirSync(cardsDir).filter(f => f.startsWith(cardId) && f.endsWith(".md"));
     if (!files.length) return "";
     const content = fs.readFileSync(path.join(cardsDir, files[0]), "utf8");

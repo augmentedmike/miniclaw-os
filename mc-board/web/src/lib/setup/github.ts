@@ -40,7 +40,7 @@ export function applyGithubAuth(): { ok: boolean; error?: string } {
  * Only called when a GH token is present and auth succeeded.
  */
 export function seedGithubSetupCard() {
-  const dbPath = path.join(STATE_DIR, "USER", "brain", "board.db");
+  const dbPath = path.join(STATE_DIR, "miniclaw", "USER", "brain", "board.db");
   if (!fs.existsSync(dbPath)) return;
 
   const script = `import sqlite3

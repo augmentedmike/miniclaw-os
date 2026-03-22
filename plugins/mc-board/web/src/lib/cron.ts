@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 const _STATE = process.env.OPENCLAW_STATE_DIR ?? path.join(require("node:os").homedir(), ".openclaw");
-const JOBS_FILE = process.env.BOARD_CRON_JOBS ?? path.join(_STATE, "USER", "brain", "board-cron.json");
+const JOBS_FILE = process.env.BOARD_CRON_JOBS ?? path.join(_STATE, "miniclaw", "USER", "brain", "board-cron.json");
 const RUNS_DIR = process.env.BOARD_CRON_RUNS ?? path.join(_STATE, "cron", "runs");
 
 export interface CronJob {

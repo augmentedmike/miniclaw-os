@@ -25,7 +25,7 @@ export interface EngagementLog {
 }
 
 export function fansDir(): string {
-  const dir = path.join(os.homedir(), ".openclaw", "USER", "fans");
+  const dir = path.join(os.homedir(), ".openclaw", "miniclaw", "USER", "fans");
   fs.mkdirSync(dir, { recursive: true });
   return dir;
 }

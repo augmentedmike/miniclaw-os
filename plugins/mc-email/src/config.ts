@@ -14,7 +14,7 @@ export interface EmailConfig {
 }
 
 function loadSetupState(): Record<string, unknown> {
-  const p = path.join(STATE_DIR, "USER", "setup-state.json");
+  const p = path.join(STATE_DIR, "miniclaw", "USER", "setup-state.json");
   try { return JSON.parse(fs.readFileSync(p, "utf-8")); } catch { return {}; }
 }
 

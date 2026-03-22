@@ -1,9 +1,7 @@
 import Database from "better-sqlite3";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import * as os from "node:os";
-
-const _STATE = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
+import { userDir, kbDbPath } from "./paths";
 
 function walkMd(dir: string): string[] {
   if (!fs.existsSync(dir)) return [];
@@ -24,12 +22,12 @@ export interface MemoryStats {
 
 export function getMemoryStats(): MemoryStats {
   // Count .md files in USER/memory/ only (matches what the Memory tab shows as SHORT TERM)
-  const userMemDir = path.join(_STATE, "USER", "memory");
+  const userMemDir = path.join(userDir(), "memory");
   const memoryFiles = walkMd(userMemDir).length;
 
   // Count KB entries via SQL
   let kbEntries = 0;
-  const kbPath = process.env.BOARD_KB_DB ?? path.join(_STATE, "USER", "kb", "kb.db");
+  const kbPath = kbDbPath();
   if (fs.existsSync(kbPath)) {
     try {
       const db = new Database(kbPath, { readonly: true });

@@ -1,8 +1,37 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
+import * as os from "node:os";
 import type { Database } from "./db.js";
-import type { Attachment, Card, Column, Priority, WorkLogEntry } from "./card.js";
+import type { Card, Column, Priority, WorkLogEntry } from "./card.js";
 import { generateId, sortCards } from "./card.js";
-import { type TitleConflict, findTitleConflict, findAllConflicts } from "./dedup.js";
+import { type TitleConflict, findTitleConflict } from "./dedup.js";
 
+const COL_TO_JOB: Record<string, string> = {
+  "backlog": "board-backlog-triage",
+  "in-progress": "board-in-progress-triage",
+  "in-review": "board-in-review-triage",
+};
+
+const DEFAULT_capacity_LIMIT = 3;
+
+/**
+ * Read the capacity limit (maxConcurrent) for a column from board-cron.json.
+ * Falls back to DEFAULT_capacity_LIMIT if not configured.
+ */
+export function getCapacityLimit(column: Column, stateDir?: string): number {
+  const dir = stateDir ?? process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
+  const jobsFile = process.env.BOARD_CRON_JOBS ?? path.join(dir, "miniclaw", "USER", "brain", "board-cron.json");
+  const jobId = COL_TO_JOB[column];
+  if (!jobId) return DEFAULT_capacity_LIMIT;
+  try {
+    const raw = JSON.parse(fs.readFileSync(jobsFile, "utf8"));
+    const job = raw[jobId];
+    if (job && typeof job.maxConcurrent === "number" && job.maxConcurrent > 0) {
+      return job.maxConcurrent;
+    }
+  } catch {}
+  return DEFAULT_capacity_LIMIT;
+}
 
 type WorkType = "work" | "verify";
 
@@ -26,7 +55,6 @@ interface CardRow {
   research: string;
   verify_url: string;
   work_log: string;
-  attachments: string;
 }
 
 interface HistoryRow {
@@ -58,7 +86,6 @@ function rowToCard(row: CardRow, history: HistoryRow[]): Card {
     research: row.research,
     verify_url: row.verify_url ?? "",
     work_log: (() => { try { return JSON.parse(row.work_log || "[]"); } catch { return []; } })(),
-    attachments: (() => { try { return JSON.parse(row.attachments || "[]") as Attachment[]; } catch { return []; } })(),
   };
 }
 
@@ -88,7 +115,6 @@ export class CardStore {
     research?: string;
     verify_url?: string;
     work_log?: WorkLogEntry[];
-    attachments?: Attachment[];
   }): Card {
     const now = new Date().toISOString();
     const id = generateId();
@@ -96,8 +122,8 @@ export class CardStore {
       `INSERT INTO cards
          (id, title, col, priority, tags, project_id, work_type, linked_card_id, depends_on,
           created_at, updated_at,
-          problem_description, implementation_plan, acceptance_criteria, notes, review_notes, research, verify_url, work_log, attachments)
-       VALUES (?, ?, 'backlog', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?)`,
+          problem_description, implementation_plan, acceptance_criteria, notes, review_notes, research, verify_url, work_log)
+       VALUES (?, ?, 'backlog', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?)`,
     ).run(
       id,
       opts.title,
@@ -116,7 +142,6 @@ export class CardStore {
       opts.research ?? "",
       opts.verify_url ?? "",
       JSON.stringify(opts.work_log ?? []),
-      JSON.stringify(opts.attachments ?? []),
     );
     this.db.prepare(
       `INSERT INTO card_history (card_id, col, moved_at) VALUES (?, 'backlog', ?)`,
@@ -147,7 +172,7 @@ export class CardStore {
     updates: Partial<Pick<Card,
       | "title" | "priority" | "tags" | "project_id" | "work_type" | "linked_card_id" | "depends_on"
       | "problem_description" | "implementation_plan" | "acceptance_criteria"
-      | "notes" | "review_notes" | "research" | "verify_url" | "work_log" | "attachments"
+      | "notes" | "review_notes" | "research" | "verify_url" | "work_log"
     >>,
   ): Card {
     const card = this.findById(id);
@@ -157,7 +182,7 @@ export class CardStore {
       `UPDATE cards
        SET title=?, priority=?, tags=?, project_id=?, work_type=?, linked_card_id=?, depends_on=?,
            problem_description=?, implementation_plan=?, acceptance_criteria=?,
-           notes=?, review_notes=?, research=?, verify_url=?, work_log=?, attachments=?, updated_at=?
+           notes=?, review_notes=?, research=?, verify_url=?, work_log=?, updated_at=?
        WHERE id=?`,
     ).run(
       m.title,
@@ -175,7 +200,6 @@ export class CardStore {
       m.research,
       m.verify_url ?? "",
       JSON.stringify(m.work_log ?? []),
-      JSON.stringify(m.attachments ?? []),
       now,
       id,
     );
@@ -216,34 +240,9 @@ export class CardStore {
     return findTitleConflict(title, candidates, opts?.excludeId);
   }
 
-  checkSimilarCards(title: string, problemText?: string, opts?: { projectId?: string; excludeId?: string }): TitleConflict[] {
-    let candidates = this.list().filter(c => c.column !== "shipped" && c.column !== "done");
-    if (opts?.projectId) candidates = candidates.filter(c => c.project_id === opts.projectId);
-    return findAllConflicts(title, candidates, problemText, opts?.excludeId);
-  }
-
   // SQLite PRIMARY KEY guarantees no duplicates — always returns empty map.
   detectDuplicates(): Map<string, string[]> {
     return new Map();
-  }
-
-  addAttachment(cardId: string, attachment: Omit<Attachment, "created_at"> & { created_at?: string }): Card {
-    const card = this.findById(cardId);
-    const now = new Date().toISOString();
-    const existing = card.attachments ?? [];
-    const newAttachment: Attachment = {
-      path: attachment.path,
-      ...(attachment.label ? { label: attachment.label } : {}),
-      ...(attachment.mime ? { mime: attachment.mime } : {}),
-      ...(attachment.type ? { type: attachment.type } : {}),
-      ...(attachment.ref_id !== undefined ? { ref_id: attachment.ref_id } : {}),
-      created_at: attachment.created_at ?? now,
-    };
-    const updated = [...existing, newAttachment];
-    this.db.prepare(`UPDATE cards SET attachments=?, updated_at=? WHERE id=?`).run(
-      JSON.stringify(updated), now, cardId,
-    );
-    return this.findById(cardId);
   }
 
   private _withHistory(row: CardRow): Card {

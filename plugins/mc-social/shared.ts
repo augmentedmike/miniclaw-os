@@ -3,7 +3,7 @@ import path from "path";
 import os from "os";
 
 export function socialDir(): string {
-  const dir = path.join(os.homedir(), ".openclaw", "USER", "social");
+  const dir = path.join(os.homedir(), ".openclaw", "miniclaw", "USER", "social");
   fs.mkdirSync(dir, { recursive: true });
   return dir;
 }

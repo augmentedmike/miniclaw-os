@@ -40,6 +40,6 @@ export function resolveConfig(raw: Record<string, unknown>): RealtyConfig {
     syndicatePlatforms: (raw.syndicate_platforms as string[]) || ["instagram", "facebook", "twitter"],
     autoSyndicate: raw.auto_syndicate !== undefined ? (raw.auto_syndicate as boolean) : true,
     notificationEmail: (raw.notification_email as string) || "",
-    dataDir: path.join(STATE_DIR, "USER", "realty"),
+    dataDir: path.join(STATE_DIR, "miniclaw", "USER", "realty"),
   };
 }

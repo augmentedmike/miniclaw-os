@@ -19,7 +19,7 @@ export interface DncEntry {
 
 const DEFAULT_DB_DIR = () => {
   const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
-  return path.join(stateDir, "USER", "email");
+  return path.join(stateDir, "miniclaw", "USER", "email");
 };
 
 let _db: Database.Database | null = null;

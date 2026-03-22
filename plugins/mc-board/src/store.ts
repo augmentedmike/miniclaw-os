@@ -20,7 +20,7 @@ const DEFAULT_capacity_LIMIT = 3;
  */
 export function getCapacityLimit(column: Column, stateDir?: string): number {
   const dir = stateDir ?? process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
-  const jobsFile = process.env.BOARD_CRON_JOBS ?? path.join(dir, "USER", "brain", "board-cron.json");
+  const jobsFile = process.env.BOARD_CRON_JOBS ?? path.join(dir, "miniclaw", "USER", "brain", "board-cron.json");
   const jobId = COL_TO_JOB[column];
   if (!jobId) return DEFAULT_capacity_LIMIT;
   try {

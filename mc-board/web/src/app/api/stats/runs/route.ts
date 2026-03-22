@@ -30,7 +30,7 @@ function getDiscountFactor(): { plan: string; multiplier: number; discount: numb
 
 export async function GET() {
   const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
-  const dbPath = process.env.BOARD_DB_PATH ?? path.join(stateDir, "USER", "brain", "board.db");
+  const dbPath = process.env.BOARD_DB_PATH ?? path.join(stateDir, "miniclaw", "USER", "brain", "board.db");
   if (!fs.existsSync(dbPath)) return NextResponse.json(EMPTY);
   try {
     const db = new Database(dbPath, { readonly: true });

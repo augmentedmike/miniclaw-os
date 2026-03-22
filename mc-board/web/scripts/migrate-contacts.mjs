@@ -13,15 +13,15 @@ const Database = require("better-sqlite3");
 
 const STATE = process.env.OPENCLAW_STATE_DIR ?? join(homedir(), ".openclaw");
 
-const DB_PATH = join(STATE, "USER", "rolodex", "contacts.db");
+const DB_PATH = join(STATE, "miniclaw", "USER", "rolodex", "contacts.db");
 
 // Source files to try (in priority order)
 const SOURCES = [
-  join(STATE, "USER", "contacts.json"),
-  join(STATE, "USER", "rolodex", "contacts.json"),
+  join(STATE, "miniclaw", "USER", "contacts.json"),
+  join(STATE, "miniclaw", "USER", "rolodex", "contacts.json"),
 ];
 
-mkdirSync(join(STATE, "USER", "rolodex"), { recursive: true });
+mkdirSync(join(STATE, "miniclaw", "USER", "rolodex"), { recursive: true });
 
 const db = new Database(DB_PATH);
 db.pragma("journal_mode = WAL");

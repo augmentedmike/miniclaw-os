@@ -624,7 +624,7 @@ Examples:
       } catch (err) {
         console.error(formatPluginError("mc-board", "archive", err, [
           "Verify the card exists: openclaw mc-board show " + id,
-          "Only shipped cards can be archived — check: openclaw mc-board list --column shipped",
+          "Verify the card exists: openclaw mc-board show " + id,
           DOCTOR_SUGGESTION,
         ]));
         process.exit(1);
@@ -668,7 +668,9 @@ Examples:
         return;
       }
       for (const card of results) {
-        console.log(`${card.id}  ${card.title}  [shipped ${card.updated_at.slice(0, 10)}]`);
+        const shippedAt = card.history?.filter(h => h.column === "shipped").pop()?.moved_at;
+        const displayDate = shippedAt ?? card.updated_at;
+        console.log(`${card.id}  ${card.title}  [shipped ${displayDate.slice(0, 10)}]`);
       }
     });
 
@@ -697,7 +699,7 @@ Reads across all archive files. Prefix match on card id.
   brain
     .command("delete <id>")
     .alias("remove")
-    .description("Delete a card from the board (irreversible — use archive for shipped cards)")
+    .description("Delete a card from the board (irreversible — consider archive instead)")
     .option("--force", "Skip confirmation prompt")
     .action((id: string, opts: { force?: boolean }) => {
       try {
@@ -706,7 +708,7 @@ Reads across all archive files. Prefix match on card id.
           console.error(formatUserError(`[mc-board] Refusing to delete without --force`, [
             `Run: openclaw mc-board delete ${id} --force`,
             `Card: ${card.id} (${card.column}): "${card.title}"`,
-            "Consider archiving shipped cards instead: openclaw mc-board archive " + id,
+            "Consider archiving instead: openclaw mc-board archive " + id,
           ]));
           process.exit(1);
         }
@@ -1111,7 +1113,7 @@ Used by: web UI triage button, cron job backlog checker.
       function log(msg: string) { logStream.write(msg); process.stdout.write(msg); }
 
       // Resolve prompt
-      const BRAIN_DIR = path.join(ctx.stateDir, "USER", "brain");
+      const BRAIN_DIR = path.join(ctx.stateDir, "miniclaw", "USER", "brain");
       const defaultPromptPath = path.join(BRAIN_DIR, "prompts", "backlog-process.txt");
       const promptPath2 = opts.prompt ?? (fs.existsSync(defaultPromptPath) ? defaultPromptPath : null);
       const DEFAULT_PROMPT = `You are a triage processor for the Brain board. This prompt runs both on-demand (web UI) and via the periodic cron job that checks the backlog column.

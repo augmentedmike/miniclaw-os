@@ -17,7 +17,7 @@ export type SeoConfig = {
 };
 
 export function resolveConfig(raw: Record<string, unknown>): SeoConfig {
-  const defaultStateDir = path.join(os.homedir(), ".openclaw", "USER", "seo");
+  const defaultStateDir = path.join(os.homedir(), ".openclaw", "miniclaw", "USER", "seo");
 
   const domains: Record<string, DomainConfig> = {};
   const rawDomains = (raw["domains"] ?? {}) as Record<string, Record<string, unknown>>;

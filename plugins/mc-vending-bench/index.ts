@@ -85,7 +85,7 @@ export default function register(ctx: PluginContext) {
       const path = await import("node:path");
       const fs = await import("node:fs");
 
-      const resultsDir = path.join(stateDir, "USER", "benchmarks", "vending-bench");
+      const resultsDir = path.join(stateDir, "miniclaw", "USER", "benchmarks", "vending-bench");
       if (!fs.existsSync(resultsDir)) {
         console.log("No benchmark results yet. Run: mc-vending-bench run");
         return;

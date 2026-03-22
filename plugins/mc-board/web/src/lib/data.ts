@@ -9,16 +9,14 @@
 
 import Database from "better-sqlite3";
 import { randomBytes } from "node:crypto";
-import * as path from "node:path";
 import * as fs from "node:fs";
 import type { Card, BoardCard, Column, Priority, Project, ActiveEntry, HistoryEntry, LogEntry, WorkLogEntry, PickupLogEntry, CardTimeline, TimelineEvent, AgentRun } from "./types";
+import { boardDbPath } from "./paths";
 
 // ---- DB path resolution ----
 
 function resolveDbPath(): string {
-  if (process.env.BOARD_DB_PATH) return process.env.BOARD_DB_PATH;
-  const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(require("node:os").homedir(), ".openclaw");
-  return path.join(stateDir, "USER", "brain", "board.db");
+  return boardDbPath();
 }
 
 export function getDbPath(): string { return resolveDbPath(); }

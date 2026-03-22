@@ -1,7 +1,9 @@
 import * as path from "node:path";
 import * as os from "node:os";
 
-const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
+function getStateDir(): string {
+  return process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
+}
 
 export interface BookingConfig {
   vaultBin: string;
@@ -19,10 +21,11 @@ export interface BookingConfig {
 }
 
 export function resolveConfig(raw: Record<string, unknown>): BookingConfig {
+  const stateDir = getStateDir();
   return {
-    vaultBin: (raw.vaultBin as string) || path.join(STATE_DIR, "miniclaw", "SYSTEM", "bin", "mc-vault"),
+    vaultBin: (raw.vaultBin as string) || path.join(stateDir, "miniclaw", "SYSTEM", "bin", "mc-vault"),
     paymentProvider: (raw.paymentProvider as BookingConfig["paymentProvider"]) || "none",
-    dbPath: (raw.dbPath as string) || path.join(STATE_DIR, "USER", "booking", "appointments.db"),
+    dbPath: (raw.dbPath as string) || path.join(stateDir, "miniclaw", "USER", "booking", "appointments.db"),
     availableDays: (raw.availableDays as number[]) || [1, 2, 3, 4, 5],
     timeSlots: (raw.timeSlots as number[]) || [9, 10, 11, 14, 15, 16],
     durationMinutes: (raw.durationMinutes as number) || 30,

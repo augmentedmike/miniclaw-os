@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import * as os from "node:os";
+import { brainDir } from "@/lib/paths";
 
 export const dynamic = "force-dynamic";
 
-const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
-
 function getBrainDir(): string {
-  return path.join(STATE_DIR, "USER", "brain");
+  return brainDir();
 }
 
 function promptPath(column: string): string {

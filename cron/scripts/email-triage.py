@@ -34,7 +34,7 @@ _STATE_DIR       = os.environ.get("OPENCLAW_STATE_DIR", os.path.expanduser("~/.o
 VAULT_BIN        = os.path.join(_STATE_DIR, "miniclaw", "system", "bin", "mc-vault")
 SEND_ALERT       = os.path.join(_STATE_DIR, "miniclaw", "system", "bin", "send-alert")
 MC_BIN           = "/opt/homebrew/bin/openclaw"
-SETUP_STATE_FILE = os.path.join(_STATE_DIR, "USER", "setup-state.json")
+SETUP_STATE_FILE = os.path.join(_STATE_DIR, "miniclaw", "USER", "setup-state.json")
 PROMPT_FILE      = os.path.join(_STATE_DIR, "miniclaw", "cron", "prompts", "email-triage.md")
 MODEL            = "haiku"  # openclaw model alias for haiku
 MAX_BODY_CHARS   = 2000
@@ -113,7 +113,7 @@ def _get_tg_chat_id() -> str:
 
 # ── Event log ────────────────────────────────────────────────────────────
 EMAIL_EVENTS_FILE = os.path.join(
-    _STATE_DIR, "USER", "email-events.json"
+    _STATE_DIR, "miniclaw", "USER", "email-events.json"
 )
 
 # Interesting scores by category (routine/spam never enter digest)

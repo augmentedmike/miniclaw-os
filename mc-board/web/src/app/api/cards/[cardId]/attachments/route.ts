@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import * as path from "node:path";
-import * as os from "node:os";
 import Database from "better-sqlite3";
+import { boardDbPath } from "@/lib/paths";
 
 export const dynamic = "force-dynamic";
 
-const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
-
 function getDb() {
-  const dbPath = path.join(STATE_DIR, "USER", "brain", "board.db");
-  return new Database(dbPath);
+  return new Database(boardDbPath());
 }
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ cardId: string }> }) {

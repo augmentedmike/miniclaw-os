@@ -5,24 +5,29 @@ import os from "node:os";
 import crypto from "node:crypto";
 import { listCards, getCard, listProjects } from "@/lib/data";
 import { getOrCreateSession, destroySession } from "@/lib/chat-session";
+import { setupStatePath, workspaceDir } from "@/lib/paths";
 
 const CHAT_IMAGE_DIR = path.join(os.tmpdir(), "mc-chat-images");
 
 export const dynamic = "force-dynamic";
 
-const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
-
 function getAssistantName(): string {
   try {
-    const raw = JSON.parse(fs.readFileSync(path.join(STATE_DIR, "USER", "setup-state.json"), "utf-8"));
+    const raw = JSON.parse(fs.readFileSync(setupStatePath(), "utf-8"));
     return raw.shortName || raw.assistantName || "Assistant";
-  } catch {
+  } catch (err) {
+    // setup-state.json not found or invalid JSON — fall back to default
+    console.debug(`[getAssistantName] Failed to read setup state:`, err);
     return "Assistant";
   }
 }
 
 function readWorkspaceFile(filename: string): string {
-  try { return fs.readFileSync(path.join(STATE_DIR, "workspace", filename), "utf-8").trim(); } catch { return ""; }
+  try { return fs.readFileSync(path.join(workspaceDir(), filename), "utf-8").trim(); } catch (err) {
+    // File not found or unreadable — return empty string
+    console.debug(`[readWorkspaceFile] Failed to read ${filename}:`, err);
+    return "";
+  }
 }
 
 function getSystemPrompt(): string {
@@ -119,7 +124,10 @@ export async function POST(req: NextRequest) {
     const stream = new ReadableStream({
       start(controller) {
         const send = (obj: object) => {
-          try { controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`)); } catch {}
+          try { controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`)); } catch (err) {
+            // client-disconnected — stream already closed
+            console.debug(`[chat send] Failed to enqueue SSE event:`, err);
+          }
         };
 
         send({ type: "session", sessionId: sid });
@@ -128,7 +136,10 @@ export async function POST(req: NextRequest) {
           send(evt);
           if (evt.type === "done") {
             session.removeListener("event", handler);
-            try { controller.close(); } catch {}
+            try { controller.close(); } catch (err) {
+              // client-disconnected — stream already closed
+              console.debug(`[chat handler] Failed to close stream:`, err);
+            }
           }
         };
 
@@ -136,12 +147,18 @@ export async function POST(req: NextRequest) {
         session.send(userText, imagePaths.length > 0 ? imagePaths : undefined).catch((err) => {
           send({ type: "error", text: String(err) });
           session.removeListener("event", handler);
-          try { controller.close(); } catch {}
+          try { controller.close(); } catch (closeErr) {
+            // client-disconnected — stream already closed
+            console.debug(`[chat error-handler] Failed to close stream:`, closeErr);
+          }
         });
 
         req.signal.addEventListener("abort", () => {
           session.removeListener("event", handler);
-          try { controller.close(); } catch {}
+          try { controller.close(); } catch (err) {
+            // client-disconnected — stream already closed
+            console.debug(`[chat abort] Failed to close stream:`, err);
+          }
         });
       },
     });

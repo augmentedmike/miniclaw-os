@@ -16,7 +16,7 @@ function defaultState(): TriageState {
 
 function resolveStatePath(): string {
   const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
-  return path.join(stateDir, "USER", "email-triage-state.json");
+  return path.join(stateDir, "miniclaw", "USER", "email-triage-state.json");
 }
 
 export function loadTriageState(statePath?: string): TriageState {

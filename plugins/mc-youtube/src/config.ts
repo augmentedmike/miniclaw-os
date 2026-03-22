@@ -10,9 +10,9 @@ export interface YoutubeConfig {
   keyframeIntervalSeconds: number; // dense keyframe extraction interval (0 = disabled)
 }
 
-/** Resolve the default user media dir: $STATE/USER/<first-user>/media/<plugin> */
+/** Resolve the default user media dir: $STATE/miniclaw/USER/<first-user>/media/<plugin> */
 function defaultMediaDir(stateDir: string, plugin: string): string {
-  const userDir = path.join(stateDir, "USER");
+  const userDir = path.join(stateDir, "miniclaw", "USER");
   try {
     const entries = fs.readdirSync(userDir, { withFileTypes: true });
     const first = entries.find((e) => e.isDirectory());

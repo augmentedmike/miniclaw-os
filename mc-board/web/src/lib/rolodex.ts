@@ -1,13 +1,14 @@
 /**
  * rolodex.ts — contact data layer for mc-board web UI.
- * Reads/writes contacts.json at $OPENCLAW_STATE_DIR/USER/rolodex/contacts.json
- * — the same file used by the CLI (mc-rolodex), ensuring a single source of truth.
+ * Stores contacts in SQLite at $OPENCLAW_STATE_DIR/USER/rolodex/contacts.db
+ * Migrates from contacts.json on first open if DB is empty.
  */
 
+import Database from "better-sqlite3";
 import * as path from "node:path";
 import * as fs from "node:fs";
-import * as os from "node:os";
 import * as crypto from "node:crypto";
+import { rolodexDbPath, rolodexJsonPath } from "./paths";
 
 export interface Contact {
   id: string;
@@ -21,154 +22,206 @@ export interface Contact {
   notes: string;
 }
 
+interface ContactRow {
+  id: string;
+  name: string;
+  emails: string;
+  phones: string;
+  domains: string;
+  tags: string;
+  trust_status: string;
+  last_verified: string | null;
+  notes: string;
+}
+
+function resolveDbPath(): string {
+  return rolodexDbPath();
+}
+
 function resolveJsonPath(): string {
-  if (process.env.ROLODEX_STORAGE_PATH) return process.env.ROLODEX_STORAGE_PATH;
-  const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
-  const jsonPath = path.join(stateDir, "USER", "rolodex", "contacts.json");
+  const jsonPath = rolodexJsonPath();
   const dir = path.dirname(jsonPath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   return jsonPath;
 }
 
-/**
- * Load all contacts from disk. Always reads fresh from disk to pick up
- * CLI changes immediately (no caching).
- */
-function loadContacts(): Contact[] {
+let _db: Database.Database | null = null;
+
+function getDb(): Database.Database {
+  if (_db) return _db;
+  const dbPath = resolveDbPath();
+  const dir = path.dirname(dbPath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+  const db = new Database(dbPath);
+  db.pragma("journal_mode = WAL");
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS contacts (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      emails TEXT NOT NULL DEFAULT '[]',
+      phones TEXT NOT NULL DEFAULT '[]',
+      domains TEXT NOT NULL DEFAULT '[]',
+      tags TEXT NOT NULL DEFAULT '[]',
+      trust_status TEXT NOT NULL DEFAULT 'unknown',
+      last_verified TEXT,
+      notes TEXT NOT NULL DEFAULT ''
+    )
+  `);
+
+  // Migrate from JSON if table is empty
+  const count = (db.prepare("SELECT COUNT(*) as n FROM contacts").get() as { n: number }).n;
+  if (count === 0) {
+    migrateFromJson(db);
+  }
+
+  _db = db;
+  return db;
+}
+
+function migrateFromJson(db: Database.Database): void {
   const jsonPath = resolveJsonPath();
-  if (!fs.existsSync(jsonPath)) return [];
+  if (!fs.existsSync(jsonPath)) return;
   try {
     const raw = fs.readFileSync(jsonPath, "utf8");
     const parsed = JSON.parse(raw) as unknown;
 
+    // Support both flat array and nested {version, contacts: [...]} formats
     let rows: Array<Record<string, unknown>>;
     if (Array.isArray(parsed)) {
       rows = parsed as Array<Record<string, unknown>>;
-    } else if (
-      parsed &&
-      typeof parsed === "object" &&
-      Array.isArray((parsed as Record<string, unknown>).contacts)
-    ) {
+    } else if (parsed && typeof parsed === "object" && Array.isArray((parsed as Record<string, unknown>).contacts)) {
       rows = (parsed as { contacts: Array<Record<string, unknown>> }).contacts;
     } else {
-      return [];
+      return;
     }
 
-    return rows.map(normalizeContact);
+    if (rows.length === 0) return;
+
+    const insert = db.prepare(`
+      INSERT OR IGNORE INTO contacts (id, name, emails, phones, domains, tags, trust_status, last_verified, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const insertMany = db.transaction((contacts: Array<Record<string, unknown>>) => {
+      for (const c of contacts) {
+        // Support both flat emails/phones arrays and contactMethods format
+        let emails: string[] = [];
+        let phones: string[] = [];
+        if (Array.isArray(c.emails)) {
+          emails = c.emails as string[];
+        } else if (Array.isArray(c.contactMethods)) {
+          const methods = c.contactMethods as Array<{ type: string; value: string }>;
+          emails = methods.filter(m => m.type === "email").map(m => m.value);
+          phones = methods.filter(m => m.type === "phone" || m.type === "telegram").map(m => m.value);
+        }
+        if (Array.isArray(c.phones)) phones = c.phones as string[];
+
+        insert.run(
+          (c.id as string) || crypto.randomUUID(),
+          (c.name as string) || "Unknown",
+          JSON.stringify(emails),
+          JSON.stringify(phones),
+          JSON.stringify(Array.isArray(c.domains) ? c.domains : []),
+          JSON.stringify(Array.isArray(c.tags) ? c.tags : []),
+          (c.verificationStatus as string) || (c.trustStatus as string) || "unknown",
+          (c.verifiedTimestamp as string) || (c.lastVerified as string) || null,
+          (c.notes as string) || "",
+        );
+      }
+    });
+    insertMany(rows);
   } catch {
-    return [];
+    // migration failure is non-fatal
   }
 }
 
-/**
- * Normalize a raw JSON object into the Contact interface,
- * handling optional fields and legacy contactMethods format.
- */
-function normalizeContact(raw: Record<string, unknown>): Contact {
-  let emails: string[] = [];
-  let phones: string[] = [];
-
-  if (Array.isArray(raw.emails)) {
-    emails = raw.emails as string[];
-  } else if (Array.isArray(raw.contactMethods)) {
-    const methods = raw.contactMethods as Array<{ type: string; value: string }>;
-    emails = methods.filter(m => m.type === "email").map(m => m.value);
-    phones = methods.filter(m => m.type === "phone" || m.type === "telegram").map(m => m.value);
-  }
-  if (Array.isArray(raw.phones)) phones = raw.phones as string[];
-
+function rowToContact(row: ContactRow): Contact {
   return {
-    id: (raw.id as string) || crypto.randomUUID(),
-    name: (raw.name as string) || "Unknown",
-    emails,
-    phones,
-    domains: Array.isArray(raw.domains) ? (raw.domains as string[]) : [],
-    tags: Array.isArray(raw.tags) ? (raw.tags as string[]) : [],
-    trustStatus:
-      ((raw.trustStatus as string) ||
-        (raw.verificationStatus as string) ||
-        "unknown") as Contact["trustStatus"],
-    lastVerified:
-      (raw.lastVerified as string) || (raw.verifiedTimestamp as string) || undefined,
-    notes: (raw.notes as string) || "",
+    id: row.id,
+    name: row.name,
+    emails: JSON.parse(row.emails) as string[],
+    phones: JSON.parse(row.phones) as string[],
+    domains: JSON.parse(row.domains) as string[],
+    tags: JSON.parse(row.tags) as string[],
+    trustStatus: (row.trust_status as Contact["trustStatus"]) || "unknown",
+    lastVerified: row.last_verified ?? undefined,
+    notes: row.notes,
   };
-}
-
-/**
- * Save all contacts to disk as a flat JSON array — the format the CLI expects.
- */
-function saveContacts(contacts: Contact[]): void {
-  const jsonPath = resolveJsonPath();
-  const dir = path.dirname(jsonPath);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(jsonPath, JSON.stringify(contacts, null, 2), "utf8");
 }
 
 export function getContactCount(): number {
-  return loadContacts().length;
+  const db = getDb();
+  return (db.prepare("SELECT COUNT(*) as n FROM contacts").get() as { n: number }).n;
 }
 
 export function getAllContacts(): Contact[] {
-  return loadContacts().sort((a, b) => a.name.localeCompare(b.name));
+  const db = getDb();
+  const rows = db.prepare("SELECT * FROM contacts ORDER BY name ASC").all() as ContactRow[];
+  return rows.map(rowToContact);
 }
 
 export function getContactById(id: string): Contact | null {
-  const contacts = loadContacts();
-  return contacts.find(c => c.id === id) ?? null;
+  const db = getDb();
+  const row = db.prepare("SELECT * FROM contacts WHERE id = ?").get(id) as ContactRow | undefined;
+  return row ? rowToContact(row) : null;
 }
 
 export function createContact(data: Omit<Contact, "id">): Contact {
-  const contacts = loadContacts();
-  const contact: Contact = {
-    id: crypto.randomUUID(),
-    name: data.name,
-    emails: data.emails ?? [],
-    phones: data.phones ?? [],
-    domains: data.domains ?? [],
-    tags: data.tags ?? [],
-    trustStatus: data.trustStatus ?? "unknown",
-    lastVerified: data.lastVerified,
-    notes: data.notes ?? "",
-  };
-  contacts.push(contact);
-  saveContacts(contacts);
-  return contact;
+  const db = getDb();
+  const id = crypto.randomUUID();
+  db.prepare(`
+    INSERT INTO contacts (id, name, emails, phones, domains, tags, trust_status, last_verified, notes)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id,
+    data.name,
+    JSON.stringify(data.emails ?? []),
+    JSON.stringify(data.phones ?? []),
+    JSON.stringify(data.domains ?? []),
+    JSON.stringify(data.tags ?? []),
+    data.trustStatus ?? "unknown",
+    data.lastVerified ?? null,
+    data.notes ?? "",
+  );
+  return getContactById(id)!;
 }
 
-export function updateContact(
-  id: string,
-  data: Partial<Omit<Contact, "id">>,
-): Contact | null {
-  const contacts = loadContacts();
-  const idx = contacts.findIndex(c => c.id === id);
-  if (idx === -1) return null;
+export function updateContact(id: string, data: Partial<Omit<Contact, "id">>): Contact | null {
+  const db = getDb();
+  const existing = getContactById(id);
+  if (!existing) return null;
 
-  const existing = contacts[idx];
-  const merged: Contact = {
-    id: existing.id,
+  const merged = {
     name: data.name ?? existing.name,
     emails: data.emails ?? existing.emails,
     phones: data.phones ?? existing.phones,
     domains: data.domains ?? existing.domains,
     tags: data.tags ?? existing.tags,
     trustStatus: data.trustStatus ?? existing.trustStatus,
-    lastVerified:
-      data.lastVerified !== undefined ? data.lastVerified : existing.lastVerified,
+    lastVerified: data.lastVerified !== undefined ? data.lastVerified : existing.lastVerified,
     notes: data.notes !== undefined ? data.notes : existing.notes,
   };
 
-  contacts[idx] = merged;
-  saveContacts(contacts);
-  return merged;
+  db.prepare(`
+    UPDATE contacts SET name=?, emails=?, phones=?, domains=?, tags=?, trust_status=?, last_verified=?, notes=? WHERE id=?
+  `).run(
+    merged.name,
+    JSON.stringify(merged.emails),
+    JSON.stringify(merged.phones),
+    JSON.stringify(merged.domains),
+    JSON.stringify(merged.tags),
+    merged.trustStatus,
+    merged.lastVerified ?? null,
+    merged.notes,
+    id,
+  );
+  return getContactById(id);
 }
 
 export function deleteContact(id: string): boolean {
-  const contacts = loadContacts();
-  const idx = contacts.findIndex(c => c.id === id);
-  if (idx === -1) return false;
-  contacts.splice(idx, 1);
-  saveContacts(contacts);
-  return true;
+  const db = getDb();
+  const result = db.prepare("DELETE FROM contacts WHERE id = ?").run(id);
+  return result.changes > 0;
 }
 
 export function searchContacts(q: string): Contact[] {
@@ -206,7 +259,7 @@ export function searchContacts(q: string): Contact[] {
 }
 
 export function getAllTags(): string[] {
-  const contacts = loadContacts();
+  const contacts = getAllContacts();
   const tags = new Set<string>();
   for (const c of contacts) {
     for (const t of c.tags) tags.add(t);
