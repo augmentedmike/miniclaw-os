@@ -15,11 +15,12 @@ export function GET(req: NextRequest) {
   for (const e of active) {
     if (e.worker) activeWorkers[e.cardId] = e.worker.replace("board-worker-", "");
   }
+  const isHeld = (c: typeof cards[number]) => c.tags?.some(t => t === "hold" || t === "on-hold" || t === "blocked");
   const counts = {
-    backlog: cards.filter(c => c.column === "backlog").length,
-    inProgress: cards.filter(c => c.column === "in-progress").length,
-    inReview: cards.filter(c => c.column === "in-review").length,
-    shipped: cards.filter(c => c.column === "shipped").length,
+    backlog: cards.filter(c => c.column === "backlog" && !isHeld(c)).length,
+    inProgress: cards.filter(c => c.column === "in-progress" && !isHeld(c)).length,
+    inReview: cards.filter(c => c.column === "in-review" && !isHeld(c)).length,
+    shipped: cards.filter(c => c.column === "shipped" && !isHeld(c)).length,
   };
   const globalShippedIds = getShippedIds();
   const recentLog = log.slice(-100);
