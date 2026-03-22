@@ -1,12 +1,31 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useAccent } from "@/lib/accent-context";
 
 interface Message {
+  id: string;
   role: "user" | "assistant" | "system";
   content: string;
   images?: string[]; // base64 data URLs for display
   error?: boolean;
+  replyTo?: string; // ID of the message being replied to
+}
+
+interface ReplyTarget {
+  id: string;
+  role: string;
+  snippet: string;
+}
+
+let _msgCounter = 0;
+function generateMsgId(): string {
+  return `msg-${Date.now()}-${++_msgCounter}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+/** Ensure every message has an id (backfill old messages from localStorage) */
+function ensureIds(messages: Message[]): Message[] {
+  return messages.map(m => m.id ? m : { ...m, id: generateMsgId() });
 }
 
 interface PendingImage {
@@ -55,12 +74,15 @@ interface Props {
 }
 
 export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, projectId, activeCardId, agentName = "AM" }: Props) {
+  const accent = useAccent();
   const [messages, setMessages] = useState<Message[]>(() => {
     if (typeof window === "undefined") return [];
-    try { return JSON.parse(localStorage.getItem("mc-chat-messages") || "[]"); } catch { return []; }
+    try { return ensureIds(JSON.parse(localStorage.getItem("mc-chat-messages") || "[]")); } catch { return []; }
   });
   const [draft, setDraft] = useState("");
+  const [replyingTo, setReplyingTo] = useState<ReplyTarget | null>(null);
   const [context, setContext] = useState<string | null>(null);
+  const [sentContext, setSentContext] = useState<string | null>(null);
   const [streaming, setStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState("");
   const [streamingTools, setStreamingTools] = useState<{ name: string }[]>([]);
@@ -75,6 +97,20 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
   const [dragOver, setDragOver] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [storageWarning, setStorageWarning] = useState<string | null>(null);
+
+  // Mic / voice transcription state
+  const [micAvailable, setMicAvailable] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [transcribing, setTranscribing] = useState(false);
+  const [micError, setMicError] = useState<string | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recordingStartRef = useRef<number>(0);
+  const recordingIntentRef = useRef<boolean>(false);
+  const MIN_RECORDING_MS = 500;
+  const MAX_RECORDING_SECONDS = 60;
 
   const [isAtBottom, setIsAtBottom] = useState(true);
   const isAtBottomRef = useRef(true);
@@ -130,6 +166,159 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
     else localStorage.removeItem("mc-chat-session");
   }, [sessionId]);
 
+  // Check mic/transcription availability on mount
+  useEffect(() => {
+    let cancelled = false;
+    async function checkMic() {
+      // Check browser support
+      if (!navigator.mediaDevices?.getUserMedia) return;
+      try {
+        const resp = await fetch("/api/chat/transcribe");
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (!cancelled && data.available) setMicAvailable(true);
+      } catch { /* server unavailable — mic stays hidden */ }
+    }
+    checkMic();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Cleanup recording resources on unmount
+  useEffect(() => {
+    return () => {
+      recordingIntentRef.current = false;
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        const stream = mediaRecorderRef.current.stream;
+        mediaRecorderRef.current.stop();
+        stream?.getTracks().forEach(t => t.stop());
+      }
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  // Recording helpers
+  const stopRecording = useCallback(() => {
+    recordingIntentRef.current = false;
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== "inactive") {
+      // Enforce minimum recording duration to avoid empty/tiny blobs
+      const elapsed = Date.now() - recordingStartRef.current;
+      if (elapsed < MIN_RECORDING_MS) {
+        // Delay stop so whisper gets enough audio
+        setTimeout(() => {
+          if (recorder.state !== "inactive") recorder.stop();
+        }, MIN_RECORDING_MS - elapsed);
+      } else {
+        recorder.stop();
+      }
+    }
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    setRecording(false);
+    setRecordingDuration(0);
+  }, []);
+
+  const transcribeAudio = useCallback(async (blob: Blob) => {
+    setTranscribing(true);
+    setMicError(null);
+    try {
+      const formData = new FormData();
+      formData.append("audio", blob, "recording.webm");
+      const resp = await fetch("/api/chat/transcribe", { method: "POST", body: formData });
+      const data = await resp.json();
+      if (!resp.ok) {
+        setMicError(data.error || "Transcription failed");
+        return;
+      }
+      const text = (data.text || "").trim();
+      if (!text || text === "[BLANK_AUDIO]") {
+        setMicError("No speech detected");
+        return;
+      }
+      setDraft(prev => prev ? prev + " " + text : text);
+      textareaRef.current?.focus();
+    } catch {
+      setMicError("Transcription request failed");
+    } finally {
+      setTranscribing(false);
+    }
+  }, []);
+
+  const startRecording = useCallback(async () => {
+    recordingIntentRef.current = true;
+    setMicError(null);
+    let stream: MediaStream | null = null;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      // If user released before getUserMedia resolved, abandon
+      if (!recordingIntentRef.current) {
+        stream.getTracks().forEach(t => t.stop());
+        return;
+      }
+
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/mp4")
+          ? "audio/mp4"
+          : "";
+
+      let recorder: MediaRecorder;
+      try {
+        recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      } catch {
+        // MediaRecorder constructor failure — release stream tracks
+        stream.getTracks().forEach(t => t.stop());
+        setMicError("Could not start recording");
+        recordingIntentRef.current = false;
+        return;
+      }
+
+      audioChunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = () => {
+        stream!.getTracks().forEach(t => t.stop());
+        const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType });
+        if (blob.size > 0) transcribeAudio(blob);
+      };
+
+      recorder.start(250); // collect chunks every 250ms
+      mediaRecorderRef.current = recorder;
+      recordingStartRef.current = Date.now();
+      setRecording(true);
+      setRecordingDuration(0);
+
+      // Duration timer
+      recordingTimerRef.current = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - recordingStartRef.current) / 1000);
+        setRecordingDuration(elapsed);
+        if (elapsed >= MAX_RECORDING_SECONDS) {
+          stopRecording();
+        }
+      }, 500);
+    } catch (err: unknown) {
+      // Release stream tracks on any error path
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      recordingIntentRef.current = false;
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("Permission") || msg.includes("NotAllowed")) {
+        setMicError("Mic permission denied");
+        setMicAvailable(false); // hide for this session
+      } else {
+        setMicError("Could not access microphone");
+      }
+    }
+  }, [transcribeAudio, stopRecording]);
+
   // Image processing helpers
   const processFile = useCallback((file: File) => {
     setImageError(null);
@@ -177,7 +366,8 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
     files.forEach(f => {
       if (f.type.startsWith("image/")) processFile(f);
     });
-  }, [processFile]);
+    setTimeout(() => textareaRef.current?.focus(), 50);
+  }, [processFile, textareaRef]);
 
   // Paste handler for images
   const handlePaste = useCallback((e: React.ClipboardEvent) => {
@@ -189,7 +379,8 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
       const file = item.getAsFile();
       if (file) processFile(file);
     });
-  }, [processFile]);
+    setTimeout(() => textareaRef.current?.focus(), 50);
+  }, [processFile, textareaRef]);
 
   // WebSocket connection with auto-reconnect
   useEffect(() => {
@@ -233,7 +424,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
       ws.onclose = () => {
         if (didUnmount) return;
         setConnected(false);
-        setStreaming(false);
+        setStreaming(false); setSentContext(null);
         wsRef.current = null;
         scheduleReconnect();
       };
@@ -251,8 +442,9 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
             // If server sent message history on reconnect, merge it
             if (d.resumed && d.history && Array.isArray(d.history) && d.history.length > 0) {
               setMessages(prev => {
-                if (prev.length === 0) return d.history;
-                if (d.history.length >= prev.length) return d.history;
+                const serverMsgs = ensureIds(d.history);
+                if (prev.length === 0) return serverMsgs;
+                if (serverMsgs.length >= prev.length) return serverMsgs;
                 return prev;
               });
             }
@@ -263,28 +455,29 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
             if (d.tools?.length) setStreamingTools(d.tools);
             break;
           case "result":
-            setStreaming(false); setStreamingText(""); setStreamingTools([]);
+            setStreaming(false); setStreamingText(""); setStreamingTools([]); setSentContext(null);
             if (d.text) {
+              const assistantMsg: Message = { id: generateMsgId(), role: "assistant", content: d.text };
               const insertIdx = streamingInsertIndexRef.current;
               if (insertIdx !== null) {
                 setMessages(prev => [
                   ...prev.slice(0, insertIdx),
-                  { role: "assistant", content: d.text },
+                  assistantMsg,
                   ...prev.slice(insertIdx),
                 ]);
               } else {
-                setMessages(prev => [...prev, { role: "assistant", content: d.text }]);
+                setMessages(prev => [...prev, assistantMsg]);
               }
             }
             streamingInsertIndexRef.current = null;
             break;
           case "done": case "process_exit":
-            setStreaming(false); setStreamingText(""); setStreamingTools([]);
+            setStreaming(false); setStreamingText(""); setStreamingTools([]); setSentContext(null);
             streamingInsertIndexRef.current = null;
             break;
           case "error":
-            setMessages(prev => [...prev, { role: "system", content: d.message, error: true }]);
-            setStreaming(false);
+            setMessages(prev => [...prev, { id: generateMsgId(), role: "system", content: d.message, error: true }]);
+            setStreaming(false); setSentContext(null);
             streamingInsertIndexRef.current = null;
             break;
         }
@@ -360,9 +553,11 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
       setVisibleCount(20);
       setDraft("");
       setContext(null);
+      setSentContext(null);
       setPendingImages([]);
       setImageError(null);
       setStorageWarning(null);
+      setReplyingTo(null);
       streamingInsertIndexRef.current = null;
       return;
     }
@@ -370,16 +565,21 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
     let content = text || "(see attached image)";
     if (context) {
       content = `[Context: ${context}]\n\n${content}`;
+      setSentContext(context);
       setContext(null);
     }
 
     // Build user message with image previews for display
+    const msgId = generateMsgId();
     const imagePreviews = pendingImages.map(img => img.preview);
+    const currentReply = replyingTo;
     setMessages(prev => {
       const next = [...prev, {
+        id: msgId,
         role: "user" as const,
         content: text || "(image)",
         images: imagePreviews.length > 0 ? imagePreviews : undefined,
+        replyTo: currentReply?.id,
       }];
       // Track where the streaming assistant response should be inserted.
       // Only set on the FIRST send that starts streaming — subsequent sends
@@ -392,7 +592,8 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
     });
 
     // Send via WS with image data
-    const wsMsg: Record<string, unknown> = { type: "chat", content };
+    const wsMsg: Record<string, unknown> = { type: "chat", content, id: msgId };
+    if (currentReply) wsMsg.replyTo = currentReply.id;
     if (pendingImages.length > 0) {
       wsMsg.images = pendingImages.map(img => ({
         base64: img.base64,
@@ -404,13 +605,23 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
     setDraft("");
     setPendingImages([]);
     setImageError(null);
+    setReplyingTo(null);
     setStreaming(true);
-  }, [draft, context, connected, pendingImages, streaming]);
+  }, [draft, context, connected, pendingImages, streaming, replyingTo]);
 
   const stopResponse = useCallback(() => {
     wsRef.current?.send(JSON.stringify({ type: "stop" }));
-    setStreaming(false); setStreamingText(""); setStreamingTools([]);
+    setStreaming(false); setStreamingText(""); setStreamingTools([]); setSentContext(null);
   }, []);
+
+  const interruptAgent = useCallback(() => {
+    stopResponse();
+    setMessages(prev => [...prev, {
+      id: generateMsgId(),
+      role: "system" as const,
+      content: "⏹ Agent interrupted by user",
+    }]);
+  }, [stopResponse]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && e.shiftKey) {
@@ -447,7 +658,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
           fontSize: 11,
           fontWeight: 700,
           letterSpacing: "0.15em",
-          color: connected ? "#4ade80" : reconnecting ? "#fbbf24" : "#52525b",
+          color: connected ? accent : reconnecting ? "#fbbf24" : "#52525b",
           textTransform: "uppercase",
         }}>
           CHAT
@@ -498,14 +709,14 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
           <span style={{
             fontSize: 10, padding: "1px 6px", borderRadius: 3,
             background: connected ? "#1a2a1a" : reconnecting ? "#2a2a1a" : "#2a1a1a",
-            color: connected ? "#4ade80" : reconnecting ? "#fbbf24" : "#f87171",
+            color: connected ? accent : reconnecting ? "#fbbf24" : "#f87171",
             fontWeight: 600,
           }}>{connected ? "connected" : reconnecting ? "reconnecting…" : "offline"}</span>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {messages.length > 0 && (
             <button
-              onClick={() => { setMessages([]); setStorageWarning(null); setTopicShift(null); wsRef.current?.send(JSON.stringify({ type: "new_chat" })); }}
+              onClick={() => { setMessages([]); setStorageWarning(null); setReplyingTo(null); wsRef.current?.send(JSON.stringify({ type: "new_chat" })); }}
               title="New chat"
               style={{
                 background: "none", border: "none", color: "#52525b", cursor: "pointer",
@@ -539,39 +750,22 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
         </div>
       )}
 
-      {/* Topic shift banner */}
-      {topicShift && (
-        <div style={{
-          margin: 0, padding: "8px 14px", flexShrink: 0,
-          background: "#1a1a2e", borderBottom: "1px solid #3b3b6b",
-          fontSize: 12, color: "#a5b4fc", display: "flex", alignItems: "center", gap: 8,
-        }}>
-          <span style={{ flex: 1 }}>
-            This looks like a new topic: <strong>{topicShift.suggestedTopic}</strong>
-          </span>
-          <button
-            onClick={startNewChatFromTopicShift}
-            style={{
-              background: "#312e81", border: "1px solid #4338ca", borderRadius: 4,
-              color: "#c7d2fe", cursor: "pointer", fontSize: 11, padding: "3px 10px",
-              fontFamily: "inherit", fontWeight: 600, whiteSpace: "nowrap",
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = "#3730a3"; }}
-            onMouseLeave={e => { e.currentTarget.style.background = "#312e81"; }}
-          >Start new chat</button>
-          <button
-            onClick={() => setTopicShift(null)}
-            style={{
-              background: "none", border: "none", color: "#4338ca", cursor: "pointer",
-              fontSize: 14, lineHeight: 1, padding: 0, flexShrink: 0,
-            }}
-            title="Dismiss"
-          >×</button>
-        </div>
-      )}
-
       {/* Messages */}
       <div style={{ flex: 1, position: "relative", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      {/* Persistent context indicator — visible while agent is responding with context */}
+      {sentContext && streaming && (
+        <div style={{
+          margin: "0 10px", padding: "5px 10px", borderRadius: 6,
+          background: "#1a1a2e", border: "1px solid #2d2d5b",
+          display: "flex", alignItems: "center", gap: 6, flexShrink: 0,
+          opacity: 0.85,
+        }}>
+          <span style={{ fontSize: 9, color: "#6366f1", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", flexShrink: 0 }}>ctx</span>
+          <span style={{ fontSize: 11, color: "#818cf8", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {sentContext.slice(0, 80)}{sentContext.length > 80 ? "..." : ""}
+          </span>
+        </div>
+      )}
       <div ref={scrollContainerRef} onScroll={handleScroll} style={{ flex: 1, overflowY: "auto", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 12 }}>
         {messages.length === 0 && !streaming && (
           <div style={{ color: "#3f3f46", fontSize: 12, textAlign: "center", marginTop: 40, lineHeight: 1.6 }}>
@@ -597,58 +791,133 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
             ? Math.max(0, Math.min(insertIdx - visibleStartIdx, visible.length))
             : null;
 
-          const renderMsg = (msg: Message, i: number) => (
-            <div key={`msg-${i}`} style={{
+          const scrollToMessage = (msgId: string) => {
+            const el = document.getElementById(`chat-msg-${msgId}`);
+            if (el) {
+              el.scrollIntoView({ behavior: "smooth", block: "center" });
+              el.style.outline = `2px solid ${accent}`;
+              el.style.outlineOffset = "2px";
+              setTimeout(() => { el.style.outline = "none"; el.style.outlineOffset = "0"; }, 1500);
+            }
+          };
+
+          const handleReply = (msg: Message) => {
+            const snippet = msg.content.slice(0, 80) + (msg.content.length > 80 ? "…" : "");
+            setReplyingTo({ id: msg.id, role: msg.role, snippet });
+            textareaRef.current?.focus();
+          };
+
+          const renderMsg = (msg: Message, i: number) => {
+            // Find the referenced message for reply header
+            const replyTarget = msg.replyTo ? messages.find(m => m.id === msg.replyTo) : null;
+            const replySnippet = replyTarget
+              ? replyTarget.content.slice(0, 60) + (replyTarget.content.length > 60 ? "…" : "")
+              : msg.replyTo ? "(original message no longer available)" : null;
+
+            return (
+            <div key={msg.id || `msg-${i}`} id={`chat-msg-${msg.id}`} className="chat-msg-wrapper" style={{
               display: "flex", flexDirection: "column",
               alignItems: msg.role === "user" ? "flex-end" : "flex-start",
+              position: "relative",
             }}>
               {msg.role === "system" ? (
                 <div style={{ fontSize: 11, color: "#52525b", textAlign: "center", width: "100%", padding: "4px 0" }}>
                   {msg.content}
                 </div>
               ) : (
-                <div style={{
-                  maxWidth: "92%", padding: "8px 11px",
-                  borderRadius: msg.role === "user" ? "10px 10px 3px 10px" : "10px 10px 10px 3px",
-                  background: msg.role === "user" ? "#1d3a2a" : "#18181b",
-                  border: msg.error ? "1px solid #7c2d12"
-                    : msg.role === "user" ? "1px solid #16a34a" : "1px solid #27272a",
-                  fontSize: 13, color: msg.error ? "#f87171" : msg.role === "user" ? "#bbf7d0" : "#d4d4d8",
-                  lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-word",
-                }}>
-                  {msg.images && msg.images.length > 0 && msg.images[0] !== "[image]" && (
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6 }}>
-                      {msg.images.map((src, imgIdx) => (
-                        src !== "[image]" ? (
-                          <img key={imgIdx} src={src} alt="" style={{
-                            width: 64, height: 64, objectFit: "cover", borderRadius: 4,
-                            border: "1px solid #27272a",
-                          }} />
-                        ) : (
-                          <span key={imgIdx} style={{
-                            width: 64, height: 64, display: "flex", alignItems: "center", justifyContent: "center",
-                            borderRadius: 4, border: "1px solid #27272a", background: "#27272a",
-                            fontSize: 10, color: "#71717a",
-                          }}>image</span>
-                        )
-                      ))}
+                <>
+                  {/* Reply reference header */}
+                  {replySnippet && (
+                    <div
+                      onClick={() => replyTarget ? scrollToMessage(replyTarget.id) : undefined}
+                      style={{
+                        maxWidth: "92%", padding: "3px 10px", marginBottom: 2,
+                        borderRadius: "6px 6px 0 0",
+                        background: "#1a1a2e",
+                        border: "1px solid #27273a", borderBottom: "none",
+                        fontSize: 11, color: "#71717a",
+                        cursor: replyTarget ? "pointer" : "default",
+                        display: "flex", alignItems: "center", gap: 4,
+                        overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis",
+                      }}
+                      title={replyTarget ? "Click to scroll to original message" : "Original message was pruned"}
+                    >
+                      <span style={{ color: "#525280", fontSize: 10, flexShrink: 0 }}>↩</span>
+                      <span style={{ color: "#6366f1", fontWeight: 600, flexShrink: 0, fontSize: 10 }}>
+                        {replyTarget ? replyTarget.role : "???"}
+                      </span>
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{replySnippet}</span>
                     </div>
                   )}
-                  {msg.content}
-                </div>
+                  <div style={{
+                    maxWidth: "92%", padding: "8px 11px",
+                    borderRadius: replySnippet
+                      ? (msg.role === "user" ? "0 0 3px 10px" : "0 0 10px 3px")
+                      : (msg.role === "user" ? "10px 10px 3px 10px" : "10px 10px 10px 3px"),
+                    background: msg.role === "user" ? "#1d3a2a" : "#18181b",
+                    border: msg.error ? "1px solid #7c2d12"
+                      : msg.role === "user" ? `1px solid ${accent}` : "1px solid #27272a",
+                    fontSize: 13, color: msg.error ? "#f87171" : msg.role === "user" ? "#bbf7d0" : "#d4d4d8",
+                    lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-word",
+                    position: "relative",
+                  }}>
+                    {msg.images && msg.images.length > 0 && msg.images[0] !== "[image]" && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6 }}>
+                        {msg.images.map((src, imgIdx) => (
+                          src !== "[image]" ? (
+                            <img key={imgIdx} src={src} alt="" style={{
+                              width: 64, height: 64, objectFit: "cover", borderRadius: 4,
+                              border: "1px solid #27272a",
+                            }} />
+                          ) : (
+                            <span key={imgIdx} style={{
+                              width: 64, height: 64, display: "flex", alignItems: "center", justifyContent: "center",
+                              borderRadius: 4, border: "1px solid #27272a", background: "#27272a",
+                              fontSize: 10, color: "#71717a",
+                            }}>image</span>
+                          )
+                        ))}
+                      </div>
+                    )}
+                    {msg.content}
+                  </div>
+                  {/* Reply button — visible on hover via CSS */}
+                  <button
+                    className="chat-reply-btn"
+                    onClick={() => handleReply(msg)}
+                    title="Reply to this message"
+                    style={{
+                      position: "absolute",
+                      top: replySnippet ? 24 : 4,
+                      [msg.role === "user" ? "left" : "right"]: -28,
+                      width: 22, height: 22,
+                      background: "#27272a", border: "1px solid #3f3f46", borderRadius: 4,
+                      color: "#71717a", fontSize: 12,
+                      cursor: "pointer",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      opacity: 0, transition: "opacity 0.15s",
+                      padding: 0, lineHeight: 1,
+                    }}
+                  >↩</button>
+                </>
               )}
             </div>
           );
+          };
 
           const streamingBlock = streaming ? (
-            <div key="streaming" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
-              <div style={{
-                maxWidth: "92%", padding: "8px 11px",
-                borderRadius: "10px 10px 10px 3px",
-                background: "#18181b", border: "1px solid #27272a",
-                fontSize: 13, color: "#d4d4d8", lineHeight: 1.55,
-                whiteSpace: "pre-wrap", wordBreak: "break-word",
-              }}>
+            <div
+              key="streaming"
+              style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}
+            >
+              <div
+                style={{
+                  maxWidth: "92%", padding: "8px 11px",
+                  borderRadius: "10px 10px 10px 3px",
+                  background: "#18181b", border: "1px solid #27272a",
+                  fontSize: 13, color: "#d4d4d8", lineHeight: 1.55,
+                  whiteSpace: "pre-wrap", wordBreak: "break-word",
+                }}>
                 {streamingTools.length > 0 && (
                   <div style={{ marginBottom: 6, display: "flex", flexWrap: "wrap", gap: 4 }}>
                     {streamingTools.map((t, i) => (
@@ -665,7 +934,7 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
               </div>
               {/* Interrupt button — always visible below bubble during streaming */}
               <button
-                onClick={stopResponse}
+                onClick={interruptAgent}
                 style={{
                   marginTop: 6,
                   background: "#7c2d12", border: "1px solid #dc2626",
@@ -734,6 +1003,27 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
         onMouseLeave={e => { e.currentTarget.style.background = "#27272a"; e.currentTarget.style.color = "#a1a1aa"; }}
       >↓</button>
       </div>
+
+      {/* Reply preview */}
+      {replyingTo && (
+        <div style={{
+          margin: "0 10px", padding: "6px 10px", borderRadius: 6,
+          background: "#1a1a2e", border: "1px solid #4c1d95",
+          display: "flex", alignItems: "flex-start", gap: 6, flexShrink: 0,
+        }}>
+          <span style={{ fontSize: 10, color: "#8b5cf6", fontWeight: 700, flexShrink: 0, marginTop: 1 }}>↩ reply</span>
+          <div style={{ flex: 1, overflow: "hidden", minWidth: 0 }}>
+            <span style={{ fontSize: 10, color: "#6366f1", fontWeight: 600, textTransform: "capitalize" }}>{replyingTo.role}</span>
+            <div style={{ fontSize: 11, color: "#a78bfa", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {replyingTo.snippet}
+            </div>
+          </div>
+          <button
+            onClick={() => setReplyingTo(null)}
+            style={{ background: "none", border: "none", color: "#52525b", cursor: "pointer", fontSize: 13, lineHeight: 1, padding: 0, flexShrink: 0 }}
+          >✕</button>
+        </div>
+      )}
 
       {/* Context badge */}
       {context && (
@@ -807,6 +1097,58 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
         }}
       />
 
+      {/* Recording indicator */}
+      {recording && (
+        <div style={{
+          margin: "0 10px", padding: "6px 10px", borderRadius: 4,
+          background: "#1a1a2a", border: "1px solid #4c1d95",
+          fontSize: 12, color: "#c4b5fd", flexShrink: 0,
+          display: "flex", alignItems: "center", gap: 8,
+        }}>
+          <span style={{
+            display: "inline-block", width: 8, height: 8, borderRadius: "50%",
+            background: "#ef4444",
+            animation: "mic-pulse 1s ease-in-out infinite",
+          }} />
+          <span>Recording... {recordingDuration}s / {MAX_RECORDING_SECONDS}s</span>
+          <button
+            onClick={stopRecording}
+            style={{
+              marginLeft: "auto", background: "none", border: "1px solid #7c3aed",
+              borderRadius: 4, color: "#c4b5fd", fontSize: 11, padding: "1px 8px",
+              cursor: "pointer", fontFamily: "inherit",
+            }}
+          >stop</button>
+        </div>
+      )}
+
+      {/* Transcribing indicator */}
+      {transcribing && (
+        <div style={{
+          margin: "0 10px", padding: "4px 10px", borderRadius: 4,
+          background: "#1a1a2a", border: "1px solid #4c1d95",
+          fontSize: 11, color: "#a78bfa", flexShrink: 0,
+        }}>
+          Transcribing audio...
+        </div>
+      )}
+
+      {/* Mic error */}
+      {micError && (
+        <div style={{
+          margin: "0 10px", padding: "4px 10px", borderRadius: 4,
+          background: "#2a1a1a", border: "1px solid #7c2d12",
+          fontSize: 11, color: "#f87171", flexShrink: 0,
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+        }}>
+          <span>{micError}</span>
+          <button
+            onClick={() => setMicError(null)}
+            style={{ background: "none", border: "none", color: "#f87171", cursor: "pointer", fontSize: 11 }}
+          >dismiss</button>
+        </div>
+      )}
+
       {/* Compose */}
       <div style={{
         padding: "10px 10px 12px", borderTop: "1px solid #1f1f1f", flexShrink: 0,
@@ -831,15 +1173,63 @@ export function ChatPanel({ open, onToggle, pendingContext, onContextConsumed, p
         />
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span style={{ fontSize: 10, color: "#3f3f46" }}>Shift+Enter to send</span>
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            style={{
-              background: "none", border: "1px solid #3f3f46", borderRadius: 4,
-              color: "#71717a", fontSize: 11, padding: "2px 8px", cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-            title="Attach image"
-          >attach</button>
+          <div style={{ display: "flex", gap: 4 }}>
+            {micAvailable && (
+              <button
+                onMouseDown={!recording && !transcribing ? startRecording : undefined}
+                onMouseUp={recording ? stopRecording : undefined}
+                onMouseLeave={recording ? stopRecording : undefined}
+                onTouchStart={!recording && !transcribing ? startRecording : undefined}
+                onTouchEnd={recording ? stopRecording : undefined}
+                onTouchCancel={recording ? stopRecording : undefined}
+                disabled={transcribing}
+                style={{
+                  background: recording ? "#7c3aed" : "none",
+                  border: `1px solid ${recording ? "#7c3aed" : "#3f3f46"}`,
+                  borderRadius: 4,
+                  color: recording ? "#fff" : transcribing ? "#52525b" : "#71717a",
+                  fontSize: 11, padding: "4px 6px", cursor: transcribing ? "wait" : "pointer",
+                  fontFamily: "inherit",
+                  transition: "all 0.15s",
+                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                }}
+                aria-label={recording ? "Release to stop recording" : transcribing ? "Transcribing audio" : "Hold to record"}
+                title={recording ? "Release to stop" : transcribing ? "Transcribing..." : "Hold to record"}
+              >{recording ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="#ef4444" stroke="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="12" cy="12" r="7">
+                    <animate attributeName="opacity" values="1;0.4;1" dur="1s" repeatCount="indefinite" />
+                  </circle>
+                </svg>
+              ) : transcribing ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="6" cy="12" r="2"><animate attributeName="opacity" values="1;0.3;1" dur="0.8s" repeatCount="indefinite" begin="0s" /></circle>
+                  <circle cx="12" cy="12" r="2"><animate attributeName="opacity" values="1;0.3;1" dur="0.8s" repeatCount="indefinite" begin="0.2s" /></circle>
+                  <circle cx="18" cy="12" r="2"><animate attributeName="opacity" values="1;0.3;1" dur="0.8s" repeatCount="indefinite" begin="0.4s" /></circle>
+                </svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="9" y="1" width="6" height="11" rx="3" />
+                  <path d="M19 10v1a7 7 0 0 1-14 0v-1" />
+                  <line x1="12" y1="19" x2="12" y2="23" />
+                  <line x1="8" y1="23" x2="16" y2="23" />
+                </svg>
+              )}</button>
+            )}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                background: "none", border: "1px solid #3f3f46", borderRadius: 4,
+                color: "#71717a", fontSize: 11, padding: "4px 6px", cursor: "pointer",
+                fontFamily: "inherit",
+                display: "inline-flex", alignItems: "center", justifyContent: "center",
+              }}
+              aria-label="Attach image"
+              title="Attach image"
+            ><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" xmlns="http://www.w3.org/2000/svg">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+              </svg></button>
+          </div>
         </div>
       </div>
     </div>
