@@ -1,8 +1,9 @@
 /**
  * data.ts — contact data access layer for mc-rolodex web UI.
- * Reads and writes contacts.json on disk.
+ * Reads and writes contacts.db (SQLite).
  */
 
+import Database from "better-sqlite3";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
@@ -22,65 +23,130 @@ export interface Contact {
 function resolveStoragePath(): string {
   if (process.env.ROLODEX_STORAGE_PATH) return process.env.ROLODEX_STORAGE_PATH;
   const stateDir = process.env.OPENCLAW_STATE_DIR || path.join(os.homedir(), ".openclaw");
-  return path.join(stateDir, "rolodex", "contacts.json");
+  return path.join(stateDir, "USER", "rolodex", "contacts.db");
 }
 
-function loadContacts(): Contact[] {
-  const p = resolveStoragePath();
-  if (!fs.existsSync(p)) return [];
-  try {
-    const raw = fs.readFileSync(p, "utf8");
-    return JSON.parse(raw) as Contact[];
-  } catch {
-    return [];
-  }
-}
-
-function saveContacts(contacts: Contact[]): void {
+function openDb(): Database.Database {
   const p = resolveStoragePath();
   const dir = path.dirname(p);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(p, JSON.stringify(contacts, null, 2), "utf8");
+  const db = new Database(p);
+  db.pragma("journal_mode = WAL");
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS contacts (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      emails TEXT NOT NULL DEFAULT '[]',
+      phones TEXT NOT NULL DEFAULT '[]',
+      domains TEXT NOT NULL DEFAULT '[]',
+      tags TEXT NOT NULL DEFAULT '[]',
+      trust_status TEXT NOT NULL DEFAULT 'unknown',
+      last_verified TEXT,
+      notes TEXT NOT NULL DEFAULT ''
+    )
+  `);
+  return db;
+}
+
+function rowToContact(row: Record<string, unknown>): Contact {
+  return {
+    id: row.id as string,
+    name: row.name as string,
+    emails: JSON.parse((row.emails as string) || "[]"),
+    phones: JSON.parse((row.phones as string) || "[]"),
+    domains: JSON.parse((row.domains as string) || "[]"),
+    tags: JSON.parse((row.tags as string) || "[]"),
+    trustStatus: (row.trust_status as Contact["trustStatus"]) || "unknown",
+    lastVerified: (row.last_verified as string) || undefined,
+    notes: (row.notes as string) || undefined,
+  };
 }
 
 export function getAllContacts(): Contact[] {
-  return loadContacts();
+  const db = openDb();
+  try {
+    const rows = db.prepare("SELECT * FROM contacts").all() as Record<string, unknown>[];
+    return rows.map(rowToContact);
+  } finally {
+    db.close();
+  }
 }
 
 export function getContactById(id: string): Contact | null {
-  return loadContacts().find(c => c.id === id) ?? null;
+  const db = openDb();
+  try {
+    const row = db.prepare("SELECT * FROM contacts WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+    return row ? rowToContact(row) : null;
+  } finally {
+    db.close();
+  }
 }
 
 export function createContact(data: Omit<Contact, "id">): Contact {
-  const contacts = loadContacts();
   const contact: Contact = { ...data, id: crypto.randomUUID() };
-  contacts.push(contact);
-  saveContacts(contacts);
-  return contact;
+  const db = openDb();
+  try {
+    db.prepare(`
+      INSERT INTO contacts (id, name, emails, phones, domains, tags, trust_status, last_verified, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      contact.id,
+      contact.name,
+      JSON.stringify(contact.emails || []),
+      JSON.stringify(contact.phones || []),
+      JSON.stringify(contact.domains || []),
+      JSON.stringify(contact.tags || []),
+      contact.trustStatus || "unknown",
+      contact.lastVerified || null,
+      contact.notes || "",
+    );
+    return contact;
+  } finally {
+    db.close();
+  }
 }
 
 export function updateContact(id: string, data: Partial<Omit<Contact, "id">>): Contact | null {
-  const contacts = loadContacts();
-  const idx = contacts.findIndex(c => c.id === id);
-  if (idx === -1) return null;
-  contacts[idx] = { ...contacts[idx], ...data };
-  saveContacts(contacts);
-  return contacts[idx];
+  const db = openDb();
+  try {
+    const existing = db.prepare("SELECT * FROM contacts WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+    if (!existing) return null;
+    const current = rowToContact(existing);
+    const updated = { ...current, ...data };
+    db.prepare(`
+      UPDATE contacts SET name=?, emails=?, phones=?, domains=?, tags=?, trust_status=?, last_verified=?, notes=?
+      WHERE id=?
+    `).run(
+      updated.name,
+      JSON.stringify(updated.emails || []),
+      JSON.stringify(updated.phones || []),
+      JSON.stringify(updated.domains || []),
+      JSON.stringify(updated.tags || []),
+      updated.trustStatus || "unknown",
+      updated.lastVerified || null,
+      updated.notes || "",
+      id,
+    );
+    return updated;
+  } finally {
+    db.close();
+  }
 }
 
 export function deleteContact(id: string): boolean {
-  const contacts = loadContacts();
-  const idx = contacts.findIndex(c => c.id === id);
-  if (idx === -1) return false;
-  contacts.splice(idx, 1);
-  saveContacts(contacts);
-  return true;
+  const db = openDb();
+  try {
+    const result = db.prepare("DELETE FROM contacts WHERE id = ?").run(id);
+    return result.changes > 0;
+  } finally {
+    db.close();
+  }
 }
 
 export function searchContacts(q: string): Contact[] {
-  if (!q.trim()) return loadContacts();
+  if (!q.trim()) return getAllContacts();
   const query = q.toLowerCase();
-  const contacts = loadContacts();
+  const contacts = getAllContacts();
 
   const scored: { contact: Contact; score: number }[] = [];
 
@@ -124,7 +190,7 @@ export function searchContacts(q: string): Contact[] {
 }
 
 export function getAllTags(): string[] {
-  const contacts = loadContacts();
+  const contacts = getAllContacts();
   const tags = new Set<string>();
   for (const c of contacts) {
     for (const t of c.tags ?? []) tags.add(t);

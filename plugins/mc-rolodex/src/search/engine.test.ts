@@ -42,7 +42,7 @@ const carol: Contact = {
 
 beforeEach(() => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rolodex-test-'));
-  storagePath = path.join(tmpDir, 'contacts.json');
+  storagePath = path.join(tmpDir, 'contacts.db');
   engine = new SearchEngine(storagePath);
   engine.add(alice);
   engine.add(bob);

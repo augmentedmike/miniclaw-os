@@ -28,7 +28,7 @@ mc-rolodex is installed as an OpenClaw plugin. Ensure it is listed in your `open
       "mc-rolodex": {
         "enabled": true,
         "config": {
-          "storagePath": "~/.openclaw/miniclaw/USER/rolodex/contacts.json"
+          "storagePath": "~/.openclaw/miniclaw/USER/rolodex/contacts.db"
         }
       }
     }
@@ -89,7 +89,7 @@ openclaw mc-rolodex show contact_1234
 openclaw mc-rolodex add '{"id":"contact_123","name":"Alice","emails":["alice@example.com"]}'
 
 # Via JSON file
-openclaw mc-rolodex add contacts.json
+openclaw mc-rolodex add contacts.db
 ```
 
 ### Delete a contact
@@ -130,7 +130,7 @@ All fields except `id` and `name` are optional.
 Contacts are stored in:
 
 ```
-~/.openclaw/miniclaw/USER/rolodex/contacts.json
+~/.openclaw/miniclaw/USER/rolodex/contacts.db
 ```
 
 This is a standard JSON array of contacts. You can edit it directly or use the CLI commands.

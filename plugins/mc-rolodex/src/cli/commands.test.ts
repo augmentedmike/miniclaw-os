@@ -33,7 +33,7 @@ let exitSpy: MockInstance;
 
 beforeEach(() => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rolodex-cli-test-'));
-  storagePath = path.join(tmpDir, 'contacts.json');
+  storagePath = path.join(tmpDir, 'contacts.db');
   engine = new SearchEngine(storagePath);
 
   program = new Command();
