@@ -1,5 +1,5 @@
 "use client";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Board } from "./board";
 import { MemoryTab } from "./memory-tab";
 import { RolodexTab } from "./rolodex-tab";
@@ -71,6 +71,8 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
   const [selectedProject, setSelectedProject] = useState<string>(initialProjectId ?? getInitialProject);
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [statsDropdownOpen, setStatsDropdownOpen] = useState(false);
+  const statsDropdownRef = useRef<HTMLDivElement>(null);
   const [pendingContext, setPendingContext] = useState<string | null>(null);
   const [openCardId, setOpenCardId] = useState<string | null>(initialCardId ?? null);
   const { showWelcome, dismissWelcome } = useWelcomeWizard();
@@ -110,6 +112,18 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
   useEffect(() => {
     setChatOpen(getChatOpen());
   }, []);
+
+  // Close stats dropdown on click outside
+  useEffect(() => {
+    if (!statsDropdownOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (statsDropdownRef.current && !statsDropdownRef.current.contains(e.target as Node)) {
+        setStatsDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [statsDropdownOpen]);
 
   const toggleChat = useCallback(() => {
     setChatOpen(on => {
@@ -167,7 +181,10 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
       <div className="top-bar">
         {/* Left: brand + tabs */}
         <div className="flex items-stretch">
-          <div className="brand">MiniClaw Brain</div>
+          <div className="brand">
+            <img src="/miniclaw-logo.png" alt="MiniClaw" width={20} height={20} className="brand-logo" />
+            MiniClaw<span className="brand-suffix">&nbsp;Brain</span>
+          </div>
           <div className="tab-bar">
             {(["office", "board", "memory", "rolodex", "agents", "settings"] as Tab[]).map(t => {
               const activeCount = t === "board" && counts ? counts.inProgress + counts.inReview : 0;
@@ -280,7 +297,7 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
           })()}
         </div>
 
-        {/* Right: stat pills */}
+        {/* Right: stat pills (wide) + stats dropdown (narrow) */}
         {counts && (
           <div className="stat-pills">
             <span className="stat-pill">projects<b>{projects.length}</b></span>

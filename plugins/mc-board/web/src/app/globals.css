@@ -127,6 +127,36 @@ a { color: inherit; }
 .stat-pill[data-col="tokens"]::before { background: #a855f7; }
 .stat-pill[data-col="memory"]::before { background: #06b6d4; }
 
+/* ── Stats dropdown (narrow screens) ── */
+.stats-dropdown { position: relative; display: none; align-items: center; height: 100%; }
+.stats-dropdown-trigger {
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: none; color: #71717a; cursor: pointer;
+  padding: 0 8px; height: 100%; border-left: 1px solid #27272a;
+  font-size: 11px;
+}
+.stats-dropdown-trigger:hover { color: #a1a1aa; background: rgba(255,255,255,0.03); }
+.stats-dropdown-panel {
+  position: absolute; top: 100%; right: 0; z-index: 100;
+  background: #18181b; border: 1px solid #27272a; border-radius: 6px;
+  min-width: 180px; padding: 6px 0; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+.stats-dropdown-label {
+  font-size: 10px; color: #52525b; text-transform: uppercase; letter-spacing: 0.5px;
+  padding: 4px 12px 6px; user-select: none; pointer-events: none; font-weight: 600;
+}
+.stats-dropdown-item {
+  font-size: 12px; color: #a1a1aa; padding: 4px 12px; white-space: nowrap;
+  user-select: none; pointer-events: none;
+}
+.stats-dropdown-item b { color: #d4d4d8; font-weight: 600; margin-left: 4px; }
+.stats-dropdown-panel .stat-pill {
+  border-left: none; padding: 4px 12px; font-size: 12px; height: auto;
+}
+.stats-dropdown-panel .stat-pill::before { display: none; }
+.stats-dropdown-panel .stat-pill b { display: inline; margin-left: 4px; }
+.version-badge-wide { display: contents; }
+
 /* ── Board controls ── */
 .board-controls {
   display: flex;
@@ -1027,21 +1057,15 @@ a { color: inherit; }
   .triage-select { min-width: 32px; padding: 2px 3px; }
 }
 
-/* Smallest: collapse stat pills to colored dots, hide triage selects */
+/* Smallest: hide stat pills, show stats dropdown */
 @media (max-width: 550px) {
   .triage-label { display: none; }
   .triage-select { display: none; }
   .triage-controls { gap: 2px; }
   .triage-btn { font-size: 9px; padding: 2px 4px; }
-  .stat-pill {
-    padding: 0 4px;
-    font-size: 0;
-    min-width: 16px;
-    justify-content: center;
-  }
-  .stat-pill b { display: none; }
-  .stat-pill .pill-label { display: none; }
-  .stat-pill::before { display: block; }
+  .stat-pills { display: none !important; }
+  .version-badge-wide { display: none !important; }
+  .stats-dropdown { display: flex; }
   .column-badge {
     font-size: 0;
     width: 12px;
