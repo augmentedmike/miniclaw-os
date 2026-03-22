@@ -99,9 +99,18 @@ a { color: inherit; }
   padding: 0 20px;
   display: flex;
   align-items: center;
+  gap: 8px;
   border-right: 1px solid #27272a;
   white-space: nowrap;
   flex-shrink: 0;
+}
+.brand-logo {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+@media (max-width: 768px) {
+  .brand-suffix { display: none; }
 }
 
 /* ── Stat pills ── */

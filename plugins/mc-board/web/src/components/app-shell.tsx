@@ -297,8 +297,39 @@ export function AppShell({ initialTab, initialCardId, initialProjectId }: { init
           </div>
         )}
 
-        {/* Version badge — always visible, immediately before chat icon */}
-        <VersionBadge />
+        {/* Version badge — wide screens only */}
+        <span className="version-badge-wide"><VersionBadge /></span>
+
+        {/* Stats dropdown — narrow screens only */}
+        <div className="stats-dropdown" ref={statsDropdownRef}>
+          <button
+            className="stats-dropdown-trigger"
+            onClick={() => setStatsDropdownOpen(o => !o)}
+            title="Stats"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="18" y="3" width="4" height="18" rx="1" />
+              <rect x="10" y="8" width="4" height="13" rx="1" />
+              <rect x="2" y="13" width="4" height="8" rx="1" />
+            </svg>
+            <span style={{ fontSize: 9, marginLeft: 2 }}>▾</span>
+          </button>
+          {statsDropdownOpen && (
+            <div className="stats-dropdown-panel">
+              <div className="stats-dropdown-label">Stats</div>
+              {counts && (
+                <>
+                  <div className="stats-dropdown-item">projects <b>{projects.length}</b></div>
+                  <div className="stats-dropdown-item">backlog <b>{counts.backlog}</b></div>
+                  <div className="stats-dropdown-item">in progress <b>{counts.inProgress}</b></div>
+                  <div className="stats-dropdown-item">in review <b>{counts.inReview}</b></div>
+                  <div className="stats-dropdown-item">shipped <b>{counts.shipped}</b></div>
+                </>
+              )}
+              <DailyStats />
+              <VersionBadge />
+            </div>
+          )}</div>
 
         {/* Chat toggle */}
         <button
