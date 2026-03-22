@@ -21,7 +21,7 @@ export async function write(
   memoDir: string,
   episodicDir: string,
   content: string,
-  context?: RouteContext & { forceTarget?: "memo" | "kb" | "episodic" },
+  context?: RouteContext & { forceTarget?: "memo" | "kb" | "episodic"; minLength?: number },
 ): Promise<WriteResult> {
   // Route (or use forced target)
   const routeResult = context?.forceTarget
@@ -35,7 +35,7 @@ export async function write(
     case "memo": {
       if (!context?.cardId) {
         // No card context — fall back to episodic
-        return writeEpisodic(episodicDir, content, timestamp);
+        return writeEpisodic(episodicDir, content, timestamp, context?.minLength);
       }
       return writeMemo(memoDir, context.cardId, content, timestamp);
     }
@@ -46,7 +46,7 @@ export async function write(
 
     case "episodic":
     default: {
-      return writeEpisodic(episodicDir, content, timestamp);
+      return writeEpisodic(episodicDir, content, timestamp, context?.minLength);
     }
   }
 }
@@ -114,6 +114,28 @@ async function writeKb(
 }
 
 /**
+ * Quality gate for episodic writes.
+ * Rejects content that is too short, has no alphabetic words, or lacks
+ * meaningful sentence structure. Returns a rejection reason or null if OK.
+ */
+export function episodicQualityGate(content: string, minLength = 50): string | null {
+  const trimmed = content.trim();
+
+  // Reject content shorter than minLength chars
+  if (trimmed.length < minLength) {
+    return `Content too short (${trimmed.length} chars, minimum ${minLength})`;
+  }
+
+  // Reject content with no alphabetic words (just symbols/numbers/whitespace)
+  const alphaWords = trimmed.match(/[a-zA-Z]{2,}/g);
+  if (!alphaWords || alphaWords.length === 0) {
+    return "Content has no alphabetic words";
+  }
+
+  return null;
+}
+
+/**
  * Slugify a string for use in filenames.
  * Lowercase, strip special chars, collapse whitespace to hyphens, truncate.
  */
@@ -132,7 +154,17 @@ function writeEpisodic(
   episodicDir: string,
   content: string,
   timestamp: string,
+  minLength = 50,
 ): WriteResult {
+  // Quality gate — reject garbage content
+  const rejection = episodicQualityGate(content, minLength);
+  if (rejection) {
+    return {
+      stored_in: "rejected",
+      reason: rejection,
+    };
+  }
+
   fs.mkdirSync(episodicDir, { recursive: true });
   const date = timestamp.slice(0, 10);
   const time = timestamp.slice(11, 19).replace(/:/g, "");

@@ -99,6 +99,11 @@ export function createMemoryTools(
             },
           );
 
+          if (result.stored_in === "rejected") {
+            logger.warn(`mc-memory/tool memory_write: rejected — ${result.reason}`);
+            return toolErr(`Write rejected: ${result.reason}`);
+          }
+
           const details: string[] = [`Stored in: ${result.stored_in}`];
           if (result.id) details.push(`KB ID: ${result.id}`);
           if (result.cardId) details.push(`Card: ${result.cardId}`);

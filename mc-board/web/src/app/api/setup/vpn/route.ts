@@ -26,7 +26,7 @@ function findBin(): string | null {
 function runSafe(bin: string, args: string[], timeout = 10_000): string | null {
   try {
     return execFileSync(bin, args, { timeout, encoding: "utf-8" }).trim();
-  } catch {
+  } catch { /* command-failed */
     return null;
   }
 }
@@ -37,7 +37,7 @@ function readAutoconnect(): { enabled: boolean; defaultCountry: string } {
       const raw = JSON.parse(fs.readFileSync(AUTOCONNECT_FILE, "utf-8"));
       return { enabled: !!raw.enabled, defaultCountry: raw.defaultCountry || "" };
     }
-  } catch {}
+  } catch { /* autoconnect config missing or malformed */ }
   return { enabled: false, defaultCountry: "" };
 }
 

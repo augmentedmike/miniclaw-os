@@ -90,7 +90,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ col
 
   function writeStream(msg: string) {
     if (!msg) return;
-    try { writer.write(enc.encode(msg)); } catch {}
+    try { writer.write(enc.encode(msg)); } catch { /* client-disconnected */ }
     if (msg.length > 0) streamAtLineStart = msg[msg.length - 1] === "\n";
   }
 
@@ -154,7 +154,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ col
         const entry = JSON.parse(line);
         const msg = entry.message ?? entry.msg ?? line;
         if (!NOISE.test(msg)) logDbg(msg);
-      } catch { logDbg(line); }
+      } catch { /* not valid JSON — log raw line */ logDbg(line); }
     }
   });
 
@@ -185,7 +185,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ col
           writeStream(msg.result);
           writeFile(msg.result);
         }
-      } catch { writeStream(line + "\n"); writeFile(line + "\n"); }
+      } catch { /* not valid JSON — pass through raw line */ writeStream(line + "\n"); writeFile(line + "\n"); }
     }
   });
 

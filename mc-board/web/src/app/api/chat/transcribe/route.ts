@@ -38,7 +38,7 @@ function hasSox(): boolean {
   try {
     execFileSync("which", ["sox"], { encoding: "utf-8", timeout: 5000 });
     return true;
-  } catch {
+  } catch { /* sox-not-found */
     return false;
   }
 }
@@ -56,7 +56,7 @@ function ensureWav16k(file: string): string {
       timeout: 60_000,
     });
     return tmp;
-  } catch {
+  } catch { /* sox-conversion-failed — fall back to original file */
     return file;
   }
 }
