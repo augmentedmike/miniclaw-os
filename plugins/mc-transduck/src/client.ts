@@ -8,7 +8,8 @@ import * as path from "node:path";
 import * as os from "node:os";
 import * as fs from "node:fs";
 import { spawnSync } from "node:child_process";
-import { initialize, setLanguage, ait, _getStore, _resetState } from "transduck";
+import { initialize, setLanguage, ait, _getStore, _resetState, type TranslationStore } from "transduck";
+import type { TransduckConfig } from "transduck/dist/config.js";
 import { scanPluginDirs, type ScanEntry } from "./scanner.js";
 
 export { type ScanEntry } from "./scanner.js";
@@ -83,7 +84,7 @@ export async function initClient(cfg: TransduckPluginConfig): Promise<void> {
 
   const storagePath = path.join(cfg.dbDir, "translations.db");
 
-  await initialize({
+  const tdConfig: Partial<TransduckConfig> = {
     projectName: "miniclaw",
     projectContext: "MiniClaw plugin ecosystem — an Agentic OS built on OpenClaw",
     sourceLang: cfg.defaultSourceLang,
@@ -92,7 +93,9 @@ export async function initClient(cfg: TransduckPluginConfig): Promise<void> {
     provider: cfg.provider,
     apiKeyEnv: cfg.apiKeyEnv,
     backendModel: cfg.backendModel,
-  } as any);
+  };
+
+  await initialize(tdConfig as TransduckConfig);
 
   _initialized = true;
 }
@@ -109,7 +112,7 @@ export async function translateText(
 }
 
 /** Get the underlying TranslationStore for stats/clear operations. */
-export function getStore(): any {
+export function getStore(): TranslationStore | null {
   return _getStore();
 }
 
@@ -118,9 +121,11 @@ export async function warmCache(
   entries: ScanEntry[],
   targetLangs: string[],
   onProgress?: (done: number, total: number) => void,
-): Promise<{ translated: number; errors: number }> {
+  onError?: (text: string, lang: string, err: unknown) => void,
+): Promise<{ translated: number; errors: number; failedStrings: Array<{ text: string; lang: string; error: string }> }> {
   let translated = 0;
   let errors = 0;
+  const failedStrings: Array<{ text: string; lang: string; error: string }> = [];
   const total = entries.length * targetLangs.length;
   let done = 0;
 
@@ -131,15 +136,18 @@ export async function warmCache(
         if (!entry.text) continue;
         await ait(entry.text, entry.context ? { context: entry.context } : undefined);
         translated++;
-      } catch {
+      } catch (err) {
         errors++;
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        failedStrings.push({ text: entry.text, lang, error: errorMsg });
+        onError?.(entry.text, lang, err);
       }
       done++;
       onProgress?.(done, total);
     }
   }
 
-  return { translated, errors };
+  return { translated, errors, failedStrings };
 }
 
 /** Reset state (for testing). */

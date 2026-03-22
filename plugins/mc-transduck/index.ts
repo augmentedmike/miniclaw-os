@@ -1,5 +1,5 @@
 /**
- * mc-transduck — OpenClaw plugin
+ * mc-transduck — OpenClaw plugin (0.1.10-prerelease)
  *
  * AI translation framework for MiniClaw i18n.
  * Wraps the transduck library for translating strings, warming caches,

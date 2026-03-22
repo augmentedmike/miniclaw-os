@@ -31,7 +31,8 @@ function extractStrings(content: string, filename: string): ScanEntry[] {
   const entries: ScanEntry[] = [];
 
   // Match ait("string literal", ...) and ait('string literal', ...)
-  const aitRegex = /\bait\(\s*(['"`])((?:(?!\1).)*)\1(?:\s*,\s*(?:['"`])((?:(?!\3).)*)\3)?\s*\)/g;
+  // Groups: 1=text quote, 2=text content, 3=context quote, 4=context content
+  const aitRegex = /\bait\(\s*(['"`])((?:(?!\1).)*)\1(?:\s*,\s*(['"`])((?:(?!\3).)*)\3)?\s*\)/g;
   let match: RegExpExecArray | null;
 
   while ((match = aitRegex.exec(content)) !== null) {
