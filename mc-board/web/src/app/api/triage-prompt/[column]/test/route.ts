@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { listCards } from "@/lib/data";
 import { updateCard, moveCard } from "@/lib/actions";
 import { cardToTriageSummary, parseApplyBlock } from "@/lib/card-format";
+import { logsDir, tmpDir } from "@/lib/paths";
 import { spawn } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -10,7 +11,6 @@ import * as os from "node:os";
 export const dynamic = "force-dynamic";
 
 const CLAUDE_BIN = process.env.CLAUDE_BIN ?? "claude";
-const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
 
 const APPLY_INSTRUCTION = `
 
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ col
   const cardsSummary = colCards.map(cardToTriageSummary).join("\n\n");
   const fullPrompt = prompt.replace("{{CARDS}}", cardsSummary) + APPLY_INSTRUCTION;
 
-  const logDir = path.join(STATE_DIR, "logs", `${column}-triage`);
+  const logDir = path.join(logsDir(), `${column}-triage`);
   fs.mkdirSync(logDir, { recursive: true });
   const ts0 = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
   const logFile = path.join(logDir, `${ts0}.log`);
@@ -119,7 +119,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ col
   const { CLAUDECODE: _cc, ...env } = process.env;
   if (!env.TMPDIR) env.TMPDIR = os.tmpdir();
 
-  const runDir = path.join(STATE_DIR, "tmp", ts0);
+  const runDir = path.join(tmpDir(), ts0);
   fs.mkdirSync(runDir, { recursive: true });
   fs.writeFileSync(path.join(runDir, "CLAUDE.md"), [
     `# ${column} Triage`,

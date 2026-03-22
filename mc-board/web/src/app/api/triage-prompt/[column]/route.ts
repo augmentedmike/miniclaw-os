@@ -1,15 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import * as os from "node:os";
+import { brainDir } from "@/lib/paths";
 
 export const dynamic = "force-dynamic";
-
-const STATE_DIR = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
-
-function getBrainDir(): string {
-  return path.join(STATE_DIR, "USER", "brain");
-}
 
 /** Whitelist of valid column names to prevent path traversal via column parameter. */
 const VALID_COLUMNS = new Set([
@@ -22,7 +16,7 @@ function validateColumn(column: string): string | null {
 }
 
 function promptPath(column: string): string {
-  const promptsDir = path.join(getBrainDir(), "prompts");
+  const promptsDir = path.join(brainDir(), "prompts");
   const resolved = path.resolve(promptsDir, `${column}-triage.txt`);
   // Ensure resolved path stays within the prompts directory
   if (!resolved.startsWith(path.resolve(promptsDir) + path.sep)) {
