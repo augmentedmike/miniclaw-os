@@ -1,0 +1,10 @@
+export { STATE_DIR, findBin } from "./constants";
+export { normalizeBotId, configureGateway } from "./telegram";
+export { applyGithubAuth, seedGithubSetupCard, setGithubDefaultRepo } from "./github";
+export { seedBoardDb, seedOnboardingCard } from "./seed-db";
+export { persistUpdateTime, registerCronJobs, ensureEmailWatchCron } from "./cron";
+export { ensureGatewayRunning } from "./gateway";
+export { ensureProjectsFolder, personalizeWorkspace } from "./workspace";
+export { seedRolodexContacts } from "./rolodex";
+export { sendWelcomeEmail } from "./email";
+export { runSmoke } from "./smoke";
