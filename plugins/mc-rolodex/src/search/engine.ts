@@ -1,45 +1,117 @@
 /**
- * Contact search engine with in-memory indexing
+ * Contact search engine with in-memory indexing, backed by SQLite
  */
 
 import { Contact, SearchQuery, SearchResult, ContactStore } from './types.js';
+import Database from 'better-sqlite3';
 import * as fs from 'fs';
 import * as path from 'path';
+
+/** Map a SQLite row (snake_case, JSON-encoded arrays) to a Contact object */
+function rowToContact(row: Record<string, unknown>): Contact {
+  return {
+    id: row.id as string,
+    name: row.name as string,
+    emails: JSON.parse((row.emails as string) || '[]'),
+    phones: JSON.parse((row.phones as string) || '[]'),
+    domains: JSON.parse((row.domains as string) || '[]'),
+    tags: JSON.parse((row.tags as string) || '[]'),
+    trustStatus: (row.trust_status as Contact['trustStatus']) || 'unknown',
+    lastVerified: row.last_verified ? new Date(row.last_verified as string) : undefined,
+    notes: (row.notes as string) || '',
+  };
+}
 
 export class SearchEngine implements ContactStore {
   private contacts: Map<string, Contact> = new Map();
   private storagePath: string;
 
-  constructor(storagePath: string = `${process.env.OPENCLAW_STATE_DIR || process.env.HOME + "/.openclaw"}/rolodex/contacts.json`) {
+  constructor(storagePath: string = `${process.env.OPENCLAW_STATE_DIR || process.env.HOME + "/.openclaw"}/USER/rolodex/contacts.db`) {
     this.storagePath = storagePath;
     this.loadContacts();
   }
 
+  private ensureDb(): Database.Database {
+    const dir = path.dirname(this.storagePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    const db = new Database(this.storagePath);
+    db.pragma('journal_mode = WAL');
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS contacts (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        emails TEXT NOT NULL DEFAULT '[]',
+        phones TEXT NOT NULL DEFAULT '[]',
+        domains TEXT NOT NULL DEFAULT '[]',
+        tags TEXT NOT NULL DEFAULT '[]',
+        trust_status TEXT NOT NULL DEFAULT 'unknown',
+        last_verified TEXT,
+        notes TEXT NOT NULL DEFAULT ''
+      )
+    `);
+    return db;
+  }
+
   private loadContacts(): void {
     try {
-      if (fs.existsSync(this.storagePath)) {
-        const data = fs.readFileSync(this.storagePath, 'utf8');
-        const contacts: Contact[] = JSON.parse(data);
+      if (!fs.existsSync(this.storagePath)) {
         this.contacts.clear();
-        contacts.forEach(c => this.contacts.set(c.id, c));
-      } else {
+        return;
+      }
+      const db = this.ensureDb();
+      try {
+        const rows = db.prepare('SELECT * FROM contacts').all() as Record<string, unknown>[];
         this.contacts.clear();
+        for (const row of rows) {
+          const c = rowToContact(row);
+          this.contacts.set(c.id, c);
+        }
+      } finally {
+        db.close();
       }
     } catch (err) {
       console.error(`Failed to load contacts from ${this.storagePath}:`, err);
     }
   }
 
-  private saveContacts(): void {
+  private saveContact(contact: Contact): void {
     try {
-      const dir = path.dirname(this.storagePath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
+      const db = this.ensureDb();
+      try {
+        db.prepare(`
+          INSERT OR REPLACE INTO contacts (id, name, emails, phones, domains, tags, trust_status, last_verified, notes)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          contact.id,
+          contact.name,
+          JSON.stringify(contact.emails || []),
+          JSON.stringify(contact.phones || []),
+          JSON.stringify(contact.domains || []),
+          JSON.stringify(contact.tags || []),
+          contact.trustStatus || 'unknown',
+          contact.lastVerified ? new Date(contact.lastVerified as unknown as string).toISOString() : null,
+          contact.notes || '',
+        );
+      } finally {
+        db.close();
       }
-      const contacts = Array.from(this.contacts.values());
-      fs.writeFileSync(this.storagePath, JSON.stringify(contacts, null, 2), 'utf8');
     } catch (err) {
-      console.error(`Failed to save contacts to ${this.storagePath}:`, err);
+      console.error(`Failed to save contact to ${this.storagePath}:`, err);
+    }
+  }
+
+  private deleteFromDb(id: string): void {
+    try {
+      const db = this.ensureDb();
+      try {
+        db.prepare('DELETE FROM contacts WHERE id = ?').run(id);
+      } finally {
+        db.close();
+      }
+    } catch (err) {
+      console.error(`Failed to delete contact from ${this.storagePath}:`, err);
     }
   }
 
@@ -202,7 +274,7 @@ export class SearchEngine implements ContactStore {
   private searchMulti(query: string): SearchResult[] {
     // Priority order: name > email > tag > domain > phone
     // Return results from the first field that has matches
-    
+
     const nameResults = this.searchByName(query);
     if (nameResults.length > 0) return nameResults;
 
@@ -267,21 +339,22 @@ export class SearchEngine implements ContactStore {
   add(contact: Contact): void {
     this.loadContacts();
     this.contacts.set(contact.id, contact);
-    this.saveContacts();
+    this.saveContact(contact);
   }
 
   update(id: string, updates: Partial<Contact>): void {
     this.loadContacts();
     const contact = this.contacts.get(id);
     if (contact) {
-      this.contacts.set(id, { ...contact, ...updates });
-      this.saveContacts();
+      const updated = { ...contact, ...updates };
+      this.contacts.set(id, updated);
+      this.saveContact(updated);
     }
   }
 
   delete(id: string): void {
     this.loadContacts();
     this.contacts.delete(id);
-    this.saveContacts();
+    this.deleteFromDb(id);
   }
 }
