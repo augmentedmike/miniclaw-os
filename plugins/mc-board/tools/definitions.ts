@@ -140,15 +140,16 @@ export const brainTools: AnyAgentTool[] = [
     name: "brain_move_card",
     label: "Brain Move Card",
     description:
-      "Advance a card to the next column. Gate rules are enforced — if a gate fails, " +
+      "Move a card to a target column. Gate rules are enforced — if a gate fails, " +
       "you'll get a structured error explaining exactly what fields to fill before retrying. " +
-      "Columns: backlog → in-progress → in-review → shipped. No skipping. No going back.",
+      "Forward: backlog → in-progress → in-review → shipped. " +
+      "Backward: shipped → in-progress (reopen), shipped → backlog (fail back).",
     parameters: schema(
       {
         id: str("Card ID"),
         column: strEnum(
-          ["in-progress", "in-review", "shipped"],
-          "Target column (must be next in sequence)",
+          ["backlog", "in-progress", "in-review", "shipped"],
+          "Target column",
         ),
       },
       ["id", "column"],

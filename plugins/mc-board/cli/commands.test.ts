@@ -319,7 +319,7 @@ describe("brain move", () => {
   it("blocks skipping columns", async () => {
     const card = await createCard("Skip attempt");
     await expect(run("mc-board", "move", card.id, "in-review")).rejects.toThrow();
-    expect(allErr()).toMatch(/sequentially/);
+    expect(allErr()).toMatch(/No valid transition exists/);
   });
 
   it("blocks backwards movement", async () => {

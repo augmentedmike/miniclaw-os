@@ -431,13 +431,18 @@ Examples:
   // ---- brain move ----
   brain
     .command("move <id> <column>")
-    .description("Advance a card to the next column (gates enforced, no skipping)")
+    .description("Move a card to a target column (gates enforced)")
     .option("--force", "Bypass gate checks — recovery only, use with care")
     .addHelpText("after", `
-Columns must advance in order. No skipping, no going back:
+Standard forward flow:
   backlog → in-progress → in-review → shipped
 
-Gate requirements:
+Backward transitions (no --force needed):
+  shipped → in-progress   (reopen — card needs more work)
+  shipped → backlog       (fail back — shipped item failed)
+  in-review → in-progress (reject — review found issues)
+
+Gate requirements (forward moves only):
   → in-progress   title, problem description, implementation plan, acceptance criteria
   → in-review     all criteria checkboxes must be checked (- [x])
   → shipped       review notes must be filled
@@ -449,7 +454,8 @@ Examples:
   miniclaw brain move crd_abc123 in-progress
   miniclaw brain move crd_abc123 in-review
   miniclaw brain move crd_abc123 shipped
-  miniclaw brain move crd_abc123 in-progress --force`)
+  miniclaw brain move crd_abc123 in-progress --force
+  miniclaw brain move crd_abc123 backlog          # fail back from shipped`)
     .action((id: string, column: string, opts: { force?: boolean }) => {
       if (!COLUMNS.includes(column as Column)) {
         console.error(`Invalid column: ${column}. Valid: ${COLUMNS.join(", ")}`);
@@ -463,7 +469,7 @@ Examples:
         if (!opts.force) {
           if (!canTransition(card.column, target)) {
             console.error(
-              `Cannot move ${card.id} from "${card.column}" to "${target}". Columns must advance sequentially: ${COLUMNS.join(" → ")}`,
+              `Cannot move ${card.id} from "${card.column}" to "${target}". No valid transition exists. See: miniclaw brain move --help`,
             );
             process.exit(1);
           }
