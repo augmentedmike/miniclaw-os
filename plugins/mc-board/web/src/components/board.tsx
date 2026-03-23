@@ -276,7 +276,7 @@ export function Board({ selectedProject, initialCardId, onToast, notifsEnabled, 
             onFocus={() => { setSearchOpen(true); setSearchFocused(true); }}
             onBlur={() => setSearchFocused(false)}
             style={{
-              flex: "1 1 200px", maxWidth: 280, minWidth: 0,
+              flex: "1 1 auto", minWidth: 120,
               background: searchFocused ? "#18181b" : "transparent",
               border: searchFocused ? `1px solid ${accent}` : "1px solid rgba(63,63,70,0.4)",
               borderRadius: 4, padding: "5px 8px", color: "#e4e4e7",
