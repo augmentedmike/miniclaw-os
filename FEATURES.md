@@ -270,7 +270,15 @@ Per-card scratchpad with timestamped notes. Prevents re-trying failed approaches
 
 ```bash
 # Memos auto-created at ~/.openclaw/miniclaw/USER/memos/<card_id>.md
+openclaw mc-memo write <card_id> "note text"   # append timestamped note
+openclaw mc-memo read <card_id>                # read all notes for a card
+openclaw mc-memo list                          # list all memo files
+openclaw mc-memo clear <card_id>               # delete the memo file
 ```
+
+**Memory pipeline:** mc-memo integrates with mc-memory for unified recall and promotion to long-term KB. Use `openclaw mc-memory promote --from memo --ref <card_id>` to graduate a memo's knowledge into `mc-kb` with auto-tags `promoted` and `from-memo`. The `mc-reflection` nightly cron surfaces promoted KB entries in its gather context.
+
+> **Note:** Memos are permanent flat files — there is no built-in TTL or expiry. Ephemeral notes stay until manually cleared or the nightly reflection agent decides to promote/discard them.
 
 ---
 
