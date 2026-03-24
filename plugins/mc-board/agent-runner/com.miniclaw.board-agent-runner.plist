@@ -7,24 +7,24 @@
 
   <key>ProgramArguments</key>
   <array>
-    <string>/opt/homebrew/bin/node</string>
-    <string>/Users/augmentedmike/.openclaw/miniclaw/plugins/mc-board/agent-runner/runner.mjs</string>
+    <string>/Users/michaeloneal/.nvm/versions/node/v24.9.0/bin/node</string>
+    <string>/Users/michaeloneal/.openclaw/miniclaw/plugins/mc-board/agent-runner/runner.mjs</string>
   </array>
 
   <key>EnvironmentVariables</key>
   <dict>
     <key>HOME</key>
-    <string>/Users/augmentedmike</string>
+    <string>/Users/michaeloneal</string>
     <key>PATH</key>
-    <string>/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <string>/Users/michaeloneal/.local/bin:/Users/michaeloneal/.nvm/versions/node/v24.9.0/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     <key>OPENCLAW_STATE_DIR</key>
-    <string>/Users/augmentedmike/.openclaw</string>
+    <string>/Users/michaeloneal/.openclaw</string>
     <key>OPENCLAW_BIN</key>
     <string>/opt/homebrew/bin/openclaw</string>
     <key>CLAUDE_BIN</key>
     <string>/opt/homebrew/bin/claude</string>
     <key>BOARD_DB_PATH</key>
-    <string>/Users/augmentedmike/.openclaw/miniclaw/USER/brain/board.db</string>
+    <string>/Users/michaeloneal/.openclaw/miniclaw/USER/brain/board.db</string>
     <key>AGENT_RUNNER_POLL_MS</key>
     <string>5000</string>
     <key>AGENT_RUNNER_MAX_CONCURRENT</key>
@@ -38,12 +38,12 @@
   <true/>
 
   <key>StandardOutPath</key>
-  <string>/Users/augmentedmike/.openclaw/logs/agent-runner.stdout.log</string>
+  <string>/Users/michaeloneal/.openclaw/logs/agent-runner.stdout.log</string>
 
   <key>StandardErrorPath</key>
-  <string>/Users/augmentedmike/.openclaw/logs/agent-runner.stderr.log</string>
+  <string>/Users/michaeloneal/.openclaw/logs/agent-runner.stderr.log</string>
 
   <key>WorkingDirectory</key>
-  <string>/Users/augmentedmike/.openclaw/miniclaw/plugins/mc-board/agent-runner</string>
+  <string>/Users/michaeloneal/.openclaw/miniclaw/plugins/mc-board/agent-runner</string>
 </dict>
 </plist>

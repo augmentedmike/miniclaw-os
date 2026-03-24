@@ -418,6 +418,59 @@ for f in IDENTITY.md SOUL.md; do
   fi
 done
 
+# ── Step 8: Plist EnvironmentVariables verification ──────────────────────────
+
+echo ""
+echo "── step 8: plist EnvironmentVariables"
+
+PLISTS=(
+  "$REPO_DIR/launchd/com.miniclaw.board-web.plist"
+  "$REPO_DIR/com.miniclaw.board-web.plist"
+  "$REPO_DIR/plugins/mc-board/agent-runner/com.miniclaw.board-agent-runner.plist"
+  "$REPO_DIR/mc-board/agent-runner/com.miniclaw.board-agent-runner.plist"
+  "$REPO_DIR/plugins/mc-web-chat/com.miniclaw.web-chat.plist"
+)
+
+for plist in "${PLISTS[@]}"; do
+  short="${plist##*miniclaw-os/}"
+  [[ -f "$plist" ]] || { fail "plist missing: $short" "file not found"; continue; }
+
+  # HOME must be set
+  if grep -q "<key>HOME</key>" "$plist"; then
+    pass "plist HOME set: $short"
+  else
+    fail "plist missing HOME: $short" "launchd services fail without HOME"
+  fi
+
+  # PATH must include ~/.local/bin
+  if grep -q "\.local/bin" "$plist"; then
+    pass "plist PATH includes .local/bin: $short"
+  else
+    fail "plist PATH missing .local/bin: $short" "openclaw CLI won't be found"
+  fi
+
+  # PATH must include nvm node path
+  if grep -q "nvm" "$plist"; then
+    pass "plist PATH includes nvm node: $short"
+  else
+    fail "plist PATH missing nvm: $short" "node won't be found for launchd"
+  fi
+
+  # PATH must include /opt/homebrew/bin
+  if grep -q "homebrew" "$plist"; then
+    pass "plist PATH includes homebrew: $short"
+  else
+    fail "plist PATH missing homebrew: $short" "brew-installed tools unavailable"
+  fi
+
+  # No hardcoded usernames
+  if grep -q "augmentedmike" "$plist"; then
+    fail "plist has hardcoded augmentedmike: $short" "must not contain old username"
+  else
+    pass "plist no hardcoded usernames: $short"
+  fi
+done
+
 # ── Summary ──────────────────────────────────────────────────────────────────
 
 echo ""
