@@ -20,6 +20,7 @@ import { formatEntryLine } from "../mc-kb/src/entry.js";
 import { registerMemoryCommands } from "./cli/commands.js";
 import { createMemoryTools } from "./tools/definitions.js";
 import { recall } from "./src/recall.js";
+import { write } from "./src/writer.js";
 
 // ---- Config ----
 
@@ -128,13 +129,66 @@ export default function register(api: OpenClawPluginApi): void {
         }
       }).filter(Boolean);
 
-      const block = `## Relevant Memories\n${lines.join("\n\n")}`;
+      const hint = `\n\n_Tip: Use \`memory_write\` to save important learnings, decisions, or gotchas for future sessions._`;
+      const block = `## Relevant Memories\n${lines.join("\n\n")}${hint}`;
 
       api.logger.debug(`mc-memory: injecting ${results.length} memory entries into context`);
       return { prependContext: block };
     } catch (err) {
       api.logger.warn(`mc-memory: before_prompt_build error: ${err}`);
       return;
+    }
+  });
+
+  // ---- Session end hook: auto-capture session context ----
+  api.on("agent_end", async (event, ctx) => {
+    try {
+      // Extract cardId from workspaceDir (e.g. /.../.openclaw/tmp/2026-03-24T04-43-14-crd_dc9b80f8)
+      const workspaceDir = (ctx as any)?.workspaceDir ?? "";
+      const cardMatch = workspaceDir.match(/\b(crd_[a-f0-9]+)\b/);
+      const cardId = cardMatch?.[1] ?? undefined;
+
+      const messages = (event as any)?.messages ?? [];
+      if (messages.length < 2) return;
+
+      // Gather assistant messages to extract a session summary
+      const assistantMsgs = messages
+        .filter((m: { role: string }) => m.role === "assistant")
+        .map((m: { content: unknown }) => {
+          if (typeof m.content === "string") return m.content;
+          if (Array.isArray(m.content)) {
+            return (m.content as Array<{ type: string; text?: string }>)
+              .filter((b) => b.type === "text")
+              .map((b) => b.text ?? "")
+              .join(" ");
+          }
+          return "";
+        })
+        .filter((t: string) => t.trim().length > 0);
+
+      if (assistantMsgs.length === 0) return;
+
+      // Build a concise session summary from the last assistant messages
+      const tail = assistantMsgs.slice(-3).join("\n\n");
+      const durationNote = (event as any)?.durationMs
+        ? ` (${Math.round((event as any).durationMs / 1000)}s)`
+        : "";
+      const successNote = (event as any)?.success === false ? " [session ended with error]" : "";
+
+      const summary = cardId
+        ? `Session summary${durationNote}${successNote}: ${tail.slice(0, 1500)}`
+        : `Session summary${durationNote}${successNote}:\n\n${tail.slice(0, 1500)}`;
+
+      await write(store, embedder, cfg.memoDir, cfg.episodicDir, summary, {
+        cardId,
+        forceTarget: cardId ? "memo" : "episodic",
+        source: "agent_end_hook",
+        minLength: 30,
+      });
+
+      api.logger.debug(`mc-memory: agent_end auto-captured session to ${cardId ? `memo/${cardId}` : "episodic"}`);
+    } catch (err) {
+      api.logger.warn(`mc-memory: agent_end hook error: ${err}`);
     }
   });
 
