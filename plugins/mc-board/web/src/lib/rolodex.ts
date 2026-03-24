@@ -24,7 +24,7 @@ export interface Contact {
 function resolveJsonPath(): string {
   if (process.env.ROLODEX_STORAGE_PATH) return process.env.ROLODEX_STORAGE_PATH;
   const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
-  const jsonPath = path.join(stateDir, "USER", "rolodex", "contacts.json");
+  const jsonPath = path.join(stateDir, "miniclaw", "USER", "rolodex", "contacts.json");
   const dir = path.dirname(jsonPath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   return jsonPath;

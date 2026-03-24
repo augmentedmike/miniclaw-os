@@ -144,6 +144,102 @@ export function findTitleConflict(
 }
 
 /**
+ * Tokenize a text body (e.g. problem_description) into meaningful words.
+ * Truncates to first 100 words to keep matching lightweight.
+ */
+export function tokenizeText(text: string): string[] {
+  const words = normalizeTitle(text).split(" ").filter(w => w.length > 1 && !STOP_WORDS.has(w));
+  return words.slice(0, 100);
+}
+
+/**
+ * Find ALL cards in `existing` that are similar to `title` or `problemText`.
+ * Returns results sorted by similarity descending.
+ *
+ * Matching combines title tokens + first 100 words of problem_description
+ * into a single token set for Jaccard comparison.
+ *
+ * Optionally exclude a card by ID (useful when updating a card's own title).
+ */
+export function findAllConflicts(
+  title: string,
+  problemText: string | undefined,
+  existing: Card[],
+  excludeId?: string,
+): TitleConflict[] {
+  const normTitle = normalizeTitle(title);
+  const titleTokens = tokenize(title);
+  const problemTokens = problemText ? tokenizeText(problemText) : [];
+
+  // Combined token set for the new card
+  const combinedSet = new Set([...titleTokens, ...problemTokens]);
+  const titleSet = new Set(titleTokens);
+
+  const results: TitleConflict[] = [];
+
+  for (const card of existing) {
+    if (excludeId && card.id === excludeId) continue;
+
+    const normCard = normalizeTitle(card.title);
+
+    // Exact title match — always a conflict
+    if (normCard === normTitle) {
+      results.push({ card, similarity: 1.0 });
+      continue;
+    }
+
+    // Build the card's combined token set (title + problem_description)
+    const cardTitleTokens = tokenize(card.title);
+    const cardProblemTokens = card.problem_description ? tokenizeText(card.problem_description) : [];
+    const cardCombinedSet = new Set([...cardTitleTokens, ...cardProblemTokens]);
+
+    // Short titles still require exact match — use title-only tokens
+    const minTitleTokens = Math.min(titleTokens.length, cardTitleTokens.length);
+    if (minTitleTokens <= 2 && combinedSet.size <= 2) continue;
+
+    // If problem text is available on either side, use combined sets
+    // Otherwise fall back to title-only comparison
+    let similarity: number;
+    if (combinedSet.size > titleSet.size || cardCombinedSet.size > cardTitleTokens.length) {
+      similarity = jaccardSimilarity(combinedSet, cardCombinedSet);
+    } else {
+      if (minTitleTokens <= 2) continue;
+      similarity = jaccardSimilarity(titleSet, new Set(cardTitleTokens));
+    }
+
+    if (similarity >= SIMILARITY_THRESHOLD) {
+      results.push({ card, similarity });
+    }
+  }
+
+  // Sort by similarity descending
+  return results.sort((a, b) => b.similarity - a.similarity);
+}
+
+/**
+ * Format a numbered list of similar cards for CLI output.
+ */
+export function formatConflictList(title: string, conflicts: TitleConflict[]): string {
+  const lines: string[] = [
+    `Similar cards found for: "${title}"`,
+    ``,
+  ];
+
+  conflicts.forEach((c, i) => {
+    const { card, similarity } = c;
+    const pct = Math.round(similarity * 100);
+    const matchType = similarity >= 1.0 ? "exact" : `${pct}%`;
+    lines.push(`  ${i + 1}. [${card.id}] ${card.title}`);
+    lines.push(`     column: ${card.column}  match: ${matchType}`);
+  });
+
+  lines.push(``);
+  lines.push(`Proceed anyway? (y/N)`);
+
+  return lines.join("\n");
+}
+
+/**
  * Format a human-readable conflict error message for CLI output.
  */
 export function formatConflictError(title: string, conflict: TitleConflict): string {

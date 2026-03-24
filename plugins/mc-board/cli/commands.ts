@@ -120,6 +120,7 @@ Examples:
     .option("--notes <text>", "Notes / context")
     .option("--research <text>", "Research notes — pre-work context and findings")
     .option("--verify-url <url>", "URL to verify the work is live (used by review agent)")
+    .option("--force", "Skip similarity confirmation prompt (for automation/agent use)")
     .addHelpText("after", `
 New cards always start in backlog. Fill in problem, plan, and criteria
 before moving to in-progress.
@@ -128,8 +129,9 @@ Examples:
   miniclaw brain create --title "Fix login bug"
   miniclaw brain create --title "Add dark mode" --priority high --tags ui,miniclaw
   miniclaw brain create --title "API redesign" --project prj_a1b2c3d4 --problem "Need API v2"
-  miniclaw brain create --title "VERIFY: Fix login bug" --work-type verify --linked-card-id crd_abc123`)
-    .action((opts: { title: string; priority: string; tags?: string; project?: string; workType?: string; linkedCardId?: string; problem?: string; plan?: string; criteria?: string; notes?: string; research?: string; verifyUrl?: string }) => {
+  miniclaw brain create --title "VERIFY: Fix login bug" --work-type verify --linked-card-id crd_abc123
+  miniclaw brain create --title "Fix login bug" --force   # skip similarity check`)
+    .action((opts: { title: string; priority: string; tags?: string; project?: string; workType?: string; linkedCardId?: string; problem?: string; plan?: string; criteria?: string; notes?: string; research?: string; verifyUrl?: string; force?: boolean }) => {
       const priority = normalizePriority(opts.priority);
       if (!priority) {
         console.error(`Invalid priority: ${opts.priority}. Use: critical, high, medium, low`);
@@ -171,11 +173,22 @@ Examples:
         }
         linked_card_id = opts.linkedCardId;
       }
-      // Pre-create duplicate title check
+      // Pre-create similarity check — show conflict if title matches existing card
       const conflict = store.checkTitleConflict(opts.title, { projectId: opts.project });
-      if (conflict) {
+      if (conflict !== null && !opts.force) {
         console.error(formatConflictError(opts.title, conflict));
-        process.exit(1);
+        // Read a single line from stdin synchronously
+        let answer = "";
+        try {
+          answer = fs.readFileSync("/dev/stdin", "utf8").trim().toLowerCase();
+        } catch {
+          // stdin not available (piped/non-interactive) — default to no
+          answer = "";
+        }
+        if (answer !== "y" && answer !== "yes") {
+          console.error("Aborted. Use --force to skip this check.");
+          process.exit(1);
+        }
       }
       const card = store.create({
         title: opts.title, priority, tags, project_id: opts.project, work_type, linked_card_id,
@@ -502,6 +515,20 @@ Examples:
               `CAPACITY LIMIT: "${target}" already has ${wip.current}/${wip.max} cards. ` +
               `Use --force to override.\n`,
             );
+            process.exit(1);
+          }
+
+          // Block transitions out of a column when its queue worker is OFF.
+          // This prevents agent-initiated moves (e.g. in-progress→in-review) from
+          // bypassing the toggle. Use --force to override for manual recovery.
+          if (!store.getColumnQueueEnabled(card.column)) {
+            console.error(formatUserError(
+              `[mc-board] Worker for "${card.column}" is OFF. Card stays in "${card.column}".`,
+              [
+                `The "${card.column}" column queue is disabled — agent-initiated transitions are blocked.`,
+                `Use --force to override: openclaw mc-board move ${card.id} ${target} --force`,
+              ],
+            ));
             process.exit(1);
           }
         }

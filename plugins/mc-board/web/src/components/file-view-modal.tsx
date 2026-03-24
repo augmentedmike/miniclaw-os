@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { registerModal, unregisterModal } from "./modal-stack";
+import { useAccent } from "@/lib/accent-context";
 import hljs from "highlight.js";
 import { marked } from "marked";
 import { markedHighlight } from "marked-highlight";
@@ -69,6 +70,7 @@ const FONT_SIZE = 12.5;
 const LINE_H = "1.65";
 
 export function FileViewModal({ filePath, base, onClose }: Props) {
+  const accent = useAccent();
   const [data, setData] = useState<FileData | null>(null);
   const [isImage, setIsImage] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -186,7 +188,7 @@ export function FileViewModal({ filePath, base, onClose }: Props) {
                   onClick={() => navigator.clipboard.writeText(data.content).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1600); })}
                   title="Copy file contents"
                   style={{
-                    fontSize: 13, color: copied ? "#22c55e" : "#52525b",
+                    fontSize: 13, color: copied ? accent : "#52525b",
                     background: "none", border: "none", cursor: "pointer", padding: "0 2px",
                   }}
                 >

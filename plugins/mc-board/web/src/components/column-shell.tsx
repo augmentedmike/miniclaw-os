@@ -77,7 +77,7 @@ export function ColumnShell({ column, count, activeCount, headerActions, childre
         aria-label={isShipped ? "Collapse shipped column" : undefined}
         tabIndex={isShipped ? 0 : undefined}
         onKeyDown={isShipped ? (e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggleCollapse?.(); } }) : undefined}
-        style={{ cursor: isShipped ? "pointer" : undefined, justifyContent: "flex-start", gap: 8 }}
+        style={{ cursor: isShipped ? "pointer" : undefined }}
       >
         <span className={`column-badge ${badge}`} data-col={column}>{label}</span>
         <span className="column-count">
