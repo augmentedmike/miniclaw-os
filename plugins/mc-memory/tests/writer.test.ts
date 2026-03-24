@@ -302,4 +302,38 @@ describe("writer: forceTarget override", () => {
 
     expect(result.stored_in).toBe("memo");
   });
+
+  it("forceTarget=episodic with minLength=30 accepts 30-49 char content (agent_end hook scenario)", async () => {
+    // agent_end hook uses minLength: 30 — shorter than the default 50
+    // This verifies that short but meaningful session summaries aren't rejected
+    const content = "Fixed memory hook path issue."; // 29 chars — should be rejected
+    const store = makeMockStore();
+    const shortResult = await write(store, mockEmbedder, memoDir, episodicDir, content, {
+      forceTarget: "episodic",
+      minLength: 30,
+    });
+    expect(shortResult.stored_in).toBe("rejected"); // 29 chars < 30
+
+    const borderContent = "Fixed memory hook path issue ok"; // 31 chars — should pass
+    const passResult = await write(store, mockEmbedder, memoDir, episodicDir, borderContent, {
+      forceTarget: "episodic",
+      minLength: 30,
+    });
+    expect(passResult.stored_in).toBe("episodic");
+  });
+
+  it("forceTarget=episodic with source=agent_end_hook routes to episodic", async () => {
+    // Covers the agent_end auto-capture path for general sessions (no cardId)
+    const content =
+      "Session completed: reviewed memory pipeline fixes, verified episodic write path is correct.";
+    const store = makeMockStore();
+
+    const result = await write(store, mockEmbedder, memoDir, episodicDir, content, {
+      forceTarget: "episodic",
+      source: "agent_end_hook",
+      minLength: 30,
+    });
+
+    expect(result.stored_in).toBe("episodic");
+  });
 });
