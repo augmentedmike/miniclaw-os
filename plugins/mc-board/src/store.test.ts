@@ -30,7 +30,8 @@ function createTestDb(): InstanceType<typeof Database> {
       review_notes     TEXT NOT NULL DEFAULT '',
       research         TEXT NOT NULL DEFAULT '',
       verify_url       TEXT NOT NULL DEFAULT '',
-      work_log         TEXT NOT NULL DEFAULT '[]'
+      work_log         TEXT NOT NULL DEFAULT '[]',
+      attachments      TEXT NOT NULL DEFAULT '[]'
     );
     CREATE TABLE card_history (
       id       INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -114,5 +115,152 @@ describe("CardStore.move() criteria reset", () => {
     const card = createCardInColumn(store, db, "in-review", "");
     const moved = store.move(card, "in-progress");
     expect(moved.acceptance_criteria).toBe("");
+  });
+});
+
+// ---- store.list() card count ----
+
+describe("CardStore.list() card count", () => {
+  let db: InstanceType<typeof Database>;
+  let store: CardStore;
+
+  beforeEach(() => {
+    db = createTestDb();
+    store = new CardStore(db);
+  });
+
+  it("returns 0 cards when store is empty", () => {
+    expect(store.list()).toHaveLength(0);
+  });
+
+  it("returns correct count after creating 1 card", () => {
+    store.create({ title: "Card A" });
+    expect(store.list()).toHaveLength(1);
+  });
+
+  it("returns correct count after creating 5 cards", () => {
+    for (let i = 0; i < 5; i++) {
+      store.create({ title: `Card ${i}` });
+    }
+    expect(store.list()).toHaveLength(5);
+  });
+
+  it("returns correct count when filtering by column", () => {
+    const card = store.create({ title: "Card A" });
+    store.create({ title: "Card B" });
+    // Move card A to in-progress
+    db.prepare("UPDATE cards SET col = ? WHERE id = ?").run("in-progress", card.id);
+    expect(store.list("backlog")).toHaveLength(1);
+    expect(store.list("in-progress")).toHaveLength(1);
+    expect(store.list()).toHaveLength(2);
+  });
+});
+
+// ---- store.create() + findById() roundtrip ----
+
+describe("CardStore create/findById roundtrip", () => {
+  let db: InstanceType<typeof Database>;
+  let store: CardStore;
+
+  beforeEach(() => {
+    db = createTestDb();
+    store = new CardStore(db);
+  });
+
+  it("create returns a card with correct title", () => {
+    const card = store.create({ title: "My new card" });
+    expect(card.title).toBe("My new card");
+    expect(card.id).toMatch(/^crd_/);
+    expect(card.column).toBe("backlog");
+  });
+
+  it("findById retrieves the same card that was created", () => {
+    const created = store.create({ title: "Roundtrip card" });
+    const found = store.findById(created.id);
+    expect(found.id).toBe(created.id);
+    expect(found.title).toBe("Roundtrip card");
+    expect(found.column).toBe("backlog");
+  });
+
+  it("findById throws for non-existent id", () => {
+    expect(() => store.findById("crd_nonexistent")).toThrow(/not found/i);
+  });
+
+  it("create preserves all optional fields", () => {
+    const card = store.create({
+      title: "Full card",
+      priority: "high",
+      tags: ["build", "infra"],
+      problem_description: "The problem",
+      implementation_plan: "The plan",
+      acceptance_criteria: "- [ ] step 1",
+      notes: "Some notes",
+      research: "Research data",
+    });
+    const found = store.findById(card.id);
+    expect(found.priority).toBe("high");
+    expect(found.tags).toEqual(["build", "infra"]);
+    expect(found.problem_description).toBe("The problem");
+    expect(found.implementation_plan).toBe("The plan");
+    expect(found.acceptance_criteria).toBe("- [ ] step 1");
+    expect(found.notes).toBe("Some notes");
+    expect(found.research).toBe("Research data");
+  });
+});
+
+// ---- store.checkTitleConflict() ----
+
+describe("CardStore.checkTitleConflict()", () => {
+  let db: InstanceType<typeof Database>;
+  let store: CardStore;
+
+  beforeEach(() => {
+    db = createTestDb();
+    store = new CardStore(db);
+  });
+
+  it("is a callable function on the store", () => {
+    expect(typeof store.checkTitleConflict).toBe("function");
+  });
+
+  it("returns null when no cards exist", () => {
+    const result = store.checkTitleConflict("Any title");
+    expect(result).toBeNull();
+  });
+
+  it("detects exact title conflict", () => {
+    store.create({ title: "Fix login bug" });
+    const result = store.checkTitleConflict("Fix login bug");
+    expect(result).not.toBeNull();
+    expect(result!.similarity).toBe(1.0);
+  });
+
+  it("returns null when titles are distinct", () => {
+    store.create({ title: "Fix login bug" });
+    const result = store.checkTitleConflict("Add dark mode to dashboard UI");
+    expect(result).toBeNull();
+  });
+
+  it("excludes card by excludeId", () => {
+    const card = store.create({ title: "Fix login bug" });
+    const result = store.checkTitleConflict("Fix login bug", { excludeId: card.id });
+    expect(result).toBeNull();
+  });
+
+  it("excludes shipped cards from conflict check", () => {
+    const card = store.create({ title: "Fix login bug" });
+    // Move card to shipped
+    db.prepare("UPDATE cards SET col = ? WHERE id = ?").run("shipped", card.id);
+    const result = store.checkTitleConflict("Fix login bug");
+    expect(result).toBeNull();
+  });
+
+  it("detects conflict among multiple cards", () => {
+    store.create({ title: "Card alpha" });
+    store.create({ title: "Fix login bug" });
+    store.create({ title: "Card beta" });
+    const result = store.checkTitleConflict("Fix login bug");
+    expect(result).not.toBeNull();
+    expect(result!.card.title).toBe("Fix login bug");
   });
 });
