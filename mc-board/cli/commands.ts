@@ -1,10 +1,11 @@
 import type { Command } from "commander";
 import type { CardStore } from "../src/store.js";
 import type { ProjectStore } from "../src/project-store.js";
-import { formatConflictError } from "../src/dedup.js";
+import { formatConflictError, formatConflictList } from "../src/dedup.js";
 import { ActiveWorkStore } from "../src/active-work.js";
 import { ArchiveStore } from "../src/archive.js";
-import { COLUMNS, canTransition, canTransitionSystem, checkGate, formatGateError } from "../src/state.js";
+import { COLUMNS, canTransition, canTransitionSystem, checkGate, checkCapacity, formatGateError } from "../src/state.js";
+import { getCapacityLimit } from "../src/store.js";
 import {
   renderCardDetail,
   renderColumnContext,
@@ -15,17 +16,69 @@ import {
   validateCardTags,
 } from "../src/board.js";
 import type { Column, Priority } from "../src/card.js";
-import { formatPluginError, formatUserError, DOCTOR_SUGGESTION } from "../../shared/errors/format.js";
-import { spawn } from "node:child_process";
+import { spawn, execSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
-import * as readline from "node:readline";
 
 export interface CliContext {
   program: Command;
   stateDir: string;
   logger: { info: (m: string) => void; warn: (m: string) => void; error: (m: string) => void };
+}
+
+/**
+ * Read the shared agent-base context template.
+ * Returns the full tool list, card-only workflow rule, and ecosystem description.
+ * Falls back to a minimal embedded version if the file is missing.
+ */
+function readAgentBaseContext(stateDir: string): string {
+  const templatePath = path.join(stateDir, "miniclaw", "SYSTEM", "context", "agent-base.md");
+  try {
+    return fs.readFileSync(templatePath, "utf8").trim();
+  } catch {
+    // Fallback: minimal embedded context so workers always have tool awareness
+    return [
+      "## Available CLI tools (use via Bash)",
+      "- `openclaw mc-board` — board management (create, update, move, show, board, pickup, release)",
+      "- `openclaw mc-rolodex` — contact management (add, search, list, update, remove)",
+      "- `openclaw mc-kb` — knowledge base (search, add, update, get)",
+      "- `openclaw mc-email` — email (send, inbox, triage)",
+      "- `openclaw mc-vault` — secrets (get, set, list)",
+      "- `openclaw mc-backup` — backups (now, list, restore)",
+      "",
+      "## Card-Only Workflow Rule",
+      "ALL tasks go to cards. Inline work is ONLY for answering direct questions.",
+      "If someone asks you to DO something, create a card: `openclaw mc-board create --title \"...\" --priority medium`",
+      "NEVER execute multi-step work inline. Always create a card.",
+    ].join("\n");
+  }
+}
+
+/**
+ * Build CLAUDE.md content for a spawned worker.
+ * @param title - Worker title line (e.g. "Triage: Fix login bug")
+ * @param cardLine - Optional card reference line
+ * @param mode - "sandboxed" (no tools, analysis only) or "toolaware" (full tool access)
+ * @param stateDir - State directory to find agent-base.md template
+ */
+function buildWorkerClaudeMd(title: string, cardLine: string | null, mode: "sandboxed" | "toolaware", stateDir: string): string {
+  const lines: string[] = [`# ${title}`, ""];
+  if (cardLine) lines.push(cardLine, "");
+
+  if (mode === "sandboxed") {
+    lines.push("This is a sandboxed non-interactive session. Do not use tools.");
+    lines.push("Respond only with your analysis and the APPLY block.");
+    lines.push("");
+    // Even sandboxed workers get the card-only workflow rule for awareness
+    lines.push("## Card-Only Workflow Rule");
+    lines.push("ALL tasks go to cards. Inline work is ONLY for answering direct questions.");
+  } else {
+    // Full tool-aware context
+    lines.push(readAgentBaseContext(stateDir));
+  }
+
+  return lines.join("\n");
 }
 
 export function registerBrainCommands(ctx: CliContext, store: CardStore, projects: ProjectStore): void {
@@ -67,7 +120,6 @@ Examples:
     .option("--notes <text>", "Notes / context")
     .option("--research <text>", "Research notes — pre-work context and findings")
     .option("--verify-url <url>", "URL to verify the work is live (used by review agent)")
-    .option("--force", "Bypass similar-card confirmation prompt (for automation)")
     .addHelpText("after", `
 New cards always start in backlog. Fill in problem, plan, and criteria
 before moving to in-progress.
@@ -76,15 +128,11 @@ Examples:
   miniclaw brain create --title "Fix login bug"
   miniclaw brain create --title "Add dark mode" --priority high --tags ui,miniclaw
   miniclaw brain create --title "API redesign" --project prj_a1b2c3d4 --problem "Need API v2"
-  miniclaw brain create --title "VERIFY: Fix login bug" --work-type verify --linked-card-id crd_abc123
-  miniclaw brain create --title "Fix login bug" --force   # skip duplicate check`)
-    .action((opts: { title: string; priority: string; tags?: string; project?: string; workType?: string; linkedCardId?: string; problem?: string; plan?: string; criteria?: string; notes?: string; research?: string; verifyUrl?: string; force?: boolean }) => {
+  miniclaw brain create --title "VERIFY: Fix login bug" --work-type verify --linked-card-id crd_abc123`)
+    .action((opts: { title: string; priority: string; tags?: string; project?: string; workType?: string; linkedCardId?: string; problem?: string; plan?: string; criteria?: string; notes?: string; research?: string; verifyUrl?: string }) => {
       const priority = normalizePriority(opts.priority);
       if (!priority) {
-        console.error(formatUserError(`[mc-board] Invalid priority: ${opts.priority}`, [
-          "Valid priorities: critical, high, medium, low",
-          "Example: openclaw mc-board create --title \"My card\" --priority high",
-        ]));
+        console.error(`Invalid priority: ${opts.priority}. Use: critical, high, medium, low`);
         process.exit(1);
       }
       const tags = opts.tags
@@ -101,10 +149,7 @@ Examples:
       // Validate project if provided
       if (opts.project) {
         try { projects.findById(opts.project); } catch {
-          console.error(formatUserError(`[mc-board] Project not found: ${opts.project}`, [
-            "Run: openclaw mc-board project list — to see all projects",
-            "Check the ID format: projects start with prj_",
-          ]));
+          console.error(`Project not found: ${opts.project}`);
           process.exit(1);
         }
       }
@@ -112,10 +157,7 @@ Examples:
       let work_type: 'work' | 'verify' | undefined;
       if (opts.workType) {
         if (opts.workType !== 'work' && opts.workType !== 'verify') {
-          console.error(formatUserError(`[mc-board] Invalid work-type: ${opts.workType}`, [
-            "Valid work types: work, verify",
-            "Example: openclaw mc-board create --work-type verify --linked-card-id crd_abc123",
-          ]));
+          console.error(`Invalid work-type: ${opts.workType}. Use: work, verify`);
           process.exit(1);
         }
         work_type = opts.workType as 'work' | 'verify';
@@ -124,18 +166,16 @@ Examples:
       let linked_card_id: string | undefined;
       if (opts.linkedCardId) {
         try { store.findById(opts.linkedCardId); } catch {
-          console.error(formatUserError(`[mc-board] Linked card not found: ${opts.linkedCardId}`, [
-            "Run: openclaw mc-board list — to see all cards",
-            "Check the ID format: cards start with crd_",
-          ]));
+          console.error(`Linked card not found: ${opts.linkedCardId}`);
           process.exit(1);
         }
         linked_card_id = opts.linkedCardId;
       }
+<<<<<<< Updated upstream
       // Pre-create similar card check
-      const conflict = store.checkTitleConflict(opts.title, { projectId: opts.project });
-      if (conflict !== null && !opts.force) {
-        console.error(formatConflictError(opts.title, conflict));
+      const similarCards = store.checkSimilarCards(opts.title, opts.problem, { projectId: opts.project });
+      if (similarCards.length > 0 && !opts.force) {
+        console.error(formatConflictList(opts.title, similarCards));
         // If stdin is a TTY, prompt for confirmation; otherwise exit
         if (process.stdin.isTTY) {
           const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -162,6 +202,13 @@ Examples:
           // Non-interactive: exit with error (use --force for automation)
           process.exit(1);
         }
+=======
+      // Pre-create duplicate title check
+      const conflict = store.checkTitleConflict(opts.title, { projectId: opts.project });
+      if (conflict) {
+        console.error(formatConflictError(opts.title, conflict));
+        process.exit(1);
+>>>>>>> Stashed changes
       }
       const card = store.create({
         title: opts.title, priority, tags, project_id: opts.project, work_type, linked_card_id,
@@ -193,10 +240,7 @@ Examples:
   miniclaw brain list --project prj_a1b2c3d4`)
     .action((opts: { column?: string; project?: string; skipHold?: boolean }) => {
       if (opts.column && !COLUMNS.includes(opts.column as Column)) {
-        console.error(formatUserError(`[mc-board] Invalid column: ${opts.column}`, [
-          `Valid columns: ${COLUMNS.join(", ")}`,
-          "Example: openclaw mc-board list --column backlog",
-        ]));
+        console.error(`Invalid column: ${opts.column}. Valid: ${COLUMNS.join(", ")}`);
         process.exit(1);
       }
       let cards = store.list(opts.column as Column | undefined);
@@ -239,10 +283,7 @@ Examples:
   openclaw mc-board context --column in-progress --tags focus`)
     .action((opts: { column: string; skipHold?: boolean; tags?: string }) => {
       if (!COLUMNS.includes(opts.column as Column)) {
-        console.error(formatUserError(`[mc-board] Invalid column: ${opts.column}`, [
-          `Valid columns: ${COLUMNS.join(", ")}`,
-          "Example: openclaw mc-board context --column backlog",
-        ]));
+        console.error(`Invalid column: ${opts.column}. Valid: ${COLUMNS.join(", ")}`);
         process.exit(1);
       }
       let cards = store.list(opts.column as Column);
@@ -266,10 +307,7 @@ criteria, notes, review notes, and full column history with timestamps.
         const card = store.findById(id);
         console.log(renderCardDetail(card));
       } catch (err) {
-        console.error(formatPluginError("mc-board", "show", err, [
-          "Run: openclaw mc-board list — to see all cards",
-          "Check the ID format: cards start with crd_",
-        ]));
+        console.error(String(err));
         process.exit(1);
       }
     });
@@ -314,9 +352,7 @@ Examples:
         if (opts.priority !== undefined) {
           const p = normalizePriority(opts.priority);
           if (!p) {
-            console.error(formatUserError(`[mc-board] Invalid priority: ${opts.priority}`, [
-              "Valid priorities: critical, high, medium, low",
-            ]));
+            console.error(`Invalid priority: ${opts.priority}`);
             process.exit(1);
           }
           updates.priority = p;
@@ -384,10 +420,7 @@ Examples:
             updates.project_id = undefined;
           } else {
             try { projects.findById(opts.project); } catch {
-              console.error(formatUserError(`[mc-board] Project not found: ${opts.project}`, [
-                "Run: openclaw mc-board project list — to see all projects",
-                "Check the ID format: projects start with prj_",
-              ]));
+              console.error(`Project not found: ${opts.project}`);
               process.exit(1);
             }
             updates.project_id = opts.project;
@@ -399,9 +432,7 @@ Examples:
           } else if (opts.workType === "work" || opts.workType === "verify") {
             updates.work_type = opts.workType;
           } else {
-            console.error(formatUserError(`[mc-board] Invalid work-type: ${opts.workType}`, [
-              "Valid work types: work, verify, none",
-            ]));
+            console.error(`Invalid work-type: ${opts.workType}. Use: work, verify, none`);
             process.exit(1);
           }
         }
@@ -410,10 +441,7 @@ Examples:
             updates.linked_card_id = undefined;
           } else {
             try { store.findById(opts.linkedCardId); } catch {
-              console.error(formatUserError(`[mc-board] Linked card not found: ${opts.linkedCardId}`, [
-                "Run: openclaw mc-board list — to see all cards",
-                "Check the ID format: cards start with crd_",
-              ]));
+              console.error(`Linked card not found: ${opts.linkedCardId}`);
               process.exit(1);
             }
             updates.linked_card_id = opts.linkedCardId;
@@ -421,21 +449,14 @@ Examples:
         }
 
         if (Object.keys(updates).length === 0) {
-          console.error(formatUserError("[mc-board] No fields to update", [
-            "Provide at least one option: --title, --priority, --tags, --problem, --plan, --criteria, --notes, etc.",
-            "Run: openclaw mc-board update --help — for all options",
-          ]));
+          console.error("No fields to update. Provide at least one option.");
           process.exit(1);
         }
 
         const card = store.update(id, updates as Parameters<typeof store.update>[1]);
         console.log(`Updated ${card.id}: ${card.title}`);
       } catch (err) {
-        console.error(formatPluginError("mc-board", "update", err, [
-          "Verify the card exists: openclaw mc-board show " + id,
-          "Run: openclaw mc-board list — to see all cards",
-          DOCTOR_SUGGESTION,
-        ]));
+        console.error(String(err));
         process.exit(1);
       }
     });
@@ -443,13 +464,18 @@ Examples:
   // ---- brain move ----
   brain
     .command("move <id> <column>")
-    .description("Advance a card to the next column (gates enforced, no skipping)")
+    .description("Move a card to a target column (gates enforced)")
     .option("--force", "Bypass gate checks — recovery only, use with care")
     .addHelpText("after", `
-Columns must advance in order. No skipping, no going back:
+Standard forward flow:
   backlog → in-progress → in-review → shipped
 
-Gate requirements:
+Backward transitions (no --force needed):
+  shipped → in-progress   (reopen — card needs more work)
+  shipped → backlog       (fail back — shipped item failed)
+  in-review → in-progress (reject — review found issues)
+
+Gate requirements (forward moves only):
   → in-progress   title, problem description, implementation plan, acceptance criteria
   → in-review     all criteria checkboxes must be checked (- [x])
   → shipped       review notes must be filled
@@ -461,13 +487,11 @@ Examples:
   miniclaw brain move crd_abc123 in-progress
   miniclaw brain move crd_abc123 in-review
   miniclaw brain move crd_abc123 shipped
-  miniclaw brain move crd_abc123 in-progress --force`)
+  miniclaw brain move crd_abc123 in-progress --force
+  miniclaw brain move crd_abc123 backlog          # fail back from shipped`)
     .action((id: string, column: string, opts: { force?: boolean }) => {
       if (!COLUMNS.includes(column as Column)) {
-        console.error(formatUserError(`[mc-board] Invalid column: ${column}`, [
-          `Valid columns: ${COLUMNS.join(", ")}`,
-          "Column flow: backlog → in-progress → in-review → shipped",
-        ]));
+        console.error(`Invalid column: ${column}. Valid: ${COLUMNS.join(", ")}`);
         process.exit(1);
       }
       const target = column as Column;
@@ -477,13 +501,13 @@ Examples:
 
         if (!opts.force) {
           if (!canTransition(card.column, target)) {
-            console.error(formatUserError(
-              `[mc-board] Cannot move ${card.id} from "${card.column}" to "${target}"`,
-              [
-                `Columns must advance sequentially: ${COLUMNS.join(" → ")}`,
-                "Use --force to bypass gate checks (recovery only)",
-              ],
-            ));
+            console.error(
+<<<<<<< Updated upstream
+              `Cannot move ${card.id} from "${card.column}" to "${target}". Columns must advance sequentially: ${COLUMNS.join(" → ")}`,
+=======
+              `Cannot move ${card.id} from "${card.column}" to "${target}". No valid transition exists. See: miniclaw brain move --help`,
+>>>>>>> Stashed changes
+            );
             process.exit(1);
           }
 
@@ -506,6 +530,145 @@ Examples:
             process.exit(1);
           }
 
+          // capacity limit check — reject if target column is at capacity
+          const capacityLimit = getCapacityLimit(target, ctx.stateDir);
+          const columnCount = store.countByColumn(target);
+          const wip = checkCapacity(columnCount, capacityLimit);
+          if (!wip.ok) {
+            process.stderr.write(
+              `CAPACITY LIMIT: "${target}" already has ${wip.current}/${wip.max} cards. ` +
+              `Use --force to override.\n`,
+            );
+            process.exit(1);
+          }
+        }
+
+        // ---- Pre-ship verification (hard gates before moving to shipped) ----
+        if (target === "shipped" && !opts.force) {
+          // 1. Live HTTP check on verify_url
+          if (card.verify_url && card.verify_url.trim()) {
+            try {
+              const httpStatus = execSync(
+                `curl -sI -o /dev/null -w '%{http_code}' --connect-timeout 5 --max-time 10 ${JSON.stringify(card.verify_url)}`,
+                { encoding: "utf-8", timeout: 15000 },
+              ).trim();
+              const statusCode = parseInt(httpStatus, 10);
+              if (isNaN(statusCode) || statusCode < 200 || statusCode >= 300) {
+                process.stderr.write(
+                  `SHIP BLOCKED: verify_url ${card.verify_url} returned HTTP ${httpStatus} (expected 2xx).\n` +
+                  `The code must be live before shipping. Fix the deploy and retry.\n`,
+                );
+                process.exit(1);
+              }
+            } catch (err) {
+              process.stderr.write(
+                `SHIP BLOCKED: verify_url ${card.verify_url} is unreachable.\n` +
+                `Error: ${err instanceof Error ? err.message : String(err)}\n` +
+                `The code must be live before shipping. Fix the deploy and retry.\n`,
+              );
+              process.exit(1);
+            }
+          }
+
+          // 2. Resolve GitHub repo — from project if available, otherwise default
+          const DEFAULT_REPO = "augmentedmike/miniclaw-os";
+          let ghRepo = DEFAULT_REPO;
+          let workDir = "";
+          if (card.project_id) {
+            try {
+              const project = projects.findById(card.project_id);
+              if (project.github_repo) ghRepo = project.github_repo.replace(/^https?:\/\/github\.com\//, "");
+              if (project.work_dir) workDir = project.work_dir;
+            } catch { /* project not found — use default */ }
+          }
+
+          // 3. Verify commit hash exists on origin/main
+          if (workDir) {
+            const shaMatch = card.review_notes.match(/\b([0-9a-f]{7,40})\b/i);
+            if (shaMatch) {
+              const commitHash = shaMatch[1];
+              try {
+                execSync(`git -C ${JSON.stringify(workDir)} fetch origin --quiet`, { timeout: 30000, stdio: "pipe" });
+              } catch { /* fetch may fail if offline — continue with local state */ }
+              try {
+                execSync(
+                  `git -C ${JSON.stringify(workDir)} log origin/main --oneline | grep -q ${commitHash.slice(0, 7)}`,
+                  { timeout: 10000, stdio: "pipe" },
+                );
+              } catch {
+                process.stderr.write(
+                  `SHIP BLOCKED: commit ${commitHash.slice(0, 7)} not found on origin/main in ${workDir}.\n` +
+                  `Push the commit to main before shipping. Use --force to override.\n`,
+                );
+                process.exit(1);
+              }
+            }
+          }
+
+          // 4. Verify PR number exists on GitHub and title relates to this card
+          const prMatch = card.review_notes.match(/PR\s*#(\d+)/i);
+          if (prMatch) {
+            const prNum = prMatch[1];
+            try {
+              const prJson = execSync(
+                `gh pr view ${prNum} --repo ${JSON.stringify(ghRepo)} --json title,state`,
+                { encoding: "utf-8", timeout: 15000, stdio: ["pipe", "pipe", "pipe"] },
+              ).trim();
+              const pr = JSON.parse(prJson);
+              const prTitle = (pr.title || "").toLowerCase();
+              const cardTitle = card.title.toLowerCase();
+              // PR title must share at least one significant word (>3 chars) with card title
+              const cardWords = cardTitle.split(/[\s\-:,/]+/).filter((w: string) => w.length > 3);
+              const titleOverlap = cardWords.some((w: string) => prTitle.includes(w));
+              if (!titleOverlap) {
+                process.stderr.write(
+                  `SHIP BLOCKED: PR #${prNum} title "${pr.title}" does not match card "${card.title}".\n` +
+                  `The PR must be for THIS card's work, not a different fix. Use --force to override.\n`,
+                );
+                process.exit(1);
+              }
+              if (pr.state !== "MERGED") {
+                process.stderr.write(
+                  `SHIP BLOCKED: PR #${prNum} state is "${pr.state}", not MERGED.\n` +
+                  `Merge the PR before shipping. Use --force to override.\n`,
+                );
+                process.exit(1);
+              }
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err);
+              if (!msg.includes("SHIP BLOCKED")) {
+                process.stderr.write(
+                  `SHIP BLOCKED: could not verify PR #${prNum} on ${ghRepo}.\n` +
+                  `Error: ${msg}\n` +
+                  `Ensure \`gh\` is authenticated and the PR number is correct. Use --force to override.\n`,
+                );
+              }
+              process.exit(1);
+            }
+          }
+
+          // 5. Verify issue number exists on GitHub
+          const issueMatch = card.review_notes.match(/[Ii]ssue\s*#(\d+)/);
+          if (issueMatch) {
+            const issueNum = issueMatch[1];
+            try {
+              const issueJson = execSync(
+                `gh issue view ${issueNum} --repo ${JSON.stringify(ghRepo)} --json title,state`,
+                { encoding: "utf-8", timeout: 15000, stdio: ["pipe", "pipe", "pipe"] },
+              ).trim();
+              JSON.parse(issueJson); // throws if not valid JSON / issue not found
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err);
+              if (!msg.includes("SHIP BLOCKED")) {
+                process.stderr.write(
+                  `SHIP BLOCKED: could not verify Issue #${issueNum} on ${ghRepo}.\n` +
+                  `Error: ${msg}\n` +
+                  `Ensure the issue exists. Use --force to override.\n`,
+                );
+              }
+              process.exit(1);
+            }
+          }
         }
 
         store.move(card, target);
@@ -555,11 +718,7 @@ Examples:
           }
         }
       } catch (err) {
-        console.error(formatPluginError("mc-board", "move", err, [
-          "Verify the card exists: openclaw mc-board show " + id,
-          "Check column flow: backlog → in-progress → in-review → shipped",
-          DOCTOR_SUGGESTION,
-        ]));
+        console.error(String(err));
         process.exit(1);
       }
     });
@@ -604,29 +763,33 @@ Shipped cards are excluded — they're done.
   // ---- brain archive <id> ----
   brain
     .command("archive <id>")
-    .description("Archive a card — removes from board, compresses into rotating archive")
+<<<<<<< Updated upstream
+    .description("Archive a shipped card — removes from board, compresses into rotating archive")
+=======
+    .description("Archive a card from any column — removes from board, compresses into rotating archive")
+>>>>>>> Stashed changes
     .addHelpText("after", `
-Cards can be archived from any column. The card is removed from the active
-board and written into a gzip-compressed JSONL archive. Nothing is deleted
-— all archived cards remain searchable.
+Only cards in the shipped column can be archived. The card is removed from
+the active board and written into a gzip-compressed JSONL archive. Nothing
+is deleted — all archived cards remain searchable.
 
 Archives rotate at 5MB: brain-archive-001.jsonl.gz, 002, etc.
-Location: ~/.openclaw/miniclaw/USER/brain/archive/
+Location: ~/.openclaw/USER/brain/archive/
 
 Examples:
   miniclaw brain archive crd_abc123`)
     .action((id: string) => {
       try {
         const card = store.findById(id);
+        if (card.column !== "shipped") {
+          console.error(`Card ${card.id} is in "${card.column}" — only shipped cards can be archived.`);
+          process.exit(1);
+        }
         archive.archiveCard(card);
         store.delete(card.id);
         console.log(`Archived ${card.id}: ${card.title}`);
       } catch (err) {
-        console.error(formatPluginError("mc-board", "archive", err, [
-          "Verify the card exists: openclaw mc-board show " + id,
-          "Only shipped cards can be archived — check: openclaw mc-board list --column shipped",
-          DOCTOR_SUGGESTION,
-        ]));
+        console.error(String(err));
         process.exit(1);
       }
     });
@@ -668,7 +831,9 @@ Examples:
         return;
       }
       for (const card of results) {
-        console.log(`${card.id}  ${card.title}  [shipped ${card.updated_at.slice(0, 10)}]`);
+        const shippedAt = card.history?.filter(h => h.column === "shipped").pop()?.moved_at;
+        const displayDate = shippedAt ?? card.updated_at;
+        console.log(`${card.id}  ${card.title}  [shipped ${displayDate.slice(0, 10)}]`);
       }
     });
 
@@ -684,10 +849,7 @@ Reads across all archive files. Prefix match on card id.
       const all = archive.readAll();
       const card = all.find(c => c.id.startsWith(id));
       if (!card) {
-        console.error(formatUserError(`[mc-board] Archived card not found: ${id}`, [
-          "Run: openclaw mc-board archive-search <query> — to find archived cards",
-          "Check the active board: openclaw mc-board list",
-        ]));
+        console.error(`Archived card not found: ${id}`);
         process.exit(1);
       }
       console.log(renderCardDetail(card));
@@ -697,26 +859,20 @@ Reads across all archive files. Prefix match on card id.
   brain
     .command("delete <id>")
     .alias("remove")
-    .description("Delete a card from the board (irreversible — use archive for shipped cards)")
+    .description("Delete a card from the board (irreversible — consider archive instead)")
     .option("--force", "Skip confirmation prompt")
     .action((id: string, opts: { force?: boolean }) => {
       try {
         const card = store.findById(id);
         if (!opts.force) {
-          console.error(formatUserError(`[mc-board] Refusing to delete without --force`, [
-            `Run: openclaw mc-board delete ${id} --force`,
-            `Card: ${card.id} (${card.column}): "${card.title}"`,
-            "Consider archiving shipped cards instead: openclaw mc-board archive " + id,
-          ]));
+          console.error(`Refusing to delete without --force. Run: openclaw mc-board delete ${id} --force`);
+          console.error(`  Card: ${card.id} (${card.column}): "${card.title}"`);
           process.exit(1);
         }
         store.delete(id);
         console.log(`Deleted ${card.id}: ${card.title}`);
       } catch (err) {
-        console.error(formatPluginError("mc-board", "delete", err, [
-          "Verify the card exists: openclaw mc-board list",
-          DOCTOR_SUGGESTION,
-        ]));
+        console.error(String(err));
         process.exit(1);
       }
     });
@@ -811,10 +967,7 @@ Examples:
         const cards = store.listByProject(id);
         console.log(renderProjectBoard(proj, cards));
       } catch (err) {
-        console.error(formatPluginError("mc-board", "project show", err, [
-          "Run: openclaw mc-board project list — to see all projects",
-          "Check the ID format: projects start with prj_",
-        ]));
+        console.error(String(err));
         process.exit(1);
       }
     });
@@ -834,10 +987,7 @@ archived projects.
         const proj = projects.archive(id);
         console.log(`Archived project ${proj.id}: ${proj.name}`);
       } catch (err) {
-        console.error(formatPluginError("mc-board", "project archive", err, [
-          "Run: openclaw mc-board project list --all — to see all projects",
-          DOCTOR_SUGGESTION,
-        ]));
+        console.error(String(err));
         process.exit(1);
       }
     });
@@ -857,20 +1007,14 @@ archived projects.
   miniclaw brain project update prj_a1b2c3d4 --build-command 'cd ~/.openclaw/miniclaw/plugins/mc-board/web && npm run build'`)
     .action((id: string, opts: { name?: string; description?: string; workDir?: string; githubRepo?: string; buildCommand?: string }) => {
       if (!opts.name && opts.description === undefined && !opts.workDir && !opts.githubRepo && opts.buildCommand === undefined) {
-        console.error(formatUserError("[mc-board] No fields to update", [
-          "Provide at least one: --name, --description, --work-dir, --github-repo, or --build-command",
-          "Run: openclaw mc-board project update --help — for all options",
-        ]));
+        console.error("No fields to update. Provide --name, --description, --work-dir, --github-repo, or --build-command.");
         process.exit(1);
       }
       try {
         const proj = projects.update(id, { name: opts.name, description: opts.description, work_dir: opts.workDir, github_repo: opts.githubRepo, build_command: opts.buildCommand });
         console.log(`Updated project ${proj.id}: ${proj.name}`);
       } catch (err) {
-        console.error(formatPluginError("mc-board", "project update", err, [
-          "Run: openclaw mc-board project list — to see all projects",
-          DOCTOR_SUGGESTION,
-        ]));
+        console.error(String(err));
         process.exit(1);
       }
     });
@@ -902,10 +1046,7 @@ Examples:
         });
         console.log(`Pickup recorded: ${entry.cardId} — ${entry.title} (worker: ${entry.worker})`);
       } catch (err) {
-        console.error(formatPluginError("mc-board", "pickup", err, [
-          "Verify the card exists: openclaw mc-board show " + id,
-          DOCTOR_SUGGESTION,
-        ]));
+        console.error(String(err));
         process.exit(1);
       }
     });
@@ -982,76 +1123,6 @@ Useful for auditing which agent processed which ticket and when.
       }
     });
 
-  // ---- brain attach ----
-  brain
-    .command("attach <id>")
-    .description("Attach a file or reference to a card")
-    .requiredOption("--path <path>", "File path or URL to attach")
-    .option("--label <label>", "Human-readable label for the attachment")
-    .option("--mime <mime>", "MIME type (default: auto-detect or application/octet-stream)")
-    .option("--type <type>", "Attachment type (e.g. research_report, web_search, file)")
-    .option("--ref-id <id>", "Reference ID to source record (e.g. research.db row id)")
-    .addHelpText("after", `
-Attach a file, URL, or reference to a card. Other plugins (e.g. mc-research)
-use this to automatically link deliverables to cards.
-
-Examples:
-  openclaw mc-board attach crd_abc123 --path ~/reports/findings.md --label "Research findings"
-  openclaw mc-board attach crd_abc123 --path ~/media/mockup.png --label "UI mockup" --mime image/png
-  openclaw mc-board attach crd_abc123 --path "research://42" --type research_report --ref-id 42 --label "Market analysis"`)
-    .action((id: string, opts: { path: string; label?: string; mime?: string; type?: string; refId?: string }) => {
-      try {
-        const card = store.addAttachment(id, {
-          path: opts.path,
-          label: opts.label,
-          mime: opts.mime,
-          type: opts.type,
-          ref_id: opts.refId ? parseInt(opts.refId, 10) : undefined,
-        });
-        const count = card.attachments?.length ?? 0;
-        console.log(`Attached to ${card.id}: ${opts.path} (${count} total attachments)`);
-      } catch (err) {
-        console.error(formatPluginError("mc-board", "attach", err, [
-          "Verify the card exists: openclaw mc-board show " + id,
-          "Check the file path exists and is accessible",
-          DOCTOR_SUGGESTION,
-        ]));
-        process.exit(1);
-      }
-    });
-
-  // ---- brain attachments ----
-  brain
-    .command("attachments <id>")
-    .description("List all attachments on a card")
-    .addHelpText("after", `
-Shows all files and references attached to a card.
-
-  openclaw mc-board attachments crd_abc123`)
-    .action((id: string) => {
-      try {
-        const card = store.findById(id);
-        const attachments = card.attachments ?? [];
-        if (attachments.length === 0) {
-          console.log(`No attachments on ${id}.`);
-          return;
-        }
-        console.log(`Attachments on ${id} (${attachments.length}):\n`);
-        for (const a of attachments) {
-          const label = a.label ? ` — ${a.label}` : "";
-          const type = a.type ? ` [${a.type}]` : "";
-          const mime = a.mime ? ` (${a.mime})` : "";
-          console.log(`  ${a.path}${label}${type}${mime}  ${a.created_at}`);
-        }
-      } catch (err) {
-        console.error(formatPluginError("mc-board", "attachments", err, [
-          "Verify the card exists: openclaw mc-board show " + id,
-          DOCTOR_SUGGESTION,
-        ]));
-        process.exit(1);
-      }
-    });
-
   // ---- brain check-dupes ----
   brain
     .command("check-dupes")
@@ -1059,6 +1130,126 @@ Shows all files and references attached to a card.
     .option("--fix", "No-op with SQLite storage (kept for script compatibility)")
     .action(() => {
       console.log("SQLite store: duplicate IDs are structurally impossible. Board integrity OK.");
+    });
+
+  // ---- brain verify-ship ----
+  brain
+    .command("verify-ship <cardId>")
+    .description("Verify a shipped/reviewed card: commit on main, code in live plugins, PR merged")
+    .option("--repo <path>", "Path to miniclaw-os repo", path.join(os.homedir(), ".openclaw", "miniclaw", "USER", "projects", "miniclaw-os"))
+    .option("--plugins <path>", "Path to live plugins dir", path.join(os.homedir(), ".openclaw", "miniclaw", "plugins"))
+    .action((cardId: string, opts: { repo: string; plugins: string }) => {
+      const card = store.findById(cardId);
+      if (!card) {
+        console.error(`Card not found: ${cardId}`);
+        process.exit(1);
+      }
+
+      const checks: { name: string; pass: boolean; detail: string }[] = [];
+
+      // 1. Extract commit hash from review_notes
+      const shaMatch = card.review_notes.match(/\b([0-9a-f]{7,40})\b/i);
+      const commitHash = shaMatch ? shaMatch[1] : null;
+      if (!commitHash) {
+        checks.push({ name: "commit_hash_present", pass: false, detail: "No commit hash found in review_notes" });
+      } else {
+        checks.push({ name: "commit_hash_present", pass: true, detail: `Found: ${commitHash}` });
+
+        // 2. Check if commit exists on main branch in repo
+        try {
+          const { execSync } = require("node:child_process");
+          const gitLog = execSync(
+            `git -C "${opts.repo}" log main --oneline --format=%H 2>/dev/null`,
+            { encoding: "utf8", timeout: 10000 }
+          );
+          const onMain = gitLog.includes(commitHash);
+          checks.push({
+            name: "commit_on_main",
+            pass: onMain,
+            detail: onMain ? `${commitHash} found on main` : `${commitHash} NOT on main branch`,
+          });
+        } catch (e: any) {
+          checks.push({ name: "commit_on_main", pass: false, detail: `git check failed: ${e.message}` });
+        }
+      }
+
+      // 3. PR/issue verification — CLI checks, not model self-reporting
+      const commitOnMain = checks.find(c => c.name === "commit_on_main")?.pass;
+      if (commitOnMain) {
+        // Commit is on main — that's the gate. No PR or issue required.
+        checks.push({ name: "pr_evidence", pass: true, detail: "Commit on main — PR not required" });
+      } else if (commitHash) {
+        // Commit NOT on main — verify PR exists and is merged via gh CLI
+        try {
+          const { execSync } = require("node:child_process");
+          // Find PR that contains this commit
+          const prJson = execSync(
+            `gh api repos/{owner}/{repo}/commits/${commitHash}/pulls --jq '.[0] | {number, state: .merged_at // empty | if . then "MERGED" else "OPEN" end, title}' 2>/dev/null`,
+            { encoding: "utf8", timeout: 15000, cwd: opts.repo }
+          ).trim();
+          if (prJson) {
+            const pr = JSON.parse(prJson);
+            const merged = pr.state === "MERGED";
+            checks.push({
+              name: "pr_evidence",
+              pass: merged,
+              detail: merged ? `PR #${pr.number} merged: ${pr.title}` : `PR #${pr.number} exists but NOT merged`,
+            });
+          } else {
+            checks.push({ name: "pr_evidence", pass: false, detail: "No PR found for this commit via gh API" });
+          }
+        } catch {
+          checks.push({ name: "pr_evidence", pass: false, detail: "gh API check failed — commit not on main and no PR found" });
+        }
+      }
+
+      // 4. Check if card's project plugin exists in live plugins dir
+      const pluginDirs = fs.readdirSync(opts.plugins).filter(d => d.startsWith("mc-"));
+      const hasLivePlugins = pluginDirs.length > 0;
+      checks.push({
+        name: "live_plugins_exist",
+        pass: hasLivePlugins,
+        detail: hasLivePlugins ? `Live plugins: ${pluginDirs.join(", ")}` : "No mc-* plugins in live dir",
+      });
+
+      // 5. Check if repo and live plugins are in sync (compare a key file if project is mc-board)
+      if (card.project_id) {
+        const project = projects.findById(card.project_id);
+        if (project) {
+          const projectName = project.name.toLowerCase().replace(/\s+/g, "-");
+          const repoSrc = path.join(opts.repo, projectName, "src");
+          const liveSrc = path.join(opts.plugins, projectName, "src");
+          if (fs.existsSync(repoSrc) && fs.existsSync(liveSrc)) {
+            try {
+              const { execSync } = require("node:child_process");
+              const diff = execSync(
+                `diff -rq "${repoSrc}" "${liveSrc}" 2>/dev/null | head -5`,
+                { encoding: "utf8", timeout: 10000 }
+              ).trim();
+              const inSync = diff === "";
+              checks.push({
+                name: "repo_live_sync",
+                pass: inSync,
+                detail: inSync ? "Repo and live plugins in sync" : `Differences found:\n${diff}`,
+              });
+            } catch {
+              checks.push({ name: "repo_live_sync", pass: false, detail: "diff command failed" });
+            }
+          }
+        }
+      }
+
+      // Report
+      let allPass = true;
+      console.log(`\nverify-ship: ${cardId} — ${card.title}\n`);
+      for (const c of checks) {
+        const icon = c.pass ? "✓" : "✗";
+        console.log(`  ${icon} ${c.name}: ${c.detail}`);
+        if (!c.pass) allPass = false;
+      }
+      console.log(`\n${allPass ? "PASS" : "FAIL"}: ${allPass ? "Card is properly shipped" : "Ship verification failed — see details above"}`);
+
+      if (!allPass) process.exit(1);
     });
 
   // ---- brain triage ----
@@ -1083,17 +1274,11 @@ Used by: web UI triage button, cron job backlog checker.
     .action((cardId: string, opts: { prompt?: string; worker: string; log?: string; move: boolean }) => {
       const card = store.findById(cardId);
       if (!card) {
-        console.error(formatUserError(`[mc-board] Card not found: ${cardId}`, [
-          "Run: openclaw mc-board list — to see all cards",
-          "Check the ID format: cards start with crd_",
-        ]));
+        console.error(`Card not found: ${cardId}`);
         process.exit(1);
       }
       if (card.column !== "backlog") {
-        console.error(formatUserError(`[mc-board] Card ${cardId} is in "${card.column}", not "backlog"`, [
-          "Triage only applies to backlog cards",
-          "Run: openclaw mc-board list --column backlog — to see triageable cards",
-        ]));
+        console.error(`Card ${cardId} is in "${card.column}", not "backlog". Triage only applies to backlog.`);
         process.exit(1);
       }
 
@@ -1169,13 +1354,8 @@ Rules:
       // Setup run dir
       const runDir = path.join(ctx.stateDir, "tmp", `${ts0}-${cardId}`);
       fs.mkdirSync(runDir, { recursive: true });
-      fs.writeFileSync(path.join(runDir, "CLAUDE.md"), [
-        `# Triage: ${card.title}`,
-        "",
-        `Card: ${cardId} (backlog)`,
-        "This is a sandboxed non-interactive session. Do not use tools.",
-        "Respond only with your analysis and the APPLY block.",
-      ].join("\n"));
+      fs.writeFileSync(path.join(runDir, "CLAUDE.md"),
+        buildWorkerClaudeMd(`Triage: ${card.title}`, `Card: ${cardId} (backlog)`, "sandboxed", ctx.stateDir));
 
       const CLAUDE_BIN = process.env.CLAUDE_BIN ?? "claude";
       const debugFile = path.join(logDir, `${ts0}-${cardId}.debug.log`);
@@ -1336,27 +1516,19 @@ Examples:
     .action((file: string, opts: { project?: string; dryRun?: boolean; model: string }) => {
       // Validate file
       if (!fs.existsSync(file)) {
-        console.error(formatUserError(`[mc-board] File not found: ${file}`, [
-          "Check the file path exists and is accessible",
-          "Example: openclaw mc-board plan ~/docs/my-plan.md",
-        ]));
+        console.error(`File not found: ${file}`);
         process.exit(1);
       }
       const docContent = fs.readFileSync(file, "utf8");
       if (!docContent.trim()) {
-        console.error(formatUserError(`[mc-board] File is empty: ${file}`, [
-          "The planning document must contain text to decompose into cards",
-        ]));
+        console.error(`File is empty: ${file}`);
         process.exit(1);
       }
 
       // Validate project if provided
       if (opts.project) {
         try { projects.findById(opts.project); } catch {
-          console.error(formatUserError(`[mc-board] Project not found: ${opts.project}`, [
-            "Run: openclaw mc-board project list — to see all projects",
-            "Check the ID format: projects start with prj_",
-          ]));
+          console.error(`Project not found: ${opts.project}`);
           process.exit(1);
         }
       }
@@ -1433,12 +1605,8 @@ Be thorough. Extract all meaningful tasks from the document. If the document alr
 
       const runDir = path.join(ctx.stateDir, "tmp", `${ts0}-plan`);
       fs.mkdirSync(runDir, { recursive: true });
-      fs.writeFileSync(path.join(runDir, "CLAUDE.md"), [
-        `# Plan: ${path.basename(file)}`,
-        "",
-        "This is a sandboxed non-interactive session. Do not use tools.",
-        "Respond only with your decomposition and the APPLY block.",
-      ].join("\n"));
+      fs.writeFileSync(path.join(runDir, "CLAUDE.md"),
+        buildWorkerClaudeMd(`Plan: ${path.basename(file)}`, null, "sandboxed", ctx.stateDir));
 
       const CLAUDE_BIN = process.env.CLAUDE_BIN ?? "claude";
       const debugFile = path.join(logDir, `${ts0}-plan.debug.log`);

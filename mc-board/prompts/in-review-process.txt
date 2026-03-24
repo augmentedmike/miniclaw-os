@@ -47,6 +47,12 @@ git -C <work_dir> status
 
 4. **Write review_notes** — be specific: file paths, line numbers, curl output, what passed, what failed.
 
+   **REQUIRED in review_notes for the ship gate to pass:**
+   - A commit SHA (7+ hex chars) proving code landed on main — e.g. `Commit abc1234 merged.`
+   - If card has `verify_url`: verification evidence — e.g. `curl → HTTP 200` or `verified live` or `deployed`
+   - Cards without `verify_url` or `github_repo` can ship with just the commit SHA.
+   - The ship gate will REJECT if review_notes is missing a commit SHA or (when verify_url is set) missing verification evidence.
+
 5. **Decide: PASS or REJECT**
 
    **PASS** — all criteria met. Before moving to shipped, run the git ship sequence:
@@ -79,6 +85,40 @@ git -C <work_dir> status
    openclaw mc-board update {{CARD_ID}} --review "<detailed review notes including commit hash>" --criteria "<criteria with all [x]>"
    openclaw mc-board update {{CARD_ID}} --log "Review PASS: <1-line summary>" --worker board-worker-review
    openclaw mc-board move {{CARD_ID}} shipped
+   ```
+
+   **MANDATORY DEPLOY STEP** — after shipping, sync the code to live plugins and rebuild:
+   ```
+   MINICLAW_OS=~/.openclaw/miniclaw/USER/projects/miniclaw-os
+   LIVE_PLUGINS=~/.openclaw/miniclaw/plugins
+
+   # Detect which plugin(s) changed (default: mc-board if unsure)
+   PLUGIN=$(openclaw mc-board show {{CARD_ID}} 2>/dev/null | grep "^project_id:" | awk '{print $2}')
+   # If project maps to a plugin dir (e.g. mc-board), rsync it:
+   PLUGIN_NAME="mc-board"  # override if card is for a different plugin
+
+   # rsync changed plugin from repo to live
+   rsync -av --delete \
+     "$MINICLAW_OS/$PLUGIN_NAME/src/" \
+     "$LIVE_PLUGINS/$PLUGIN_NAME/src/"
+   rsync -av --delete \
+     "$MINICLAW_OS/$PLUGIN_NAME/cli/" \
+     "$LIVE_PLUGINS/$PLUGIN_NAME/cli/"
+   rsync -av --delete \
+     "$MINICLAW_OS/$PLUGIN_NAME/web/src/" \
+     "$LIVE_PLUGINS/$PLUGIN_NAME/web/src/"
+
+   # Rebuild the plugin web app
+   cd "$LIVE_PLUGINS/$PLUGIN_NAME/web" && npm run build 2>&1 | tail -5
+   if [ $? -ne 0 ]; then
+     echo "BUILD FAILED — reject card back to in-progress"
+     openclaw mc-board move {{CARD_ID}} in-progress --force
+     exit 1
+   fi
+   echo "Deploy complete: $PLUGIN_NAME synced and built"
+
+   # Set deployed_at on the card
+   openclaw mc-board update {{CARD_ID}} --log "Deployed: rsync + build complete for $PLUGIN_NAME" --worker board-worker-review
    ```
 
    After shipping, check if the card's project has a `build_command` set and run it:
