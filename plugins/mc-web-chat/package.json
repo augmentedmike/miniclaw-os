@@ -3,12 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "openclaw": {
-    "extensions": ["./index.ts"]
+    "extensions": [
+      "./index.ts"
+    ]
   },
   "scripts": {
     "test": "vitest run"
   },
   "dependencies": {
+    "tsx": "^4.21.0",
     "ws": "^8.19.0"
   },
   "devDependencies": {
