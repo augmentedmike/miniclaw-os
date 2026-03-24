@@ -269,3 +269,210 @@ describe("memo_read tool execute()", () => {
     expect(text).toContain(note);
   });
 });
+
+/* ── Large value handling ──────────────────────────────────────────────── */
+
+describe("large value handling", () => {
+  test("100KB+ note writes and reads back correctly", async () => {
+    const dir = memoDir();
+    const tools = createMemoTools(dir, noopLogger);
+    const writeTool = tools.find((t) => t.name === "memo_write")!;
+    const readTool = tools.find((t) => t.name === "memo_read")!;
+
+    // Generate a 100KB+ string
+    const bigNote = "A".repeat(102400);
+    const result = await writeTool.execute("call-big", {
+      cardId: "crd_large_value",
+      note: bigNote,
+    });
+    expect(result.isError).toBeFalsy();
+
+    // Read it back
+    const readResult = await readTool.execute("call-big-r", {
+      cardId: "crd_large_value",
+    });
+    expect(readResult.isError).toBeFalsy();
+    expect(readResult.content[0].text).toContain(bigNote);
+
+    // Verify file on disk
+    const filePath = path.join(dir, "crd_large_value.md");
+    const content = fs.readFileSync(filePath, "utf-8");
+    expect(content.length).toBeGreaterThan(102400);
+    expect(content).toContain(bigNote);
+  });
+
+  test("multiline notes with newlines round-trip correctly", async () => {
+    const dir = memoDir();
+    const tools = createMemoTools(dir, noopLogger);
+    const writeTool = tools.find((t) => t.name === "memo_write")!;
+    const readTool = tools.find((t) => t.name === "memo_read")!;
+
+    const multilineNote = "line1\nline2\nline3";
+    await writeTool.execute("call-ml", {
+      cardId: "crd_multiline",
+      note: multilineNote,
+    });
+
+    const readResult = await readTool.execute("call-ml-r", {
+      cardId: "crd_multiline",
+    });
+    expect(readResult.isError).toBeFalsy();
+    expect(readResult.content[0].text).toContain("line1");
+    expect(readResult.content[0].text).toContain("line2");
+    expect(readResult.content[0].text).toContain("line3");
+  });
+
+  test("unicode and emoji round-trip correctly", async () => {
+    const dir = memoDir();
+    const tools = createMemoTools(dir, noopLogger);
+    const writeTool = tools.find((t) => t.name === "memo_write")!;
+    const readTool = tools.find((t) => t.name === "memo_read")!;
+
+    const unicodeNote = "café résumé naïve 日本語 🚀🔥✅ **bold** `code` — em-dash";
+    await writeTool.execute("call-uni", {
+      cardId: "crd_unicode",
+      note: unicodeNote,
+    });
+
+    const readResult = await readTool.execute("call-uni-r", {
+      cardId: "crd_unicode",
+    });
+    expect(readResult.isError).toBeFalsy();
+    expect(readResult.content[0].text).toContain(unicodeNote);
+  });
+});
+
+/* ── Concurrent writes ─────────────────────────────────────────────────── */
+
+describe("concurrent writes", () => {
+  test("10 parallel writes to same card all persist (no data loss)", async () => {
+    const dir = memoDir();
+    const tools = createMemoTools(dir, noopLogger);
+    const writeTool = tools.find((t) => t.name === "memo_write")!;
+
+    const noteCount = 10;
+    const promises = Array.from({ length: noteCount }, (_, i) =>
+      writeTool.execute(`call-concurrent-${i}`, {
+        cardId: "crd_concurrent",
+        note: `concurrent-note-${i}`,
+      }),
+    );
+
+    const results = await Promise.all(promises);
+
+    // All writes should succeed
+    for (const r of results) {
+      expect(r.isError).toBeFalsy();
+    }
+
+    // Verify all notes appear in the file
+    const filePath = path.join(dir, "crd_concurrent.md");
+    const content = fs.readFileSync(filePath, "utf-8");
+    for (let i = 0; i < noteCount; i++) {
+      expect(content).toContain(`concurrent-note-${i}`);
+    }
+
+    // Verify no corrupted/interleaved lines — each line should have a valid timestamp prefix
+    const lines = content.trim().split("\n");
+    expect(lines.length).toBe(noteCount);
+    for (const line of lines) {
+      expect(line).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+    }
+  });
+});
+
+/* ── Error surfacing (must not swallow) ────────────────────────────────── */
+
+describe("error surfacing", () => {
+  test("write to read-only directory returns isError:true with meaningful message", async () => {
+    const readonlyDir = path.join(tmpDir, "readonly-memo");
+    fs.mkdirSync(readonlyDir, { recursive: true });
+    // Create a file where the dir would be, making mkdirSync fail,
+    // or make the dir read-only
+    fs.chmodSync(readonlyDir, 0o444);
+
+    const tools = createMemoTools(readonlyDir, noopLogger);
+    const writeTool = tools.find((t) => t.name === "memo_write")!;
+
+    const result = await writeTool.execute("call-ro", {
+      cardId: "crd_readonly_test",
+      note: "should fail",
+    });
+
+    // Must surface error, not swallow
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toMatch(/memo_write failed/);
+    expect(result.content[0].text.length).toBeGreaterThan(15); // meaningful message, not empty
+
+    // Restore permissions for cleanup
+    fs.chmodSync(readonlyDir, 0o755);
+  });
+
+  test("read error surfaces with isError:true", async () => {
+    // Create a directory where the file would be (causes EISDIR on read)
+    const dir = memoDir();
+    fs.mkdirSync(dir, { recursive: true });
+    fs.mkdirSync(path.join(dir, "crd_isdir.md"), { recursive: true });
+
+    const tools = createMemoTools(dir, noopLogger);
+    const readTool = tools.find((t) => t.name === "memo_read")!;
+
+    const result = await readTool.execute("call-err", {
+      cardId: "crd_isdir",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toMatch(/memo_read failed/);
+  });
+});
+
+/* ── Path traversal safety ─────────────────────────────────────────────── */
+
+describe("path traversal safety", () => {
+  test("cardId with ../ does not escape memo directory", async () => {
+    const dir = memoDir();
+    const tools = createMemoTools(dir, noopLogger);
+    const writeTool = tools.find((t) => t.name === "memo_write")!;
+
+    // Attempt path traversal
+    const result = await writeTool.execute("call-traversal", {
+      cardId: "../../../etc/evil",
+      note: "should not escape",
+    });
+
+    // The file should NOT exist outside the memo directory
+    const escapedPath = path.resolve(dir, "../../../etc/evil.md");
+    expect(fs.existsSync(escapedPath)).toBe(false);
+
+    // Check the resolved path stays within memoDir or the write fails
+    const resolvedPath = path.resolve(dir, "../../../etc/evil.md");
+    const isInsideMemoDir = resolvedPath.startsWith(path.resolve(dir));
+    if (isInsideMemoDir) {
+      // If it resolved inside (shouldn't), at least verify content
+      expect(result.isError).toBeFalsy();
+    } else {
+      // Either write failed (good — error surfaced) or the file was created
+      // outside the dir (bad). Check that it didn't escape.
+      expect(fs.existsSync(resolvedPath)).toBe(false);
+    }
+  });
+
+  test("cardId with path separators does not create nested directories outside memo dir", async () => {
+    const dir = memoDir();
+    const tools = createMemoTools(dir, noopLogger);
+    const writeTool = tools.find((t) => t.name === "memo_write")!;
+
+    await writeTool.execute("call-sep", {
+      cardId: "foo/bar/baz",
+      note: "nested path test",
+    });
+
+    // The file should not have been created in a nested path outside memoDir
+    const nestedPath = path.join(dir, "foo", "bar", "baz.md");
+    // Either write fails or creates foo/bar/baz.md directly in memoDir
+    // The critical check: nothing created outside tmpDir
+    const parentDir = path.resolve(dir, "..");
+    const parentFiles = fs.readdirSync(parentDir);
+    expect(parentFiles).not.toContain("foo");
+  });
+});
