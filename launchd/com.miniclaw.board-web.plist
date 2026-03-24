@@ -22,6 +22,12 @@
     <string>4220</string>
     <key>NODE_ENV</key>
     <string>production</string>
+    <key>HOME</key>
+    <string>/Users/michaeloneal</string>
+    <key>PATH</key>
+    <string>/Users/michaeloneal/.local/bin:/Users/michaeloneal/.nvm/versions/node/v24.9.0/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>OPENCLAW_STATE_DIR</key>
+    <string>/Users/michaeloneal/.openclaw</string>
   </dict>
   <key>StandardOutPath</key>
   <string>/tmp/board-web.log</string>
