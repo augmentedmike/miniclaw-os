@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import { join } from "node:path";
 import { mkdirSync } from "node:fs";
+import { log } from "./logger.js";
 
 export interface ArchivedChat {
   id: string;
@@ -103,7 +104,7 @@ export class ChatDatabase {
     });
 
     transaction();
-    console.log(`[mc-web-chat] archived session ${sessionId.slice(0, 8)} (${messages.length} messages, $${totalCost.toFixed(4)})`);
+    log.info(`archived session ${sessionId.slice(0, 8)} (${messages.length} messages, $${totalCost.toFixed(4)})`);
   }
 
   /** List archived chats with pagination */
