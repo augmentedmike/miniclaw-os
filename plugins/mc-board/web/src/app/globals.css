@@ -120,7 +120,6 @@ a { color: inherit; }
 .stat-pill[data-col="shipped"]::before { background: #22c55e; }
 .stat-pill[data-col="projects"]::before { background: #52525b; }
 .stat-pill[data-col="tokens"]::before { background: #a855f7; }
-.stat-pill[data-col="memory"]::before { background: #06b6d4; }
 
 /* ── Top bar icon buttons (chat, alerts) ── */
 .top-bar-icon-btn {
